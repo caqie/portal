@@ -1,0 +1,8 @@
+{
+  "name": "Portal SDM - DJKI Kemenkum RI",
+  "description": "Sistem manajemen komprehensif berbasis React untuk Direktorat Jenderal Kekayaan Intelektual (DJKI) Kementerian Hukum RI, menampilkan pelacakan pegawai, manajemen tugas rutin, laporan bulanan, dan pengarsipan berkas dengan wawasan cerdas berbasis Gemini AI.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
