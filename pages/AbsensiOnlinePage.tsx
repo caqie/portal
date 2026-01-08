@@ -12,14 +12,17 @@ const AbsensiOnlinePage = () => {
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isFaceDetected, setIsFaceDetected] = useState(false);
+  const [isFaceMatched, setIsFaceMatched] = useState(false);
   const [verificationResult, setVerificationResult] = useState<{status: 'SUCCESS' | 'REJECTED' | 'ERROR', message: string} | null>(null);
   const [absensiHistory, setAbsensiHistory] = useState<AbsensiRecord[]>([]);
   const [detectionScore, setDetectionScore] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const detectionInterval = useRef<any>(null);
+  const faceMatcher = useRef<any>(null);
 
   useEffect(() => {
     const savedHistory = localStorage.getItem('absensi_history_db');
@@ -29,8 +32,20 @@ const AbsensiOnlinePage = () => {
       setAbsensiHistory(userLogs);
     }
 
-    loadModels();
-    loadCurrentPegawai();
+    const init = async () => {
+      await loadModels();
+      const peg = await loadCurrentPegawai();
+      if (peg) {
+        if (peg.foto && (peg.foto.startsWith('http') || peg.foto.startsWith('data:image'))) {
+          await prepareFaceMatcher(peg);
+        } else {
+          setErrorMessage("Foto profil tidak valid atau belum diunggah. Silakan unggah foto di menu Profil.");
+        }
+      }
+    };
+    
+    init();
+
     return () => {
       stopCamera();
       if (detectionInterval.current) clearInterval(detectionInterval.current);
@@ -39,26 +54,62 @@ const AbsensiOnlinePage = () => {
 
   const loadModels = async () => {
     try {
-      const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model';
+      // Menggunakan URL model yang lebih stabil dari github pages vladmandic
+      const MODEL_URL = 'https://vladmandic.github.io/face-api/model/';
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
       ]);
       setModelsLoaded(true);
-      startCamera();
+      await startCamera();
     } catch (err) {
       console.error("Gagal memuat model Face-API:", err);
+      setErrorMessage("Gagal memuat mesin kecerdasan buatan. Periksa koneksi internet Anda.");
     }
   };
 
   const loadCurrentPegawai = async () => {
-    if (!user) return;
+    if (!user) return null;
     try {
-      const data = await fetchPegawaiFromSheets();
+      const savedLocal = localStorage.getItem('portal_pegawai_db');
+      let data: Pegawai[] = [];
+      if (savedLocal) {
+        data = JSON.parse(savedLocal);
+      } else {
+        data = await fetchPegawaiFromSheets();
+      }
+      
       const found = data.find(p => p.nip === user.nip);
       setCurrentPegawai(found || null);
+      return found || null;
     } catch (err) {
       console.error("Gagal memuat data pegawai:", err);
+      return null;
+    }
+  };
+
+  const prepareFaceMatcher = async (pegawai: Pegawai) => {
+    if (!pegawai.foto) return;
+    try {
+      const img = await faceapi.fetchImage(pegawai.foto);
+      const detections = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 128 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (detections) {
+        const labeledDescriptor = new faceapi.LabeledFaceDescriptors(
+          pegawai.nip,
+          [detections.descriptor]
+        );
+        faceMatcher.current = new faceapi.FaceMatcher(labeledDescriptor, 0.55);
+        console.log("Biometric Matcher Ready.");
+      } else {
+        setErrorMessage("Wajah tidak terdeteksi pada foto profil Anda. Gunakan foto yang lebih jelas.");
+      }
+    } catch (err) {
+      console.error("Gagal menyiapkan face matcher:", err);
+      setErrorMessage("Gagal mengunduh foto profil sebagai referensi biometrik.");
     }
   };
 
@@ -68,7 +119,8 @@ const AbsensiOnlinePage = () => {
         video: { 
           facingMode: 'user',
           width: { ideal: 640 },
-          height: { ideal: 480 }
+          height: { ideal: 480 },
+          frameRate: { ideal: 24 }
         } 
       });
       if (videoRef.current) {
@@ -79,6 +131,7 @@ const AbsensiOnlinePage = () => {
       }
     } catch (err) {
       console.error("Gagal akses kamera:", err);
+      setErrorMessage("Kamera tidak diizinkan atau tidak ditemukan.");
     }
   };
 
@@ -96,16 +149,14 @@ const AbsensiOnlinePage = () => {
       const video = videoRef.current;
       const overlay = overlayRef.current;
       
-      // Early exit if refs are null
-      if (!video || !overlay) return;
+      if (!video || !overlay || !modelsLoaded || video.paused || video.ended) return;
 
       try {
-        const detections = await faceapi.detectAllFaces(
+        const detection = await faceapi.detectSingleFace(
           video, 
-          new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 })
-        ).withFaceLandmarks();
+          new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.5 })
+        ).withFaceLandmarks().withFaceDescriptor();
 
-        // Check again after async operation to prevent "reading videoWidth of null"
         if (!videoRef.current || !overlayRef.current) return;
 
         const displaySize = { 
@@ -114,68 +165,73 @@ const AbsensiOnlinePage = () => {
         };
 
         faceapi.matchDimensions(overlay, displaySize);
-        const resizedDetections = faceapi.resizeResults(detections, displaySize);
         
         const ctx = overlay.getContext('2d');
         if (ctx) {
           ctx.clearRect(0, 0, overlay.width, overlay.height);
           
-          if (resizedDetections.length > 0) {
-            setIsFaceDetected(true);
-            setDetectionScore(resizedDetections[0].detection.score);
+          if (detection) {
+            const resized = faceapi.resizeResults(detection, displaySize);
+            const box = resized.detection.box;
             
-            resizedDetections.forEach(det => {
-              const box = det.detection.box;
-              ctx.strokeStyle = '#3b82f6';
-              ctx.lineWidth = 3;
-              ctx.strokeRect(box.x, box.y, box.width, box.height);
-              
-              ctx.fillStyle = '#3b82f6';
-              const s = 15;
-              ctx.fillRect(box.x, box.y, s, 4);
-              ctx.fillRect(box.x, box.y, 4, s);
-              ctx.fillRect(box.x + box.width - s, box.y, s, 4);
-              ctx.fillRect(box.x + box.width, box.y, 4, s);
-              ctx.fillRect(box.x, box.y + box.height, s, 4);
-              ctx.fillRect(box.x, box.y + box.height - s, 4, s);
-              ctx.fillRect(box.x + box.width - s, box.y + box.height, s, 4);
-              ctx.fillRect(box.x + box.width, box.y + box.height - s, 4, s);
-            });
+            setIsFaceDetected(true);
+            setDetectionScore(resized.detection.score);
+            
+            let isMatched = false;
+            if (faceMatcher.current) {
+              const bestMatch = faceMatcher.current.findBestMatch(resized.descriptor);
+              isMatched = bestMatch.label !== 'unknown';
+              setIsFaceMatched(isMatched);
+            }
+
+            const color = isMatched ? '#10b981' : (faceMatcher.current ? '#ef4444' : '#3b82f6');
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+            ctx.fillStyle = color;
+            ctx.font = 'bold 12px Inter';
+            const label = isMatched ? 'IDENTITAS TERKONFIRMASI' : (faceMatcher.current ? 'WAJAH TIDAK COCOK' : 'MEMINDAI...');
+            ctx.fillText(label, box.x, box.y - 10);
+            
           } else {
             setIsFaceDetected(false);
+            setIsFaceMatched(false);
             setDetectionScore(0);
           }
         }
       } catch (err) {
-        // Handle detection error gracefully
+        // Drop frame processing
       }
-    }, 200);
+    }, 200); 
   };
 
   const handleAbsensi = async (tipe: 'MASUK' | 'PULANG') => {
     if (!currentPegawai || !isFaceDetected) return;
+    
+    if (faceMatcher.current && !isFaceMatched) {
+      setVerificationResult({ 
+        status: 'REJECTED', 
+        message: "Pencocokan gagal. Pastikan posisi wajah sesuai dengan foto profil." 
+      });
+      return;
+    }
 
     setIsVerifying(true);
     setVerificationResult(null);
 
-    // Give time for visual feedback
     setTimeout(() => {
       try {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        
-        // Critical safety check
-        if (!video || !canvas) {
-          setIsVerifying(false);
-          return;
-        }
+        if (!video || !canvas) return;
 
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(video, 0, 0);
         
-        const capturedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+        const capturedBase64 = canvas.toDataURL('image/jpeg', 0.6);
 
         const newRecord: AbsensiRecord = {
           id: Date.now().toString(),
@@ -184,25 +240,23 @@ const AbsensiOnlinePage = () => {
           waktu: new Date().toLocaleTimeString('id-ID'),
           tipe: tipe,
           status: 'VERIFIED',
-          lokasi: 'Kantor Pusat DJKI',
+          lokasi: 'DJKI Smart Office',
           fotoAbsen: capturedBase64,
           confidence: detectionScore
         };
 
         const globalHistory = localStorage.getItem('absensi_history_db');
         const parsedGlobal = globalHistory ? JSON.parse(globalHistory) : [];
-        const updatedGlobal = [newRecord, ...parsedGlobal];
-        localStorage.setItem('absensi_history_db', JSON.stringify(updatedGlobal));
+        localStorage.setItem('absensi_history_db', JSON.stringify([newRecord, ...parsedGlobal]));
 
         setVerificationResult({
           status: 'SUCCESS',
-          message: `Wajah Terverifikasi. Absensi ${tipe} Berhasil dicatat.`
+          message: `Presensi ${tipe} Berhasil dicatat.`
         });
         
         setAbsensiHistory(prev => [newRecord, ...prev]);
-
       } catch (err: any) {
-        setVerificationResult({ status: 'ERROR', message: "Gagal memproses gambar." });
+        setVerificationResult({ status: 'ERROR', message: "Gagal memproses data biometrik." });
       } finally {
         setIsVerifying(false);
       }
@@ -213,157 +267,112 @@ const AbsensiOnlinePage = () => {
     <div className="space-y-8 animate-fadeIn pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h3 className="text-2xl font-black text-gray-900 tracking-tight leading-none uppercase">Presensi Wajah Real-time</h3>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Engine: Face-API (Local Browser) • Anti-Spoofing Enabled</p>
+          <h3 className="text-2xl font-black text-gray-900 tracking-tight leading-none uppercase">Presensi Wajah</h3>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Sinkronisasi Biometrik DJKI • Optimized Engine</p>
         </div>
-        {!modelsLoaded && (
-          <div className="flex items-center space-x-2 bg-amber-50 px-4 py-2 rounded-xl border border-amber-100">
-            <div className="h-2 w-2 bg-amber-500 rounded-full animate-ping"></div>
-            <span className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Loading Vision Models...</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {!modelsLoaded && !errorMessage && (
+            <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-100">
+              <div className="h-2 w-2 bg-blue-500 rounded-full animate-ping"></div>
+              <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest">Inisialisasi AI...</span>
+            </div>
+          )}
+          {errorMessage && (
+            <div className="bg-rose-50 px-4 py-2 rounded-xl border border-rose-100 flex items-center space-x-2 text-rose-600">
+               <i className="bi bi-exclamation-triangle-fill"></i>
+               <span className="text-[9px] font-black uppercase tracking-widest">{errorMessage}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-black rounded-[2.5rem] shadow-2xl relative overflow-hidden aspect-[4/3] md:aspect-video border-4 border-white">
+          <div className="bg-black rounded-[3rem] shadow-2xl relative overflow-hidden aspect-[4/3] md:aspect-video border-8 border-white group">
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
             <canvas ref={overlayRef} className="absolute top-0 left-0 w-full h-full scale-x-[-1]" />
             <canvas ref={canvasRef} className="hidden" />
             
-            {isFaceDetected && !isVerifying && (
-               <div className="absolute left-0 right-0 h-1 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.8)] z-10 animate-scan"></div>
+            {isFaceDetected && !isVerifying && !verificationResult && (
+               <div className="absolute left-0 right-0 h-1.5 bg-blue-500 shadow-[0_0_25px_rgba(59,130,246,1)] z-10 animate-scan"></div>
             )}
 
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className={`w-[60%] h-[60%] border-2 rounded-[3rem] transition-all duration-500 ${isFaceDetected ? 'border-blue-500/50 scale-105' : 'border-white/10'}`}>
-                 <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-1.5 bg-gray-900/80 backdrop-blur-md text-white text-[8px] font-black uppercase rounded-full tracking-widest border border-white/10">
-                    {isFaceDetected ? `Face Lock: ${(detectionScore * 100).toFixed(0)}%` : 'Scanning Face...'}
+              <div className={`w-[50%] h-[60%] border-2 rounded-[4rem] transition-all duration-300 ${isFaceMatched ? 'border-emerald-500 scale-105' : isFaceDetected ? 'border-blue-500/50' : 'border-white/10'}`}>
+                 <div className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-6 py-2 backdrop-blur-xl text-white text-[9px] font-black uppercase rounded-full tracking-widest border border-white/20 ${isFaceMatched ? 'bg-emerald-600' : 'bg-gray-900/80'}`}>
+                    {isFaceMatched ? 'MATCHER OK' : isFaceDetected ? 'MEMERIKSA...' : 'POSISIKAN WAJAH'}
                  </div>
               </div>
             </div>
 
             {isVerifying && (
-              <div className="absolute inset-0 bg-blue-950/80 backdrop-blur-xl flex flex-col items-center justify-center text-white p-6 text-center animate-fadeIn z-20">
-                <div className="relative h-20 w-20 mb-6">
-                   <div className="absolute inset-0 border-4 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-                   <div className="absolute inset-4 border-4 border-white/20 border-b-transparent rounded-full animate-spin [animation-duration:3s]"></div>
-                </div>
-                <h4 className="text-xl font-black uppercase tracking-widest mb-2">Final Verification</h4>
-                <p className="text-[10px] font-bold text-blue-200 uppercase tracking-[0.2em]">Menyinkronkan Data Biometrik Lokal ke Database...</p>
+              <div className="absolute inset-0 bg-blue-950/90 backdrop-blur-sm flex flex-col items-center justify-center text-white p-6 z-20">
+                <div className="h-16 w-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <h4 className="text-sm font-black uppercase tracking-widest">Memproses...</h4>
               </div>
             )}
 
             {verificationResult && (
-              <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 px-10 py-5 rounded-2xl shadow-2xl flex items-center space-x-4 animate-modalEnter z-30 ${verificationResult.status === 'SUCCESS' ? 'bg-emerald-600' : 'bg-rose-600'} text-white border border-white/10`}>
-                <div className="h-12 w-12 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
-                  <i className={`bi ${verificationResult.status === 'SUCCESS' ? 'bi-check-all text-3xl' : 'bi-exclamation-triangle text-2xl'}`}></i>
+              <div className={`absolute bottom-10 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 animate-modalEnter z-30 ${verificationResult.status === 'SUCCESS' ? 'bg-emerald-600' : 'bg-rose-600'} text-white border border-white/20 w-[80%]`}>
+                <i className={`bi ${verificationResult.status === 'SUCCESS' ? 'bi-patch-check-fill text-2xl' : 'bi-exclamation-octagon-fill text-2xl'}`}></i>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black uppercase leading-tight">{verificationResult.message}</p>
                 </div>
-                <div className="min-w-0">
-                  <h5 className="text-[11px] font-black uppercase tracking-widest leading-none">{verificationResult.status === 'SUCCESS' ? 'Verified' : 'Error'}</h5>
-                  <p className="text-[10px] font-bold text-white/90 mt-1.5 leading-tight">{verificationResult.message}</p>
-                </div>
-                <button onClick={() => setVerificationResult(null)} className="h-8 w-8 rounded-lg bg-black/10 flex items-center justify-center hover:bg-black/20 transition-all"><i className="bi bi-x-lg"></i></button>
+                <button onClick={() => setVerificationResult(null)} className="text-white/60 hover:text-white"><i className="bi bi-x-circle-fill"></i></button>
               </div>
             )}
           </div>
 
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6 items-center">
-            <div className="flex items-center space-x-4 flex-1">
-               <div className="h-16 w-16 rounded-2xl bg-blue-50 border border-blue-100 overflow-hidden flex items-center justify-center shadow-inner relative">
-                  {currentPegawai?.foto ? (
-                    <img src={currentPegawai.foto} className="w-full h-full object-cover" />
-                  ) : (
-                    <i className="bi bi-person-fill text-3xl text-blue-200"></i>
-                  )}
-                  {isFaceDetected && (
-                    <div className="absolute bottom-0 right-0 h-4 w-4 bg-emerald-500 border-2 border-white rounded-full"></div>
-                  )}
+            <div className="flex items-center space-x-5 flex-1">
+               <div className="h-16 w-16 rounded-2xl bg-gray-100 overflow-hidden relative shadow-inner">
+                  {currentPegawai?.foto ? <img src={currentPegawai.foto} className="w-full h-full object-cover" /> : <i className="bi bi-person-fill text-3xl text-gray-300 flex items-center justify-center h-full"></i>}
+                  {isFaceMatched && <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center animate-pulse"><i className="bi bi-check-lg text-emerald-600 text-2xl font-black"></i></div>}
                </div>
                <div>
-                  <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">{currentPegawai?.nama || user?.name}</h4>
-                  <p className="text-[9px] font-bold text-blue-600 uppercase tracking-widest mt-1">
-                    {isFaceDetected ? 'Wajah Terdeteksi • Siap Absensi' : 'Mencari Wajah Pegawai...'}
+                  <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight leading-none">{currentPegawai?.nama || user?.name}</h4>
+                  <p className={`text-[8px] font-black uppercase tracking-widest mt-2 ${isFaceMatched ? 'text-emerald-600' : 'text-gray-400'}`}>
+                    {isFaceMatched ? 'Wajah Sesuai' : 'Verifikasi Dibutuhkan'}
                   </p>
                </div>
             </div>
             
             <div className="flex gap-3 w-full md:w-auto">
-              <button 
-                onClick={() => handleAbsensi('MASUK')}
-                disabled={!isFaceDetected || isVerifying || !modelsLoaded}
-                className={`flex-1 md:flex-none px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center space-x-3 active:scale-95 disabled:opacity-50 disabled:grayscale ${isFaceDetected ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20 hover:bg-blue-700' : 'bg-gray-100 text-gray-400'}`}
-              >
-                <i className="bi bi-fingerprint text-lg"></i>
-                <span>Absen Masuk</span>
-              </button>
-              <button 
-                onClick={() => handleAbsensi('PULANG')}
-                disabled={!isFaceDetected || isVerifying || !modelsLoaded}
-                className={`flex-1 md:flex-none px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center space-x-3 active:scale-95 disabled:opacity-50 disabled:grayscale ${isFaceDetected ? 'bg-gray-900 text-white shadow-xl shadow-gray-900/20 hover:bg-black' : 'bg-gray-100 text-gray-400'}`}
-              >
-                <i className="bi bi-box-arrow-left text-lg"></i>
-                <span>Absen Pulang</span>
-              </button>
+              <button onClick={() => handleAbsensi('MASUK')} disabled={!isFaceMatched || isVerifying || !modelsLoaded} className={`flex-1 md:flex-none px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all disabled:opacity-50 disabled:grayscale ${isFaceMatched ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/30' : 'bg-gray-100 text-gray-400'}`}>MASUK</button>
+              <button onClick={() => handleAbsensi('PULANG')} disabled={!isFaceMatched || isVerifying || !modelsLoaded} className={`flex-1 md:flex-none px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all disabled:opacity-50 disabled:grayscale ${isFaceMatched ? 'bg-gray-900 text-white shadow-xl shadow-gray-900/30' : 'bg-gray-100 text-gray-400'}`}>PULANG</button>
             </div>
           </div>
         </div>
 
         <div className="lg:col-span-5 space-y-6">
-          <div className="bg-[#111827] p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden border border-white/5">
-            <div className="relative z-10">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg"><i className="bi bi-cpu-fill"></i></div>
-                <h4 className="text-[11px] font-black uppercase tracking-widest">Client-Side AI Engine</h4>
-              </div>
-              <div className="space-y-4">
-                 <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
-                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Face-API.js v1.7</p>
-                    <p className="text-[9px] text-gray-400 font-bold leading-relaxed">Pemrosesan wajah dilakukan 100% pada peramban pengguna. Tidak ada data biometrik yang keluar dari perangkat ini, menjaga privasi data Anda.</p>
-                 </div>
-                 <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center">
-                       <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest">Confidence Threshold</p>
-                       <p className="text-sm font-black text-blue-400">0.80+</p>
-                    </div>
-                    <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center">
-                       <p className="text-[7px] font-black text-gray-500 uppercase tracking-widest">Model Complexity</p>
-                       <p className="text-sm font-black text-blue-400">Tiny-v2</p>
-                    </div>
-                 </div>
-              </div>
+          <div className="bg-[#111827] p-8 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden">
+            <h4 className="text-[11px] font-black uppercase tracking-widest text-blue-400 mb-6">Metrik Biometrik</h4>
+            <div className="space-y-4">
+               <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                  <p className="text-[9px] text-gray-400 font-bold leading-relaxed uppercase">
+                      Pencocokan wajah dilakukan secara lokal di peramban Anda untuk keamanan data. Pastikan pencahayaan cukup dan wajah tidak terhalang.
+                  </p>
+               </div>
+               <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center"><p className="text-[7px] text-gray-500 uppercase font-black">Accuracy</p><p className="text-[11px] font-black text-emerald-400">{(detectionScore * 100).toFixed(0)}%</p></div>
+                  <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-center"><p className="text-[7px] text-gray-500 uppercase font-black">Reference</p><p className="text-[11px] font-black text-emerald-400">{currentPegawai?.foto ? 'FOUND' : 'MISSING'}</p></div>
+               </div>
             </div>
-            <i className="bi bi-shield-shaded absolute -right-6 -bottom-6 text-9xl text-white/5 rotate-12"></i>
           </div>
 
           <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[400px]">
-            <div className="px-8 py-5 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
-              <h5 className="text-[10px] font-black text-gray-900 uppercase tracking-widest">Log Aktivitas Hari Ini</h5>
-              <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            </div>
+            <div className="px-8 py-5 border-b border-gray-50 flex justify-between items-center"><h5 className="text-[10px] font-black text-gray-900 uppercase tracking-widest">Log Aktivitas</h5></div>
             <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
               {absensiHistory.length > 0 ? absensiHistory.map(record => (
-                <div key={record.id} className="p-4 bg-gray-50 rounded-3xl border border-gray-100 flex items-center space-x-4 animate-fadeIn">
-                  <div className="h-14 w-14 rounded-2xl overflow-hidden bg-white border border-gray-100 shrink-0 shadow-sm">
-                    <img src={record.fotoAbsen} className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[10px] font-black text-gray-900 uppercase truncate">{record.nama}</p>
-                      <span className={`px-2 py-0.5 text-[7px] font-black uppercase rounded border ${record.tipe === 'MASUK' ? 'bg-blue-600 text-white border-blue-500' : 'bg-gray-800 text-white border-gray-700'}`}>{record.tipe}</span>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                       <p className="text-[9px] font-bold text-gray-400 uppercase">{record.waktu}</p>
-                       <div className="h-1 w-1 bg-gray-300 rounded-full"></div>
-                       <p className="text-[8px] font-black text-emerald-600 uppercase">Face Match {(record.confidence * 100).toFixed(0)}%</p>
-                    </div>
+                <div key={record.id} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center space-x-4">
+                  <div className="h-12 w-12 rounded-xl overflow-hidden bg-white border border-gray-100 shadow-sm"><img src={record.fotoAbsen} className="w-full h-full object-cover" /></div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between"><span className={`px-2 py-0.5 text-[7px] font-black uppercase rounded ${record.tipe === 'MASUK' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-white'}`}>{record.tipe}</span><p className="text-[9px] font-bold text-gray-400">{record.waktu}</p></div>
+                    <p className="text-[10px] font-black text-emerald-600 uppercase mt-1">Status OK</p>
                   </div>
                 </div>
               )) : (
-                <div className="flex flex-col items-center justify-center h-full text-center opacity-40">
-                  <i className="bi bi-camera-reels text-gray-300 text-5xl mb-4"></i>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-relaxed">Sistem Menunggu Input Deteksi Wajah Lokal</p>
-                </div>
+                <div className="flex flex-col items-center justify-center h-full text-center opacity-30"><i className="bi bi-camera-reels text-4xl mb-4"></i><p className="text-[9px] font-black uppercase tracking-widest">Kosong</p></div>
               )}
             </div>
           </div>

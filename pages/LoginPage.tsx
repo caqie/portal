@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { fetchUsersFromSheets } from '../spreadsheetService';
+import { Pegawai } from '../types';
 
 const LoginPage = () => {
   const [nip, setNip] = useState('');
@@ -17,10 +18,21 @@ const LoginPage = () => {
 
     try {
       const users = await fetchUsersFromSheets();
-      const user = users.find(u => u.nip === nip && u.password === password);
+      let foundUser = users.find(u => u.nip === nip && u.password === password);
 
-      if (user) {
-        login(user);
+      if (foundUser) {
+        // PERBAIKAN: Cek apakah ada foto profil di database pegawai lokal (portal_pegawai_db)
+        // Karena data di Sheets mungkin tidak memiliki Base64 foto yang baru diunggah
+        const savedLocalPegawai = localStorage.getItem('portal_pegawai_db');
+        if (savedLocalPegawai) {
+          const pegawaiList: Pegawai[] = JSON.parse(savedLocalPegawai);
+          const localMatch = pegawaiList.find(p => p.nip === foundUser!.nip);
+          if (localMatch && localMatch.foto) {
+            foundUser = { ...foundUser, foto: localMatch.foto };
+          }
+        }
+        
+        login(foundUser);
       } else {
         setError('NIP atau Password salah. Silakan periksa kembali.');
       }
@@ -33,12 +45,10 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-[100dvh] w-full flex flex-col items-center justify-start sm:justify-center bg-[#F8F9FC] p-4 sm:p-6 font-['Inter'] overflow-y-auto">
-      {/* Spacer untuk mobile agar card tidak terlalu ke atas tapi punya ruang scroll di bawah */}
       <div className="h-10 sm:hidden shrink-0"></div>
       
       <div className="w-full max-w-[440px] animate-fadeIn pb-20 sm:pb-0">
         <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl shadow-blue-900/5 p-6 sm:p-10 border border-gray-100 relative overflow-hidden">
-          {/* Decorative elements */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-600/5 rounded-full -ml-16 -mb-16 blur-3xl"></div>
 

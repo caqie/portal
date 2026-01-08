@@ -186,17 +186,6 @@ const TugasRutinPage = () => {
     const { jenis_tugas } = formData;
     const val = (name: string) => formData[name] || '';
 
-    const PegawaiSelector = (field: string, label: string) => (
-      <SelectField 
-        label={label} 
-        name={field} 
-        options={pegawaiList.map(p => ({ value: p.nama, label: `${p.nip} - ${p.nama.toUpperCase()}` }))} 
-        value={val(field)} 
-        {...common} 
-        fullWidth 
-      />
-    );
-
     switch (jenis_tugas) {
       case TaskType.PELANTIKAN:
         return (
@@ -207,7 +196,7 @@ const TugasRutinPage = () => {
             <InputField label="Nama Pelantikan" name="nama_pelantikan" value={val('nama_pelantikan')} {...common} />
             <InputField label="Tempat Pelantikan" name="tempat_pelantikan" value={val('tempat_pelantikan')} {...common} />
             <InputField label="Jumlah Peserta" name="jumlah_peserta_pelantikan" type="number" value={val('jumlah_peserta_pelantikan')} {...common} />
-            <InputField label="Link Dokumen Pelantikan" name="link_dokumen_pelantikan" fullWidth value={val('link_dokumen_pelantikan')} {...common} />
+            <InputField label="Link Dokumen Pelantikan" name="link_dokumen_pelantikan" fullWidth value={val('link_dokumen_pelantikan')} {...common} placeholder="https://drive.google.com/..." />
           </>
         );
 
@@ -224,24 +213,15 @@ const TugasRutinPage = () => {
         );
 
       case TaskType.LHKPN:
-        return (
-          <>
-            <SectionHeader icon="bi-safe" label="Pelaporan LHKPN" color="text-emerald-600" bg="bg-emerald-50" />
-            <SelectField label="Unit LHKPN" name="unit_lhkpn" options={UNIT_KERJA} value={val('unit_lhkpn')} {...common} fullWidth />
-            <InputField label="Jumlah Wajib Lapor" name="jumlah_lhkpn" type="number" value={val('jumlah_lhkpn')} {...common} />
-            <TextAreaField label="Daftar Nama Pelapor" name="daftar_nama_lhkpn" value={val('daftar_nama_lhkpn')} {...common} />
-            <InputField label="Link Dokumen LHKPN" name="link_dokumen_lhkpn" fullWidth value={val('link_dokumen_lhkpn')} {...common} />
-          </>
-        );
-
       case TaskType.LHKASN:
+        const pref = jenis_tugas === TaskType.LHKPN ? 'lhkpn' : 'lhkasn';
         return (
           <>
-            <SectionHeader icon="bi-safe" label="Pelaporan LHKASN" color="text-emerald-600" bg="bg-emerald-50" />
-            <SelectField label="Unit LHKASN" name="unit_lhkasn" options={UNIT_KERJA} value={val('unit_lhkasn')} {...common} fullWidth />
-            <InputField label="Jumlah Wajib Lapor" name="jumlah_lhkasn" type="number" value={val('jumlah_lhkasn')} {...common} />
-            <TextAreaField label="Daftar Nama Pelapor" name="daftar_nama_lhkasn" value={val('daftar_nama_lhkasn')} {...common} />
-            <InputField label="Link Dokumen LHKASN" name="link_dokumen_lhkasn" fullWidth value={val('link_dokumen_lhkasn')} {...common} />
+            <SectionHeader icon="bi-safe" label={`Pelaporan ${jenis_tugas}`} color="text-emerald-600" bg="bg-emerald-50" />
+            <SelectField label={`Unit ${jenis_tugas}`} name={`unit_${pref}`} options={UNIT_KERJA} value={val(`unit_${pref}`)} {...common} fullWidth />
+            <InputField label={`Jumlah ${jenis_tugas}`} name={`jumlah_${pref}`} type="number" value={val(`jumlah_${pref}`)} {...common} />
+            <TextAreaField label="Daftar Nama Pelapor" name={`daftar_nama_${pref}`} value={val(`daftar_nama_${pref}`)} {...common} />
+            <InputField label={`Link Dokumen ${jenis_tugas}`} name={`link_dokumen_${pref}`} fullWidth value={val(`link_dokumen_${pref}`)} {...common} />
           </>
         );
 
@@ -251,33 +231,25 @@ const TugasRutinPage = () => {
             <SectionHeader icon="bi-mortarboard" label="Tugas Belajar" color="text-blue-600" bg="bg-blue-50" />
             <SelectField label="Jenis Tugas Belajar" name="jenis_tugas_belajar" options={['Internal', 'Eksternal', 'Beasiswa']} value={val('jenis_tugas_belajar')} {...common} />
             <InputField label="Nama Pegawai" name="nama_tugas_belajar" value={val('nama_tugas_belajar')} {...common} />
-            <SelectField label="Jenjang Pendidikan" name="jenjang_pendidikan" options={['S1', 'S2', 'S3', 'D4']} value={val('jenjang_pendidikan')} {...common} />
+            <SelectField label="Jenjang Pendidikan" name="jenjang_pendidikan" options={['D3', 'D4', 'S1', 'S2', 'S3']} value={val('jenjang_pendidikan')} {...common} />
             <InputField label="Jurusan" name="jurusan_tugas_belajar" value={val('jurusan_tugas_belajar')} {...common} />
             <InputField label="Kampus" name="kampus_tugas_belajar" value={val('kampus_tugas_belajar')} {...common} />
-            <InputField label="Periode (Tahun)" name="periode_tugas_belajar" value={val('periode_tugas_belajar')} {...common} />
+            <InputField label="Periode" name="periode_tugas_belajar" value={val('periode_tugas_belajar')} {...common} placeholder="Contoh: 2024-2026" />
             <InputField label="Link Dokumen" name="link_dokumen_tugas_belajar" fullWidth value={val('link_dokumen_tugas_belajar')} {...common} />
           </>
         );
 
       case TaskType.MAGANG:
-        return (
-          <>
-            <SectionHeader icon="bi-building" label="Magang" color="text-cyan-600" bg="bg-cyan-50" />
-            <InputField label="Jumlah Permohonan" name="jumlah_permohonan" type="number" value={val('jumlah_permohonan')} {...common} />
-            <InputField label="Unit Tujuan Magang" name="unit_tujuan_magang" value={val('unit_tujuan_magang')} {...common} />
-            <InputField label="Jumlah Peserta Magang" name="jumlah_magang" type="number" value={val('jumlah_magang')} {...common} />
-            <InputField label="Link Dokumen Magang" name="link_dokumen_magang" fullWidth value={val('link_dokumen_magang')} {...common} />
-          </>
-        );
-
       case TaskType.PENELITIAN:
+        const isMagang = jenis_tugas === TaskType.MAGANG;
+        const sub = isMagang ? 'magang' : 'penelitian';
         return (
           <>
-            <SectionHeader icon="bi-search" label="Penelitian" color="text-indigo-600" bg="bg-indigo-50" />
+            <SectionHeader icon={isMagang ? "bi-building" : "bi-search"} label={isMagang ? "Magang" : "Penelitian"} color="text-cyan-600" bg="bg-cyan-50" />
             <InputField label="Jumlah Permohonan" name="jumlah_permohonan" type="number" value={val('jumlah_permohonan')} {...common} />
-            <InputField label="Unit Tujuan Penelitian" name="unit_tujuan_penelitian" value={val('unit_tujuan_penelitian')} {...common} />
-            <InputField label="Jumlah Peneliti" name="jumlah_penelitian" type="number" value={val('jumlah_penelitian')} {...common} />
-            <InputField label="Link Dokumen Penelitian" name="link_dokumen_penelitian" fullWidth value={val('link_dokumen_penelitian')} {...common} />
+            <InputField label={`Unit Tujuan ${isMagang ? 'Magang' : 'Penelitian'}`} name={`unit_tujuan_${sub}`} value={val(`unit_tujuan_${sub}`)} {...common} />
+            <InputField label={`Jumlah ${isMagang ? 'Magang' : 'Penelitian'}`} name={`jumlah_${sub}`} type="number" value={val(`jumlah_${sub}`)} {...common} />
+            <InputField label={`Link Dokumen ${isMagang ? 'Magang' : 'Penelitian'}`} name={`link_dokumen_${sub}`} fullWidth value={val(`link_dokumen_${sub}`)} {...common} />
           </>
         );
 
@@ -295,28 +267,21 @@ const TugasRutinPage = () => {
           <>
             <SectionHeader icon="bi-mortarboard-fill" label="Pencantuman Gelar" color="text-violet-600" bg="bg-violet-50" />
             <InputField label="Jumlah Pencantuman Gelar" name="jumlah_pencantuman_gelar" type="number" value={val('jumlah_pencantuman_gelar')} {...common} />
-            {PegawaiSelector('nama_pegawai_gelar', 'Nama Pegawai')}
+            <InputField label="Nama Pegawai" name="nama_pegawai_gelar" value={val('nama_pegawai_gelar')} {...common} />
             <InputField label="Link Dokumen Gelar" name="link_dokumen_gelar" fullWidth value={val('link_dokumen_gelar')} {...common} />
           </>
         );
 
       case TaskType.PANGKAT:
-        return (
-          <>
-            <SectionHeader icon="bi-arrow-up-circle" label="Kenaikan Pangkat" color="text-blue-600" bg="bg-blue-50" />
-            <InputField label="Jumlah Usulan Pangkat" name="jumlah_usulan_pangkat" type="number" value={val('jumlah_usulan_pangkat')} {...common} />
-            <InputField label="Jumlah Diterima" name="jumlah_diterima_pangkat" type="number" value={val('jumlah_diterima_pangkat')} {...common} />
-            <InputField label="Link Dokumen Pangkat" name="link_dokumen_pangkat" fullWidth value={val('link_dokumen_pangkat')} {...common} />
-          </>
-        );
-
       case TaskType.JENJANG:
+        const isPangkat = jenis_tugas === TaskType.PANGKAT;
+        const key = isPangkat ? 'pangkat' : 'jenjang';
         return (
           <>
-            <SectionHeader icon="bi-graph-up-arrow" label="Kenaikan Jenjang" color="text-indigo-600" bg="bg-indigo-50" />
-            <InputField label="Jumlah Usulan Jenjang" name="jumlah_usulan_jenjang" type="number" value={val('jumlah_usulan_jenjang')} {...common} />
-            <InputField label="Jumlah Diterima" name="jumlah_diterima_jenjang" type="number" value={val('jumlah_diterima_jenjang')} {...common} />
-            <InputField label="Link Dokumen Jenjang" name="link_dokumen_jenjang" fullWidth value={val('link_dokumen_jenjang')} {...common} />
+            <SectionHeader icon="bi-arrow-up-circle" label={`Kenaikan ${isPangkat ? 'Pangkat' : 'Jenjang'}`} color="text-blue-600" bg="bg-blue-50" />
+            <InputField label={`Jumlah Usulan ${key.charAt(0).toUpperCase() + key.slice(1)}`} name={`jumlah_usulan_${key}`} type="number" value={val(`jumlah_usulan_${key}`)} {...common} />
+            <InputField label={`Jumlah Diterima ${key.charAt(0).toUpperCase() + key.slice(1)}`} name={`jumlah_diterima_${key}`} type="number" value={val(`jumlah_diterima_${key}`)} {...common} />
+            <InputField label={`Link Dokumen ${key.charAt(0).toUpperCase() + key.slice(1)}`} name={`link_dokumen_${key}`} fullWidth value={val(`link_dokumen_${key}`)} {...common} />
           </>
         );
 
@@ -335,7 +300,7 @@ const TugasRutinPage = () => {
           <>
             <SectionHeader icon="bi-arrow-left-right" label="Mutasi Pegawai" color="text-amber-600" bg="bg-amber-50" />
             <InputField label="Jumlah Diproses Mutasi" name="jumlah_diproses_mutasi" type="number" value={val('jumlah_diproses_mutasi')} {...common} />
-            {PegawaiSelector('nama_pegawai_mutasi', 'Nama Pegawai')}
+            <InputField label="Nama Pegawai" name="nama_pegawai_mutasi" value={val('nama_pegawai_mutasi')} {...common} />
             <InputField label="Jabatan Lama" name="jabatan_lama" value={val('jabatan_lama')} {...common} />
             <InputField label="Unit Kerja Lama" name="unit_kerja_lama" value={val('unit_kerja_lama')} {...common} />
             <InputField label="Jabatan Baru" name="jabatan_baru" value={val('jabatan_baru')} {...common} />
@@ -348,10 +313,12 @@ const TugasRutinPage = () => {
         return (
           <>
             <SectionHeader icon="bi-person-vcard" label="Kartu Suami / Istri" color="text-pink-600" bg="bg-pink-50" />
-            <InputField label="Usulan Kartu Istri" name="jumlah_usulan_istri" type="number" value={val('jumlah_usulan_istri')} {...common} />
-            <InputField label="Diterima Kartu Istri" name="jumlah_diterima_istri" type="number" value={val('jumlah_diterima_istri')} {...common} />
-            <InputField label="Usulan Kartu Suami" name="jumlah_usulan_suami" type="number" value={val('jumlah_usulan_suami')} {...common} />
-            <InputField label="Diterima Kartu Suami" name="jumlah_diterima_suami" type="number" value={val('jumlah_diterima_suami')} {...common} />
+            <div className="grid grid-cols-2 gap-4 col-span-full">
+              <InputField label="Usulan Kartu Istri" name="jumlah_usulan_istri" type="number" value={val('jumlah_usulan_istri')} {...common} />
+              <InputField label="Diterima Kartu Istri" name="jumlah_diterima_istri" type="number" value={val('jumlah_diterima_istri')} {...common} />
+              <InputField label="Usulan Kartu Suami" name="jumlah_usulan_suami" type="number" value={val('jumlah_usulan_suami')} {...common} />
+              <InputField label="Diterima Kartu Suami" name="jumlah_diterima_suami" type="number" value={val('jumlah_diterima_suami')} {...common} />
+            </div>
             <InputField label="Link Dokumen" name="link_dokumen_kartu_suami_istri" fullWidth value={val('link_dokumen_kartu_suami_istri')} {...common} />
           </>
         );
@@ -362,7 +329,7 @@ const TugasRutinPage = () => {
             <SectionHeader icon="bi-card-list" label="Kartu BPJS" color="text-emerald-600" bg="bg-emerald-50" />
             <InputField label="Jumlah Usulan BPJS" name="jumlah_usulan_bpjs" type="number" value={val('jumlah_usulan_bpjs')} {...common} />
             <InputField label="Jumlah Diterima" name="jumlah_diterima_bpjs" type="number" value={val('jumlah_diterima_bpjs')} {...common} />
-            <InputField label="Link Dokumen Kartu BPJS" name="link_dokumen_kartu_bpjs" fullWidth value={val('link_dokumen_kartu_bpjs')} {...common} />
+            <InputField label="Link Dokumen BPJS" name="link_dokumen_kartu_bpjs" fullWidth value={val('link_dokumen_kartu_bpjs')} {...common} />
           </>
         );
 

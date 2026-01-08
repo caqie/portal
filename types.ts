@@ -25,6 +25,12 @@ export enum TaskType {
   KGB = 'KGB'
 }
 
+export interface CloudConfig {
+  driveFolderId: string;
+  appsScriptUrl: string;
+  logoUrl: string;
+}
+
 export interface MaintenanceConfig {
   all: boolean;
   pages: string[];
@@ -71,12 +77,13 @@ export interface Pegawai {
   nama: string;
   jabatan: string;
   bagian?: string;
-  unit?: string;
+  unitKerja: string;
   gender: 'L' | 'P';
   golRuang: string;
   jenisPegawai: 'PNS' | 'CPNS' | 'PPPK' | 'PPPK PARUH WAKTU' | 'HONORER';
   status: 'Aktif' | 'Tidak Aktif' | 'Cuti' | 'Tugas Belajar' | 'Pensiun';
   foto?: string;
+  driveFolderId?: string; // ID Folder spesifik pegawai
   tempatLahir?: string;
   tanggalLahir?: string;
   pangkat?: string;
@@ -89,7 +96,6 @@ export interface Pegawai {
   telepon?: string;
   alamat?: string;
   tmtJabatan?: string;
-  unitKerja: string;
   tmtStatus?: string;
 }
 
@@ -174,6 +180,8 @@ export interface Dossier {
   tanggal: string;
   keterangan: string;
   fileName: string;
+  fileUrl?: string;
+  driveFileId?: string;
 }
 
 export interface Kegiatan {

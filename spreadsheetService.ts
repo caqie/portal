@@ -1,6 +1,6 @@
 
 import { Pegawai, AdminUser, Laporan, Dossier, SKP, PAK, KenaikanKarir, Pengembangan, KGB } from './types';
-import { getPangkatFromGol, getGajiEstimasi, UNIT_KERJA } from './constants';
+import { getPangkatFromGol, getGajiEstimasi } from './constants';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_PEGAWAI_GID = '1631838106';
@@ -101,97 +101,54 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
     if (lines.length < 2) return [];
 
     const rawHeaders = splitCSVLine(lines[0]);
-    const normalizedHeaders = rawHeaders.map(h => h.toLowerCase().replace(/[\s_]/g, ''));
+    const headers = rawHeaders.map(h => h.trim().toUpperCase().replace(/[\s_]/g, ''));
     const dataRows = lines.slice(1);
 
     const result = dataRows.map((line, index) => {
       const columns = splitCSVLine(line);
       if (columns.length < 2) return null;
       
-      const getVal = (keywords: string[]) => {
-        const normalizedKeywords = keywords.map(k => k.toLowerCase().replace(/[\s_]/g, ''));
-        const colIdx = normalizedHeaders.findIndex(h => 
-          normalizedKeywords.some(k => h === k || h.includes(k))
-        );
-        return colIdx !== -1 ? (columns[colIdx] || '').trim() : '';
+      const getVal = (key: string) => {
+        const normalizedKey = key.toUpperCase().replace(/[\s_]/g, '');
+        const idx = headers.indexOf(normalizedKey);
+        return idx !== -1 ? (columns[idx] || '').trim() : '';
       };
 
-      const nama = getVal(['nama', 'name', 'pegawai']);
-      if (!nama) return null;
+      const nip = getVal('NIP').replace(/['\s]/g, '');
+      const nama = getVal('NAMA');
+      if (!nama || !nip) return null;
 
-      const nip = getVal(['nip', 'nomorinduk', 'idpegawai']).replace(/['\s]/g, '').replace(/[^0-9]/g, '');
-      const jabatan = getVal(['jabatan', 'tugas', 'namajabatan']);
-      
-      // LOGIKA PEMETAAN UNIT KERJA (OPTIMIZED)
-      let rawUnitInput = getVal(['unitkerja', 'direktorat', 'penempatan', 'biro', 'bagian', 'unit']).trim();
-      let unitKerja = 'Sekretariat Direktorat Jenderal Kekayaan Intelektual'; 
-      const cleanInput = rawUnitInput.toLowerCase();
+      // AMBIL DATA MENTAH TANPA MAPPING CERDAS
+      const rawUnit = getVal('unitKerja') || getVal('UNITKERJA') || getVal('DIREKTORAT') || 'Sekretariat DJKI';
+      const gol = getVal('GOLRUANG') || getVal('GOL');
+      const jk = (getVal('JENISKELAMIN') || getVal('GENDER')).toUpperCase();
+      const statusPeg = getVal('STATUSPEGAWAI') || getVal('STATUS') || 'Aktif';
 
-      // Cek apakah input sudah persis sama dengan salah satu UNIT_KERJA
-      const exactMatch = UNIT_KERJA.find(u => u.toLowerCase() === cleanInput);
-      
-      if (exactMatch) {
-        unitKerja = exactMatch;
-      } else {
-        if (cleanInput.includes('cipta') || cleanInput.includes('desain industri')) {
-          unitKerja = 'Direktorat Hak Cipta dan Desain Industri';
-        } else if (cleanInput.includes('paten') || cleanInput.includes('dtlst') || cleanInput.includes('rahasia dagang')) {
-          unitKerja = 'Direktorat Paten, DTLST, dan Rahasia Dagang';
-        } else if (cleanInput.includes('merek') || cleanInput.includes('geografis')) {
-          unitKerja = 'Direktorat Merek dan Indikasi Geografis';
-        } else if (cleanInput.includes('kerja sama') || cleanInput.includes('kerjasama') || cleanInput.includes('pemberdayaan') || cleanInput.includes('edukasi')) {
-          unitKerja = 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi';
-        } else if (cleanInput.includes('teknologi informasi') || cleanInput.includes('ti') || cleanInput.includes('sistem') || cleanInput.includes('database')) {
-          unitKerja = 'Direktorat Teknologi Informasi';
-        } else if (cleanInput.includes('penegakan hukum') || cleanInput.includes('penyidikan') || cleanInput.includes('litigasi') || cleanInput.includes('pencegahan')) {
-          unitKerja = 'Direktorat Penegakan Hukum';
-        } else if (cleanInput.includes('sekretariat') || cleanInput.includes('kepegawaian') || cleanInput.includes('keuangan') || cleanInput.includes('umum') || cleanInput.includes('humas') || cleanInput.includes('perlengkapan')) {
-          unitKerja = 'Sekretariat Direktorat Jenderal Kekayaan Intelektual';
-        }
-      }
-
-      // --- LOGIKA PEMETAAN JENIS PEGAWAI ---
-      const rawJenisValue = getVal(['jenispegawai', 'statuskepegawaian', 'kategoripegawai']).toUpperCase();
-      let jenisPegawai: Pegawai['jenisPegawai'] = 'PNS'; 
-
-      if (rawJenisValue.includes('PARUH') || rawJenisValue.includes('PW')) {
-        jenisPegawai = 'PPPK PARUH WAKTU';
-      } else if (rawJenisValue.includes('CPNS') || rawJenisValue.includes('CALON')) {
-        jenisPegawai = 'CPNS';
-      } else if (rawJenisValue.includes('PPPK') || rawJenisValue.includes('P3K')) {
-        jenisPegawai = 'PPPK';
-      } else if (rawJenisValue.includes('HONOR') || rawJenisValue.includes('PPNPN') || rawJenisValue.includes('NONASN') || rawJenisValue.includes('KONTRAK')) {
-        jenisPegawai = 'HONORER';
-      } else if (rawJenisValue.includes('PNS')) {
-        jenisPegawai = 'PNS';
-      } else if (nip && nip.length < 18 && nip.length > 5) {
-        jenisPegawai = 'HONORER';
-      }
-
-      // --- LOGIKA PEMETAAN STATUS ---
-      let rawStatusValue = getVal(['statusaktif', 'kondisi', 'aktif', 'keteranganstatus']).toLowerCase();
-      let status: Pegawai['status'] = 'Aktif';
-      if (rawStatusValue.includes('cuti')) status = 'Cuti';
-      else if (rawStatusValue.includes('belajar') || rawStatusValue.includes('tubel')) status = 'Tugas Belajar';
-      else if (rawStatusValue.includes('pensiun')) status = 'Pensiun';
-      else if (rawStatusValue.includes('tidak') || rawStatusValue.includes('keluar') || rawStatusValue.includes('nonaktif')) status = 'Tidak Aktif';
-
-      const golRuang = getVal(['golruang', 'golongan', 'ruang']);
-      
       return {
         id: (index + 1).toString(),
-        nama, nip, jabatan, unitKerja, 
-        bagian: getVal(['bagian', 'seksi', 'subbidang']), 
-        jenisPegawai, status,
-        gender: (getVal(['jeniskelamin', 'gender', 'sex']) || '').toUpperCase().startsWith('P') ? 'P' : 'L',
-        golRuang,
-        pangkat: getVal(['pangkat', 'namapangkat']) || getPangkatFromGol(golRuang),
-        telepon: getVal(['telp', 'hp', 'wa', 'whatsapp']),
-        foto: getVal(['foto', 'gambar', 'photo']),
-        tmtPangkat: getVal(['tmtpangkat', 'tmtgol']),
-        tmtJabatan: getVal(['tmtjabatan']),
-        pendidikan: getVal(['pendidikan', 'lulusan']),
-        agama: getVal(['agama'])
+        nip,
+        nama,
+        jabatan: getVal('JABATAN'),
+        bagian: getVal('BAGIAN'),
+        unitKerja: rawUnit, // MENGGUNAKAN NILAI ASLI DARI KOLOM SPREADSHEET
+        gender: jk.startsWith('P') ? 'P' : 'L',
+        golRuang: gol,
+        jenisPegawai: getVal('JENISPEGAWAI') as any,
+        foto: getVal('FOTOURL') || getVal('FOTO'),
+        tempatLahir: getVal('TEMPATLAHIR'),
+        tanggalLahir: getVal('TANGGALLAHIR'),
+        pangkat: getVal('PANGKAT') || getPangkatFromGol(gol),
+        tmtPangkat: getVal('TMTPANGKAT'),
+        klasifikasiJabatan: getVal('KLASIFIKASIJABATAN'),
+        eselon: getVal('ESELON'),
+        pendidikan: getVal('PENDIDIKAN'),
+        bidang: getVal('BIDANG'),
+        agama: getVal('AGAMA'),
+        telepon: getVal('NOTELEPON') || getVal('WA'),
+        alamat: getVal('ALAMAT'),
+        tmtJabatan: getVal('TMTJABATAN'),
+        tmtStatus: getVal('TMTSTATUS'),
+        status: statusPeg as any
       } as Pegawai;
     });
 
@@ -206,16 +163,20 @@ export const fetchUsersFromSheets = async (): Promise<AdminUser[]> => {
   try {
     const [headers, ...rows] = await fetchDataFromSheet('users');
     if (headers.length === 0 || rows.length === 0) throw new Error("Data users kosong");
-    const hIdx = (keywords: string[]) => headers.findIndex(h => keywords.some(k => h.replace(/[\s_]/g, '').includes(k.toUpperCase())));
-    const idxNip = hIdx(['NIP', 'ID']);
-    const idxName = hIdx(['NAME', 'NAMA']);
-    const idxPass = hIdx(['PASSWORD', 'PASS']);
-    const idxRole = hIdx(['ROLE', 'AKSES']);
+    
+    const hIdx = (key: string) => headers.indexOf(key.toUpperCase().replace(/[\s_]/g, ''));
+    
+    const idxNip = hIdx('NIP');
+    const idxName = hIdx('NAME');
+    const idxPass = hIdx('PASSWORD');
+    const idxRole = hIdx('ROLE');
+
     return rows.map((columns, index) => {
       const roleStr = (idxRole !== -1 ? (columns[idxRole] || '') : '').toUpperCase();
       let mappedRole: AdminUser['role'] = 'Viewer';
       if (roleStr.includes('SUPER')) mappedRole = 'Superadmin';
       else if (roleStr.includes('EDITOR')) mappedRole = 'Editor';
+      
       return {
         id: (index + 1).toString(),
         nip: (idxNip !== -1 ? (columns[idxNip] || '') : '').replace(/['\s]/g, ''),
