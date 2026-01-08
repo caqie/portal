@@ -4,7 +4,7 @@ import { fetchPegawaiFromSheets } from '../spreadsheetService';
 import { Pegawai, AbsensiRecord } from '../types';
 import { useAuth } from '../AuthContext';
 // @ts-ignore
-import * as faceapi from 'face-api';
+import * as faceapi from '@vladmandic/face-api';
 
 const AbsensiOnlinePage = () => {
   const { user } = useAuth();

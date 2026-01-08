@@ -97,7 +97,7 @@ const PegawaiPage = () => {
     
     const term = searchTerm.toLowerCase();
     
-    // UNIVERSAL SEARCH LOGIC: Mencari di hampir semua field teks
+    // UNIVERSAL SEARCH LOGIC: Mencari di hampir semua field teks penting
     const matchesSearch = searchTerm === '' || [
       p.nama,
       p.nip,
@@ -317,7 +317,7 @@ const PegawaiPage = () => {
                   <td className="px-4 py-5">
                     <div className="flex flex-col space-y-1">
                         <span className="text-[8px] font-black text-gray-800 uppercase">{p.jenisPegawai}</span>
-                        <span className={`px-2 py-0.5 text-[7px] font-black uppercase rounded w-fit ${p.status === 'Aktif' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>{p.status}</span>
+                        <span className={`px-2 py-0.5 text-[7px] font-black uppercase rounded w-fit ${p.status === 'Aktif' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{p.status}</span>
                     </div>
                   </td>
                   <td className="px-8 py-5 text-right">
@@ -334,7 +334,7 @@ const PegawaiPage = () => {
         </div>
       </div>
 
-      {/* Modal Detail Profil (DRH Style) */}
+      {/* Modal Detail Profil */}
       {isDetailModalOpen && activePegawai && (
         <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 no-print">
           <div className="fixed inset-0 bg-gray-950/85 backdrop-blur-xl" onClick={() => setIsDetailModalOpen(false)}></div>
@@ -451,7 +451,7 @@ const PegawaiPage = () => {
         </div>
       )}
 
-      {/* Form Modal (3 Column Optimized) */}
+      {/* Form Modal */}
       {isFormModalOpen && (
         <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 no-print">
           <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => setIsFormModalOpen(false)}></div>
