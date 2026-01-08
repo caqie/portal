@@ -97,7 +97,7 @@ const PegawaiPage = () => {
     
     const term = searchTerm.toLowerCase();
     
-    // UNIVERSAL SEARCH LOGIC: Mencari di semua field penting
+    // UNIVERSAL SEARCH LOGIC: Mencari di hampir semua field teks
     const matchesSearch = searchTerm === '' || [
       p.nama,
       p.nip,
@@ -108,7 +108,9 @@ const PegawaiPage = () => {
       p.telepon,
       p.pendidikan,
       p.bidang,
-      p.pangkat
+      p.pangkat,
+      p.golRuang,
+      p.jenisPegawai
     ].some(field => field?.toLowerCase().includes(term));
 
     const matchesUnit = filterUnit === 'Semua Unit' || p.unitKerja === filterUnit;
@@ -210,8 +212,8 @@ const PegawaiPage = () => {
           <i className="bi bi-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
           <input 
             type="text" 
-            placeholder="Cari Nama, NIP, Jabatan, Unit, Alamat, atau No.WA..." 
-            className="w-full pl-12 pr-6 py-4 bg-white border border-gray-100 rounded-3xl focus:border-blue-500 shadow-sm text-xs font-bold text-gray-900 outline-none transition-all placeholder:text-gray-400" 
+            placeholder="Cari Nama, NIP, Jabatan, Unit, Alamat, No.WA, atau Pendidikan..." 
+            className="w-full pl-12 pr-12 py-4 bg-white border border-gray-100 rounded-3xl focus:border-blue-500 shadow-sm text-xs font-bold text-gray-900 outline-none transition-all placeholder:text-gray-400" 
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)} 
           />
@@ -223,7 +225,7 @@ const PegawaiPage = () => {
         </div>
         <div className="bg-white px-6 py-4 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between">
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Database</span>
-            <span className="text-xl font-black text-blue-600">{filteredPegawai.length} <span className="text-[10px] text-gray-400">Pegawai</span></span>
+            <span className="text-xl font-black text-blue-600">{filteredPegawai.length} <span className="text-[10px] text-gray-400 font-bold uppercase">Pegawai</span></span>
         </div>
         <div className="flex gap-2">
             <button onClick={handleExport} className="h-full px-5 bg-emerald-50 text-emerald-600 rounded-3xl border border-emerald-100 shadow-sm hover:bg-emerald-600 hover:text-white transition-all"><i className="bi bi-file-earmark-excel-fill text-lg"></i></button>
@@ -481,15 +483,15 @@ const PegawaiPage = () => {
 
                       <div className="space-y-5 pt-4">
                          <div className="col-span-full border-b pb-2"><h6 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">1. Biodata Personal</h6></div>
-                         <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Nama Lengkap & Gelar</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 focus:bg-white transition-all placeholder:text-gray-300" value={formData.nama || ''} onChange={e => setFormData({...formData, nama: e.target.value})} /></div>
-                         <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">NIP Pegawai</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 focus:bg-white transition-all" value={formData.nip || ''} onChange={e => setFormData({...formData, nip: e.target.value})} disabled={!!activePegawai} /></div>
+                         <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Nama Lengkap & Gelar</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 focus:bg-white transition-all placeholder:text-gray-400" value={formData.nama || ''} onChange={e => setFormData({...formData, nama: e.target.value})} /></div>
+                         <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">NIP Pegawai</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 focus:bg-white transition-all placeholder:text-gray-400" value={formData.nip || ''} onChange={e => setFormData({...formData, nip: e.target.value})} disabled={!!activePegawai} /></div>
                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">NIK (No. KTP)</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.id || ''} onChange={e => setFormData({...formData, id: e.target.value})} placeholder="16 Digit" /></div>
-                            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Agama</label><select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.agama} onChange={e => setFormData({...formData, agama: e.target.value})}><option value="">Pilih</option>{AGAMA_OPTIONS.map(a => <option key={a} value={a}>{a.toUpperCase()}</option>)}</select></div>
+                            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">NIK (No. KTP)</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.id || ''} onChange={e => setFormData({...formData, id: e.target.value})} placeholder="16 Digit" /></div>
+                            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Agama</label><select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.agama} onChange={e => setFormData({...formData, agama: e.target.value})}><option value="">Pilih</option>{AGAMA_OPTIONS.map(a => <option key={a} value={a}>{a.toUpperCase()}</option>)}</select></div>
                          </div>
                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Gender</label><select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value as any})}><option value="L">PRIA</option><option value="P">WANITA</option></select></div>
-                            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">No. WhatsApp</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.telepon || ''} onChange={e => setFormData({...formData, telepon: e.target.value})} /></div>
+                            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Gender</label><select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value as any})}><option value="L">PRIA</option><option value="P">WANITA</option></select></div>
+                            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">No. WhatsApp</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.telepon || ''} onChange={e => setFormData({...formData, telepon: e.target.value})} /></div>
                          </div>
                       </div>
                    </div>
@@ -499,20 +501,20 @@ const PegawaiPage = () => {
                       <div className="col-span-full border-b pb-2"><h6 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">2. Jabatan & Unit Kerja</h6></div>
                       
                       <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Unit Kerja Utama</label>
-                        <input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 focus:bg-white transition-all" value={formData.unitKerja || ''} onChange={e => setFormData({...formData, unitKerja: e.target.value})} list="unit-list" />
+                        <input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 focus:bg-white transition-all placeholder:text-gray-400" value={formData.unitKerja || ''} onChange={e => setFormData({...formData, unitKerja: e.target.value})} list="unit-list" />
                         <datalist id="unit-list">{uniqueUnits.map(u => <option key={u} value={u} />)}</datalist>
                       </div>
 
-                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Bagian / Kelompok Kerja</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.bagian || ''} onChange={e => setFormData({...formData, bagian: e.target.value})} /></div>
-                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Nama Jabatan Terakhir</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} /></div>
+                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Bagian / Kelompok Kerja</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.bagian || ''} onChange={e => setFormData({...formData, bagian: e.target.value})} /></div>
+                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Nama Jabatan Terakhir</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} /></div>
                       
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Eselon</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.eselon || ''} onChange={e => setFormData({...formData, eselon: e.target.value})} /></div>
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">TMT Jabatan</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.tmtJabatan || ''} onChange={e => setFormData({...formData, tmtJabatan: e.target.value})} /></div>
+                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Eselon</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.eselon || ''} onChange={e => setFormData({...formData, eselon: e.target.value})} /></div>
+                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">TMT Jabatan</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.tmtJabatan || ''} onChange={e => setFormData({...formData, tmtJabatan: e.target.value})} /></div>
                       </div>
 
-                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Klasifikasi Jabatan</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.klasifikasiJabatan || ''} onChange={e => setFormData({...formData, klasifikasiJabatan: e.target.value})} placeholder="Struktural / Fungsional" /></div>
-                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Alamat Domisili Lengkap</label><textarea rows={3} className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none resize-none" value={formData.alamat || ''} onChange={e => setFormData({...formData, alamat: e.target.value})} /></div>
+                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Klasifikasi Jabatan</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.klasifikasiJabatan || ''} onChange={e => setFormData({...formData, klasifikasiJabatan: e.target.value})} placeholder="Struktural / Fungsional" /></div>
+                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Alamat Domisili Lengkap</label><textarea rows={3} className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none resize-none focus:border-blue-500 placeholder:text-gray-400" value={formData.alamat || ''} onChange={e => setFormData({...formData, alamat: e.target.value})} /></div>
                    </div>
 
                    {/* Column 3: Career & Identity Detail */}
@@ -521,28 +523,28 @@ const PegawaiPage = () => {
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Golongan Ruang</label>
-                           <select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.golRuang || ''} onChange={e => setFormData({...formData, golRuang: e.target.value, pangkat: getPangkatFromGol(e.target.value)})}>
+                           <select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.golRuang || ''} onChange={e => setFormData({...formData, golRuang: e.target.value, pangkat: getPangkatFromGol(e.target.value)})}>
                              <option value="">Pilih</option>
                              {GOLONGAN_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
                            </select>
                         </div>
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">TMT Pangkat</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.tmtPangkat || ''} onChange={e => setFormData({...formData, tmtPangkat: e.target.value})} /></div>
+                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">TMT Pangkat</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.tmtPangkat || ''} onChange={e => setFormData({...formData, tmtPangkat: e.target.value})} /></div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Kategori Pegawai</label><select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.jenisPegawai || 'PNS'} onChange={e => setFormData({...formData, jenisPegawai: e.target.value as any})}>{JENIS_PEGAWAI_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Status Aktif</label><select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.status || 'Aktif'} onChange={e => setFormData({...formData, status: e.target.value as any})}>{STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
+                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Kategori Pegawai</label><select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.jenisPegawai || 'PNS'} onChange={e => setFormData({...formData, jenisPegawai: e.target.value as any})}>{JENIS_PEGAWAI_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
+                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Status Aktif</label><select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.status || 'Aktif'} onChange={e => setFormData({...formData, status: e.target.value as any})}>{STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
                       </div>
 
-                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">TMT CPNS / Pegawai</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.tmtStatus || ''} onChange={e => setFormData({...formData, tmtStatus: e.target.value})} /></div>
+                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">TMT CPNS / Pegawai</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.tmtStatus || ''} onChange={e => setFormData({...formData, tmtStatus: e.target.value})} /></div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Tempat Lahir</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.tempatLahir || ''} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Tanggal Lahir</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.tanggalLahir || ''} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
+                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Tempat Lahir</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.tempatLahir || ''} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
+                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Tanggal Lahir</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.tanggalLahir || ''} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
                       </div>
 
-                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Jenjang Pendidikan Terakhir</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.pendidikan || ''} onChange={e => setFormData({...formData, pendidikan: e.target.value})} placeholder="S1 / S2 / D3" /></div>
-                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Bidang Studi / Jurusan</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none" value={formData.bidang || ''} onChange={e => setFormData({...formData, bidang: e.target.value})} /></div>
+                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Jenjang Pendidikan Terakhir</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.pendidikan || ''} onChange={e => setFormData({...formData, pendidikan: e.target.value})} placeholder="S1 / S2 / D3" /></div>
+                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Bidang Studi / Jurusan</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.bidang || ''} onChange={e => setFormData({...formData, bidang: e.target.value})} /></div>
                    </div>
                 </div>
              </div>
