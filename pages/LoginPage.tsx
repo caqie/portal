@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { fetchUsersFromSheets } from '../spreadsheetService';
@@ -64,14 +63,18 @@ const LoginPage = () => {
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-600/5 rounded-full -ml-16 -mb-16 blur-3xl"></div>
 
           <div className="text-center mb-6 sm:mb-10 relative">
-            <div className="inline-flex items-center justify-center h-20 w-20 sm:h-24 sm:w-24 bg-white rounded-2xl sm:rounded-[2rem] shadow-xl mb-4 group transition-transform hover:scale-110 overflow-hidden p-3 border border-gray-50">
-              {systemLogo ? (
-                <img src={systemLogo} className="h-full w-full object-contain" alt="Logo" />
-              ) : (
-                <i className="bi bi-shield-lock-fill text-3xl sm:text-4xl text-blue-600"></i>
-              )}
+            <div className="group relative inline-block">
+              <div className="inline-flex items-center justify-center h-24 w-24 sm:h-28 sm:w-28 bg-white rounded-2xl sm:rounded-[2.5rem] shadow-xl mb-4 transition-all duration-500 group-hover:scale-110 group-hover:shadow-2xl overflow-hidden p-3 border border-gray-50 shimmer-effect">
+                {systemLogo ? (
+                  <img src={systemLogo} className="h-full w-full object-contain relative z-10" alt="Logo" />
+                ) : (
+                  <i className="bi bi-shield-lock-fill text-3xl sm:text-4xl text-blue-600 relative z-10"></i>
+                )}
+              </div>
+              <div className="absolute -inset-1 bg-blue-500/10 rounded-[2.5rem] blur opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-gray-900 uppercase tracking-tight leading-none">
+            
+            <h1 className="text-xl sm:text-2xl font-black text-gray-900 uppercase tracking-tight leading-none mt-2">
               {systemName.split(' ')[0]} <span className="text-blue-600">{systemName.split(' ').slice(1).join(' ')}</span>
             </h1>
             <p className="text-[7px] sm:text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] mt-2">DJKI • KEMENKUM RI</p>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -179,12 +178,14 @@ const AppContent = () => {
           </button>
 
           <div className={`pt-8 pb-4 flex flex-col items-center ${isCollapsed ? 'px-2' : 'px-6'}`}>
-            <div className={`relative transition-all duration-500 ${isCollapsed ? 'w-8 h-8' : 'w-12 h-12'} mb-3 flex items-center justify-center`}>
-              {systemLogo ? (
-                <img src={systemLogo} className="h-full w-full object-contain" alt="Logo" />
-              ) : (
-                <i className="bi bi-shield-lock text-blue-500 text-2xl"></i>
-              )}
+            <div className={`group relative transition-all duration-500 ${isCollapsed ? 'w-10 h-10' : 'w-14 h-14'} mb-3 flex items-center justify-center`}>
+              <div className="w-full h-full shimmer-effect rounded-xl transition-transform duration-500 group-hover:scale-110">
+                {systemLogo ? (
+                  <img src={systemLogo} className="h-full w-full object-contain" alt="Logo" />
+                ) : (
+                  <i className="bi bi-shield-lock text-blue-500 text-2xl"></i>
+                )}
+              </div>
             </div>
             <div className={`text-center transition-all duration-500 whitespace-nowrap overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100'}`}>
               <h1 className="text-sm font-black text-white tracking-tight leading-none uppercase">
@@ -231,18 +232,34 @@ const AppContent = () => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 bg-[#F8F9FC] overflow-hidden relative">
+        {/* Global Watermark */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden select-none no-print">
+            <h1 className="text-[10vw] font-black text-blue-900/[0.02] -rotate-[15deg] uppercase tracking-[0.4em] text-center leading-none">
+              PORTAL SDM DJKI
+            </h1>
+        </div>
+
         <header className="sticky top-0 z-[70] bg-white/95 backdrop-blur-md border-b border-gray-200/50 px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm shrink-0">
           <div className="flex items-center space-x-3">
             <button onClick={toggleSidebar} className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-all lg:hidden">
               <i className="bi bi-list text-xl"></i>
             </button>
             <div className="min-w-0">
-              <h2 className="text-[11px] lg:text-sm font-black text-gray-900 tracking-tight leading-none uppercase truncate">{pageTitle()}</h2>
-              <p className="text-[7px] text-gray-400 font-bold uppercase mt-1 tracking-widest hidden xs:block">{dateTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+              <h2 className="text-[11px] lg:text-sm font-black text-gray-900 tracking-tight leading-none uppercase truncate relative z-10">{pageTitle()}</h2>
+              {/* Fix: Ganti 'hidden xs:flex' menjadi 'flex' agar jam muncul di semua ukuran layar */}
+              <div className="flex items-center space-x-2 mt-1 relative z-10">
+                <p className="text-[8px] lg:text-[9px] font-black text-blue-600 uppercase tracking-widest">
+                  {dateTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </p>
+                <span className="text-[8px] text-gray-300">•</span>
+                <p className="text-[8px] lg:text-[9px] text-gray-400 font-bold uppercase tracking-widest">
+                  {dateTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 relative z-10">
             <div className="text-right hidden sm:block">
               <p className="text-[9px] font-black text-gray-900 uppercase truncate max-w-[120px]">{user?.name}</p>
               <p className="text-[7px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">{user?.role}</p>
@@ -253,14 +270,14 @@ const AppContent = () => {
           </div>
         </header>
 
-        <div className="bg-[#111827] text-white py-1.5 overflow-hidden shrink-0 border-b border-white/5">
+        <div className="bg-[#111827] text-white py-1.5 overflow-hidden shrink-0 border-b border-white/5 relative z-10">
           <div className="whitespace-nowrap animate-marquee inline-block">
             <span className="text-[7px] lg:text-[9px] font-black uppercase tracking-[0.2em] px-10 border-r border-white/20">{runningText}</span>
             <span className="text-[7px] lg:text-[9px] font-black uppercase tracking-[0.2em] px-10 border-r border-white/20">{runningText}</span>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 lg:p-6 pb-20 lg:pb-6">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 lg:p-6 pb-20 lg:pb-6 relative z-10">
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/" element={<PageWrapper module="dashboard"><Dashboard /></PageWrapper>} />
@@ -281,7 +298,7 @@ const AppContent = () => {
           </Routes>
         </div>
         
-        <footer className="bg-white/90 backdrop-blur-md border-t border-gray-100 px-4 py-2.5 flex flex-col sm:flex-row justify-between items-center shrink-0 gap-1.5">
+        <footer className="bg-white/90 backdrop-blur-md border-t border-gray-100 px-4 py-2.5 flex flex-col sm:flex-row justify-between items-center shrink-0 gap-1.5 relative z-10">
             <p className="text-[7px] font-bold text-gray-400 uppercase tracking-widest text-center sm:text-left">© 2025 DJKI • KEMENTERIAN HUKUM RI</p>
             <a href="https://caqiestudioproduction.com" target="_blank" rel="noopener noreferrer" className="text-[7px] font-black text-blue-600 uppercase tracking-widest hover:underline transition-all text-center sm:text-right">Developed by caqiestudioproduction.com</a>
         </footer>
@@ -291,6 +308,9 @@ const AppContent = () => {
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-marquee { animation: marquee 30s linear infinite; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        @media print {
+            .no-print { display: none !important; }
+        }
       `}</style>
     </div>
   );

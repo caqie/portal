@@ -220,12 +220,12 @@ const Dashboard = () => {
         <StatsCard title="PPPK Paruh Waktu" value={mainStats.pppk_pw} icon="bi-person-workspace" color="bg-cyan-600" loading={loading} subValue="Tenaga Tambahan" />
       </div>
 
-      {/* 3. Visual Charts - Fixed with minHeight for ResponsiveContainer */}
+      {/* 3. Visual Charts - Fixed with minHeight and explicit heights */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-         <div className="lg:col-span-5 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-[400px]">
+         <div className="lg:col-span-5 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col min-h-[400px]">
             <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-6">Demografi Gender</h4>
-            <div className="flex-1 min-h-[250px]">
-               <ResponsiveContainer width="100%" height="100%">
+            <div className="flex-1 w-full min-h-[250px] relative">
+               <ResponsiveContainer width="100%" height="100%" minHeight={250}>
                   <PieChart>
                     <Pie data={genderData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                       {genderData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
@@ -237,10 +237,10 @@ const Dashboard = () => {
             </div>
          </div>
 
-         <div className="lg:col-span-7 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-[400px]">
+         <div className="lg:col-span-7 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col min-h-[400px]">
             <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-6">Tingkat Pendidikan</h4>
-            <div className="flex-1 min-h-[250px]">
-               <ResponsiveContainer width="100%" height="100%">
+            <div className="flex-1 w-full min-h-[250px] relative">
+               <ResponsiveContainer width="100%" height="100%" minHeight={250}>
                   <BarChart data={pendidikanData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" />
                     <XAxis type="number" hide />
