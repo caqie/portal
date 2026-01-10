@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchPegawaiFromSheets } from '../spreadsheetService';
 import { Pegawai, SKP } from '../types';
 import { useAuth } from '../AuthContext';
+import { LOGO_DJKI_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
 
 interface SKPRecord extends SKP {
@@ -26,6 +27,9 @@ const SKPPage = () => {
   const [selectedSKP, setSelectedSKP] = useState<SKPRecord | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Logo system from localStorage or fallback to default
+  const systemLogo = localStorage.getItem('portal_system_logo') || LOGO_DJKI_URL;
 
   const [formData, setFormData] = useState<any>({ 
     nip: '', 
@@ -268,7 +272,7 @@ const SKPPage = () => {
               {/* Header */}
               <div className="flex items-center justify-center mb-8 relative">
                  <div className="absolute left-0 w-20">
-                    <img src="https://drive.google.com/uc?id=1he5AoYAHMd9dlg47zLlR_-vSX_tQ9u95" className="w-full object-contain" />
+                    <img src={systemLogo} className="w-full object-contain" alt="Logo" />
                  </div>
                  <div className="text-center">
                     <h1 className="text-[12pt] font-bold uppercase leading-tight">DOKUMEN EVALUASI KINERJA PEGAWAI</h1>
