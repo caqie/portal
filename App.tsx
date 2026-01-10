@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -16,6 +17,7 @@ import RekapAbsensiPage from './pages/RekapAbsensiPage';
 import SKPPage from './pages/SKPPage';
 import ActivityLogPage from './pages/ActivityLogPage';
 import { MaintenanceConfig } from './types';
+import { DEFAULT_LOGO } from './constants';
 
 const SidebarItem = ({ to, icon, label, active, collapsed, onClick }: { to: string, icon: string, label: string, active: boolean, collapsed: boolean, onClick?: () => void }) => (
   <Link 
@@ -50,7 +52,6 @@ const MaintenanceScreen = () => (
   </div>
 );
 
-// Fix for children prop missing error: make children optional in PageWrapper props type
 const PageWrapper = ({ children, module }: { children?: React.ReactNode, module: string }) => {
   const { isSuperadmin } = useAuth();
   const [isMaintenance, setIsMaintenance] = useState(false);
@@ -93,7 +94,10 @@ const AppContent = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [dateTime, setDateTime] = useState(new Date());
-  const [runningText, setRunningText] = useState('Selamat Datang di Portal SDM Direktorat Jenderal Kekayaan Intelektual - Kementerian Hukum RI. Jaga Integritas, Tingkatkan Kinerja!');
+  
+  const [systemName, setSystemName] = useState('Portal SDM');
+  const [systemLogo, setSystemLogo] = useState<string | null>(DEFAULT_LOGO);
+  const [runningText, setRunningText] = useState('Selamat Datang di Portal SDM Direktorat Jenderal Kekayaan Intelektual - Kementerian Hukum RI.');
   
   const location = useLocation();
   const { user, logout, isSuperadmin, canEdit, isAuthenticated } = useAuth();
@@ -112,15 +116,29 @@ const AppContent = () => {
 
   useEffect(() => {
     const timer = setInterval(() => setDateTime(new Date()), 1000);
-    const handleStorageChange = () => {
+    
+    const handleStorageSync = () => {
+      const savedName = localStorage.getItem('portal_system_name');
+      if (savedName) {
+        setSystemName(savedName);
+        document.title = savedName; 
+      } else {
+        document.title = "Portal SDM - DJKI Kemenkum RI";
+      }
+
+      const savedLogo = localStorage.getItem('portal_system_logo');
+      if (savedLogo) setSystemLogo(savedLogo);
+      else setSystemLogo(DEFAULT_LOGO);
+
       const savedText = localStorage.getItem('portal_running_text');
       if (savedText) setRunningText(savedText);
     };
-    handleStorageChange();
-    window.addEventListener('storage_updated', handleStorageChange);
+    
+    handleStorageSync();
+    window.addEventListener('storage_updated', handleStorageSync);
     return () => {
       clearInterval(timer);
-      window.removeEventListener('storage_updated', handleStorageChange);
+      window.removeEventListener('storage_updated', handleStorageSync);
     };
   }, []);
 
@@ -142,7 +160,7 @@ const AppContent = () => {
       case '/dossiers': return user?.role === 'Viewer' ? 'Arsip Saya' : 'Dossier';
       case '/settings': return 'Settings';
       case '/logs': return 'Audit Log Aktivitas';
-      default: return 'Portal SDM';
+      default: return systemName;
     }
   };
 
@@ -161,11 +179,17 @@ const AppContent = () => {
           </button>
 
           <div className={`pt-8 pb-4 flex flex-col items-center ${isCollapsed ? 'px-2' : 'px-6'}`}>
-            <div className={`relative transition-all duration-500 ${isCollapsed ? 'w-8 h-8' : 'w-10 h-10'} mb-3`}>
-              <i className="bi bi-shield-lock text-blue-500 text-2xl"></i>
+            <div className={`relative transition-all duration-500 ${isCollapsed ? 'w-8 h-8' : 'w-12 h-12'} mb-3 flex items-center justify-center`}>
+              {systemLogo ? (
+                <img src={systemLogo} className="h-full w-full object-contain" alt="Logo" />
+              ) : (
+                <i className="bi bi-shield-lock text-blue-500 text-2xl"></i>
+              )}
             </div>
             <div className={`text-center transition-all duration-500 whitespace-nowrap overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100'}`}>
-              <h1 className="text-base font-black text-white tracking-tight leading-none uppercase">Portal <span className="text-blue-600">SDM</span></h1>
+              <h1 className="text-sm font-black text-white tracking-tight leading-none uppercase">
+                {systemName.split(' ')[0]} <span className="text-blue-600">{systemName.split(' ').slice(1).join(' ')}</span>
+              </h1>
               <p className="text-[6px] text-gray-500 mt-1 font-black uppercase tracking-[0.3em]">DJKI • KEMENKUM RI</p>
             </div>
           </div>

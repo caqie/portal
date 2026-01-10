@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import { fetchUsersFromSheets } from '../spreadsheetService';
 import { Pegawai } from '../types';
+import { DEFAULT_LOGO } from '../constants';
 
 const LoginPage = () => {
   const [nip, setNip] = useState('');
@@ -10,6 +11,18 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+  
+  const [systemName, setSystemName] = useState('Portal SDM');
+  const [systemLogo, setSystemLogo] = useState<string | null>(DEFAULT_LOGO);
+
+  useEffect(() => {
+    const savedName = localStorage.getItem('portal_system_name');
+    if (savedName) setSystemName(savedName);
+    
+    const savedLogo = localStorage.getItem('portal_system_logo');
+    if (savedLogo) setSystemLogo(savedLogo);
+    else setSystemLogo(DEFAULT_LOGO);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,8 +34,6 @@ const LoginPage = () => {
       let foundUser = users.find(u => u.nip === nip && u.password === password);
 
       if (foundUser) {
-        // PERBAIKAN: Cek apakah ada foto profil di database pegawai lokal (portal_pegawai_db)
-        // Karena data di Sheets mungkin tidak memiliki Base64 foto yang baru diunggah
         const savedLocalPegawai = localStorage.getItem('portal_pegawai_db');
         if (savedLocalPegawai) {
           const pegawaiList: Pegawai[] = JSON.parse(savedLocalPegawai);
@@ -53,10 +64,16 @@ const LoginPage = () => {
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-600/5 rounded-full -ml-16 -mb-16 blur-3xl"></div>
 
           <div className="text-center mb-6 sm:mb-10 relative">
-            <div className="inline-flex items-center justify-center h-12 w-12 sm:h-16 sm:w-16 bg-blue-600 rounded-xl sm:rounded-2xl shadow-xl shadow-blue-600/20 mb-4 sm:6 group transition-transform hover:scale-110">
-              <i className="bi bi-shield-lock-fill text-2xl sm:text-3xl text-white"></i>
+            <div className="inline-flex items-center justify-center h-20 w-20 sm:h-24 sm:w-24 bg-white rounded-2xl sm:rounded-[2rem] shadow-xl mb-4 group transition-transform hover:scale-110 overflow-hidden p-3 border border-gray-50">
+              {systemLogo ? (
+                <img src={systemLogo} className="h-full w-full object-contain" alt="Logo" />
+              ) : (
+                <i className="bi bi-shield-lock-fill text-3xl sm:text-4xl text-blue-600"></i>
+              )}
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-gray-900 uppercase tracking-tight leading-none">Portal <span className="text-blue-600">SDM</span></h1>
+            <h1 className="text-xl sm:text-2xl font-black text-gray-900 uppercase tracking-tight leading-none">
+              {systemName.split(' ')[0]} <span className="text-blue-600">{systemName.split(' ').slice(1).join(' ')}</span>
+            </h1>
             <p className="text-[7px] sm:text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] mt-2">DJKI • KEMENKUM RI</p>
           </div>
 

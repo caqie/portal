@@ -1,12 +1,13 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AdminUser, MaintenanceConfig, CloudConfig } from '../types';
 import { fetchUsersFromSheets } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
+import { DEFAULT_LOGO } from '../constants';
 
 const SettingsPage = () => {
   const { isSuperadmin, logActivity } = useAuth();
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState('general_setting');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   
@@ -15,7 +16,11 @@ const SettingsPage = () => {
   const [dbStatus, setDbStatus] = useState<'connected' | 'offline' | 'checking'>('checking');
   
   const [userFormData, setUserFormData] = useState<Partial<AdminUser>>({});
+  
+  const [systemName, setSystemName] = useState('Portal SDM');
+  const [systemLogo, setSystemLogo] = useState<string | null>(DEFAULT_LOGO);
   const [runningTextValue, setRunningTextValue] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [maintenanceConfig, setMaintenanceConfig] = useState<MaintenanceConfig>({
     all: false,
@@ -48,6 +53,13 @@ const SettingsPage = () => {
   useEffect(() => {
     checkConnection();
     
+    const savedName = localStorage.getItem('portal_system_name');
+    if (savedName) setSystemName(savedName);
+    
+    const savedLogo = localStorage.getItem('portal_system_logo');
+    if (savedLogo) setSystemLogo(savedLogo);
+    else setSystemLogo(DEFAULT_LOGO);
+
     const savedText = localStorage.getItem('portal_running_text');
     if (savedText) setRunningTextValue(savedText);
 
@@ -66,12 +78,31 @@ const SettingsPage = () => {
     }
   }, [activeTab]);
 
-  const handleSaveGeneral = (e: React.FormEvent) => {
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1024 * 1024) return alert("Ukuran logo maksimal 1MB");
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSystemLogo(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveGeneralSetting = (e: React.FormEvent) => {
     e.preventDefault();
+    localStorage.setItem('portal_system_name', systemName);
     localStorage.setItem('portal_running_text', runningTextValue);
+    if (systemLogo && systemLogo !== DEFAULT_LOGO) {
+      localStorage.setItem('portal_system_logo', systemLogo);
+    } else if (systemLogo === DEFAULT_LOGO) {
+      localStorage.removeItem('portal_system_logo');
+    }
+    
     window.dispatchEvent(new Event('storage_updated'));
-    logActivity('UPDATE', 'Settings', 'Memperbarui konfigurasi umum sistem.');
-    alert('Konfigurasi sistem berhasil diperbarui.');
+    logActivity('UPDATE', 'Settings', 'Memperbarui branding sistem (Nama & Logo).');
+    alert('Pengaturan umum berhasil disimpan.');
   };
 
   const handleSaveCloud = (e: React.FormEvent) => {
@@ -151,7 +182,7 @@ const SettingsPage = () => {
 
       <div className="flex border-b border-gray-100 bg-gray-50/20 overflow-x-auto no-scrollbar">
         {[
-          { id: 'general', label: 'Umum', icon: 'bi-sliders' },
+          { id: 'general_setting', label: 'General Setting', icon: 'bi-palette-fill' },
           { id: 'cloud', label: 'Google Drive', icon: 'bi-cloud-fill' },
           { id: 'users', label: 'Pengguna', icon: 'bi-shield-lock' },
           { id: 'database', label: 'Spreadsheet', icon: 'bi-table' },
@@ -165,10 +196,78 @@ const SettingsPage = () => {
       </div>
 
       <div className="p-10">
-        {activeTab === 'general' && (
-          <form onSubmit={handleSaveGeneral} className="max-w-3xl space-y-8 animate-fadeIn">
-            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase pl-2">Pengumuman Berjalan</label><textarea rows={2} className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-bold shadow-sm" value={runningTextValue} onChange={(e) => setRunningTextValue(e.target.value)} /></div>
-            <button type="submit" className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl">Simpan Konfigurasi</button>
+        {activeTab === 'general_setting' && (
+          <form onSubmit={handleSaveGeneralSetting} className="max-w-4xl space-y-10 animate-fadeIn">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+               <div className="space-y-6">
+                  <div className="col-span-full border-b pb-2"><h6 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Branding Portal</h6></div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-gray-400 uppercase pl-2">Nama Portal / Sistem</label>
+                    <input 
+                      type="text" 
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-bold shadow-sm focus:bg-white focus:border-blue-500 transition-all" 
+                      value={systemName} 
+                      onChange={(e) => setSystemName(e.target.value)} 
+                      placeholder="Contoh: Portal SDM DJKI"
+                    />
+                    <p className="text-[8px] text-gray-400 font-bold uppercase pl-2 mt-1 italic">* Nama ini akan muncul di Judul Browser, Sidebar, dan Halaman Login.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-gray-400 uppercase pl-2">Pengumuman Berjalan (Running Text)</label>
+                    <textarea 
+                      rows={3} 
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-bold shadow-sm focus:bg-white focus:border-blue-500 transition-all resize-none" 
+                      value={runningTextValue} 
+                      onChange={(e) => setRunningTextValue(e.target.value)} 
+                    />
+                  </div>
+               </div>
+
+               <div className="space-y-6">
+                  <div className="col-span-full border-b pb-2"><h6 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Logo Kustom</h6></div>
+                  
+                  <div className="flex flex-col items-center p-8 bg-gray-50 rounded-[2.5rem] border border-gray-100 border-dashed">
+                     <div className="h-32 w-32 rounded-[2rem] bg-white border-2 border-white shadow-xl overflow-hidden mb-6 flex items-center justify-center relative group">
+                        {systemLogo ? (
+                          <img src={systemLogo} className="w-full h-full object-contain p-2" alt="Preview Logo" />
+                        ) : (
+                          <i className="bi bi-shield-lock-fill text-5xl text-gray-200"></i>
+                        )}
+                        <button 
+                          type="button" 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center text-white"
+                        >
+                          <i className="bi bi-camera text-2xl"></i>
+                          <span className="text-[8px] font-black uppercase mt-1">Ganti Logo</span>
+                        </button>
+                     </div>
+                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
+                     <div className="text-center">
+                        <p className="text-[10px] font-black text-gray-900 uppercase">Logo Sistem</p>
+                        <p className="text-[8px] text-gray-400 font-bold uppercase mt-1">PNG/JPG (Maks 1MB)</p>
+                     </div>
+                  </div>
+                  
+                  {systemLogo && systemLogo !== DEFAULT_LOGO && (
+                    <button 
+                      type="button" 
+                      onClick={() => setSystemLogo(DEFAULT_LOGO)}
+                      className="w-full py-2.5 text-[8px] font-black uppercase text-rose-500 bg-rose-50 rounded-xl hover:bg-rose-100 transition-all"
+                    >
+                      Reset ke Ikon Default
+                    </button>
+                  )}
+               </div>
+            </div>
+
+            <div className="pt-6 border-t border-gray-100">
+               <button type="submit" className="px-12 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl shadow-blue-600/20 active:scale-95 transition-all">
+                 <i className="bi bi-check-circle-fill mr-2"></i> Simpan Pengaturan Branding
+               </button>
+            </div>
           </form>
         )}
 

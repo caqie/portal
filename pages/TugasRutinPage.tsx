@@ -431,7 +431,7 @@ const TugasRutinPage = () => {
       <div className="flex flex-col lg:flex-row justify-between items-end gap-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 w-full max-w-2xl">
           <SelectField label="Bulan" options={BULAN} value={filterBulan} onChange={(_:any, v:any) => setFilterBulan(v)} />
-          <SelectField label="Kategori" options={[{ value: 'ALL', label: 'SEMUA KATEGORI' }, ...Object.entries(TASK_LABELS).map(([k, v]) => ({ value: k, label: v.toUpperCase() }))]} value={filterJenis} onChange={(_:any, v:any) => setFilterJenis(v)} />
+          <SelectField label="Kategori" options={[{ value: 'ALL', label: 'SEMUA KATEGORI' }, ...Object.entries(TASK_LABELS).map(([k, v]) => ({ value: k, label: (v as string).toUpperCase() }))]} value={filterJenis} onChange={(_:any, v:any) => setFilterJenis(v)} />
         </div>
         <div className="flex items-center gap-2 w-full lg:w-auto">
           <button onClick={handleExport} className="h-12 w-12 flex items-center justify-center bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-2xl shadow-sm hover:bg-emerald-600 hover:text-white transition-all" title="Ekspor Database">
@@ -513,7 +513,7 @@ const TugasRutinPage = () => {
                   label="Pilih Kategori Tugas" 
                   name="jenis_tugas" 
                   fullWidth 
-                  options={Object.entries(TASK_LABELS).map(([k, v]) => ({ value: k, label: v.toUpperCase() }))} 
+                  options={Object.entries(TASK_LABELS).map(([k, v]) => ({ value: k, label: (v as string).toUpperCase() }))} 
                   value={formData.jenis_tugas} 
                   onChange={handleInputChange} 
                 />
