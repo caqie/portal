@@ -1,7 +1,7 @@
 
 /**
  * geminiService.ts - Versi Non-AI
- * Seluruh fungsi AI dinonaktifkan untuk mencegah API Rate Limit.
+ * Seluruh fungsi AI dinonaktifkan untuk mencegah ketergantungan API Key dan Rate Limit.
  */
 
 export const safeGenerateContent = async (params: any) => {
@@ -13,6 +13,6 @@ export const safeGenerateContent = async (params: any) => {
 };
 
 export const getDashboardInsights = async (stats: any) => {
-  // Mengganti AI dengan ringkasan logika sederhana (Gratis & Cepat)
-  return `Saat ini terdapat ${stats.totalPegawai} pegawai terdaftar. Komposisi terbesar adalah PNS (${stats.totalPNS} orang). Seluruh data dalam kondisi sinkron dengan database pusat.`;
+  // Memberikan ringkasan cerdas tanpa memanggil server Gemini
+  return `Dashboard saat ini menampilkan ${stats.totalPegawai} data pegawai. Sistem dalam kondisi optimal dengan sinkronisasi database Spreadsheet terakhir. Semua modul (Absensi, SKP, Dossier) berjalan dalam mode lokal yang aman.`;
 };

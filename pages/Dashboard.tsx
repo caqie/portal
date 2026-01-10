@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList 
 } from 'recharts';
-import { fetchPegawaiFromSheets, calculateRetirementDate, fetchKGBFromSheets } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, fetchKGBFromSheets } from '../spreadsheetService';
 import { Pegawai, AbsensiRecord, KGB } from '../types';
 import { useAuth } from '../AuthContext';
 
@@ -55,7 +55,6 @@ const Dashboard = () => {
       setPegawai(pegData);
       setKgbList(kgbData);
       
-      // Set default filter unit kerja pertama yang ditemukan
       if (pegData.length > 0) {
         const units = Array.from(new Set(pegData.map(p => p.unitKerja).filter(u => !!u))).sort();
         if (units.length > 0) setSelectedUnitForJabatan(units[0]);
@@ -73,7 +72,6 @@ const Dashboard = () => {
     }
   };
 
-  // DAFTAR UNIT KERJA UNIK DARI DATABASE SPREADSHEET
   const uniqueUnits = useMemo(() => {
     const units = new Set(pegawai.map(p => p.unitKerja).filter(u => !!u));
     return Array.from(units).sort();
@@ -130,24 +128,35 @@ const Dashboard = () => {
   }, [pegawai, uniqueUnits]);
 
   const currentJabatanData = useMemo(() => {
-    // Fixed: Explicitly typed 'data' to ensure 'count' is inferred as a number for the arithmetic operation in sort
     const data: Record<string, number> = jabatanPerUnit[selectedUnitForJabatan] || {};
     return Object.entries(data).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
   }, [jabatanPerUnit, selectedUnitForJabatan]);
 
   const pendidikanData = useMemo(() => {
-    const counts: Record<string, number> = { 'S3': 0, 'S2': 0, 'S1': 0, 'D4': 0, 'D3': 0, 'D2': 0, 'D1': 0, 'SMA/SEDERAJAT': 0, 'LAINNYA': 0 };
+    const counts: Record<string, number> = { 
+      'S3': 0, 'S2': 0, 'S1': 0, 'D4': 0, 'D3': 0, 'D2': 0, 'D1': 0, 
+      'SMA/SEDERAJAT': 0, 'SMP/SEDERAJAT': 0, 'SD': 0, 'LAINNYA': 0 
+    };
+    
     pegawai.forEach(p => {
       const edu = (p.pendidikan || '').toUpperCase();
-      if (edu.includes('S3')) counts['S3']++;
-      else if (edu.includes('S2')) counts['S2']++;
-      else if (edu.includes('S1')) counts['S1']++;
-      else if (edu.includes('D4')) counts['D4']++;
-      else if (edu.includes('D3')) counts['D3']++;
-      else if (edu.includes('SMA') || edu.includes('SMK')) counts['SMA/SEDERAJAT']++;
+      if (edu.match(/S3|DOKTOR/)) counts['S3']++;
+      else if (edu.match(/S2|MAGISTER/)) counts['S2']++;
+      else if (edu.match(/S1|SARJANA|STRATA 1|S-1/)) counts['S1']++;
+      else if (edu.match(/D4|D-IV|D IV/)) counts['D4']++;
+      else if (edu.match(/D3|D-III|D III/)) counts['D3']++;
+      else if (edu.match(/D2|D-II|D II/)) counts['D2']++;
+      else if (edu.match(/D1|D-I|D I/)) counts['D1']++;
+      else if (edu.match(/SMA|SMK|STM|SLTA|SMU/)) counts['SMA/SEDERAJAT']++;
+      else if (edu.match(/SMP|SLTP/)) counts['SMP/SEDERAJAT']++;
+      else if (edu.match(/SD/)) counts['SD']++;
       else if (edu.trim()) counts['LAINNYA']++;
     });
-    return Object.entries(counts).map(([name, value]) => ({ name, value })).filter(item => item.value > 0);
+
+    const order = ['S3', 'S2', 'S1', 'D4', 'D3', 'D2', 'D1', 'SMA/SEDERAJAT', 'SMP/SEDERAJAT', 'SD', 'LAINNYA'];
+    return order
+      .map(name => ({ name, value: counts[name] }))
+      .filter(item => item.value > 0);
   }, [pegawai]);
 
   const genderData = [
@@ -174,11 +183,31 @@ const Dashboard = () => {
            </div>
            <i className="bi bi-person-circle absolute -right-10 -bottom-10 text-[12rem] text-white/5 rotate-12"></i>
         </div>
+        
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
            <StatsCard title="Kehadiran" value={personalAbsensi.filter(a => a.tipe === 'MASUK').length} icon="bi-calendar-check" color="bg-blue-600" loading={loading} />
            <StatsCard title="Status" value={personalData?.status || 'Aktif'} icon="bi-person-badge" color="bg-indigo-600" loading={loading} />
            <StatsCard title="Pangkat" value={personalData?.golRuang || '-'} icon="bi-award" color="bg-amber-600" loading={loading} />
            <StatsCard title="Unit" value={personalData?.unitKerja.split(' ')[0] || 'DJKI'} icon="bi-building" color="bg-emerald-600" loading={loading} />
+        </div>
+
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 h-[400px] flex flex-col">
+            <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest mb-2">Sebaran Pendidikan Instansi</h4>
+            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mb-6">Informasi Kualifikasi SDM Terkini</p>
+            <div className="flex-1">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={pendidikanData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '1rem', border: 'none', fontSize: '10px', fontWeight: 'bold' }} />
+                  <Bar dataKey="value" fill="#3b82f6" radius={[10, 10, 0, 0]} barSize={40}>
+                    <LabelList dataKey="value" position="top" style={{ fontSize: '10px', fontWeight: 'black', fill: '#1e40af' }} />
+                    {pendidikanData.map((entry, index) => <Cell key={`cell-${index}`} fill={['#3b82f6', '#4f46e5', '#6366f1', '#818cf8'][index % 4]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
         </div>
       </div>
     );
@@ -273,18 +302,19 @@ const Dashboard = () => {
         </div>
 
         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 h-[600px] flex flex-col">
-            <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest mb-2">Statistik Pendidikan</h4>
-            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mb-6">Distribusi Jenjang Pendidikan Pegawai</p>
+            <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest mb-2">Statistik Pendidikan Pegawai</h4>
+            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mb-6">Distribusi Hierarkis Jenjang Pendidikan</p>
             <div className="flex-1">
               {isMounted && !loading && (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={pendidikanData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                  <BarChart data={pendidikanData} layout="vertical" margin={{ top: 5, right: 60, left: 40, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                     <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} />
+                    <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
                     <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '1rem', border: 'none', fontSize: '10px', fontWeight: 'bold' }} />
-                    <Bar dataKey="value" fill="#4f46e5" radius={[0, 10, 10, 0]} barSize={20}>
-                      {pendidikanData.map((entry, index) => <Cell key={`cell-${index}`} fill={['#4f46e5', '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe'][index % 5]} />)}
+                    <Bar dataKey="value" fill="#4f46e5" radius={[0, 10, 10, 0]} barSize={24}>
+                      <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fontWeight: 'black', fill: '#4f46e5' }} />
+                      {pendidikanData.map((entry, index) => <Cell key={`cell-${index}`} fill={['#4338ca', '#4f46e5', '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe'][index % 6]} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -318,7 +348,7 @@ const Dashboard = () => {
              <h4 className="text-xl font-black text-gray-900 uppercase tracking-tight">Kualitas Data Terverifikasi</h4>
              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 max-w-xs mx-auto">
                 Seluruh statistik di Dashboard ini dihitung secara real-time berdasarkan data mentah dari Spreadsheet.
-                Jika data unit di Spreadsheet berubah, Dashboard akan langsung menyesuaikan.
+                Data pendidikan diolah menggunakan algoritma penyamarataan jenjang untuk akurasi pelaporan.
              </p>
           </div>
       </div>
