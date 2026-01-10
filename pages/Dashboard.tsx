@@ -1,18 +1,19 @@
-
-// @google/genai guidelines: Fixed incorrect React import (React is not a named export)
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList 
 } from 'recharts';
-import { fetchPegawaiFromSheets, fetchKGBFromSheets } from '../spreadsheetService';
-import { Pegawai, AbsensiRecord, KGB } from '../types';
+import { fetchPegawaiFromSheets, calculateRetirementDate } from '../spreadsheetService';
+import { Pegawai } from '../types';
 import { useAuth } from '../AuthContext';
+import { UNIT_KERJA } from '../constants';
+
+const COLORS = ['#2563eb', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 const StatsCard = ({ title, value, icon, color, loading, subValue }: { title: string, value: string | number, icon: string, color: string, loading?: boolean, subValue?: string }) => (
   <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 flex items-center space-x-4 hover:shadow-md transition-all duration-300 group">
-    <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0 ${color}`}>
-      <i className="bi bi-person-circle absolute -right-10 -bottom-10 text-[12rem] text-white/5 rotate-12"></i>
+    <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0 ${color} relative overflow-hidden`}>
+      <i className="bi bi-person-circle absolute -right-4 -bottom-4 text-4xl text-white/10 rotate-12"></i>
       <i className={`bi ${icon} text-xl`}></i>
     </div>
     <div className="min-w-0">
@@ -29,41 +30,44 @@ const StatsCard = ({ title, value, icon, color, loading, subValue }: { title: st
   </div>
 );
 
+const NotificationRow = ({ type, name, info, color }: { type: string, name: string, info: string, color: string }) => (
+  <div className={`p-4 rounded-2xl border-l-4 ${color} bg-gray-50 flex items-center gap-4 border-y border-r border-gray-100/50`}>
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-2 mb-1">
+        <span className={`text-[7px] font-black uppercase px-2 py-0.5 rounded ${color.replace('border-', 'bg-').replace('-600', '-100')} ${color.replace('border-', 'text-')}`}>
+          {type}
+        </span>
+        <p className="text-[9px] font-black text-gray-900 uppercase truncate">{name}</p>
+      </div>
+      <p className="text-[8px] text-gray-500 font-bold uppercase tracking-tight">{info}</p>
+    </div>
+  </div>
+);
+
 const Dashboard = () => {
   const { user } = useAuth();
   const isViewer = user?.role === 'Viewer';
   
   const [pegawai, setPegawai] = useState<Pegawai[]>([]);
-  const [kgbList, setKgbList] = useState<KGB[]>([]);
-  const [personalAbsensi, setPersonalAbsensi] = useState<AbsensiRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isMounted, setIsMounted] = useState(false);
-  const [selectedUnitForJabatan, setSelectedUnitForJabatan] = useState<string>('');
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+
+  // States for Sebaran Jabatan Table
+  const [searchJabatan, setSearchJabatan] = useState('');
+  const [filterUnitJabatan, setFilterUnitJabatan] = useState('Semua Unit');
 
   useEffect(() => {
-    setIsMounted(true);
     loadDashboardData();
   }, []);
 
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [pegData, kgbData] = await Promise.all([
-        fetchPegawaiFromSheets(),
-        fetchKGBFromSheets()
-      ]);
+      const pegData = await fetchPegawaiFromSheets();
       setPegawai(pegData);
-      setKgbList(kgbData);
-      
-      if (pegData.length > 0) {
-        const units = Array.from(new Set(pegData.map(p => p.unitKerja).filter(u => !!u))).sort();
-        if (units.length > 0) setSelectedUnitForJabatan(units[0]);
-      }
-
-      const savedAbsen = localStorage.getItem('absensi_history_db');
-      if (savedAbsen) {
-        const parsed = JSON.parse(savedAbsen);
-        setPersonalAbsensi(parsed.filter((a: any) => a.nip === user?.nip));
+      // Open notification modal if not a viewer and has data
+      if (user?.role !== 'Viewer') {
+        setTimeout(() => setIsNotifOpen(true), 1000);
       }
     } catch (error) {
       console.error("Dashboard Load Error:", error);
@@ -72,286 +76,280 @@ const Dashboard = () => {
     }
   };
 
-  const uniqueUnits = useMemo(() => {
-    const units = new Set(pegawai.map(p => p.unitKerja).filter(u => !!u));
-    return Array.from(units).sort();
+  // Logic Notifikasi Tahun 2025
+  const notifications = useMemo(() => {
+    const alerts: any[] = [];
+    const currentYear = new Date().getFullYear();
+
+    pegawai.forEach(p => {
+      // 1. Pensiun
+      const retirementDate = calculateRetirementDate(p.nip, p.jabatan);
+      if (retirementDate && retirementDate.getFullYear() === currentYear) {
+        alerts.push({ id: `p-${p.nip}`, type: 'PENSIUN', name: p.nama, info: `BUP: ${retirementDate.toLocaleDateString('id-ID', { month: 'long' })} ${currentYear}`, color: 'border-rose-600' });
+      }
+      // 2. KGB (2 Tahunan)
+      if (p.tmtStatus) {
+        const tmtDate = new Date(p.tmtStatus);
+        if (!isNaN(tmtDate.getTime()) && (currentYear - tmtDate.getFullYear()) % 2 === 0 && currentYear !== tmtDate.getFullYear()) {
+           alerts.push({ id: `k-${p.nip}`, type: 'KGB', name: p.nama, info: `Jadwal KGB Rutin ${currentYear}`, color: 'border-emerald-600' });
+        }
+      }
+      // 3. Pangkat (4 Tahunan)
+      if (p.tmtPangkat) {
+        const tmtPkt = new Date(p.tmtPangkat);
+        if (!isNaN(tmtPkt.getTime()) && (currentYear - tmtPkt.getFullYear()) % 4 === 0 && currentYear !== tmtPkt.getFullYear()) {
+          alerts.push({ id: `pkt-${p.nip}`, type: 'KENAIKAN PANGKAT', name: p.nama, info: `KP Reguler ${currentYear}`, color: 'border-blue-600' });
+        }
+      }
+      // 4. Jenjang (Estimasi 3 Tahunan)
+      if (p.tmtJabatan) {
+        const tmtJab = new Date(p.tmtJabatan);
+        if (!isNaN(tmtJab.getTime()) && (currentYear - tmtJab.getFullYear()) % 3 === 0 && currentYear !== tmtJab.getFullYear()) {
+          alerts.push({ id: `jenj-${p.nip}`, type: 'KENAIKAN JENJANG', name: p.nama, info: `Potensi Jenjang ${currentYear}`, color: 'border-indigo-600' });
+        }
+      }
+    });
+    return alerts;
   }, [pegawai]);
 
-  const personalData = useMemo(() => {
-    return pegawai.find(p => p.nip === user?.nip);
-  }, [pegawai, user]);
+  // Statistik Gender & Pendidikan
+  const genderData = useMemo(() => {
+    const counts = { L: 0, P: 0 };
+    pegawai.forEach(p => { if (p.gender === 'P') counts.P++; else counts.L++; });
+    return [{ name: 'Laki-laki', value: counts.L }, { name: 'Perempuan', value: counts.P }];
+  }, [pegawai]);
 
-  const stats = useMemo(() => {
-    const counts = { total: pegawai.length, pns: 0, cpns: 0, pppk: 0, pppk_pw: 0, aktif: 0, cuti: 0, tugasBelajar: 0, pensiunCount: 0 };
+  const pendidikanData = useMemo(() => {
+    const counts: Record<string, number> = { 'S3': 0, 'S2': 0, 'S1/D4': 0, 'D3': 0, 'SMA': 0, 'LAINNYA': 0 };
     pegawai.forEach(p => {
-      const jenis = (p.jenisPegawai || '').toUpperCase();
-      if (jenis === 'PNS') counts.pns++;
-      else if (jenis === 'CPNS') counts.cpns++;
-      else if (jenis === 'PPPK') counts.pppk++;
-      else if (jenis.includes('PARUH WAKTU') || jenis.includes('PW')) counts.pppk_pw++;
-      if (p.status === 'Aktif') counts.aktif++;
+      const edu = (p.pendidikan || '').toUpperCase();
+      if (edu.includes('S3')) counts['S3']++;
+      else if (edu.includes('S2')) counts['S2']++;
+      else if (edu.includes('S1') || edu.includes('D4')) counts['S1/D4']++;
+      else if (edu.includes('D3')) counts['D3']++;
+      else if (edu.includes('SMA')) counts['SMA']++;
+      else if (edu.trim()) counts['LAINNYA']++;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value })).filter(i => i.value > 0);
+  }, [pegawai]);
+
+  const sebaranJabatanDetailed = useMemo(() => {
+    const map: Record<string, { jabatan: string, unit: string, count: number }> = {};
+    pegawai.forEach(p => {
+      const key = `${p.jabatan || 'TANPA JABATAN'}|${p.unitKerja || 'TANPA UNIT'}`;
+      if (!map[key]) {
+        map[key] = { jabatan: p.jabatan || 'TANPA JABATAN', unit: p.unitKerja || 'TANPA UNIT', count: 0 };
+      }
+      map[key].count++;
+    });
+    return Object.values(map).filter(item => {
+      const matchesSearch = item.jabatan.toLowerCase().includes(searchJabatan.toLowerCase());
+      const matchesUnit = filterUnitJabatan === 'Semua Unit' || item.unit === filterUnitJabatan;
+      return matchesSearch && matchesUnit;
+    }).sort((a, b) => b.count - a.count);
+  }, [pegawai, searchJabatan, filterUnitJabatan]);
+
+  const sebaranUnitKomprehensif = useMemo(() => {
+    const units = Array.from(new Set(pegawai.map(p => p.unitKerja).filter(u => !!u))).sort();
+    return units.map(unit => {
+      const members = pegawai.filter(p => p.unitKerja === unit);
+      return {
+        unit,
+        pns: members.filter(p => (p.jenisPegawai || '').toUpperCase() === 'PNS').length,
+        cpns: members.filter(p => (p.jenisPegawai || '').toUpperCase() === 'CPNS').length,
+        pppk: members.filter(p => (p.jenisPegawai || '').toUpperCase() === 'PPPK').length,
+        pppk_pw: members.filter(p => {
+          const jp = (p.jenisPegawai || '').toUpperCase();
+          return jp.includes('PARUH WAKTU') || jp.includes('PW');
+        }).length,
+        total: members.length
+      };
+    });
+  }, [pegawai]);
+
+  const mainStats = useMemo(() => {
+    const counts = { total: pegawai.length, pns: 0, pppk: 0, cpns: 0, pppk_pw: 0 };
+    pegawai.forEach(p => {
+      const jp = (p.jenisPegawai || '').toUpperCase();
+      if (jp === 'PNS') counts.pns++;
+      else if (jp === 'CPNS') counts.cpns++;
+      else if (jp === 'PPPK') counts.pppk++;
+      else if (jp.includes('PARUH WAKTU') || jp.includes('PW')) counts.pppk_pw++;
     });
     return counts;
   }, [pegawai]);
 
-  const unitStats = useMemo(() => {
-    const statsMap: Record<string, any> = {};
-    uniqueUnits.forEach(unit => {
-      statsMap[unit] = { pns: 0, cpns: 0, pppk: 0, pppk_pw: 0, total: 0 };
-    });
-
-    pegawai.forEach(p => {
-      const unitKey = p.unitKerja;
-      if (statsMap[unitKey]) {
-        const jenis = (p.jenisPegawai || '').toUpperCase();
-        if (jenis === 'PNS') statsMap[unitKey].pns++;
-        else if (jenis === 'CPNS') statsMap[unitKey].cpns++;
-        else if (jenis === 'PPPK') statsMap[unitKey].pppk++;
-        else if (jenis.includes('PARUH WAKTU') || jenis.includes('PW')) statsMap[unitKey].pppk_pw++;
-        statsMap[unitKey].total++;
-      }
-    });
-    return statsMap;
-  }, [pegawai, uniqueUnits]);
-
-  const jabatanPerUnit = useMemo(() => {
-    const stats: Record<string, Record<string, number>> = {};
-    uniqueUnits.forEach(unit => { stats[unit] = {}; });
-    pegawai.forEach(p => {
-      const unit = p.unitKerja;
-      const jab = (p.jabatan || 'TANPA JABATAN').toUpperCase();
-      if (stats[unit]) {
-        stats[unit][jab] = (stats[unit][jab] || 0) + 1;
-      }
-    });
-    return stats;
-  }, [pegawai, uniqueUnits]);
-
-  const currentJabatanData = useMemo(() => {
-    const data: Record<string, number> = jabatanPerUnit[selectedUnitForJabatan] || {};
-    return Object.entries(data).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-  }, [jabatanPerUnit, selectedUnitForJabatan]);
-
-  const pendidikanData = useMemo(() => {
-    const counts: Record<string, number> = { 
-      'S3': 0, 'S2': 0, 'S1': 0, 'D4': 0, 'D3': 0, 'D2': 0, 'D1': 0, 
-      'SMA/SEDERAJAT': 0, 'SMP/SEDERAJAT': 0, 'SD': 0, 'LAINNYA': 0 
-    };
-    
-    pegawai.forEach(p => {
-      const edu = (p.pendidikan || '').toUpperCase();
-      if (edu.match(/S3|DOKTOR/)) counts['S3']++;
-      else if (edu.match(/S2|MAGISTER/)) counts['S2']++;
-      else if (edu.match(/S1|SARJANA|STRATA 1|S-1/)) counts['S1']++;
-      else if (edu.match(/D4|D-IV|D IV/)) counts['D4']++;
-      else if (edu.match(/D3|D-III|D III/)) counts['D3']++;
-      else if (edu.match(/D2|D-II|D II/)) counts['D2']++;
-      else if (edu.match(/D1|D-I|D I/)) counts['D1']++;
-      else if (edu.match(/SMA|SMK|STM|SLTA|SMU/)) counts['SMA/SEDERAJAT']++;
-      else if (edu.match(/SMP|SLTP/)) counts['SMP/SEDERAJAT']++;
-      else if (edu.match(/SD/)) counts['SD']++;
-      else if (edu.trim()) counts['LAINNYA']++;
-    });
-
-    const order = ['S3', 'S2', 'S1', 'D4', 'D3', 'D2', 'D1', 'SMA/SEDERAJAT', 'SMP/SEDERAJAT', 'SD', 'LAINNYA'];
-    return order
-      .map(name => ({ name, value: counts[name] }))
-      .filter(item => item.value > 0);
-  }, [pegawai]);
-
-  const genderData = [
-    { name: 'Laki-laki', value: pegawai.filter(p => p.gender === 'L').length },
-    { name: 'Perempuan', value: pegawai.filter(p => p.gender === 'P').length },
-  ];
-
-  if (isViewer) {
-    return (
-      <div className="space-y-6 lg:space-y-8 animate-fadeIn pb-20">
-         <div className="bg-[#111827] p-8 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden">
-           <div className="relative z-10 flex flex-col md:flex-row gap-8 items-center">
-              <div className="h-24 w-24 rounded-3xl bg-blue-600 border-4 border-white/10 overflow-hidden shadow-2xl flex-shrink-0">
-                 {user?.foto ? <img src={user.foto} className="w-full h-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-4xl font-black">{user?.name.charAt(0)}</div>}
-              </div>
-              <div className="text-center md:text-left">
-                 <h2 className="text-2xl font-black uppercase tracking-tight leading-none">Halo, {user?.name}</h2>
-                 <p className="text-blue-400 font-bold text-[10px] uppercase tracking-[0.3em] mt-3">{personalData?.jabatan || 'PEGAWAI DJKI'}</p>
-                 <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-6">
-                    <span className="px-4 py-1 bg-white/5 border border-white/10 rounded-full text-[8px] font-black uppercase tracking-widest">NIP: {user?.nip}</span>
-                    <span className="px-4 py-1 bg-white/5 border border-white/10 rounded-full text-[8px] font-black uppercase tracking-widest">{personalData?.unitKerja || 'Unit Kerja'}</span>
-                 </div>
-              </div>
-           </div>
-           <i className="bi bi-person-circle absolute -right-10 -bottom-10 text-[12rem] text-white/5 rotate-12"></i>
-        </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-           <StatsCard title="Kehadiran" value={personalAbsensi.filter(a => a.tipe === 'MASUK').length} icon="bi-calendar-check" color="bg-blue-600" loading={loading} />
-           <StatsCard title="Status" value={personalData?.status || 'Aktif'} icon="bi-person-badge" color="bg-indigo-600" loading={loading} />
-           <StatsCard title="Pangkat" value={personalData?.golRuang || '-'} icon="bi-award" color="bg-amber-600" loading={loading} />
-           <StatsCard title="Unit" value={personalData?.unitKerja.split(' ')[0] || 'DJKI'} icon="bi-building" color="bg-emerald-600" loading={loading} />
-        </div>
-
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 h-[400px] flex flex-col">
-            <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest mb-2">Sebaran Pendidikan Instansi</h4>
-            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mb-6">Informasi Kualifikasi SDM Terkini</p>
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={pendidikanData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '1rem', border: 'none', fontSize: '10px', fontWeight: 'bold' }} />
-                  <Bar dataKey="value" fill="#3b82f6" radius={[10, 10, 0, 0]} barSize={40}>
-                    <LabelList dataKey="value" position="top" style={{ fontSize: '10px', fontWeight: 'black', fill: '#1e40af' }} />
-                    {pendidikanData.map((entry, index) => <Cell key={`cell-${index}`} fill={['#3b82f6', '#4f46e5', '#6366f1', '#818cf8'][index % 4]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 lg:space-y-8 animate-fadeIn pb-20">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatsCard title="Total PNS" value={stats.pns} icon="bi-person-vcard-fill" color="bg-blue-600" loading={loading} subValue="Pegawai Negeri Sipil" />
-        <StatsCard title="Total CPNS" value={stats.cpns} icon="bi-person-badge-fill" color="bg-indigo-600" loading={loading} subValue="Calon Pegawai Negeri Sipil" />
-        <StatsCard title="Total PPPK" value={stats.pppk} icon="bi-person-gear-fill" color="bg-emerald-600" loading={loading} subValue="PPPK Penuh Waktu" />
-        <StatsCard title="Total PPPK PW" value={stats.pppk_pw} icon="bi-person-workspace" color="bg-cyan-600" loading={loading} subValue="PPPK Paruh Waktu" />
-      </div>
-
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[500px]">
-        <div className="px-8 py-5 border-b border-gray-50 flex items-center justify-between bg-blue-50/10 shrink-0">
-          <div>
-            <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">Sebaran Pegawai Per Unit (Real-time)</h4>
-            <p className="text-[8px] text-gray-400 font-bold uppercase mt-1">Dihitung otomatis dari database unitKerja</p>
-          </div>
-          <button onClick={loadDashboardData} className="h-10 w-10 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center text-blue-600 hover:rotate-180 transition-all">
-             <i className="bi bi-arrow-clockwise"></i>
-          </button>
-        </div>
-        <div className="overflow-auto flex-1 custom-scrollbar">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 text-gray-400 uppercase text-[8px] font-black border-b border-gray-100 tracking-widest sticky top-0 z-10">
-              <tr>
-                <th className="px-8 py-5">Nama Unit Kerja</th>
-                <th className="px-4 py-5 text-center">PNS</th>
-                <th className="px-4 py-5 text-center">CPNS</th>
-                <th className="px-4 py-5 text-center">PPPK</th>
-                <th className="px-4 py-5 text-center">PPPK PW</th>
-                <th className="px-8 py-5 text-right">TOTAL</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <tr><td colSpan={6} className="px-8 py-20 text-center animate-pulse text-[10px] font-black text-gray-300 uppercase">Sinkronisasi Database...</td></tr>
-              ) : uniqueUnits.length > 0 ? uniqueUnits.map(unitName => (
-                <tr key={unitName} className="hover:bg-blue-50/5 transition-all group">
-                  <td className="px-8 py-5">
-                     <p className="text-[10px] font-bold text-gray-800 uppercase leading-tight group-hover:text-blue-600 transition-colors">{unitName}</p>
-                  </td>
-                  <td className="px-4 py-5 text-center font-mono text-[11px] font-bold text-blue-600">{unitStats[unitName]?.pns || 0}</td>
-                  <td className="px-4 py-5 text-center font-mono text-[11px] font-bold text-indigo-500">{unitStats[unitName]?.cpns || 0}</td>
-                  <td className="px-4 py-5 text-center font-mono text-[11px] font-bold text-emerald-600">{unitStats[unitName]?.pppk || 0}</td>
-                  <td className="px-4 py-5 text-center font-mono text-[11px] font-bold text-cyan-500">{unitStats[unitName]?.pppk_pw || 0}</td>
-                  <td className="px-8 py-5 text-right font-black text-gray-900 text-[11px] bg-gray-50/30">{unitStats[unitName]?.total || 0}</td>
-                </tr>
-              )) : (
-                <tr><td colSpan={6} className="px-8 py-20 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Tidak ada data unit kerja ditemukan</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[600px]">
-          <div className="px-8 py-6 border-b border-gray-50 flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50/50 shrink-0 gap-4">
-            <div>
-              <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">Detail Jabatan Per Unit</h4>
-              <p className="text-[8px] text-gray-400 font-bold uppercase mt-1 tracking-wider">Pilih unit kerja untuk melihat komposisi jabatan</p>
+    <div className="space-y-8 animate-fadeIn pb-24">
+      
+      {/* 1. Modal Notifikasi Agenda Tahun Ini */}
+      {isNotifOpen && !isViewer && notifications.length > 0 && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-gray-950/40 backdrop-blur-md animate-fadeIn" onClick={() => setIsNotifOpen(false)}></div>
+          <div className="relative bg-white w-full max-w-2xl max-h-[85vh] rounded-[3rem] shadow-2xl border border-white/20 flex flex-col overflow-hidden animate-modalEnter">
+            <div className="px-10 py-8 bg-blue-600 text-white shrink-0 relative overflow-hidden">
+               <i className="bi bi-bell-fill absolute -right-10 -top-10 text-[12rem] text-white/10 rotate-12"></i>
+               <div className="relative z-10">
+                 <h3 className="text-xl font-black uppercase tracking-tight">Agenda Karir {new Date().getFullYear()}</h3>
+                 <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mt-2">Ditemukan {notifications.length} Aksi Kepegawaian Tahun Ini</p>
+               </div>
             </div>
-            <select 
-              value={selectedUnitForJabatan} 
-              onChange={(e) => setSelectedUnitForJabatan(e.target.value)}
-              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[9px] font-black uppercase text-gray-900 shadow-sm outline-none focus:border-blue-500 transition-all max-w-[250px]"
-            >
-              {uniqueUnits.map(unit => (
-                <option key={unit} value={unit}>{unit}</option>
-              ))}
-            </select>
-          </div>
-          <div className="overflow-auto flex-1 custom-scrollbar">
-            <table className="w-full text-left">
-              <thead className="bg-gray-50 text-gray-400 uppercase text-[8px] font-black border-b border-gray-100 tracking-widest sticky top-0 z-10">
-                <tr><th className="px-8 py-5 w-16">No</th><th className="px-4 py-5">Nama Jabatan</th><th className="px-8 py-5 text-right w-32">Jumlah</th></tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {currentJabatanData.length > 0 ? currentJabatanData.map((jab, idx) => (
-                  <tr key={jab.name} className="hover:bg-blue-50/5 transition-all group">
-                    <td className="px-8 py-5 text-[10px] font-black text-gray-400">{idx + 1}</td>
-                    <td className="px-4 py-5"><p className="text-[10px] font-black text-gray-800 uppercase leading-tight group-hover:text-blue-600 transition-colors">{jab.name}</p></td>
-                    <td className="px-8 py-5 text-right"><span className="px-3 py-1 bg-blue-50 text-blue-600 text-[10px] font-black rounded-lg">{jab.count}</span></td>
-                  </tr>
-                )) : <tr><td colSpan={3} className="px-8 py-20 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest opacity-30">Pilih unit untuk melihat data</td></tr>}
-              </tbody>
-            </table>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-3">
+               {notifications.map((n, i) => (
+                 <NotificationRow key={n.id} {...n} />
+               ))}
+            </div>
+            <div className="px-10 py-6 bg-gray-50 border-t border-gray-100 flex justify-end shrink-0">
+               <button 
+                 onClick={() => setIsNotifOpen(false)}
+                 className="px-10 py-3 bg-gray-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+               >
+                 Tutup Notifikasi
+               </button>
+            </div>
           </div>
         </div>
+      )}
 
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 h-[600px] flex flex-col">
-            <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest mb-2">Statistik Pendidikan Pegawai</h4>
-            <p className="text-[8px] text-gray-400 font-bold uppercase tracking-widest mb-6">Distribusi Hierarkis Jenjang Pendidikan</p>
-            <div className="flex-1">
-              {isMounted && !loading && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={pendidikanData} layout="vertical" margin={{ top: 5, right: 60, left: 40, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+      {/* 2. Main Statistics */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatsCard title="Total Pegawai" value={mainStats.total} icon="bi-people-fill" color="bg-blue-600" loading={loading} subValue="Database DJKI" />
+        <StatsCard title="Total PNS" value={mainStats.pns} icon="bi-person-vcard-fill" color="bg-indigo-600" loading={loading} subValue="ASN Aktif" />
+        <StatsCard title="Total CPNS" value={mainStats.cpns} icon="bi-person-badge-fill" color="bg-amber-600" loading={loading} subValue="Masa Percobaan" />
+        <StatsCard title="Total PPPK" value={mainStats.pppk} icon="bi-person-gear-fill" color="bg-emerald-600" loading={loading} subValue="PPPK Penuh Waktu" />
+        <StatsCard title="PPPK Paruh Waktu" value={mainStats.pppk_pw} icon="bi-person-workspace" color="bg-cyan-600" loading={loading} subValue="Tenaga Tambahan" />
+      </div>
+
+      {/* 3. Visual Charts - Fixed with minHeight for ResponsiveContainer */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+         <div className="lg:col-span-5 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-[400px]">
+            <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-6">Demografi Gender</h4>
+            <div className="flex-1 min-h-[250px]">
+               <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={genderData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                      {genderData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }} />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
+                  </PieChart>
+               </ResponsiveContainer>
+            </div>
+         </div>
+
+         <div className="lg:col-span-7 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-[400px]">
+            <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-6">Tingkat Pendidikan</h4>
+            <div className="flex-1 min-h-[250px]">
+               <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={pendidikanData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" />
                     <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 9, fontWeight: 900, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '1rem', border: 'none', fontSize: '10px', fontWeight: 'bold' }} />
-                    <Bar dataKey="value" fill="#4f46e5" radius={[0, 10, 10, 0]} barSize={24}>
-                      <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fontWeight: 'black', fill: '#4f46e5' }} />
-                      {pendidikanData.map((entry, index) => <Cell key={`cell-${index}`} fill={['#4338ca', '#4f46e5', '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe'][index % 6]} />)}
+                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={80} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
+                    <Tooltip cursor={{ fill: '#f9fafb' }} contentStyle={{ borderRadius: '15px', border: 'none', fontSize: '10px', fontWeight: 'bold' }} />
+                    <Bar dataKey="value" fill="#2563eb" radius={[0, 10, 10, 0]} barSize={20}>
+                        <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fontWeight: 'bold', fill: '#111827' }} />
                     </Bar>
                   </BarChart>
-                </ResponsiveContainer>
-              )}
+               </ResponsiveContainer>
             </div>
+         </div>
+      </div>
+
+      {/* 4. Tabel Sebaran Jabatan */}
+      <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+        <div className="px-8 py-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30">
+           <div>
+             <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">Detail Sebaran Jabatan</h4>
+             <p className="text-[8px] text-gray-400 font-bold uppercase mt-1">Grup berdasarkan nama jabatan dan unit kerja</p>
+           </div>
+           <div className="flex flex-col md:flex-row gap-3">
+             <div className="relative group">
+                <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]"></i>
+                <input 
+                  type="text" 
+                  placeholder="Cari Jabatan..." 
+                  className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-bold outline-none focus:border-blue-500 transition-all w-full md:w-64"
+                  value={searchJabatan}
+                  onChange={(e) => setSearchJabatan(e.target.value)}
+                />
+             </div>
+             <select 
+               className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-bold outline-none focus:border-blue-500"
+               value={filterUnitJabatan}
+               onChange={(e) => setFilterUnitJabatan(e.target.value)}
+             >
+                <option value="Semua Unit">Semua Unit Kerja</option>
+                {UNIT_KERJA.map(u => <option key={u} value={u}>{u}</option>)}
+             </select>
+           </div>
+        </div>
+        <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+           <table className="w-full text-left">
+              <thead className="bg-gray-50 text-gray-400 uppercase text-[7px] font-black border-b border-gray-100 tracking-widest sticky top-0 z-10">
+                 <tr>
+                    <th className="px-8 py-4">Nama Jabatan Lengkap</th>
+                    <th className="px-4 py-4">Unit Kerja</th>
+                    <th className="px-8 py-4 text-right">Jumlah</th>
+                 </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                 {sebaranJabatanDetailed.length > 0 ? sebaranJabatanDetailed.map((item, idx) => (
+                   <tr key={idx} className="hover:bg-blue-50/5 transition-colors group">
+                      <td className="px-8 py-4">
+                         <p className="text-[10px] font-black text-gray-800 uppercase leading-tight group-hover:text-blue-600">{item.jabatan}</p>
+                      </td>
+                      <td className="px-4 py-4">
+                         <p className="text-[9px] font-bold text-gray-500 uppercase leading-tight">{item.unit}</p>
+                      </td>
+                      <td className="px-8 py-4 text-right">
+                         <span className="text-[11px] font-black text-gray-900 bg-gray-50 px-3 py-1 rounded-lg">{item.count}</span>
+                      </td>
+                   </tr>
+                 )) : (
+                   <tr><td colSpan={3} className="px-8 py-10 text-center text-[10px] font-black text-gray-300 uppercase">Tidak ada data ditemukan</td></tr>
+                 )}
+              </tbody>
+           </table>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 h-[320px] flex flex-col">
-            <h4 className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4 text-center">Komposisi Pegawai Berdasarkan Gender</h4>
-            <div className="flex-1 relative">
-              {isMounted && !loading && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={genderData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
-                      <Cell fill="#3b82f6" />
-                      <Cell fill="#ec4899" />
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', fontSize: '10px', fontWeight: 'bold' }} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: '800', textTransform: 'uppercase' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-          <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 h-[320px] flex flex-col items-center justify-center text-center">
-             <div className="h-20 w-20 bg-emerald-50 rounded-3xl flex items-center justify-center text-emerald-600 mb-6 shadow-inner">
-                <i className="bi bi-check-circle-fill text-4xl"></i>
-             </div>
-             <h4 className="text-xl font-black text-gray-900 uppercase tracking-tight">Kualitas Data Terverifikasi</h4>
-             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 max-w-xs mx-auto">
-                Seluruh statistik di Dashboard ini dihitung secara real-time berdasarkan data mentah dari Spreadsheet.
-                Data pendidikan diolah menggunakan algoritma penyamarataan jenjang untuk akurasi pelaporan.
-             </p>
-          </div>
+      {/* 5. Tabel Sebaran Unit Komprehensif */}
+      <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+        <div className="px-8 py-6 border-b border-gray-100 bg-gray-50/30">
+           <h4 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">Komposisi Pegawai Per Unit Kerja</h4>
+        </div>
+        <div className="overflow-x-auto">
+           <table className="w-full text-left">
+              <thead className="bg-gray-50 text-gray-400 uppercase text-[7px] font-black border-b border-gray-100 tracking-widest">
+                 <tr>
+                    <th className="px-8 py-5">Nama Unit Kerja</th>
+                    <th className="px-4 py-5 text-center">PNS</th>
+                    <th className="px-4 py-5 text-center">CPNS</th>
+                    <th className="px-4 py-5 text-center">PPPK</th>
+                    <th className="px-4 py-5 text-center">PPPK PW</th>
+                    <th className="px-8 py-5 text-right">TOTAL</th>
+                 </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                 {sebaranUnitKomprehensif.map((data, idx) => (
+                   <tr key={idx} className="hover:bg-blue-50/5 transition-all group">
+                      <td className="px-8 py-5">
+                         <p className="text-[10px] font-bold text-gray-700 uppercase leading-tight group-hover:text-blue-600">{data.unit}</p>
+                      </td>
+                      <td className="px-4 py-5 text-center font-mono text-[11px] font-bold text-blue-600">{data.pns}</td>
+                      <td className="px-4 py-5 text-center font-mono text-[11px] font-bold text-indigo-500">{data.cpns}</td>
+                      <td className="px-4 py-5 text-center font-mono text-[11px] font-bold text-emerald-600">{data.pppk}</td>
+                      <td className="px-4 py-5 text-center font-mono text-[11px] font-bold text-cyan-500">{data.pppk_pw}</td>
+                      <td className="px-8 py-5 text-right font-black text-gray-900 text-[11px] bg-gray-50/30">
+                         {data.total}
+                      </td>
+                   </tr>
+                 ))}
+              </tbody>
+           </table>
+        </div>
       </div>
+
     </div>
   );
 };

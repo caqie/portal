@@ -1,13 +1,13 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { TASK_LABELS, BULAN, UNIT_KERJA } from '../constants';
 import { TaskType, TugasRutin, Pegawai } from '../types';
 import { fetchPegawaiFromSheets } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import * as XLSX from 'xlsx';
+import SuccessModal from '../components/SuccessModal';
 
 const SectionHeader = ({ icon, label, color = "text-blue-600", bg = "bg-blue-50" }: { icon: string, label: string, color?: string, bg?: string }) => (
-  <div className="flex items-center space-x-2 mb-3 mt-4 first:mt-0 col-span-full border-b border-gray-100 pb-2">
+  <div className="flex items-center space-x-2 mb-3 mt-4 first:mt-0 col-span-full border-b border-gray-100 pb-2 animate-fadeIn">
     <div className={`h-6 w-6 ${bg} ${color} rounded-md flex items-center justify-center`}>
       <i className={`bi ${icon} text-[10px]`}></i>
     </div>
@@ -70,9 +70,10 @@ const TugasRutinPage = () => {
   const { canEdit, isSuperadmin, logActivity } = useAuth();
   const [tasks, setTasks] = useState<TugasRutin[]>([]);
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
-  const [filterBulan, setFilterBulan] = useState('');
+  const [filterBulan, setFilterBulan] = useState('Semua');
   const [filterJenis, setFilterJenis] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [editingTask, setEditingTask] = useState<TugasRutin | null>(null);
   const [formData, setFormData] = useState<any>({});
   const [loading, setLoading] = useState(false);
@@ -95,18 +96,26 @@ const TugasRutinPage = () => {
     }
   };
 
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(t => 
+      (filterBulan === 'Semua' || t.bulan === filterBulan) && 
+      (filterJenis === 'ALL' || t.jenis === filterJenis)
+    );
+  }, [tasks, filterBulan, filterJenis]);
+
   const handleExport = () => {
-    const dataToExport = filteredLogs.map(t => ({
+    const dataToExport = filteredTasks.map(t => ({
       Bulan: t.bulan,
       Tahun: t.tahun,
       Kategori: TASK_LABELS[t.jenis],
+      Detail: t.detail,
       ...t.data
     }));
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Database Laporan Rutin");
     XLSX.writeFile(wb, `Laporan_Rutin_${new Date().getTime()}.xlsx`);
-    logActivity('DOWNLOAD', 'Tugas Rutin', 'Mengekspor laporan rutin');
+    logActivity('DOWNLOAD', 'Tugas Rutin', 'Mengekspor laporan rutin ke Excel');
   };
 
   const handleInputChange = (field: string, value: any) => {
@@ -153,7 +162,7 @@ const TugasRutinPage = () => {
         detail: taskDetail,
         data: restData
       } : t);
-      logActivity('UPDATE', 'Tugas Rutin', `Update: ${taskDetail}`);
+      logActivity('UPDATE', 'Tugas Rutin', `Memperbarui tugas: ${taskDetail}`);
     } else {
       const newTask: TugasRutin = {
         id: Date.now().toString(),
@@ -165,19 +174,21 @@ const TugasRutinPage = () => {
         data: restData
       };
       updatedList = [newTask, ...tasks];
-      logActivity('CREATE', 'Tugas Rutin', `Entry: ${taskDetail}`);
+      logActivity('CREATE', 'Tugas Rutin', `Mencatat tugas baru: ${taskDetail}`);
     }
     
     setTasks(updatedList);
     localStorage.setItem('tugas_rutin_db', JSON.stringify(updatedList));
     setIsModalOpen(false);
+    setShowSuccess(true);
   };
 
   const handleDelete = (id: string) => {
-    if (confirm(`Hapus data ini?`)) {
+    if (confirm(`Hapus catatan tugas ini dari database?`)) {
       const updatedList = tasks.filter(t => t.id !== id);
       setTasks(updatedList);
       localStorage.setItem('tugas_rutin_db', JSON.stringify(updatedList));
+      logActivity('DELETE', 'Tugas Rutin', `Menghapus tugas ID: ${id}`);
     }
   };
 
@@ -416,29 +427,23 @@ const TugasRutinPage = () => {
     }
   };
 
-  const filteredTasks = tasks.filter(t => 
-    (!filterBulan || t.bulan === filterBulan) && 
-    (filterJenis === 'ALL' || t.jenis === filterJenis)
-  );
-
-  const filteredLogs = tasks.filter(t => 
-    (!filterBulan || t.bulan === filterBulan) && 
-    (filterJenis === 'ALL' || t.jenis === filterJenis)
-  );
-
   return (
     <div className="space-y-6 animate-fadeIn pb-20">
+      <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title="Laporan Berhasil Dicatat" message="Data tugas rutin telah tersimpan di database sistem." />
+      
       <div className="flex flex-col lg:flex-row justify-between items-end gap-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 w-full max-w-2xl">
-          <SelectField label="Bulan" options={BULAN} value={filterBulan} onChange={(_:any, v:any) => setFilterBulan(v)} />
-          <SelectField label="Kategori" options={[{ value: 'ALL', label: 'SEMUA KATEGORI' }, ...Object.entries(TASK_LABELS).map(([k, v]) => ({ value: k, label: (v as string).toUpperCase() }))]} value={filterJenis} onChange={(_:any, v:any) => setFilterJenis(v)} />
+          <SelectField label="Filter Bulan" options={['Semua', ...BULAN]} value={filterBulan} onChange={(_:any, v:any) => setFilterBulan(v)} />
+          <SelectField label="Filter Kategori" options={[{ value: 'ALL', label: 'SEMUA KATEGORI' }, ...Object.entries(TASK_LABELS).map(([k, v]) => ({ value: k, label: (v as string).toUpperCase() }))]} value={filterJenis} onChange={(_:any, v:any) => setFilterJenis(v)} />
         </div>
         <div className="flex items-center gap-2 w-full lg:w-auto">
           <button onClick={handleExport} className="h-12 w-12 flex items-center justify-center bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-2xl shadow-sm hover:bg-emerald-600 hover:text-white transition-all" title="Ekspor Database">
               <i className="bi bi-file-earmark-excel-fill text-xl"></i>
           </button>
           {canEdit && (
-            <button onClick={() => handleOpenModal()} className="flex-1 lg:flex-none px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] hover:bg-blue-700 shadow-lg shadow-blue-600/20 uppercase tracking-widest transition-all"><i className="bi bi-plus-lg mr-2"></i>Entry Data Baru</button>
+            <button onClick={() => handleOpenModal()} className="flex-1 lg:flex-none px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] hover:bg-blue-700 shadow-lg shadow-blue-600/20 uppercase tracking-widest transition-all">
+              <i className="bi bi-plus-lg mr-2"></i>Entry Data Baru
+            </button>
           )}
         </div>
       </div>

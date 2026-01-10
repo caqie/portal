@@ -1,359 +1,380 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AdminUser, MaintenanceConfig, CloudConfig } from '../types';
 import { fetchUsersFromSheets } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO } from '../constants';
+import SuccessModal from '../components/SuccessModal';
 
 const SettingsPage = () => {
   const { isSuperadmin, logActivity } = useAuth();
-  const [activeTab, setActiveTab] = useState('general_setting');
+  const [activeTab, setActiveTab] = useState('general');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  
+  // Branding States
+  const [systemName, setSystemName] = useState(localStorage.getItem('portal_system_name') || 'Portal SDM');
+  const [runningTextValue, setRunningTextValue] = useState(localStorage.getItem('portal_running_text') || 'Selamat Datang di Portal SDM Direktorat Jenderal Kekayaan Intelektual - Kementerian Hukum RI.');
+  const [systemLogo, setSystemLogo] = useState<string | null>(localStorage.getItem('portal_system_logo') || DEFAULT_LOGO);
+  
+  // Config States
+  const [cloudConfig, setCloudConfig] = useState<CloudConfig>(() => {
+    const saved = localStorage.getItem('portal_cloud_config');
+    return saved ? JSON.parse(saved) : { driveFolderId: '', appsScriptUrl: '', logoUrl: '' };
+  });
+  
+  const [dbConfig, setDbConfig] = useState({
+    spreadsheetId: localStorage.getItem('db_spreadsheet_id') || '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4',
+    pegawaiGid: localStorage.getItem('db_pegawai_gid') || '1631838106'
+  });
+  
+  const [maintenanceConfig, setMaintenanceConfig] = useState<MaintenanceConfig>(() => {
+    const saved = localStorage.getItem('maintenance_config');
+    return saved ? JSON.parse(saved) : { all: false, pages: [] };
+  });
+
+  // User Management
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
-  
-  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [dbStatus, setDbStatus] = useState<'connected' | 'offline' | 'checking'>('checking');
-  
   const [userFormData, setUserFormData] = useState<Partial<AdminUser>>({});
-  
-  const [systemName, setSystemName] = useState('Portal SDM');
-  const [systemLogo, setSystemLogo] = useState<string | null>(DEFAULT_LOGO);
-  const [runningTextValue, setRunningTextValue] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [maintenanceConfig, setMaintenanceConfig] = useState<MaintenanceConfig>({
-    all: false,
-    pages: []
-  });
-
-  const [dbConfig, setDbConfig] = useState({
-    spreadsheetId: '',
-    pegawaiGid: ''
-  });
-
-  const [cloudConfig, setCloudConfig] = useState<CloudConfig>({
-    driveFolderId: '',
-    appsScriptUrl: '',
-    logoUrl: ''
-  });
-
-  const SYSTEM_MODULES = [
-    { id: 'dashboard', label: 'Dashboard & Analytics', icon: 'bi-grid-1x2' },
-    { id: 'pegawai', label: 'Database Pegawai', icon: 'bi-person-vcard' },
-    { id: 'skp', label: 'Evaluasi SKP / E-Kinerja', icon: 'bi-graph-up-arrow' },
-    { id: 'layanan', label: 'Layanan Karir & PAK', icon: 'bi-briefcase' },
-    { id: 'absensi', label: 'Presensi Wajah & Rekap', icon: 'bi-camera' },
-    { id: 'tugas_rutin', label: 'Manajemen Tugas Rutin', icon: 'bi-clipboard2-check' },
-    { id: 'laporan', label: 'Pusat Pelaporan (REP)', icon: 'bi-file-earmark-bar-graph' },
-    { id: 'kegiatan', label: 'Agenda & Logistik', icon: 'bi-calendar3-range' },
-    { id: 'dossier', label: 'E-Dossier (Arsip Digital)', icon: 'bi-folder' },
-  ];
 
   useEffect(() => {
-    checkConnection();
-    
-    const savedName = localStorage.getItem('portal_system_name');
-    if (savedName) setSystemName(savedName);
-    
-    const savedLogo = localStorage.getItem('portal_system_logo');
-    if (savedLogo) setSystemLogo(savedLogo);
-    else setSystemLogo(DEFAULT_LOGO);
+    const loadUsers = async () => {
+      const saved = localStorage.getItem('portal_users_db');
+      if (saved) {
+        setUsers(JSON.parse(saved));
+      } else {
+        try {
+          const initial = await fetchUsersFromSheets();
+          setUsers(initial);
+          localStorage.setItem('portal_users_db', JSON.stringify(initial));
+        } catch (e) {
+          console.error("Gagal memuat user dari sheets", e);
+        }
+      }
+    };
+    loadUsers();
+  }, []);
 
-    const savedText = localStorage.getItem('portal_running_text');
-    if (savedText) setRunningTextValue(savedText);
-
-    const savedId = localStorage.getItem('db_spreadsheet_id') || '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4';
-    const savedGid = localStorage.getItem('db_pegawai_gid') || '1631838106';
-    setDbConfig({ spreadsheetId: savedId, pegawaiGid: savedGid });
-
-    const savedCloud = localStorage.getItem('portal_cloud_config');
-    if (savedCloud) setCloudConfig(JSON.parse(savedCloud));
-
-    const savedMaintenance = localStorage.getItem('maintenance_config');
-    if (savedMaintenance) setMaintenanceConfig(JSON.parse(savedMaintenance));
-
-    if (activeTab === 'users') {
-      loadUsers();
-    }
-  }, [activeTab]);
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 1024 * 1024) return alert("Ukuran logo maksimal 1MB");
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSystemLogo(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSaveGeneralSetting = (e: React.FormEvent) => {
+  const handleSaveBranding = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('portal_system_name', systemName);
     localStorage.setItem('portal_running_text', runningTextValue);
-    if (systemLogo && systemLogo !== DEFAULT_LOGO) {
-      localStorage.setItem('portal_system_logo', systemLogo);
-    } else if (systemLogo === DEFAULT_LOGO) {
-      localStorage.removeItem('portal_system_logo');
-    }
-    
+    if (systemLogo) localStorage.setItem('portal_system_logo', systemLogo);
     window.dispatchEvent(new Event('storage_updated'));
-    logActivity('UPDATE', 'Settings', 'Memperbarui branding sistem (Nama & Logo).');
-    alert('Pengaturan umum berhasil disimpan.');
+    logActivity('UPDATE', 'Settings', 'Memperbarui branding sistem.');
+    setSuccessMsg('Branding sistem berhasil diperbarui secara global.');
+    setShowSuccess(true);
   };
 
-  const handleSaveCloud = (e: React.FormEvent) => {
-    e.preventDefault();
-    localStorage.setItem('portal_cloud_config', JSON.stringify(cloudConfig));
-    logActivity('UPDATE', 'Cloud Settings', 'Memperbarui konfigurasi Google Drive.');
-    alert('Konfigurasi Cloud Storage berhasil disimpan.');
-  };
-
-  const handleSaveDbConfig = (e: React.FormEvent) => {
+  const handleSaveDatabase = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('db_spreadsheet_id', dbConfig.spreadsheetId);
     localStorage.setItem('db_pegawai_gid', dbConfig.pegawaiGid);
-    logActivity('UPDATE', 'Database', 'Mengubah sumber data spreadsheet.');
-    alert('Konfigurasi Database diperbarui.');
-    window.location.reload();
+    localStorage.setItem('portal_cloud_config', JSON.stringify(cloudConfig));
+    logActivity('UPDATE', 'Settings', 'Memperbarui konfigurasi Database & Cloud.');
+    setSuccessMsg('Konfigurasi koneksi database telah disimpan.');
+    setShowSuccess(true);
   };
 
-  const toggleMaintenancePage = (pageId: string) => {
-    setMaintenanceConfig(prev => {
-      const newPages = prev.pages.includes(pageId)
-        ? prev.pages.filter(p => p !== pageId)
-        : [...prev.pages, pageId];
-      return { ...prev, pages: newPages };
-    });
-  };
-
-  const handleSaveMaintenance = () => {
-    localStorage.setItem('maintenance_config', JSON.stringify(maintenanceConfig));
-    window.dispatchEvent(new Event('storage_updated'));
-    alert('Status pemeliharaan diperbarui.');
-  };
-
-  const checkConnection = async () => {
-    setDbStatus('checking');
-    try {
-      await fetchUsersFromSheets();
-      setDbStatus('connected');
-    } catch {
-      setDbStatus('offline');
-    }
-  };
-
-  const loadUsers = async () => {
-    setLoadingUsers(true);
-    try {
-      const savedLocal = localStorage.getItem('portal_users_db');
-      if (savedLocal) setAdminUsers(JSON.parse(savedLocal));
-      else {
-        const data = await fetchUsersFromSheets();
-        setAdminUsers(data);
-      }
-    } catch (err) { console.error(err); } finally { setLoadingUsers(false); }
-  };
-
-  const handleSaveUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    let updatedList: AdminUser[];
-    if (editingUser) {
-      updatedList = adminUsers.map(u => u.id === editingUser.id ? { ...u, ...userFormData } as AdminUser : u);
+  const handleToggleMaintenance = (page: string) => {
+    let newPages = [...maintenanceConfig.pages];
+    if (newPages.includes(page)) {
+      newPages = newPages.filter(p => p !== page);
     } else {
-      updatedList = [{ id: Date.now().toString(), ...userFormData } as AdminUser, ...adminUsers];
+      newPages.push(page);
     }
-    setAdminUsers(updatedList);
-    localStorage.setItem('portal_users_db', JSON.stringify(updatedList));
+    
+    const newConfig = { ...maintenanceConfig, pages: newPages };
+    setMaintenanceConfig(newConfig);
+    localStorage.setItem('maintenance_config', JSON.stringify(newConfig));
+    window.dispatchEvent(new Event('storage_updated'));
+  };
+
+  const handleSaveUser = () => {
+    if (!userFormData.nip || !userFormData.name) return alert("NIP dan Nama wajib diisi");
+    let updated: AdminUser[];
+    if (editingUser) {
+      updated = users.map(u => u.id === editingUser.id ? { ...u, ...userFormData } as AdminUser : u);
+      logActivity('UPDATE', 'Settings', `Mengedit hak akses user: ${userFormData.name}`);
+    } else {
+      updated = [{ ...userFormData, id: Date.now().toString() } as AdminUser, ...users];
+      logActivity('CREATE', 'Settings', `Menambah user administrator baru: ${userFormData.name}`);
+    }
+    setUsers(updated);
+    localStorage.setItem('portal_users_db', JSON.stringify(updated));
     setIsUserModalOpen(false);
+    setSuccessMsg('Data pengguna berhasil diperbarui.');
+    setShowSuccess(true);
+  };
+
+  const handleDeleteUser = (id: string) => {
+    if (confirm('Hapus akses user ini?')) {
+      const userToDelete = users.find(u => u.id === id);
+      const updated = users.filter(x => x.id !== id);
+      setUsers(updated);
+      localStorage.setItem('portal_users_db', JSON.stringify(updated));
+      logActivity('DELETE', 'Settings', `Menghapus akses user: ${userToDelete?.name}`);
+    }
   };
 
   return (
-    <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden animate-fadeIn min-h-[70vh] mb-20">
-      <div className="bg-gray-900 px-8 py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <span className={`h-2 w-2 rounded-full ${dbStatus === 'connected' ? 'bg-emerald-500' : 'bg-rose-500'} `}></span>
-          <span className="text-[8px] font-black text-white uppercase tracking-[0.2em]">Mode: {dbStatus === 'connected' ? 'Cloud Synced' : 'Offline'}</span>
+    <div className="bg-white rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden animate-fadeIn mb-20">
+      <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title="Pengaturan Disimpan" message={successMsg} />
+      
+      <div className="flex flex-col lg:flex-row min-h-[700px]">
+        {/* Sidebar Tabs */}
+        <div className="w-full lg:w-72 bg-gray-50/50 border-r border-gray-100 p-8 space-y-2">
+          <div className="mb-8">
+            <h3 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Sistem Konfigurasi</h3>
+            <p className="text-[8px] text-gray-400 font-bold uppercase mt-1">Kelola preferensi portal SDM</p>
+          </div>
+          {[
+            { id: 'general', label: 'Branding & Identitas', icon: 'bi-palette2' },
+            { id: 'users', label: 'Manajemen Administrator', icon: 'bi-shield-lock' },
+            { id: 'database', label: 'Koneksi Spreadsheet', icon: 'bi-database-fill-gear' },
+            { id: 'maintenance', label: 'Mode Pemeliharaan', icon: 'bi-cone-striped' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center space-x-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-[#111827] text-white shadow-xl shadow-gray-900/20' : 'text-gray-400 hover:bg-white hover:text-gray-900'}`}
+            >
+              <i className={`bi ${tab.icon} text-lg`}></i>
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 p-12">
+          {activeTab === 'general' && (
+            <div className="max-w-2xl animate-fadeIn">
+              <h4 className="text-sm font-black uppercase text-gray-900 mb-8 tracking-widest">Identitas Portal</h4>
+              <form onSubmit={handleSaveBranding} className="space-y-8">
+                <div className="flex items-center space-x-8 p-8 bg-gray-50 rounded-[2.5rem] border border-gray-100">
+                   <div className="h-32 w-32 rounded-3xl bg-white border border-gray-200 flex items-center justify-center overflow-hidden shadow-inner p-4">
+                      {systemLogo ? <img src={systemLogo} className="h-full w-full object-contain" /> : <i className="bi bi-image text-4xl text-gray-200"></i>}
+                   </div>
+                   <div className="flex-1 space-y-4">
+                      <p className="text-[9px] font-black uppercase text-gray-900 tracking-widest">URL Logo Instansi (PNG/SVG)</p>
+                      <input 
+                        type="text" 
+                        placeholder="Contoh: https://link-ke-logo.png" 
+                        className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500 transition-all" 
+                        value={systemLogo || ''} 
+                        onChange={e => setSystemLogo(e.target.value)} 
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setSystemLogo(DEFAULT_LOGO)} 
+                        className="text-[8px] font-black text-blue-600 uppercase hover:underline"
+                      >
+                        Gunakan Logo Default DJKI
+                      </button>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-3">Nama Portal Utama</label>
+                    <input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-[1.5rem] text-xs font-bold text-gray-900 outline-none focus:bg-white focus:border-blue-500 transition-all" value={systemName} onChange={e => setSystemName(e.target.value.toUpperCase())} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-3">Teks Berjalan (Running Announcement)</label>
+                    <textarea rows={4} className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-[1.5rem] text-xs font-bold text-gray-900 outline-none focus:bg-white focus:border-blue-500 transition-all resize-none" value={runningTextValue} onChange={e => setRunningTextValue(e.target.value)} />
+                    <p className="text-[8px] text-gray-400 font-bold ml-3 italic">Pesan ini akan muncul di bar marquee bagian atas aplikasi.</p>
+                  </div>
+                </div>
+
+                <div className="pt-4">
+                  <button type="submit" className="px-12 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all">Simpan Perubahan Branding</button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {activeTab === 'users' && (
+            <div className="space-y-8 animate-fadeIn">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="text-sm font-black uppercase text-gray-900 tracking-widest">Akun Administrator</h4>
+                  <p className="text-[9px] text-gray-400 font-bold uppercase mt-1">Akses kendali sistem SDM</p>
+                </div>
+                <button onClick={() => { setEditingUser(null); setUserFormData({ role: 'Viewer' }); setIsUserModalOpen(true); }} className="px-8 py-3.5 bg-[#111827] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">+ Tambah Akses</button>
+              </div>
+              
+              <div className="overflow-hidden border border-gray-100 rounded-[2.5rem] shadow-sm">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b border-gray-100 tracking-[0.2em]">
+                    <tr>
+                      <th className="px-8 py-5">Informasi Profil</th>
+                      <th className="px-4 py-5">Hak Akses</th>
+                      <th className="px-8 py-5 text-right">Opsi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {users.map(u => (
+                      <tr key={u.id} className="hover:bg-blue-50/5 group transition-colors">
+                        <td className="px-8 py-5">
+                          <div className="flex items-center space-x-4">
+                             <div className="h-10 w-10 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 font-black text-xs">
+                                {u.foto ? <img src={u.foto} className="h-full w-full object-cover rounded-xl" /> : u.name.charAt(0)}
+                             </div>
+                             <div>
+                               <p className="text-[11px] font-black text-gray-900 uppercase">{u.name}</p>
+                               <p className="text-[9px] font-mono text-blue-600 font-bold mt-1">{u.nip}</p>
+                             </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-5">
+                          <span className={`px-3 py-1 rounded-lg border text-[8px] font-black uppercase ${u.role === 'Superadmin' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : u.role === 'Editor' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="px-8 py-5 text-right">
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => { setEditingUser(u); setUserFormData(u); setIsUserModalOpen(true); }} className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all"><i className="bi bi-pencil-square"></i></button>
+                            {u.role !== 'Superadmin' && <button onClick={() => handleDeleteUser(u.id)} className="h-8 w-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all"><i className="bi bi-trash"></i></button>}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'database' && (
+            <div className="max-w-2xl animate-fadeIn">
+              <h4 className="text-sm font-black uppercase text-gray-900 mb-8 tracking-widest">Koneksi Database & Cloud</h4>
+              <form onSubmit={handleSaveDatabase} className="space-y-8">
+                <div className="space-y-6">
+                  <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl flex items-start space-x-4 mb-4">
+                     <i className="bi bi-info-circle-fill text-emerald-500 text-lg mt-1"></i>
+                     <p className="text-[10px] font-bold text-emerald-800 leading-relaxed uppercase">
+                        Sistem ini menggunakan Google Sheets sebagai database utama. Pastikan link Spreadsheet disetel ke "Anyone with the link can view" agar sistem dapat menarik data.
+                     </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-3">Spreadsheet ID Utama</label>
+                    <input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-[1.5rem] text-xs font-bold text-gray-900 outline-none focus:bg-white focus:border-blue-500 transition-all" value={dbConfig.spreadsheetId} onChange={e => setDbConfig({...dbConfig, spreadsheetId: e.target.value})} />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-3">GID Sheet Pegawai</label>
+                    <input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-[1.5rem] text-xs font-bold text-gray-900 outline-none focus:bg-white focus:border-blue-500 transition-all" value={dbConfig.pegawaiGid} onChange={e => setDbConfig({...dbConfig, pegawaiGid: e.target.value})} />
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-100 mt-8">
+                    <h5 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-6">Penyimpanan Cloud (Google Drive)</h5>
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-3">Folder ID Utama (Dossiers)</label>
+                        <input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-[1.5rem] text-xs font-bold text-gray-900 outline-none focus:bg-white focus:border-blue-500 transition-all" value={cloudConfig.driveFolderId} onChange={e => setCloudConfig({...cloudConfig, driveFolderId: e.target.value})} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-3">Google Apps Script URL (API)</label>
+                        <input type="text" placeholder="https://script.google.com/macros/s/..." className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-[1.5rem] text-xs font-bold text-gray-900 outline-none focus:bg-white focus:border-blue-500 transition-all" value={cloudConfig.appsScriptUrl} onChange={e => setCloudConfig({...cloudConfig, appsScriptUrl: e.target.value})} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-6">
+                  <button type="submit" className="px-12 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">Simpan Konfigurasi Koneksi</button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {activeTab === 'maintenance' && (
+            <div className="space-y-8 animate-fadeIn">
+               <div>
+                  <h4 className="text-sm font-black uppercase text-gray-900 tracking-widest">Pemeliharaan Modul</h4>
+                  <p className="text-[9px] text-gray-400 font-bold uppercase mt-1">Kunci modul selama update database berlangsung</p>
+               </div>
+               
+               <div className="p-8 bg-amber-50 border border-amber-100 rounded-[3rem] flex items-center space-x-6">
+                  <div className="h-16 w-16 bg-amber-500 rounded-3xl flex items-center justify-center text-white shadow-xl shadow-amber-500/30"><i className="bi bi-cone-striped text-3xl"></i></div>
+                  <div className="flex-1">
+                     <h5 className="text-[12px] font-black uppercase text-amber-900 leading-none">Status Maintenance Aktif</h5>
+                     <p className="text-[10px] font-bold text-amber-700 uppercase mt-2 leading-relaxed">
+                        Jika maintenance diaktifkan, modul yang dipilih hanya dapat diakses oleh Superadmin. User dengan role Editor atau Viewer akan melihat layar pemeliharaan.
+                     </p>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { id: 'dashboard', label: 'Dashboard Analytics' },
+                    { id: 'pegawai', label: 'Database Pegawai' },
+                    { id: 'absensi', label: 'Absensi Online' },
+                    { id: 'layanan', label: 'Layanan Karir' },
+                    { id: 'skp', label: 'Evaluasi SKP' },
+                    { id: 'dossier', label: 'E-Dossier / Arsip' },
+                    { id: 'laporan', label: 'Laporan Konsolidasi' },
+                    { id: 'tugas_rutin', label: 'Pencatatan Tugas Rutin' }
+                  ].map(mod => (
+                    <div key={mod.id} className="p-6 bg-white rounded-3xl border border-gray-100 flex items-center justify-between shadow-sm hover:border-amber-200 transition-all group">
+                       <div className="flex items-center space-x-3">
+                          <div className={`h-2 w-2 rounded-full ${maintenanceConfig.pages.includes(mod.id) ? 'bg-amber-500 animate-pulse' : 'bg-gray-200'}`}></div>
+                          <span className="text-[11px] font-black uppercase text-gray-900 tracking-tight">{mod.label}</span>
+                       </div>
+                       <button 
+                        onClick={() => handleToggleMaintenance(mod.id)}
+                        className={`w-14 h-8 rounded-full relative transition-all duration-300 ${maintenanceConfig.pages.includes(mod.id) ? 'bg-amber-500' : 'bg-gray-200'}`}
+                       >
+                          <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-sm transition-all duration-300 ${maintenanceConfig.pages.includes(mod.id) ? 'left-7' : 'left-1'}`}></div>
+                       </button>
+                    </div>
+                  ))}
+               </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="flex border-b border-gray-100 bg-gray-50/20 overflow-x-auto no-scrollbar">
-        {[
-          { id: 'general_setting', label: 'General Setting', icon: 'bi-palette-fill' },
-          { id: 'cloud', label: 'Google Drive', icon: 'bi-cloud-fill' },
-          { id: 'users', label: 'Pengguna', icon: 'bi-shield-lock' },
-          { id: 'database', label: 'Spreadsheet', icon: 'bi-table' },
-          { id: 'maintenance', label: 'Maintenance', icon: 'bi-tools' },
-        ].map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-10 py-7 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 flex items-center space-x-3 shrink-0 ${activeTab === tab.id ? 'text-blue-600 border-blue-600 bg-white' : 'text-gray-400 border-transparent hover:text-gray-600'}`}>
-            <i className={`bi ${tab.icon} text-base`}></i>
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="p-10">
-        {activeTab === 'general_setting' && (
-          <form onSubmit={handleSaveGeneralSetting} className="max-w-4xl space-y-10 animate-fadeIn">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-               <div className="space-y-6">
-                  <div className="col-span-full border-b pb-2"><h6 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Branding Portal</h6></div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-gray-400 uppercase pl-2">Nama Portal / Sistem</label>
-                    <input 
-                      type="text" 
-                      className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-bold shadow-sm focus:bg-white focus:border-blue-500 transition-all" 
-                      value={systemName} 
-                      onChange={(e) => setSystemName(e.target.value)} 
-                      placeholder="Contoh: Portal SDM DJKI"
-                    />
-                    <p className="text-[8px] text-gray-400 font-bold uppercase pl-2 mt-1 italic">* Nama ini akan muncul di Judul Browser, Sidebar, dan Halaman Login.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-gray-400 uppercase pl-2">Pengumuman Berjalan (Running Text)</label>
-                    <textarea 
-                      rows={3} 
-                      className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-xs font-bold shadow-sm focus:bg-white focus:border-blue-500 transition-all resize-none" 
-                      value={runningTextValue} 
-                      onChange={(e) => setRunningTextValue(e.target.value)} 
-                    />
-                  </div>
-               </div>
-
-               <div className="space-y-6">
-                  <div className="col-span-full border-b pb-2"><h6 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Logo Kustom</h6></div>
-                  
-                  <div className="flex flex-col items-center p-8 bg-gray-50 rounded-[2.5rem] border border-gray-100 border-dashed">
-                     <div className="h-32 w-32 rounded-[2rem] bg-white border-2 border-white shadow-xl overflow-hidden mb-6 flex items-center justify-center relative group">
-                        {systemLogo ? (
-                          <img src={systemLogo} className="w-full h-full object-contain p-2" alt="Preview Logo" />
-                        ) : (
-                          <i className="bi bi-shield-lock-fill text-5xl text-gray-200"></i>
-                        )}
-                        <button 
-                          type="button" 
-                          onClick={() => fileInputRef.current?.click()}
-                          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center text-white"
-                        >
-                          <i className="bi bi-camera text-2xl"></i>
-                          <span className="text-[8px] font-black uppercase mt-1">Ganti Logo</span>
-                        </button>
-                     </div>
-                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
-                     <div className="text-center">
-                        <p className="text-[10px] font-black text-gray-900 uppercase">Logo Sistem</p>
-                        <p className="text-[8px] text-gray-400 font-bold uppercase mt-1">PNG/JPG (Maks 1MB)</p>
-                     </div>
-                  </div>
-                  
-                  {systemLogo && systemLogo !== DEFAULT_LOGO && (
-                    <button 
-                      type="button" 
-                      onClick={() => setSystemLogo(DEFAULT_LOGO)}
-                      className="w-full py-2.5 text-[8px] font-black uppercase text-rose-500 bg-rose-50 rounded-xl hover:bg-rose-100 transition-all"
-                    >
-                      Reset ke Ikon Default
-                    </button>
-                  )}
-               </div>
-            </div>
-
-            <div className="pt-6 border-t border-gray-100">
-               <button type="submit" className="px-12 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl shadow-blue-600/20 active:scale-95 transition-all">
-                 <i className="bi bi-check-circle-fill mr-2"></i> Simpan Pengaturan Branding
-               </button>
-            </div>
-          </form>
-        )}
-
-        {activeTab === 'cloud' && (
-          <form onSubmit={handleSaveCloud} className="max-w-3xl space-y-8 animate-fadeIn">
-            <div className="bg-blue-50 border border-blue-200 p-6 rounded-3xl flex items-start space-x-4">
-                <i className="bi bi-info-circle-fill text-blue-600 text-xl"></i>
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black text-blue-600 uppercase">Integrasi Google Drive</p>
-                  <p className="text-[9px] text-blue-500 leading-relaxed uppercase">Gunakan Google Apps Script sebagai API untuk mengunggah file (Foto & Dossier) langsung ke Google Drive guna menghindari limitasi penyimpanan Spreadsheet.</p>
-                </div>
-            </div>
-            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase pl-2">Root Folder ID (Google Drive)</label><input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[11px] font-mono font-bold" value={cloudConfig.driveFolderId} onChange={(e) => setCloudConfig({...cloudConfig, driveFolderId: e.target.value})} placeholder="Ex: 1Bh77MMU8..." /></div>
-            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase pl-2">Google Apps Script API URL</label><input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[11px] font-mono font-bold" value={cloudConfig.appsScriptUrl} onChange={(e) => setCloudConfig({...cloudConfig, appsScriptUrl: e.target.value})} placeholder="https://script.google.com/macros/s/..." /></div>
-            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase pl-2">Custom Logo URL (Sistem)</label><input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[11px] font-mono font-bold" value={cloudConfig.logoUrl} onChange={(e) => setCloudConfig({...cloudConfig, logoUrl: e.target.value})} placeholder="URL Gambar Logo DJKI" /></div>
-            <button type="submit" className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center gap-2"><i className="bi bi-cloud-check"></i> Hubungkan Cloud</button>
-          </form>
-        )}
-
-        {activeTab === 'database' && (
-          <form onSubmit={handleSaveDbConfig} className="max-w-3xl space-y-8 animate-fadeIn">
-            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase pl-2">Spreadsheet ID Utama</label><input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[11px] font-mono font-bold" value={dbConfig.spreadsheetId} onChange={(e) => setDbConfig({...dbConfig, spreadsheetId: e.target.value})} /></div>
-            <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase pl-2">GID Sheet Pegawai</label><input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[11px] font-mono font-bold" value={dbConfig.pegawaiGid} onChange={(e) => setDbConfig({...dbConfig, pegawaiGid: e.target.value})} /></div>
-            <button type="submit" className="px-10 py-4 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl">Terapkan Perubahan</button>
-          </form>
-        )}
-        
-        {activeTab === 'users' && (
-           <div className="space-y-8 animate-fadeIn">
-              <div className="flex justify-between items-center"><h5 className="text-xl font-black text-gray-900 uppercase">Akses Admin</h5><button onClick={() => setIsUserModalOpen(true)} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-600/20">Tambah User</button></div>
-              <div className="bg-gray-50 rounded-[2rem] border border-gray-100 overflow-hidden">
-                 <table className="w-full text-left">
-                    <thead className="bg-white text-[8px] font-black text-gray-400 uppercase border-b">
-                       <tr><th className="px-8 py-5">Nama</th><th className="px-6 py-5">Role</th><th className="px-8 py-5 text-right">Aksi</th></tr>
-                    </thead>
-                    <tbody className="divide-y">
-                       {adminUsers.map(u => (
-                          <tr key={u.id} className="hover:bg-white transition-all">
-                             <td className="px-8 py-5 font-black text-gray-900 uppercase text-xs">{u.name}</td>
-                             <td className="px-6 py-5"><span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[8px] font-black rounded-lg">{u.role}</span></td>
-                             <td className="px-8 py-5 text-right"><button onClick={() => { setEditingUser(u); setUserFormData(u); setIsUserModalOpen(true); }} className="text-blue-600"><i className="bi bi-pencil-square"></i></button></td>
-                          </tr>
-                       ))}
-                    </tbody>
-                 </table>
-              </div>
-           </div>
-        )}
-
-        {activeTab === 'maintenance' && (
-           <div className="space-y-8 animate-fadeIn max-w-4xl">
-              <div className="bg-rose-50 border border-rose-100 p-8 rounded-[2rem] flex items-center justify-between">
-                  <div className="flex items-center gap-6">
-                    <div className={`h-14 w-14 rounded-2xl flex items-center justify-center text-white shadow-lg ${maintenanceConfig.all ? 'bg-rose-600 animate-pulse' : 'bg-gray-400'}`}><i className="bi bi-power text-3xl"></i></div>
-                    <div><h4 className="text-sm font-black text-gray-900 uppercase tracking-tight">Global Maintenance</h4><p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Kunci Akses Sistem Secara Menyeluruh</p></div>
-                  </div>
-                  <button onClick={() => setMaintenanceConfig({...maintenanceConfig, all: !maintenanceConfig.all})} className={`px-10 py-4 rounded-xl text-[10px] font-black uppercase transition-all ${maintenanceConfig.all ? 'bg-rose-600 text-white' : 'bg-white border text-gray-400'}`}>{maintenanceConfig.all ? 'ON' : 'OFF'}</button>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                 {SYSTEM_MODULES.map(m => (
-                    <button key={m.id} onClick={() => toggleMaintenancePage(m.id)} className={`p-6 rounded-[2rem] border transition-all text-left ${maintenanceConfig.pages.includes(m.id) ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100 shadow-sm'}`}>
-                       <i className={`bi ${m.icon} text-xl mb-4 block`}></i>
-                       <h6 className="text-[10px] font-black uppercase text-gray-900">{m.label}</h6>
-                       <p className="text-[8px] font-bold text-gray-400 uppercase mt-2">{maintenanceConfig.pages.includes(m.id) ? 'MAINTENANCE' : 'ACTIVE'}</p>
-                    </button>
-                 ))}
-              </div>
-              <button onClick={handleSaveMaintenance} className="px-10 py-4 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl">Update Status Sistem</button>
-           </div>
-        )}
-      </div>
-
+      {/* User Management Modal */}
       {isUserModalOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-gray-950/70 backdrop-blur-sm" onClick={() => setIsUserModalOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-modalEnter">
-            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-               <h4 className="text-sm font-black text-gray-900 uppercase">User Access</h4>
-               <button onClick={() => setIsUserModalOpen(false)}><i className="bi bi-x-lg"></i></button>
-            </div>
-            <form onSubmit={handleSaveUser} className="p-10 space-y-6">
-              <input type="text" placeholder="NIP" className="w-full px-5 py-4 bg-gray-50 border rounded-2xl text-xs font-bold" value={userFormData.nip || ''} onChange={e => setUserFormData({...userFormData, nip: e.target.value})} />
-              <input type="text" placeholder="Nama" className="w-full px-5 py-4 bg-gray-50 border rounded-2xl text-xs font-bold" value={userFormData.name || ''} onChange={e => setUserFormData({...userFormData, name: e.target.value})} />
-              <select className="w-full px-5 py-4 bg-gray-50 border rounded-2xl text-xs font-bold" value={userFormData.role || 'Viewer'} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})}><option value="Superadmin">SUPERADMIN</option><option value="Editor">EDITOR</option><option value="Viewer">VIEWER</option></select>
-              <div className="flex justify-end gap-3"><button type="button" onClick={() => setIsUserModalOpen(false)} className="px-8 py-3.5 bg-gray-100 rounded-xl text-[10px] font-black uppercase">Batal</button><button type="submit" className="px-10 py-3.5 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase">Simpan</button></div>
-            </form>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-gray-950/60 backdrop-blur-md" onClick={() => setIsUserModalOpen(false)}></div>
+          <div className="relative bg-white w-full max-w-md rounded-[3rem] shadow-2xl p-10 animate-modalEnter">
+             <div className="flex items-center space-x-4 mb-8">
+                <div className="h-12 w-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg"><i className="bi bi-person-plus-fill text-2xl"></i></div>
+                <h3 className="text-sm font-black uppercase text-gray-900 tracking-widest">{editingUser ? 'Edit Administrator' : 'Administrator Baru'}</h3>
+             </div>
+             
+             <div className="space-y-5">
+                <div className="space-y-1">
+                   <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Nama Lengkap User</label>
+                   <input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:bg-white focus:border-blue-500 transition-all" value={userFormData.name || ''} onChange={e => setUserFormData({...userFormData, name: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                   <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">NIP (Sebagai Username)</label>
+                   <input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:bg-white focus:border-blue-500 transition-all" value={userFormData.nip || ''} onChange={e => setUserFormData({...userFormData, nip: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                   <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Kata Sandi Akses</label>
+                   <input type="password" placeholder="••••••••" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:bg-white focus:border-blue-500 transition-all" value={userFormData.password || ''} onChange={e => setUserFormData({...userFormData, password: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                   <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Tingkatan Hak Akses</label>
+                   <select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:bg-white focus:border-blue-500 transition-all" value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})}>
+                      <option value="Viewer">Viewer (Hanya Baca)</option>
+                      <option value="Editor">Editor (Input Data)</option>
+                      <option value="Superadmin">Superadmin (Kendali Penuh)</option>
+                   </select>
+                </div>
+             </div>
+             
+             <div className="mt-10 flex gap-3">
+                <button onClick={() => setIsUserModalOpen(false)} className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest bg-gray-50 text-gray-400 rounded-2xl hover:bg-gray-100 transition-all">Batalkan</button>
+                <button onClick={handleSaveUser} className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-600/20 active:scale-95 transition-all">Simpan Data</button>
+             </div>
           </div>
         </div>
       )}
