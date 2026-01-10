@@ -96,7 +96,7 @@ const TugasRutinPage = () => {
   };
 
   const handleExport = () => {
-    const dataToExport = filteredTasks.map(t => ({
+    const dataToExport = filteredLogs.map(t => ({
       Bulan: t.bulan,
       Tahun: t.tahun,
       Kategori: TASK_LABELS[t.jenis],
@@ -258,6 +258,7 @@ const TugasRutinPage = () => {
           <>
             <SectionHeader icon="bi-patch-check" label="Satya Lencana" color="text-amber-600" bg="bg-amber-50" />
             <SelectField label="Kategori Satya Lencana" name="kategori_satya_lencana" options={['10 Tahun', '20 Tahun', '30 Tahun']} value={val('kategori_satya_lencana')} {...common} fullWidth />
+            <InputField label="Jumlah" name="jumlah" type="number" value={val('jumlah')} {...common} />
             <InputField label="Link Dokumen" name="link_dokumen_satya_lencana" fullWidth value={val('link_dokumen_satya_lencana')} {...common} />
           </>
         );
@@ -338,7 +339,8 @@ const TugasRutinPage = () => {
           <>
             <SectionHeader icon="bi-calendar-event" label="Cuti Pegawai" color="text-blue-600" bg="bg-blue-50" />
             <SelectField label="Jenis Cuti" name="jenis_cuti" options={['Tahunan', 'Sakit', 'Melahirkan', 'Besar', 'Alasan Penting', 'CLTN']} value={val('jenis_cuti')} {...common} fullWidth />
-            <InputField label="Link Dokumen Cuti" name="link_dokumen_cuti" fullWidth value={val('link_dokumen_cuti')} {...common} />
+            <InputField label="Jumlah" name="jumlah" type="number" value={val('jumlah')} {...common} />
+            <InputField label="Link Dokumen" name="link_dokumen_cuti" fullWidth value={val('link_dokumen_cuti')} {...common} />
           </>
         );
 
@@ -415,6 +417,11 @@ const TugasRutinPage = () => {
   };
 
   const filteredTasks = tasks.filter(t => 
+    (!filterBulan || t.bulan === filterBulan) && 
+    (filterJenis === 'ALL' || t.jenis === filterJenis)
+  );
+
+  const filteredLogs = tasks.filter(t => 
     (!filterBulan || t.bulan === filterBulan) && 
     (filterJenis === 'ALL' || t.jenis === filterJenis)
   );
