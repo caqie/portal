@@ -83,7 +83,7 @@ export interface Pegawai {
   jenisPegawai: 'PNS' | 'CPNS' | 'PPPK' | 'PPPK PARUH WAKTU' | 'HONORER';
   status: 'Aktif' | 'Tidak Aktif' | 'Cuti' | 'Tugas Belajar' | 'Pensiun';
   foto?: string;
-  driveFolderId?: string; // ID Folder spesifik pegawai
+  driveFolderId?: string;
   tempatLahir?: string;
   tanggalLahir?: string;
   pangkat?: string;
@@ -118,6 +118,28 @@ export interface PAK {
   jumlahKredit: number;
   keterangan: string;
   status: 'Proses' | 'Selesai';
+}
+
+export interface PAKRecord extends PAK {
+  nomor: string;
+  nomorKarpeg: string;
+  tglDibuat: string;
+  tempatDibuat: string;
+  periodeMulai: string;
+  periodeSelesai: string;
+  predikat: string;
+  prosentase: number;
+  koefisien: number;
+  akBaru: number;
+  // Penetapan Breakdown
+  akDasar: number;
+  akJFLama: number;
+  akPenyetaraan: number;
+  akKonversi: number;
+  akPendidikan: number;
+  rekomendasi: string;
+  pejabatPenilai?: Pegawai;
+  historyRows: any[];
 }
 
 export interface Pengembangan {

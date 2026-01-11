@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -14,6 +15,7 @@ import PelantikanGeneratorPage from './pages/PelantikanGeneratorPage';
 import AbsensiOnlinePage from './pages/AbsensiOnlinePage';
 import RekapAbsensiPage from './pages/RekapAbsensiPage';
 import SKPPage from './pages/SKPPage';
+import PAKPage from './pages/PAKPage';
 import ActivityLogPage from './pages/ActivityLogPage';
 import { MaintenanceConfig } from './types';
 import { DEFAULT_LOGO } from './constants';
@@ -147,6 +149,7 @@ const AppContent = () => {
   const pageTitle = () => {
     if (location.pathname.includes('pelantikan-gen')) return 'Berita Acara Pelantikan';
     if (location.pathname === '/skp') return user?.role === 'Viewer' ? 'SKP Saya' : 'Evaluasi Kinerja (SKP)';
+    if (location.pathname === '/pak') return user?.role === 'Viewer' ? 'PAK Saya' : 'Penetapan Angka Kredit';
     switch (location.pathname) {
       case '/': return user?.role === 'Viewer' ? 'Dashboard Personal' : 'Dashboard Analytics';
       case '/pegawai': return user?.role === 'Viewer' ? 'Profil Saya' : 'Database Pegawai';
@@ -201,6 +204,7 @@ const AppContent = () => {
             <SidebarItem to="/rekap-absensi" icon="bi-journal-check" label={user?.role === 'Viewer' ? "Riwayat Absen" : "Rekap Absensi"} active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />
             <SidebarItem to="/pegawai" icon="bi-person-vcard-fill" label={user?.role === 'Viewer' ? "Profil Saya" : "Pegawai"} active={location.pathname === '/pegawai'} collapsed={isCollapsed} />
             <SidebarItem to="/skp" icon="bi-graph-up-arrow" label={user?.role === 'Viewer' ? "SKP Saya" : "SKP / E-Kinerja"} active={location.pathname === '/skp'} collapsed={isCollapsed} />
+            <SidebarItem to="/pak" icon="bi-award" label={user?.role === 'Viewer' ? "PAK Saya" : "Angka Kredit (PAK)"} active={location.pathname === '/pak'} collapsed={isCollapsed} />
             <SidebarItem to="/layanan" icon="bi-briefcase-fill" label={user?.role === 'Viewer' ? "Karir Saya" : "Layanan Karir"} active={location.pathname === '/layanan'} collapsed={isCollapsed} />
             <SidebarItem to="/dossiers" icon="bi-folder-fill" label={user?.role === 'Viewer' ? "Arsip Saya" : "Dossier"} active={location.pathname === '/dossiers'} collapsed={isCollapsed} />
             
@@ -232,7 +236,6 @@ const AppContent = () => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 bg-[#F8F9FC] overflow-hidden relative">
-        {/* Global Watermark */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 overflow-hidden select-none no-print">
             <h1 className="text-[10vw] font-black text-blue-900/[0.02] -rotate-[15deg] uppercase tracking-[0.4em] text-center leading-none">
               PORTAL SDM DJKI
@@ -246,7 +249,6 @@ const AppContent = () => {
             </button>
             <div className="min-w-0">
               <h2 className="text-[11px] lg:text-sm font-black text-gray-900 tracking-tight leading-none uppercase truncate relative z-10">{pageTitle()}</h2>
-              {/* Fix: Ganti 'hidden xs:flex' menjadi 'flex' agar jam muncul di semua ukuran layar */}
               <div className="flex items-center space-x-2 mt-1 relative z-10">
                 <p className="text-[8px] lg:text-[9px] font-black text-blue-600 uppercase tracking-widest">
                   {dateTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -283,12 +285,12 @@ const AppContent = () => {
             <Route path="/" element={<PageWrapper module="dashboard"><Dashboard /></PageWrapper>} />
             <Route path="/pegawai" element={<PageWrapper module="pegawai"><PegawaiPage /></PageWrapper>} />
             <Route path="/skp" element={<PageWrapper module="skp"><SKPPage /></PageWrapper>} />
+            <Route path="/pak" element={<PageWrapper module="pak"><PAKPage /></PageWrapper>} />
             <Route path="/absensi-online" element={<PageWrapper module="absensi"><AbsensiOnlinePage /></PageWrapper>} />
             <Route path="/rekap-absensi" element={<PageWrapper module="absensi"><RekapAbsensiPage /></PageWrapper>} />
             <Route path="/layanan" element={<PageWrapper module="layanan"><LayananKepegawaianPage /></PageWrapper>} />
             <Route path="/dossiers" element={<PageWrapper module="dossier"><DossiersPage /></PageWrapper>} />
             
-            {/* Protected Administrative Routes */}
             <Route path="/pelantikan-gen" element={<ProtectedRoute requireAdmin><PelantikanGeneratorPage /></ProtectedRoute>} />
             <Route path="/kegiatan" element={<ProtectedRoute requireAdmin><PageWrapper module="kegiatan"><KegiatanPage /></PageWrapper></ProtectedRoute>} />
             <Route path="/tugas-rutin" element={<ProtectedRoute requireAdmin><PageWrapper module="tugas_rutin"><TugasRutinPage /></PageWrapper></ProtectedRoute>} />
