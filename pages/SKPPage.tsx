@@ -9,6 +9,7 @@ import {
   TableRow as DocxTableRow, TableCell as DocxTableCell, 
   WidthType, AlignmentType, HeadingLevel, BorderStyle
 } from 'docx';
+// @ts-ignore
 import FileSaver from 'file-saver';
 // @ts-ignore
 import html2canvas from 'html2canvas';
@@ -37,7 +38,7 @@ interface SKPRecord extends SKP {
 }
 
 const BERAKHLAK_KEYS = [
-  { key: 'pelayanan', label: 'Berorientasi Pelayanan', desc: ['Memahami dan memenuhi kebutuhan masyarakat', 'Ramah, cekatan, solutif, dan dapat diandalkan', 'Melakukan perbaikan tiada henti'] },
+  { key: 'pelayanan', label: 'Berorientasi Pelayanan', desc: ['Memahami and memenuhi kebutuhan masyarakat', 'Ramah, cekatan, solutif, dan dapat diandalkan', 'Melakukan perbaikan tiada henti'] },
   { key: 'akuntabel', label: 'Akuntabel', desc: ['Melaksanakan tugas dengan jujur, bertanggungjawab, cermat, disiplin dan berintegritas tinggi', 'Menggunakan kekayaan dan barang milik negara secara bertanggungjawab, efektif, dan efisien', 'Tidak menyalahgunakan kewenangan jabatan'] },
   { key: 'kompeten', label: 'Kompeten', desc: ['Meningkatkan kompetensi diri untuk menjawab tantangan yang selalu berubah', 'Membantu orang lain belajar', 'Melaksanakan tugas dengan kualitas terbaik'] },
   { key: 'harmonis', label: 'Harmonis', desc: ['Menghargai setiap orang apapun latar belakangnya', 'Suka menolong orang lain', 'Membangun lingkungan kerja yang kondusif'] },
@@ -179,7 +180,6 @@ const SKPPage = () => {
     pdf.save(`SKP_Full_${selectedSKP?.namaPegawai.replace(/\s+/g, '_')}.pdf`);
   };
 
-  // HEADER DENGAN KONTROL LOGO GARUDA
   const PageHeader = ({ title, subtitle, period, showLogo = false }: any) => (
     <div className="flex flex-col items-center mb-10 text-center">
       {showLogo && (
@@ -187,7 +187,7 @@ const SKPPage = () => {
           <img src={LOGO_GARUDA_URL} className="w-full object-contain" alt="Garuda" />
         </div>
       )}
-      {!showLogo && <div className="h-10"></div>} {/* Spacer if logo is missing */}
+      {!showLogo && <div className="h-10"></div>}
       <h1 className="text-[12pt] font-bold uppercase leading-tight">{title}</h1>
       {subtitle && <h2 className="text-[11pt] font-bold uppercase mt-1">{subtitle}</h2>}
       <p className="text-[10pt] mt-3 font-bold uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
@@ -420,7 +420,7 @@ const SKPPage = () => {
 
            <div ref={pdfRef} className="bg-white mx-auto text-black font-serif print-document overflow-hidden">
               
-              {/* PAGE 1: DOKUMEN EVALUASI KINERJA - Dengan Logo Garuda */}
+              {/* PAGE 1: DOKUMEN EVALUASI KINERJA */}
               <div className="page-break p-[1.5cm] min-h-[29.7cm] flex flex-col relative">
                  <PageHeader title="DOKUMEN EVALUASI KINERJA PEGAWAI" subtitle="PERIODE : AKHIR" showLogo={true} />
                  <div className="flex-1 space-y-2">
@@ -446,13 +446,13 @@ const SKPPage = () => {
                  <Signatures date={selectedSKP.tglPenilaian} p1={pegawaiList.find(p=>p.nip===selectedSKP.nip)} p2={selectedSKP.pejabatPenilai} />
               </div>
 
-              {/* PAGE 2: LAMPIRAN SASARAN KINERJA - Tanpa Logo */}
+              {/* PAGE 2: LAMPIRAN SASARAN KINERJA */}
               <div className="page-break p-[1.5cm] min-h-[29.7cm] flex flex-col">
                  <PageHeader title="LAMPIRAN SASARAN KINERJA PEGAWAI" showLogo={false} />
                  <div className="flex-1 space-y-8">
                     {['DUKUNGAN SUMBER DAYA', 'SKEMA PERTANGGUNGJAWABAN', 'KONSEKUENSI'].map((sect, idx) => (
                       <div key={idx}>
-                         <div className="bg-gray-200 p-1.5 font-bold text-[9pt] border border-black uppercase">{sect}</div>
+                         <div className="bg-gray-100 p-1.5 font-bold text-[9pt] border border-black uppercase">{sect}</div>
                          <div className="border border-black p-4 text-[9pt] space-y-2">
                             {(idx===0 ? selectedSKP.dukungan : idx===1 ? selectedSKP.skema : selectedSKP.konsekuensi).map((item, i) => (
                               <div key={i} className="flex gap-2"><span>{i+1}.</span><p>{item}</p></div>
@@ -464,7 +464,7 @@ const SKPPage = () => {
                  <Signatures date={selectedSKP.tglPenilaian} p1={pegawaiList.find(p=>p.nip===selectedSKP.nip)} p2={selectedSKP.pejabatPenilai} />
               </div>
 
-              {/* PAGE 3: SASARAN KINERJA PEGAWAI - Tanpa Logo */}
+              {/* PAGE 3: SASARAN KINERJA PEGAWAI */}
               <div className="page-break p-[1.5cm] min-h-[29.7cm] flex flex-col">
                  <PageHeader title="SASARAN KINERJA PEGAWAI" subtitle="PENDEKATAN HASIL KERJA KUANTITATIF" showLogo={false} />
                  <div className="grid grid-cols-2 border border-black mb-6 text-[8pt]">
@@ -504,7 +504,7 @@ const SKPPage = () => {
                  </div>
               </div>
 
-              {/* PAGE 4: PERILAKU KERJA - Tanpa Logo */}
+              {/* PAGE 4: PERILAKU KERJA */}
               <div className="page-break p-[1.5cm] min-h-[29.7cm]">
                  <PageHeader title="PERILAKU KERJA" period={`TAHUN ${selectedSKP.tahun}`} showLogo={false} />
                  <table className="w-full border-collapse border border-black text-[9pt]">
@@ -529,7 +529,7 @@ const SKPPage = () => {
                  <Signatures date={selectedSKP.tglPenilaian} p1={pegawaiList.find(p=>p.nip===selectedSKP.nip)} p2={selectedSKP.pejabatPenilai} />
               </div>
 
-              {/* PAGE 5 & 6: REKAMAN UMPAN BALIK - Tanpa Logo */}
+              {/* PAGE 5 & 6: REKAMAN UMPAN BALIK */}
               <div className="page-break p-[1.5cm] min-h-[29.7cm]">
                  <PageHeader title="REKAMAN INFORMASI UMPAN BALIK BERKELANJUTAN" subtitle="BAGI JABATAN FUNGSIONAL UMUM" showLogo={false} />
                  <div className="mb-4">
@@ -559,7 +559,7 @@ const SKPPage = () => {
                  <Signatures date={selectedSKP.tglPenilaian} p1={pegawaiList.find(p=>p.nip===selectedSKP.nip)} p2={selectedSKP.pejabatPenilai} />
               </div>
 
-              {/* PAGE 7: DISTRIBUSI - Tanpa Logo */}
+              {/* PAGE 7: DISTRIBUSI */}
               <div className="page-break p-[1.5cm] min-h-[29.7cm]">
                  <PageHeader title="EVALUASI KINERJA PEGAWAI" subtitle="PERIODE AKHIR TAHUN" showLogo={false} />
                  <div className="mb-10 p-10 border border-black flex flex-col items-center">
@@ -580,7 +580,7 @@ const SKPPage = () => {
                  </div>
               </div>
 
-              {/* PAGE 8: FINAL - Tanpa Logo */}
+              {/* PAGE 8: FINAL */}
               <div className="page-break p-[1.5cm] min-h-[29.7cm]">
                  <PageHeader title="EVALUASI KINERJA PEGAWAI (HASIL AKHIR)" showLogo={false} />
                  <div className="space-y-6">

@@ -220,12 +220,12 @@ const Dashboard = () => {
         <StatsCard title="PPPK Paruh Waktu" value={mainStats.pppk_pw} icon="bi-person-workspace" color="bg-cyan-600" loading={loading} subValue="Tenaga Tambahan" />
       </div>
 
-      {/* 3. Visual Charts - Fixed with minHeight and explicit heights */}
+      {/* 3. Visual Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
          <div className="lg:col-span-5 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col min-h-[400px]">
             <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-6">Demografi Gender</h4>
-            <div className="flex-1 w-full min-h-[250px] relative">
-               <ResponsiveContainer width="100%" height="100%" minHeight={250}>
+            <div className="w-full h-[300px] relative">
+               <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={genderData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                       {genderData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
@@ -239,9 +239,9 @@ const Dashboard = () => {
 
          <div className="lg:col-span-7 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col min-h-[400px]">
             <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-6">Tingkat Pendidikan</h4>
-            <div className="flex-1 w-full min-h-[250px] relative">
-               <ResponsiveContainer width="100%" height="100%" minHeight={250}>
-                  <BarChart data={pendidikanData} layout="vertical">
+            <div className="w-full h-[300px] relative">
+               <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={pendidikanData} layout="vertical" margin={{ left: 20, right: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" />
                     <XAxis type="number" hide />
                     <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={80} style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase' }} />
