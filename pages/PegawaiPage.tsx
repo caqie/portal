@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { PANGKAT_MAP, getPangkatFromGol, UNIT_KERJA, PENDIDIKAN_LIST } from '../constants';
 import { Pegawai, Dossier, CloudConfig } from '../types';
-import { fetchPegawaiFromSheets, calculateRetirementDate } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, calculateRetirementDate, updatePegawaiRemote } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import * as XLSX from 'xlsx';
 
@@ -27,6 +27,7 @@ const PegawaiPage = () => {
   
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncingCloud, setSyncingCloud] = useState(false);
   
   // States for Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -137,25 +138,42 @@ const PegawaiPage = () => {
     setIsFormModalOpen(true); 
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.nama || !formData.nip) return alert("Nama dan NIP wajib diisi!");
+    
+    setSyncingCloud(true);
     let updatedList: Pegawai[];
     const updatedData = { ...formData } as Pegawai;
 
-    if (activePegawai) { 
-      updatedList = pegawaiList.map(p => p.id === activePegawai.id ? { ...p, ...updatedData } : p);
-      logActivity('UPDATE', 'Pegawai', `Update profil lengkap: ${updatedData.nama}`);
-    } else { 
-      updatedList = [{ ...updatedData, id: Date.now().toString() }, ...pegawaiList];
-      logActivity('CREATE', 'Pegawai', `Registrasi pegawai baru: ${updatedData.nama}`);
-    }
+    try {
+      // 1. Sinkronisasi ke Spreadsheet via Apps Script (Async)
+      const success = await updatePegawaiRemote(updatedData);
+      
+      // 2. Update Database Lokal (UI agar terasa instan)
+      if (activePegawai) { 
+        updatedList = pegawaiList.map(p => p.id === activePegawai.id ? { ...p, ...updatedData } : p);
+        logActivity('UPDATE', 'Pegawai', `Update profil: ${updatedData.nama} (Cloud Sync: ${success ? 'OK' : 'Local Only'})`);
+      } else { 
+        updatedList = [{ ...updatedData, id: Date.now().toString() }, ...pegawaiList];
+        logActivity('CREATE', 'Pegawai', `Registrasi baru: ${updatedData.nama} (Cloud Sync: ${success ? 'OK' : 'Local Only'})`);
+      }
 
-    setPegawaiList(updatedList);
-    localStorage.setItem('portal_pegawai_db', JSON.stringify(updatedList));
-    setIsFormModalOpen(false);
-    
-    if (user && updatedData.nip === user.nip) {
-      login({ ...user, name: updatedData.nama, foto: updatedData.foto });
+      setPegawaiList(updatedList);
+      localStorage.setItem('portal_pegawai_db', JSON.stringify(updatedList));
+      setIsFormModalOpen(false);
+      
+      if (user && updatedData.nip === user.nip) {
+        login({ ...user, name: updatedData.nama, foto: updatedData.foto });
+      }
+
+      if (!success) {
+        alert("Peringatan: Data tersimpan di sistem lokal, namun gagal sinkronisasi ke Spreadsheet. Pastikan URL Apps Script di Settings sudah benar.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Terjadi kesalahan sistem saat menyimpan data.");
+    } finally {
+      setSyncingCloud(false);
     }
   };
 
@@ -635,7 +653,12 @@ const PegawaiPage = () => {
                    </div>
                 </div>
              </div>
-             <div className="px-12 py-8 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 shrink-0"><button onClick={() => setIsFormModalOpen(false)} className="px-10 py-4 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl bg-white text-gray-500 hover:bg-gray-100 transition-all">Batalkan</button><button onClick={handleSave} className="px-16 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-blue-600/30 active:scale-95 transition-all">Simpan Basis Data</button></div>
+             <div className="px-12 py-8 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 shrink-0">
+               <button onClick={() => setIsFormModalOpen(false)} className="px-10 py-4 text-[10px] font-black uppercase tracking-widest border border-gray-200 rounded-2xl bg-white text-gray-500 hover:bg-gray-100 transition-all">Batalkan</button>
+               <button onClick={handleSave} disabled={syncingCloud} className="px-16 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-blue-600/30 active:scale-95 transition-all disabled:bg-gray-400 flex items-center gap-3">
+                 {syncingCloud ? <><div className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Sinkronisasi...</> : 'Simpan Basis Data'}
+               </button>
+             </div>
           </div>
         </div>
       )}

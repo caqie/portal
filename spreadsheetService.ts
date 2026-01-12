@@ -1,17 +1,56 @@
 
-import { Pegawai, AdminUser, Laporan, Dossier, SKP, PAK, KenaikanKarir, Pengembangan, KGB } from './types';
+import { Pegawai, AdminUser, Laporan, Dossier, SKP, PAK, KenaikanKarir, Pengembangan, KGB, CloudConfig } from './types';
 import { getPangkatFromGol, getGajiEstimasi } from './constants';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_PEGAWAI_GID = '1631838106';
+// URL Apps Script yang Anda berikan
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9zyZrLGmDBRlUOdR1pgftxDfcElY_Fd4BfsCR4Fmd7Qb58MJKAllRkUloFQrbs8lY/exec';
 
 const getDbConfig = () => {
   const savedId = localStorage.getItem('db_spreadsheet_id');
   const savedGid = localStorage.getItem('db_pegawai_gid');
+  const savedCloud = localStorage.getItem('portal_cloud_config');
+  const cloud: CloudConfig = savedCloud ? JSON.parse(savedCloud) : { driveFolderId: '', appsScriptUrl: '', logoUrl: '' };
+  
   return {
     spreadsheetId: savedId || DEFAULT_SPREADSHEET_ID,
-    pegawaiGid: savedGid || DEFAULT_PEGAWAI_GID
+    pegawaiGid: savedGid || DEFAULT_PEGAWAI_GID,
+    appsScriptUrl: cloud.appsScriptUrl || DEFAULT_APPS_SCRIPT_URL
   };
+};
+
+// Fungsi untuk Simpan ke Spreadsheet via Apps Script
+export const updatePegawaiRemote = async (pegawai: Pegawai): Promise<boolean> => {
+  const { appsScriptUrl } = getDbConfig();
+  if (!appsScriptUrl || appsScriptUrl.includes('placeholder')) {
+    console.error("Apps Script URL belum dikonfigurasi.");
+    return false;
+  }
+
+  try {
+    // Kita kirim sebagai text/plain agar tidak memicu Preflight CORS (OPTIONS request) 
+    // yang sering gagal di Google Apps Script jika tidak disetup khusus.
+    // Apps Script akan menerima ini di e.postData.contents
+    await fetch(appsScriptUrl, {
+      method: 'POST',
+      mode: 'no-cors', 
+      cache: 'no-cache',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        ...pegawai,
+        // Kita pastikan NIP dikirim dengan prefix petik agar GAS menyimpannya sebagai teks
+        nip: pegawai.nip.startsWith("'") ? pegawai.nip : "'" + pegawai.nip
+      })
+    });
+    
+    // Karena mode 'no-cors', kita tidak bisa membaca response body.
+    // Jika fetch tidak throw error, kita asumsikan data terkirim ke antrean Google.
+    return true;
+  } catch (error) {
+    console.error("Gagal sinkronisasi ke Spreadsheet:", error);
+    return false;
+  }
 };
 
 const splitCSVLine = (line: string): string[] => {
@@ -58,15 +97,8 @@ export const getRetirementDetails = (nip: string, jabatan: string, klasifikasi?:
   const jab = (jabatan || '').toUpperCase();
   const klas = (klasifikasi || '').toUpperCase();
   
-  /**
-   * LOGIKA BUP (Batas Usia Pensiun) BERDASARKAN KLASIFIKASI JABATAN RIIL:
-   * 1. 65 Tahun: FUNGSIONAL AHLI UTAMA
-   * 2. 60 Tahun: FUNGSIONAL AHLI MADYA, PIMPINAN TINGGI
-   * 3. 58 Tahun: FUNGSIONAL AHLI PERTAMA, FUNGSIONAL AHLI MUDA, FUNGSIONAL KETERAMPILAN, PELAKSANA, PEJABAT ADMINISTRASI
-   */
   let usiaPensiun = 58; 
   
-  // Prioritas Cek Berdasarkan Kolom Klasifikasi Jabatan (String Riil dari Spreadsheet)
   if (klas.includes('UTAMA')) {
     usiaPensiun = 65;
   } else if (klas.includes('MADYA') || klas.includes('PIMPINAN TINGGI')) {
@@ -76,11 +108,11 @@ export const getRetirementDetails = (nip: string, jabatan: string, klasifikasi?:
     klas.includes('MUDA') || 
     klas.includes('PELAKSANA') || 
     klas.includes('KETERAMPILAN') ||
-    klas.includes('ADMINISTRASI')
+    klas.includes('ADMINISTRASI') ||
+    klas.includes('ADMIN')
   ) {
     usiaPensiun = 58;
   } else {
-    // Fallback ke Nama Jabatan jika Klasifikasi Kosong atau Tidak Cocok
     if (jab.includes('UTAMA')) usiaPensiun = 65;
     else if (jab.includes('MADYA') || jab.includes('DIREKTUR') || jab.includes('KEPALA KANTOR') || jab.includes('PIMPINAN')) usiaPensiun = 60;
     else if (jab.includes('PERTAMA') || jab.includes('MUDA') || jab.includes('PELAKSANA') || jab.includes('ADMIN')) usiaPensiun = 58;

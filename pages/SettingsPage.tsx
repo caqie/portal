@@ -20,7 +20,11 @@ const SettingsPage = () => {
   // Config States
   const [cloudConfig, setCloudConfig] = useState<CloudConfig>(() => {
     const saved = localStorage.getItem('portal_cloud_config');
-    return saved ? JSON.parse(saved) : { driveFolderId: '', appsScriptUrl: '', logoUrl: '' };
+    return saved ? JSON.parse(saved) : { 
+      driveFolderId: '', 
+      appsScriptUrl: 'https://script.google.com/macros/s/AKfycbz9zyZrLGmDBRlUOdR1pgftxDfcElY_Fd4BfsCR4Fmd7Qb58MJKAllRkUloFQrbs8lY/exec', 
+      logoUrl: '' 
+    };
   });
   
   const [dbConfig, setDbConfig] = useState({
@@ -254,9 +258,9 @@ const SettingsPage = () => {
                 <div className="space-y-6">
                   <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl flex items-start space-x-4 mb-4">
                      <i className="bi bi-info-circle-fill text-emerald-500 text-lg mt-1"></i>
-                     <p className="text-[10px] font-bold text-emerald-800 leading-relaxed uppercase">
-                        Sistem ini menggunakan Google Sheets sebagai database utama. Pastikan link Spreadsheet disetel ke "Anyone with the link can view" agar sistem dapat menarik data.
-                     </p>
+                     <div className="text-[10px] font-bold text-emerald-800 leading-relaxed uppercase">
+                        Sistem menggunakan Google Apps Script sebagai API Write. Pastikan URL di bawah valid dan disetel ke "Anyone" pada saat Deployment.
+                     </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -277,8 +281,9 @@ const SettingsPage = () => {
                         <input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-[1.5rem] text-xs font-bold text-gray-900 outline-none focus:bg-white focus:border-blue-500 transition-all" value={cloudConfig.driveFolderId} onChange={e => setCloudConfig({...cloudConfig, driveFolderId: e.target.value})} />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-3">Google Apps Script URL (API)</label>
-                        <input type="text" placeholder="https://script.google.com/macros/s/..." className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-[1.5rem] text-xs font-bold text-gray-900 outline-none focus:bg-white focus:border-blue-500 transition-all" value={cloudConfig.appsScriptUrl} onChange={e => setCloudConfig({...cloudConfig, appsScriptUrl: e.target.value})} />
+                        <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest ml-3">Google Apps Script URL (API Sinkronisasi)</label>
+                        <input type="text" placeholder="https://script.google.com/macros/s/..." className="w-full px-6 py-4 bg-indigo-50 border border-indigo-200 rounded-[1.5rem] text-xs font-bold text-gray-900 outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-sm" value={cloudConfig.appsScriptUrl} onChange={e => setCloudConfig({...cloudConfig, appsScriptUrl: e.target.value})} />
+                        <p className="text-[8px] text-indigo-400 font-bold ml-3 mt-1 uppercase italic">URL ini digunakan untuk menyimpan data kembali ke Spreadsheet secara real-time.</p>
                       </div>
                     </div>
                   </div>
