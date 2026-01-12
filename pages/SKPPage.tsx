@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { fetchPegawaiFromSheets } from '../spreadsheetService';
 import { Pegawai, SKP } from '../types';
@@ -100,6 +101,7 @@ const SKPPage = () => {
       const saved = localStorage.getItem('skp_pro_db');
       if (saved) {
         const parsed = JSON.parse(saved);
+        // FIX: Use setSkpList instead of undefined setPakList
         setSkpList(isViewer ? parsed.filter((s: any) => s.nip === user?.nip) : parsed);
       }
     } catch (err) { console.error(err); }

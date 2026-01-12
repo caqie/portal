@@ -7,10 +7,10 @@ import {
   fetchKenaikanFromSheets, 
   fetchPengembanganFromSheets, 
   fetchPegawaiFromSheets, 
-  calculateRetirementDate, 
+  getRetirementDetails, 
   fetchKGBFromSheets 
 } from '../spreadsheetService';
-import { AK_KOEFISIEN, PREDIKAT_MULTIPLIER, AK_KUMULATIF_TARGET } from '../constants';
+import { AK_KOEFISIEN, PREDIKAT_MULTIPLIER } from '../constants';
 import { SKP, PAK, KenaikanKarir, Pengembangan, Pegawai, KGB } from '../types';
 import { useAuth } from '../AuthContext';
 
@@ -55,7 +55,6 @@ const LayananKepegawaianPage = () => {
       else if (activeModule === 'kgb') res = await fetchKGBFromSheets();
       else if (activeModule === 'pensiun') res = pegawais;
       
-      // Personal Filter for Viewer
       if (isViewer) {
         setData(res.filter((item: any) => item.nip === user?.nip));
       } else {
@@ -100,62 +99,90 @@ const LayananKepegawaianPage = () => {
         <ServiceCard icon="bi-door-open" label="Pensiun" description="Batas Usia" color="rose" active={activeModule === 'pensiun'} onClick={() => setActiveModule('pensiun')} />
       </div>
 
-      {!isViewer && activeModule === 'pak' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 no-print">
-          <div className="lg:col-span-4 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
-             <div className="flex items-center space-x-3 mb-2"><div className="h-8 w-8 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg"><i className="bi bi-calculator-fill"></i></div><h4 className="text-[11px] font-black uppercase tracking-widest text-gray-900">Parameter PAK</h4></div>
-             <div className="space-y-4">
-                <select className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900" value={calcData.nip} onChange={e => setCalcData({...calcData, nip: e.target.value})}><option value="">-- Pilih Pegawai --</option>{pegawaiList.map(p => <option key={p.id} value={p.nip}>{p.nama}</option>)}</select>
-                <div className="grid grid-cols-2 gap-4">
-                  <input type="number" placeholder="AK Dasar" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900" value={calcData.akDasar} onChange={e => setCalcData({...calcData, akDasar: parseFloat(e.target.value) || 0})} />
-                  <input type="number" placeholder="AK Lama" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900" value={calcData.akLama} onChange={e => setCalcData({...calcData, akLama: parseFloat(e.target.value) || 0})} />
-                </div>
-                <button onClick={handleCalculate} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-indigo-700 transition-all">Generate SK PAK</button>
-             </div>
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden no-print min-h-[400px]">
+          <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
+              <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">Database {activeModule === 'pensiun' ? 'Batas Usia Pensiun' : activeModule.toUpperCase()}</h5>
+              <button onClick={loadModuleData} className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline">Refresh Data</button>
           </div>
-          <div className="lg:col-span-8">
-            {calcResult && (
-              <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-10 animate-modalEnter">
-                 <h3 className="text-5xl font-black text-gray-900 tracking-tighter">{calcResult.totalKumulatif} <span className="text-xl text-gray-300 uppercase">AK</span></h3>
-                 <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-2">Akumulasi Angka Kredit Terakhir</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+          <div className="overflow-x-auto">
+              <table className="w-full text-left whitespace-nowrap">
+                  <thead className="bg-gray-50 text-gray-400 uppercase text-[7px] font-black border-b border-gray-100 tracking-widest">
+                      <tr>
+                          {activeModule === 'pensiun' ? (
+                            <>
+                              <th className="px-6 py-4 text-center">NIP</th>
+                              <th className="px-4 py-4">Nama</th>
+                              <th className="px-4 py-4">Jabatan</th>
+                              <th className="px-4 py-4">Klasifikasi</th>
+                              <th className="px-4 py-4 text-center">Gol</th>
+                              <th className="px-4 py-4 text-center">L/P</th>
+                              <th className="px-4 py-4">TMT Jabatan</th>
+                              <th className="px-4 py-4">Tgl Lahir</th>
+                              <th className="px-4 py-4">Tgl Pensiun</th>
+                              <th className="px-4 py-4">TMT Pensiun</th>
+                              <th className="px-4 py-4 text-center">Usia</th>
+                              <th className="px-4 py-4 text-center">BUP</th>
+                              <th className="px-4 py-4">Sisa Kerja</th>
+                              <th className="px-4 py-4">Unit Kerja</th>
+                              <th className="px-4 py-4">Eselon</th>
+                              <th className="px-4 py-4">Jenis</th>
+                              <th className="px-4 py-4">MPP</th>
+                              <th className="px-6 py-4 text-right">Ket</th>
+                            </>
+                          ) : (
+                            <>
+                              <th className="px-8 py-4">Nama Pegawai</th>
+                              <th className="px-4 py-4">NIP</th>
+                              <th className="px-4 py-4">Unit Kerja</th>
+                              {activeModule === 'kgb' && <><th className="px-4 py-4">TMT Baru</th><th className="px-4 py-4 text-right">Gaji Baru</th><th className="px-8 py-4 text-center">Status</th></>}
+                              {activeModule === 'skp' && <><th className="px-4 py-4 text-center">Tahun</th><th className="px-4 py-4">Predikat</th></>}
+                              {activeModule === 'kenaikan' && <><th className="px-4 py-4">Menjadi</th><th className="px-8 py-4 text-center">Status</th></>}
+                              {activeModule === 'pengembangan' && <><th className="px-4 py-4">Kegiatan</th><th className="px-4 py-4 text-center">JPL</th></>}
+                            </>
+                          )}
+                      </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                      {loading ? (
+                          <tr><td colSpan={20} className="px-8 py-20 text-center text-[10px] font-black text-gray-300 uppercase animate-pulse">Menghubungkan ke basis data...</td></tr>
+                      ) : data.length > 0 ? data.map((item: any) => {
+                        if (activeModule === 'pensiun') {
+                          const det = getRetirementDetails(item.nip, item.jabatan || '', item.klasifikasiJabatan || '');
+                          if (!det) return null;
+                          
+                          return (
+                            <tr key={item.id} className="hover:bg-rose-50/10 transition-all text-[9px] font-bold text-gray-700">
+                                <td className="px-6 py-4 font-mono text-center">{item.nip}</td>
+                                <td className="px-4 py-4 uppercase font-black text-gray-900">{item.nama}</td>
+                                <td className="px-4 py-4 text-[8px] uppercase truncate max-w-[150px]">{item.jabatan}</td>
+                                <td className="px-4 py-4">
+                                  <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-100 uppercase text-[8px] font-black">
+                                    {item.klasifikasiJabatan || '-'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-4 text-center font-mono">{item.golRuang}</td>
+                                <td className="px-4 py-4 text-center">{item.gender}</td>
+                                <td className="px-4 py-4">{item.tmtJabatan || '-'}</td>
+                                <td className="px-4 py-4">{det.birthDate.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+                                <td className="px-4 py-4">{det.tglPensiun.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+                                <td className="px-4 py-4 text-rose-600 font-black">{det.tmtPensiun.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+                                <td className="px-4 py-4 text-center">{det.currentAge} Thn</td>
+                                <td className="px-4 py-4 text-center font-black text-blue-600">{det.usiaPensiun} Thn</td>
+                                <td className="px-4 py-4 text-rose-600 font-black uppercase">{det.sisaMasaKerja}</td>
+                                <td className="px-4 py-4 text-[8px] uppercase truncate max-w-[150px]">{item.unitKerja}</td>
+                                <td className="px-4 py-4 text-center">{item.eselon || '-'}</td>
+                                <td className="px-4 py-4">{det.jenisPensiun}</td>
+                                <td className="px-4 py-4">{det.mpp.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+                                <td className="px-6 py-4 text-right text-gray-400 font-black">-</td>
+                            </tr>
+                          );
+                        }
 
-      {(isViewer || activeModule !== 'pak' || !calcResult) && (
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden no-print min-h-[400px]">
-            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
-                <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">Database {activeModule.toUpperCase()}</h5>
-                <button onClick={loadModuleData} className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline">Refresh Data</button>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50/50 text-gray-400 uppercase text-[8px] font-black border-b border-gray-100 tracking-widest">
-                        <tr>
-                            <th className="px-8 py-4">Nama Pegawai</th>
-                            <th className="px-4 py-4">NIP</th>
-                            <th className="px-4 py-4">Unit Kerja</th>
-                            {activeModule === 'pensiun' && <><th className="px-4 py-4">BUP</th><th className="px-8 py-4 text-right">TMT Pensiun</th></>}
-                            {activeModule === 'kgb' && <><th className="px-4 py-4">TMT Baru</th><th className="px-4 py-4 text-right">Gaji Baru</th><th className="px-8 py-4 text-center">Status</th></>}
-                            {activeModule === 'skp' && <><th className="px-4 py-4 text-center">Tahun</th><th className="px-4 py-4">Predikat</th></>}
-                            {activeModule === 'kenaikan' && <><th className="px-4 py-4">Menjadi</th><th className="px-8 py-4 text-center">Status</th></>}
-                            {activeModule === 'pengembangan' && <><th className="px-4 py-4">Kegiatan</th><th className="px-4 py-4 text-center">JPL</th></>}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                        {loading ? (
-                            <tr><td colSpan={10} className="px-8 py-20 text-center text-[10px] font-black text-gray-300 uppercase animate-pulse">Syncing...</td></tr>
-                        ) : data.length > 0 ? data.map((item: any) => (
+                        return (
                           <tr key={item.id} className="hover:bg-blue-50/10 transition-all">
                               <td className="px-8 py-4"><p className="text-[10px] font-black text-gray-900 uppercase">{item.namaPegawai || item.nama || user?.name}</p></td>
                               <td className="px-4 py-4"><p className="text-[8px] font-mono text-gray-400 font-bold">{item.nip}</p></td>
                               <td className="px-4 py-4"><p className="text-[9px] font-bold text-gray-500 uppercase">{item.unitKerja || pegawaiList.find(p => p.nip === item.nip)?.unitKerja || '-'}</p></td>
-                              {activeModule === 'pensiun' && (
-                                <><td className="px-4 py-4 text-[10px] font-black text-gray-900">{(item.jabatan || '').toUpperCase().includes('UTAMA') ? '65' : '58'} Thn</td>
-                                <td className="px-8 py-4 text-right"><span className="px-3 py-1 bg-rose-50 text-rose-700 text-[9px] font-black rounded-lg">{calculateRetirementDate(item.nip, item.jabatan || '')?.toLocaleDateString('id-ID')}</span></td></>
-                              )}
                               {activeModule === 'kgb' && (
                                 <><td className="px-4 py-4 text-[10px] font-black text-blue-600">{item.tmtBaru}</td>
                                 <td className="px-4 py-4 text-right text-[10px] font-black text-emerald-600">Rp {item.gajiBaru?.toLocaleString('id-ID')}</td>
@@ -174,14 +201,14 @@ const LayananKepegawaianPage = () => {
                                 <td className="px-4 py-4 text-center text-[10px] font-black text-gray-900">{item.jumlahJpl}</td></>
                               )}
                           </tr>
-                        )) : (
-                            <tr><td colSpan={10} className="px-8 py-20 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Tidak ada data ditemukan</td></tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-      )}
+                        )
+                      }) : (
+                          <tr><td colSpan={20} className="px-8 py-20 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Tidak ada data ditemukan</td></tr>
+                      )}
+                  </tbody>
+              </table>
+          </div>
+      </div>
     </div>
   );
 };

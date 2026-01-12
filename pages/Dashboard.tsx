@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, 
@@ -120,15 +121,22 @@ const Dashboard = () => {
   }, [pegawai]);
 
   const pendidikanData = useMemo(() => {
-    const counts: Record<string, number> = { 'S3': 0, 'S2': 0, 'S1/D4': 0, 'D3': 0, 'SMA': 0, 'LAINNYA': 0 };
+    const counts: Record<string, number> = { 'S3': 0, 'S2': 0, 'S1/D4': 0, 'D3': 0, 'SLTA': 0, 'LAINNYA': 0 };
     pegawai.forEach(p => {
       const edu = (p.pendidikan || '').toUpperCase();
-      if (edu.includes('S3')) counts['S3']++;
-      else if (edu.includes('S2')) counts['S2']++;
-      else if (edu.includes('S1') || edu.includes('D4')) counts['S1/D4']++;
-      else if (edu.includes('D3')) counts['D3']++;
-      else if (edu.includes('SMA')) counts['SMA']++;
-      else if (edu.trim()) counts['LAINNYA']++;
+      if (edu.includes('S3') || edu.includes('DOKTOR')) {
+        counts['S3']++;
+      } else if (edu.includes('S2') || edu.includes('MAGISTER') || edu.includes('MASTER') || edu.includes('M.')) {
+        counts['S2']++;
+      } else if (edu.includes('S1') || edu.includes('DIV') || edu.includes('SARJANA') || edu.includes('D IV')) {
+        counts['S1/D4']++;
+      } else if (edu.includes('DIII') || edu.includes('D-III') || edu.includes('D3') || edu.includes('D III')) {
+        counts['D3']++;
+      } else if (edu.includes('SLTA') || edu.includes('SMA') || edu.includes('SMK')) {
+        counts['SLTA']++;
+      } else if (edu.trim()) {
+        counts['LAINNYA']++;
+      }
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value })).filter(i => i.value > 0);
   }, [pegawai]);
@@ -225,7 +233,7 @@ const Dashboard = () => {
          <div className="lg:col-span-5 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col min-h-[400px]">
             <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-6">Demografi Gender</h4>
             <div className="w-full h-[300px] relative">
-               <ResponsiveContainer width="100%" height="100%">
+               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                   <PieChart>
                     <Pie data={genderData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                       {genderData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
@@ -240,7 +248,7 @@ const Dashboard = () => {
          <div className="lg:col-span-7 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col min-h-[400px]">
             <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-6">Tingkat Pendidikan</h4>
             <div className="w-full h-[300px] relative">
-               <ResponsiveContainer width="100%" height="100%">
+               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
                   <BarChart data={pendidikanData} layout="vertical" margin={{ left: 20, right: 30 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" />
                     <XAxis type="number" hide />

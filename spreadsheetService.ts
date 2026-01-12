@@ -39,37 +39,91 @@ export const calculateSalary = (gol: string, nip: string): number => {
   return getGajiEstimasi(gol, mk);
 };
 
-export const calculateRetirementDate = (nip: string, jabatan: string): Date | null => {
+export const calculateRetirementDate = (nip: string, jabatan: string, klasifikasi?: string): Date | null => {
+  const details = getRetirementDetails(nip, jabatan, klasifikasi);
+  return details?.tmtPensiun || null;
+};
+
+export const getRetirementDetails = (nip: string, jabatan: string, klasifikasi?: string) => {
   if (!nip || nip.length < 8) return null;
+  
   const birthYear = parseInt(nip.substring(0, 4));
   const birthMonth = parseInt(nip.substring(4, 6)) - 1; 
   const birthDay = parseInt(nip.substring(6, 8));
-  
   const birthDate = new Date(birthYear, birthMonth, birthDay);
+  
   if (isNaN(birthDate.getTime())) return null;
 
+  const now = new Date();
   const jab = (jabatan || '').toUpperCase();
-  let bup = 58; 
-
-  if (jab.includes('AHLI UTAMA')) {
-    bup = 65;
+  const klas = (klasifikasi || '').toUpperCase();
+  
+  /**
+   * LOGIKA BUP (Batas Usia Pensiun) BERDASARKAN KLASIFIKASI JABATAN RIIL:
+   * 1. 65 Tahun: FUNGSIONAL AHLI UTAMA
+   * 2. 60 Tahun: FUNGSIONAL AHLI MADYA, PIMPINAN TINGGI
+   * 3. 58 Tahun: FUNGSIONAL AHLI PERTAMA, FUNGSIONAL AHLI MUDA, FUNGSIONAL KETERAMPILAN, PELAKSANA, PEJABAT ADMINISTRASI
+   */
+  let usiaPensiun = 58; 
+  
+  // Prioritas Cek Berdasarkan Kolom Klasifikasi Jabatan (String Riil dari Spreadsheet)
+  if (klas.includes('UTAMA')) {
+    usiaPensiun = 65;
+  } else if (klas.includes('MADYA') || klas.includes('PIMPINAN TINGGI')) {
+    usiaPensiun = 60;
   } else if (
-    jab.includes('AHLI MADYA') || 
-    jab.includes('PIMPINAN TINGGI') || 
-    jab.includes('DIREKTUR') || 
-    jab.includes('KEPALA KANTOR') ||
-    jab.includes('PRATAMA')
+    klas.includes('PERTAMA') || 
+    klas.includes('MUDA') || 
+    klas.includes('PELAKSANA') || 
+    klas.includes('KETERAMPILAN') ||
+    klas.includes('ADMINISTRASI')
   ) {
-    bup = 60;
+    usiaPensiun = 58;
+  } else {
+    // Fallback ke Nama Jabatan jika Klasifikasi Kosong atau Tidak Cocok
+    if (jab.includes('UTAMA')) usiaPensiun = 65;
+    else if (jab.includes('MADYA') || jab.includes('DIREKTUR') || jab.includes('KEPALA KANTOR') || jab.includes('PIMPINAN')) usiaPensiun = 60;
+    else if (jab.includes('PERTAMA') || jab.includes('MUDA') || jab.includes('PELAKSANA') || jab.includes('ADMIN')) usiaPensiun = 58;
   }
 
-  let retirementMonth = birthMonth + 1;
-  let retirementYear = birthYear + bup;
-  if (retirementMonth > 11) {
-    retirementMonth = 0;
-    retirementYear += 1;
+  const tglPensiun = new Date(birthYear + usiaPensiun, birthMonth, birthDay);
+  
+  let tmtMonth = birthMonth + 1;
+  let tmtYear = birthYear + usiaPensiun;
+  if (tmtMonth > 11) {
+    tmtMonth = 0;
+    tmtYear += 1;
   }
-  return new Date(retirementYear, retirementMonth, 1);
+  const tmtPensiun = new Date(tmtYear, tmtMonth, 1);
+
+  let currentAge = now.getFullYear() - birthYear;
+  const m = now.getMonth() - birthMonth;
+  if (m < 0 || (m === 0 && now.getDate() < birthDay)) currentAge--;
+
+  const diffTime = tmtPensiun.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  let sisaMasaKerja = 'Pensiun';
+  if (diffDays > 0) {
+    const totalMonths = Math.floor(diffDays / 30.4375);
+    const years = Math.floor(totalMonths / 12);
+    const months = totalMonths % 12;
+    sisaMasaKerja = `${years} Thn ${months} Bln`;
+  }
+
+  const mppDate = new Date(tmtPensiun);
+  mppDate.setFullYear(mppDate.getFullYear() - 1);
+
+  return {
+    birthDate,
+    tglPensiun,
+    tmtPensiun,
+    usiaPensiun,
+    currentAge,
+    sisaMasaKerja,
+    mpp: mppDate,
+    jenisPensiun: 'BUP'
+  };
 };
 
 const fetchDataFromSheet = async (sheetName: string): Promise<string[][]> => {
@@ -118,19 +172,18 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
       const nama = getVal('NAMA');
       if (!nama || !nip) return null;
 
-      // AMBIL DATA MENTAH TANPA MAPPING CERDAS
-      const rawUnit = getVal('unitKerja') || getVal('UNITKERJA') || getVal('DIREKTORAT') || 'Sekretariat DJKI';
+      const rawUnit = (getVal('unitKerja') || getVal('UNITKERJA') || getVal('DIREKTORAT') || 'Sekretariat DJKI').trim();
       const gol = getVal('GOLRUANG') || getVal('GOL');
       const jk = (getVal('JENISKELAMIN') || getVal('GENDER')).toUpperCase();
-      const statusPeg = getVal('STATUSPEGAWAI') || getVal('STATUS') || 'Aktif';
+      const statusPeg = (getVal('STATUSPEGAWAI') || getVal('STATUS') || 'Aktif').trim();
 
       return {
         id: (index + 1).toString(),
         nip,
         nama,
-        jabatan: getVal('JABATAN'),
-        bagian: getVal('BAGIAN'),
-        unitKerja: rawUnit, // MENGGUNAKAN NILAI ASLI DARI KOLOM SPREADSHEET
+        jabatan: getVal('JABATAN').trim(),
+        bagian: getVal('BAGIAN').trim(),
+        unitKerja: rawUnit, 
         gender: jk.startsWith('P') ? 'P' : 'L',
         golRuang: gol,
         jenisPegawai: getVal('JENISPEGAWAI') as any,
@@ -139,7 +192,7 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
         tanggalLahir: getVal('TANGGALLAHIR'),
         pangkat: getVal('PANGKAT') || getPangkatFromGol(gol),
         tmtPangkat: getVal('TMTPANGKAT'),
-        klasifikasiJabatan: getVal('KLASIFIKASIJABATAN'),
+        klasifikasiJabatan: (getVal('KLASIFIKASIJABATAN') || getVal('KLASIFIKASI') || getVal('JENISJABATAN')).trim(),
         eselon: getVal('ESELON'),
         pendidikan: getVal('PENDIDIKAN'),
         bidang: getVal('BIDANG'),

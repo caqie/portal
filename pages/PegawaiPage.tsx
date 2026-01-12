@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { PANGKAT_MAP, getPangkatFromGol, UNIT_KERJA } from '../constants';
+import { PANGKAT_MAP, getPangkatFromGol, UNIT_KERJA, PENDIDIKAN_LIST } from '../constants';
 import { Pegawai, Dossier, CloudConfig } from '../types';
 import { fetchPegawaiFromSheets, calculateRetirementDate } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
@@ -49,7 +50,7 @@ const PegawaiPage = () => {
   const dossierFileInputRef = useRef<HTMLInputElement>(null);
   const [cloudConfig, setCloudConfig] = useState<CloudConfig | null>(null);
 
-  // Dossier Form State sesuai permintaan user: TANGGAL, KETERANGAN, FILE_NAME
+  // Dossier Form State
   const [dossierForm, setDossierForm] = useState({
     tanggal: new Date().toISOString().split('T')[0],
     keterangan: '',
@@ -77,6 +78,15 @@ const PegawaiPage = () => {
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
+  const availableUnits = useMemo(() => {
+    const units = new Set<string>();
+    UNIT_KERJA.forEach(u => units.add(u));
+    pegawaiList.forEach(p => {
+        if (p.unitKerja) units.add(p.unitKerja.trim());
+    });
+    return Array.from(units).sort();
+  }, [pegawaiList]);
+
   const loadDossiers = (nip: string) => {
     const saved = localStorage.getItem('portal_dossiers_db');
     if (saved) {
@@ -89,7 +99,7 @@ const PegawaiPage = () => {
 
   const handleExport = () => {
     const dataToExport = filteredPegawai.map(p => ({
-      NIP: p.nip, Nama: p.nama, Jabatan: p.jabatan, Unit: p.unitKerja, Pangkat: p.pangkat, Jenis: p.jenisPegawai, Status: p.status
+      NIP: p.nip, Nama: p.nama, Jabatan: p.jabatan, Klasifikasi: p.klasifikasiJabatan, Unit: p.unitKerja, Pangkat: p.pangkat, Jenis: p.jenisPegawai, Status: p.status
     }));
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
@@ -102,10 +112,10 @@ const PegawaiPage = () => {
     
     const term = searchTerm.toLowerCase();
     const matchesSearch = searchTerm === '' || [
-      p.nama, p.nip, p.jabatan, p.unitKerja, p.bagian, p.alamat, p.telepon, p.pendidikan, p.bidang, p.pangkat, p.golRuang, p.jenisPegawai
+      p.nama, p.nip, p.jabatan, p.klasifikasiJabatan, p.unitKerja, p.bagian, p.alamat, p.telepon, p.pendidikan, p.bidang, p.pangkat, p.golRuang, p.jenisPegawai
     ].some(field => field?.toLowerCase().includes(term));
 
-    const matchesUnit = filterUnit === 'Semua Unit' || p.unitKerja === filterUnit;
+    const matchesUnit = filterUnit === 'Semua Unit' || p.unitKerja?.trim() === filterUnit;
     const matchesJenis = filterJenis === 'Semua Jenis' || p.jenisPegawai === filterJenis;
     const matchesStatus = filterStatus === 'Semua Status' || p.status === filterStatus;
     const matchesGol = filterGolongan === 'Semua Golongan' || p.golRuang === filterGolongan;
@@ -191,7 +201,7 @@ const PegawaiPage = () => {
         namaPegawai: activePegawai.nama,
         tanggal: dossierForm.tanggal,
         keterangan: dossierForm.keterangan || 'Arsip Elektronik Terunggah',
-        fileName: dossierForm.fileName || selectedFile.name // Gunakan file_name manual jika ada
+        fileName: dossierForm.fileName || selectedFile.name 
       };
 
       const saved = localStorage.getItem('portal_dossiers_db');
@@ -244,7 +254,7 @@ const PegawaiPage = () => {
             <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-3">Unit Kerja</label>
             <select value={filterUnit} onChange={e => setFilterUnit(e.target.value)} className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-3 text-[10px] font-bold text-gray-900 shadow-sm outline-none appearance-none cursor-pointer">
                 <option value="Semua Unit">Semua Unit</option>
-                {UNIT_KERJA.map(u => <option key={u} value={u}>{u}</option>)}
+                {availableUnits.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
          </div>
          <div className="space-y-1">
@@ -286,6 +296,7 @@ const PegawaiPage = () => {
               <tr>
                 <th className="px-8 py-5">Identitas Pegawai</th>
                 <th className="px-4 py-5">Jabatan & Unit</th>
+                <th className="px-4 py-5">Klasifikasi</th>
                 <th className="px-4 py-5 text-center">Gol/Pangkat</th>
                 <th className="px-4 py-5">Status/Jenis</th>
                 <th className="px-8 py-5 text-right">Opsi</th>
@@ -293,7 +304,7 @@ const PegawaiPage = () => {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
-                <tr><td colSpan={5} className="px-8 py-20 text-center text-[10px] font-black text-gray-300 uppercase animate-pulse">Menghubungkan ke basis data...</td></tr>
+                <tr><td colSpan={6} className="px-8 py-20 text-center text-[10px] font-black text-gray-300 uppercase animate-pulse">Menghubungkan ke basis data...</td></tr>
               ) : filteredPegawai.length > 0 ? filteredPegawai.map((p) => (
                 <tr key={p.id} className="hover:bg-blue-50/5 group transition-colors">
                   <td className="px-8 py-5">
@@ -310,6 +321,11 @@ const PegawaiPage = () => {
                   <td className="px-4 py-5">
                     <p className="text-[10px] font-bold text-gray-700 uppercase line-clamp-1">{p.jabatan}</p>
                     <p className="text-[8px] text-gray-400 font-black uppercase mt-1 truncate max-w-[150px]">{p.unitKerja}</p>
+                  </td>
+                  <td className="px-4 py-5">
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[8px] font-black rounded-lg border border-blue-100 uppercase tracking-tighter">
+                      {p.klasifikasiJabatan || '-'}
+                    </span>
                   </td>
                   <td className="px-4 py-5 text-center">
                     <div className="inline-flex flex-col items-center">
@@ -331,7 +347,7 @@ const PegawaiPage = () => {
                     </div>
                   </td>
                 </tr>
-              )) : <tr><td colSpan={5} className="px-8 py-20 text-center text-[11px] font-black text-gray-400 uppercase tracking-widest opacity-30">Tidak ada data ditemukan</td></tr>}
+              )) : <tr><td colSpan={6} className="px-8 py-20 text-center text-[11px] font-black text-gray-400 uppercase tracking-widest opacity-30">Tidak ada data ditemukan</td></tr>}
             </tbody>
           </table>
         </div>
@@ -464,7 +480,7 @@ const PegawaiPage = () => {
         </div>
       )}
 
-      {/* Dossier Upload Form Modal sesuai permintaan user */}
+      {/* Dossier Upload Form Modal */}
       {isDossierUploadModalOpen && activePegawai && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-gray-950/70 backdrop-blur-md" onClick={() => setIsDossierUploadModalOpen(false)}></div>
@@ -566,7 +582,7 @@ const PegawaiPage = () => {
                       <div className="col-span-full border-b pb-2"><h6 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">2. Jabatan & Unit Kerja</h6></div>
                       <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Unit Kerja Utama</label>
                         <select className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 transition-all" value={formData.unitKerja || ''} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>
-                          <option value="">Pilih Unit Kerja</option>{UNIT_KERJA.map(u => <option key={u} value={u}>{u}</option>)}
+                          <option value="">Pilih Unit Kerja</option>{availableUnits.map(u => u !== 'Semua Unit' && <option key={u} value={u}>{u}</option>)}
                         </select>
                       </div>
                       <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Bagian / Kelompok Kerja</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.bagian || ''} onChange={e => setFormData({...formData, bagian: e.target.value})} /></div>
@@ -596,10 +612,25 @@ const PegawaiPage = () => {
                       </div>
                       <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">TMT CPNS / Pegawai</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.tmtStatus || ''} onChange={e => setFormData({...formData, tmtStatus: e.target.value})} /></div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Tempat Lahir</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.tempatLahir || ''} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Tanggal Lahir</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.tanggalLahir || ''} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
+                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-2">Tempat Lahir</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.tempatLahir || ''} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
+                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-2">Tanggal Lahir</label><input type="date" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500" value={formData.tanggalLahir || ''} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
                       </div>
-                      <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Jenjang Pendidikan Terakhir</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.pendidikan || ''} onChange={e => setFormData({...formData, pendidikan: e.target.value})} placeholder="S1 / S2 / D3" /></div>
+                      
+                      {/* Searchable Education Datalist */}
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Jenjang Pendidikan Terakhir</label>
+                        <input 
+                          list="pendidikan-options"
+                          className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400"
+                          value={formData.pendidikan || ''}
+                          onChange={e => setFormData({...formData, pendidikan: e.target.value})}
+                          placeholder="Ketik/Pilih Jenjang (Contoh: S1-Manajemen)"
+                        />
+                        <datalist id="pendidikan-options">
+                          {PENDIDIKAN_LIST.map((edu, idx) => <option key={idx} value={edu} />)}
+                        </datalist>
+                      </div>
+
                       <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-2">Bidang Studi / Jurusan</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-[12px] font-bold text-gray-900 outline-none focus:border-blue-500 placeholder:text-gray-400" value={formData.bidang || ''} onChange={e => setFormData({...formData, bidang: e.target.value})} /></div>
                    </div>
                 </div>
