@@ -1,28 +1,10 @@
 
 /**
- * PORTAL SDM DJKI - BACKEND CORE (VERSION 2.0 PRO)
+ * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 3.1)
  * ------------------------------------------------
- * PANDUAN DEPLOY:
- * 1. Deploy as Web App.
- * 2. Execute as: Me (Email Anda).
- * 3. Who has access: Anyone.
  */
 
-var FOLDER_ID_DATABASE = "PASTE_YOUR_FOLDER_ID_HERE"; // WAJIB DIISI: ID Folder Drive Utama
-
-// Mapping nama modul ke nama Sheet agar rapi
-var MODULE_MAP = {
-  'PEGAWAI': 'pegawai',
-  'DOSSIER': 'dossier',
-  'SKP': 'skp',
-  'PAK': 'pak',
-  'KEGIATAN': 'kegiatan',
-  'TUGAS_RUTIN': 'tugas_rutin',
-  'ABK_ANJAB': 'abk_anjab',
-  'KGB': 'kgb',
-  'KENAIKAN': 'kenaikan',
-  'PENGEMBANGAN': 'pengembangan'
-};
+var FOLDER_ID_DATABASE = "PASTE_YOUR_FOLDER_ID_HERE"; 
 
 function doPost(e) {
   try {
@@ -39,13 +21,22 @@ function doPost(e) {
       return handleDelete(module, payload);
     }
 
-    return createResponse({ success: false, message: "Aksi tidak dikenali" });
+    return createResponse({ success: false, message: "Action Unknown" });
   } catch (err) {
     return createResponse({ success: false, message: err.toString() });
   }
 }
 
-// Fungsi Helper untuk Response JSON agar tidak kena CORS
+function doGet(e) {
+  // Heartbeat check untuk memantau status koneksi dari frontend
+  return createResponse({ 
+    success: true, 
+    status: "Active", 
+    timestamp: new Date().toISOString(),
+    version: "3.1-PRO"
+  });
+}
+
 function createResponse(output) {
   return ContentService.createTextOutput(JSON.stringify(output))
     .setMimeType(ContentService.MimeType.JSON);
@@ -61,7 +52,6 @@ function handleUpload(payload) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     
     var fileId = file.getId();
-    // URL lh3 adalah cara terbaik untuk direct viewing di tag <img> tanpa interstitial
     var directUrl = "https://lh3.googleusercontent.com/d/" + fileId;
 
     return createResponse({
@@ -75,12 +65,11 @@ function handleUpload(payload) {
   }
 }
 
-function handleSave(moduleKey, payload) {
+function handleSave(moduleName, payload) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetName = MODULE_MAP[moduleKey] || moduleKey.toLowerCase();
+  var sheetName = moduleName.toLowerCase().replace(/\s+/g, '_');
   var sheet = ss.getSheetByName(sheetName);
   
-  // Jika sheet belum ada, buat baru dan gunakan keys payload sebagai header
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
     var headers = Object.keys(payload);
@@ -89,8 +78,6 @@ function handleSave(moduleKey, payload) {
   }
 
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  
-  // Normalisasi data row berdasarkan urutan header di spreadsheet
   var dataRow = headers.map(function(h) { 
     var val = payload[h] !== undefined ? payload[h] : "";
     return (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
@@ -102,37 +89,32 @@ function handleSave(moduleKey, payload) {
     for (var i = 1; i < data.length; i++) {
       if (data[i][idIndex] == payload.id) {
         sheet.getRange(i + 1, 1, 1, dataRow.length).setValues([dataRow]);
-        return createResponse({ success: true, message: "Data diperbarui" });
+        return createResponse({ success: true, message: "Data Updated" });
       }
     }
   }
 
   sheet.appendRow(dataRow);
-  return createResponse({ success: true, message: "Data baru ditambahkan" });
+  return createResponse({ success: true, message: "Data Saved" });
 }
 
-function handleDelete(moduleKey, payload) {
+function handleDelete(moduleName, payload) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetName = MODULE_MAP[moduleKey] || moduleKey.toLowerCase();
+  var sheetName = moduleName.toLowerCase().replace(/\s+/g, '_');
   var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) return createResponse({ success: false, message: "Sheet tidak ditemukan" });
+  if (!sheet) return createResponse({ success: false, message: "Sheet Not Found" });
 
   var data = sheet.getDataRange().getValues();
   var headers = data[0];
   var idIndex = headers.indexOf("id");
 
-  if (idIndex === -1) return createResponse({ success: false, message: "Kolom ID tidak ditemukan" });
+  if (idIndex === -1) return createResponse({ success: false, message: "ID Column Missing" });
 
   for (var i = 1; i < data.length; i++) {
     if (data[i][idIndex] == payload.id) {
       sheet.deleteRow(i + 1);
-      return createResponse({ success: true, message: "Data dihapus" });
+      return createResponse({ success: true, message: "Data Deleted" });
     }
   }
-  return createResponse({ success: false, message: "ID tidak ditemukan" });
-}
-
-// Handler untuk testing koneksi via Browser (GET)
-function doGet() {
-  return ContentService.createTextOutput("Portal SDM DJKI API is Live!").setMimeType(ContentService.MimeType.TEXT);
+  return createResponse({ success: false, message: "Record Not Found" });
 }
