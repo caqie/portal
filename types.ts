@@ -25,6 +25,23 @@ export enum TaskType {
   KGB = 'KGB'
 }
 
+export interface SpmtSppRecord {
+  id: string;
+  type: 'SPP' | 'SPMT';
+  nomor: string;
+  pejabatNip: string;
+  pegawaiNip: string;
+  nomorSK: string;
+  tentangSK: string;
+  tanggalSK: string;
+  jabatanBaru: string;
+  unitKerja: string;
+  tanggalLantikAtauSpmt: string;
+  tanggalSppAtauSpmt: string;
+  tempatTandaTangan: string;
+  signatureLabel?: string;
+}
+
 export interface CloudConfig {
   driveFolderId: string;
   appsScriptUrl: string;
@@ -99,6 +116,32 @@ export interface Pegawai {
   tmtStatus?: string;
 }
 
+export interface ABKAnjab {
+  id: string;
+  namaJabatan: string;
+  unitKerja: string;
+  jumlahSaatIni: number;
+  totalMenitBebanKerja: number;
+  jamKerjaEfektif: number; 
+  kebutuhanPegawai: number;
+  selisih: number;
+  status: 'IDEAL' | 'KURANG' | 'LEBIH';
+  // ANJAB Properti Baru
+  ikhtisarJabatan?: string;
+  kualifikasiPendidikan?: string;
+  kualifikasiPelatihan?: string;
+  pengalamanKerja?: string;
+  tanggungJawab?: string;
+  wewenang?: string;
+  risikoBahaya?: string;
+  uraianTugas: Array<{
+    tugas: string;
+    volume: number;
+    normaWaktu: number; 
+    totalWaktu: number;
+  }>;
+}
+
 export interface SKP {
   id: string;
   nip: string;
@@ -127,11 +170,12 @@ export interface PAKRecord extends PAK {
   tempatDibuat: string;
   periodeMulai: string;
   periodeSelesai: string;
+  jumlahBulan: number;
   predikat: string;
+  hasBonusIjazah: boolean;
   prosentase: number;
   koefisien: number;
   akBaru: number;
-  // Penetapan Breakdown
   akDasar: number;
   akJFLama: number;
   akPenyetaraan: number;

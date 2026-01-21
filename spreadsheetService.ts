@@ -4,14 +4,13 @@ import { getPangkatFromGol, getGajiEstimasi } from './constants';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_PEGAWAI_GID = '1631838106';
-// URL Apps Script yang Anda berikan
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9zyZrLGmDBRlUOdR1pgftxDfcElY_Fd4BfsCR4Fmd7Qb58MJKAllRkUloFQrbs8lY/exec';
 
 const getDbConfig = () => {
   const savedId = localStorage.getItem('db_spreadsheet_id');
   const savedGid = localStorage.getItem('db_pegawai_gid');
   const savedCloud = localStorage.getItem('portal_cloud_config');
-  const cloud: CloudConfig = savedCloud ? JSON.parse(savedCloud) : { driveFolderId: '', appsScriptUrl: '', logoUrl: '' };
+  const cloud: CloudConfig = savedCloud ? JSON.parse(savedCloud) : { driveFolderId: '', appsScriptUrl: DEFAULT_APPS_SCRIPT_URL, logoUrl: '' };
   
   return {
     spreadsheetId: savedId || DEFAULT_SPREADSHEET_ID,
@@ -20,37 +19,67 @@ const getDbConfig = () => {
   };
 };
 
-// Fungsi untuk Simpan ke Spreadsheet via Apps Script
-export const updatePegawaiRemote = async (pegawai: Pegawai): Promise<boolean> => {
+/**
+ * Upload file ke Google Drive (PRO VERSION)
+ */
+export const uploadFileToDrive = async (fileName: string, mimeType: string, base64: string): Promise<{success: boolean, fileUrl?: string, message?: string}> => {
   const { appsScriptUrl } = getDbConfig();
-  if (!appsScriptUrl || appsScriptUrl.includes('placeholder')) {
-    console.error("Apps Script URL belum dikonfigurasi.");
-    return false;
-  }
+  if (!appsScriptUrl || appsScriptUrl === "") return { success: false, message: "Apps Script URL belum diatur di halaman Settings" };
 
   try {
-    // Kita kirim sebagai text/plain agar tidak memicu Preflight CORS (OPTIONS request) 
-    // yang sering gagal di Google Apps Script jika tidak disetup khusus.
-    // Apps Script akan menerima ini di e.postData.contents
-    await fetch(appsScriptUrl, {
+    // Karena Google Apps Script melakukan redirect saat POST, kita kirim dalam mode 'cors'
+    // tapi karena responnya seringkali opaque, kita harus pastikan Apps Script mengembalikan teks JSON murni.
+    const response = await fetch(appsScriptUrl, {
       method: 'POST',
-      mode: 'no-cors', 
-      cache: 'no-cache',
-      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
-        ...pegawai,
-        // Kita pastikan NIP dikirim dengan prefix petik agar GAS menyimpannya sebagai teks
-        nip: pegawai.nip.startsWith("'") ? pegawai.nip : "'" + pegawai.nip
+        action: 'UPLOAD',
+        payload: { fileName, mimeType, base64 }
       })
     });
     
-    // Karena mode 'no-cors', kita tidak bisa membaca response body.
-    // Jika fetch tidak throw error, kita asumsikan data terkirim ke antrean Google.
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Upload error:", error);
+    return { 
+      success: false, 
+      message: "Terjadi kesalahan koneksi ke Google. Pastikan Apps Script di-deploy sebagai 'Anyone' dan URL sudah benar." 
+    };
+  }
+};
+
+/**
+ * Sinkronisasi data ke Cloud (Google Sheets melalui Apps Script)
+ */
+export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELETE', data: any): Promise<boolean> => {
+  const { appsScriptUrl } = getDbConfig();
+  if (!appsScriptUrl || appsScriptUrl === "") return false;
+
+  try {
+    const payload = JSON.stringify({
+      module: moduleName,
+      action: action,
+      timestamp: new Date().toISOString(),
+      payload: data
+    });
+
+    // Gunakan no-cors untuk SAVE/DELETE agar tidak terhambat preflight jika hanya butuh 'fire and forget'
+    // Namun untuk data krusial, mode cors lebih baik jika Apps Script mendukung.
+    await fetch(appsScriptUrl, {
+      method: 'POST',
+      mode: 'no-cors', 
+      headers: { 'Content-Type': 'text/plain' },
+      body: payload
+    });
     return true;
   } catch (error) {
-    console.error("Gagal sinkronisasi ke Spreadsheet:", error);
+    console.error(`Sync error on ${moduleName}:`, error);
     return false;
   }
+};
+
+export const updatePegawaiRemote = async (pegawai: Pegawai): Promise<boolean> => {
+  return await syncTableRemote('PEGAWAI', 'SAVE', pegawai);
 };
 
 const splitCSVLine = (line: string): string[] => {
@@ -71,8 +100,12 @@ const splitCSVLine = (line: string): string[] => {
 };
 
 export const calculateSalary = (gol: string, nip: string): number => {
-  if (!nip || nip.length < 14) return 0;
-  const tmtYear = parseInt(nip.substring(8, 12));
+  const cleanNip = (nip || '').replace(/\D/g, '');
+  if (cleanNip.length < 14) return 0;
+  const tmtYearStr = cleanNip.substring(8, 12);
+  const tmtYear = parseInt(tmtYearStr);
+  if (isNaN(tmtYear)) return getGajiEstimasi(gol, 0);
+  
   const currentYear = new Date().getFullYear();
   const mk = Math.max(0, currentYear - tmtYear);
   return getGajiEstimasi(gol, mk);
@@ -84,13 +117,16 @@ export const calculateRetirementDate = (nip: string, jabatan: string, klasifikas
 };
 
 export const getRetirementDetails = (nip: string, jabatan: string, klasifikasi?: string) => {
-  if (!nip || nip.length < 8) return null;
+  const cleanNip = (nip || '').replace(/\D/g, '');
+  if (cleanNip.length < 8) return null;
   
-  const birthYear = parseInt(nip.substring(0, 4));
-  const birthMonth = parseInt(nip.substring(4, 6)) - 1; 
-  const birthDay = parseInt(nip.substring(6, 8));
+  const birthYear = parseInt(cleanNip.substring(0, 4));
+  const birthMonth = parseInt(cleanNip.substring(4, 6)) - 1; 
+  const birthDay = parseInt(cleanNip.substring(6, 8));
+  
+  if (isNaN(birthYear) || isNaN(birthMonth) || isNaN(birthDay)) return null;
+  
   const birthDate = new Date(birthYear, birthMonth, birthDay);
-  
   if (isNaN(birthDate.getTime())) return null;
 
   const now = new Date();
@@ -98,34 +134,19 @@ export const getRetirementDetails = (nip: string, jabatan: string, klasifikasi?:
   const klas = (klasifikasi || '').toUpperCase();
   
   let usiaPensiun = 58; 
-  
-  if (klas.includes('UTAMA')) {
-    usiaPensiun = 65;
-  } else if (klas.includes('MADYA') || klas.includes('PIMPINAN TINGGI')) {
-    usiaPensiun = 60;
-  } else if (
-    klas.includes('PERTAMA') || 
-    klas.includes('MUDA') || 
-    klas.includes('PELAKSANA') || 
-    klas.includes('KETERAMPILAN') ||
-    klas.includes('ADMINISTRASI') ||
-    klas.includes('ADMIN')
-  ) {
-    usiaPensiun = 58;
-  } else {
+  if (klas.includes('UTAMA')) usiaPensiun = 65;
+  else if (klas.includes('MADYA') || klas.includes('PIMPINAN TINGGI')) usiaPensiun = 60;
+  else if (klas.includes('PERTAMA') || klas.includes('MUDA') || klas.includes('PELAKSANA') || klas.includes('KETERAMPILAN') || klas.includes('ADMINISTRASI') || klas.includes('ADMIN')) usiaPensiun = 58;
+  else {
     if (jab.includes('UTAMA')) usiaPensiun = 65;
     else if (jab.includes('MADYA') || jab.includes('DIREKTUR') || jab.includes('KEPALA KANTOR') || jab.includes('PIMPINAN')) usiaPensiun = 60;
     else if (jab.includes('PERTAMA') || jab.includes('MUDA') || jab.includes('PELAKSANA') || jab.includes('ADMIN')) usiaPensiun = 58;
   }
 
   const tglPensiun = new Date(birthYear + usiaPensiun, birthMonth, birthDay);
-  
   let tmtMonth = birthMonth + 1;
   let tmtYear = birthYear + usiaPensiun;
-  if (tmtMonth > 11) {
-    tmtMonth = 0;
-    tmtYear += 1;
-  }
+  if (tmtMonth > 11) { tmtMonth = 0; tmtYear += 1; }
   const tmtPensiun = new Date(tmtYear, tmtMonth, 1);
 
   let currentAge = now.getFullYear() - birthYear;
@@ -134,7 +155,6 @@ export const getRetirementDetails = (nip: string, jabatan: string, klasifikasi?:
 
   const diffTime = tmtPensiun.getTime() - now.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
   let sisaMasaKerja = 'Pensiun';
   if (diffDays > 0) {
     const totalMonths = Math.floor(diffDays / 30.4375);
@@ -142,38 +162,9 @@ export const getRetirementDetails = (nip: string, jabatan: string, klasifikasi?:
     const months = totalMonths % 12;
     sisaMasaKerja = `${years} Thn ${months} Bln`;
   }
-
   const mppDate = new Date(tmtPensiun);
   mppDate.setFullYear(mppDate.getFullYear() - 1);
-
-  return {
-    birthDate,
-    tglPensiun,
-    tmtPensiun,
-    usiaPensiun,
-    currentAge,
-    sisaMasaKerja,
-    mpp: mppDate,
-    jenisPensiun: 'BUP'
-  };
-};
-
-const fetchDataFromSheet = async (sheetName: string): Promise<string[][]> => {
-  const { spreadsheetId } = getDbConfig();
-  try {
-    const response = await fetch(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${sheetName}&t=${Date.now()}`);
-    if (!response.ok) throw new Error(`Sheet ${sheetName} tidak merespon`);
-    const csvText = await response.text();
-    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lines.length < 2) return [];
-    
-    const headers = splitCSVLine(lines[0]).map(h => h.trim().toUpperCase());
-    const dataRows = lines.slice(1).map(line => splitCSVLine(line));
-    return [headers, ...dataRows];
-  } catch (err) {
-    console.error(`Error fetching sheet ${sheetName}:`, err);
-    return [];
-  }
+  return { birthDate, tglPensiun, tmtPensiun, usiaPensiun, currentAge, sisaMasaKerja, mpp: mppDate, jenisPensiun: 'BUP' };
 };
 
 export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
@@ -194,179 +185,205 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
       const columns = splitCSVLine(line);
       if (columns.length < 2) return null;
       
-      const getVal = (key: string) => {
-        const normalizedKey = key.toUpperCase().replace(/[\s_]/g, '');
-        const idx = headers.indexOf(normalizedKey);
-        return idx !== -1 ? (columns[idx] || '').trim() : '';
+      const getVal = (keyVariations: string[]) => {
+        for (const key of keyVariations) {
+          const normalizedKey = key.toUpperCase().replace(/[\s_]/g, '');
+          const idx = headers.indexOf(normalizedKey);
+          if (idx !== -1 && columns[idx]) return (columns[idx] || '').trim();
+        }
+        return '';
       };
 
-      const nip = getVal('NIP').replace(/['\s]/g, '');
-      const nama = getVal('NAMA');
+      const rawNip = getVal(['NIP', 'NOMORINDUK']);
+      const nip = rawNip.replace(/\D/g, ''); 
+      const nama = getVal(['NAMA', 'NAMAPEGAWAI', 'FULLNAME']);
       if (!nama || !nip) return null;
 
-      const rawUnit = (getVal('unitKerja') || getVal('UNITKERJA') || getVal('DIREKTORAT') || 'Sekretariat DJKI').trim();
-      const gol = getVal('GOLRUANG') || getVal('GOL');
-      const jk = (getVal('JENISKELAMIN') || getVal('GENDER')).toUpperCase();
-      const statusPeg = (getVal('STATUSPEGAWAI') || getVal('STATUS') || 'Aktif').trim();
+      const rawUnit = getVal(['UNITKERJA', 'DIREKTORAT', 'KERJA', 'ORGANISASI']) || 'Sekretariat DJKI';
+      const gol = getVal(['GOLRUANG', 'GOL', 'GOLONGAN']);
+      const jk = (getVal(['JENISKELAMIN', 'GENDER', 'JK']) || 'L').toUpperCase();
+      const statusPeg = getVal(['STATUSPEGAWAI', 'STATUS', 'AKTIF']) || 'Aktif';
 
       return {
         id: (index + 1).toString(),
         nip,
         nama,
-        jabatan: getVal('JABATAN').trim(),
-        bagian: getVal('BAGIAN').trim(),
+        jabatan: getVal(['JABATAN', 'NAMAJABATAN', 'POSISI']),
+        bagian: getVal(['BAGIAN', 'SUBBAGIAN', 'SEKSI', 'POKJA']),
         unitKerja: rawUnit, 
-        gender: jk.startsWith('P') ? 'P' : 'L',
+        gender: (jk.startsWith('P') || jk.includes('WANITA')) ? 'P' : 'L',
         golRuang: gol,
-        jenisPegawai: getVal('JENISPEGAWAI') as any,
-        foto: getVal('FOTOURL') || getVal('FOTO'),
-        tempatLahir: getVal('TEMPATLAHIR'),
-        tanggalLahir: getVal('TANGGALLAHIR'),
-        pangkat: getVal('PANGKAT') || getPangkatFromGol(gol),
-        tmtPangkat: getVal('TMTPANGKAT'),
-        klasifikasiJabatan: (getVal('KLASIFIKASIJABATAN') || getVal('KLASIFIKASI') || getVal('JENISJABATAN')).trim(),
-        eselon: getVal('ESELON'),
-        pendidikan: getVal('PENDIDIKAN'),
-        bidang: getVal('BIDANG'),
-        agama: getVal('AGAMA'),
-        telepon: getVal('NOTELEPON') || getVal('WA'),
-        alamat: getVal('ALAMAT'),
-        tmtJabatan: getVal('TMTJABATAN'),
-        tmtStatus: getVal('TMTSTATUS'),
+        jenisPegawai: getVal(['JENISPEGAWAI', 'KATEGORI', 'STATUSASN']) as any,
+        foto: getVal(['FOTOURL', 'FOTO', 'LINKFOTO', 'PICTURE']),
+        tempatLahir: getVal(['TEMPATLAHIR', 'TMPLAHIR']),
+        tanggalLahir: getVal(['TANGGALLAHIR', 'TGLLAHIR']),
+        pangkat: getVal(['PANGKAT', 'RANK']) || getPangkatFromGol(gol),
+        tmtPangkat: getVal(['TMTPANGKAT', 'TMTGOLONGAN']),
+        klasifikasiJabatan: getVal(['KLASIFIKASIJABATAN', 'KLASIFIKASI', 'JENISJABATAN']),
+        eselon: getVal(['ESELON', 'LEVEL']),
+        pendidikan: getVal(['PENDIDIKAN', 'PENDIDIKANTERAKHIR', 'JENJANG', 'IJAZAH']),
+        bidang: getVal(['BIDANG', 'BIDANGSTUDI', 'JURUSAN', 'PROGRAMSTUDI', 'PROGDI']),
+        agama: getVal(['AGAMA', 'RELIGION']),
+        telepon: getVal(['NOTELEPON', 'WA', 'HP', 'TELP', 'PHONE']),
+        alamat: getVal(['ALAMAT', 'DOMISILI', 'ADDRESS']),
+        tmtJabatan: getVal(['TMTJABATAN', 'TMT_JABATAN']),
+        tmtStatus: getVal(['TMTSTATUS', 'TMTASN', 'TMTSTATUSPEGAWAI']),
         status: statusPeg as any
       } as Pegawai;
     });
 
-    return result.filter((p): p is Pegawai => p !== null && !!p.nama);
+    const filtered = result.filter((p): p is Pegawai => p !== null && !!p.nama);
+    localStorage.setItem('portal_pegawai_db', JSON.stringify(filtered));
+    return filtered;
   } catch (error) {
     console.error("Fetch Pegawai Error:", error);
-    return [];
+    const saved = localStorage.getItem('portal_pegawai_db');
+    return saved ? JSON.parse(saved) : [];
   }
 };
 
-export const fetchUsersFromSheets = async (): Promise<AdminUser[]> => {
+/**
+ * Fetch generic data from a sheet using GID
+ */
+const fetchTableData = async <T>(gidKey: string, defaultGid: string, storageKey: string, mapper: (cols: string[], headers: string[]) => T | null): Promise<T[]> => {
+  const { spreadsheetId } = getDbConfig();
+  const gid = localStorage.getItem(gidKey) || defaultGid;
   try {
-    const [headers, ...rows] = await fetchDataFromSheet('users');
-    if (headers.length === 0 || rows.length === 0) throw new Error("Data users kosong");
+    const response = await fetch(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`);
+    if (!response.ok) throw new Error(`Gagal akses spreadsheet GID: ${gid}`);
     
-    const hIdx = (key: string) => headers.indexOf(key.toUpperCase().replace(/[\s_]/g, ''));
-    
-    const idxNip = hIdx('NIP');
-    const idxName = hIdx('NAME');
-    const idxPass = hIdx('PASSWORD');
-    const idxRole = hIdx('ROLE');
+    const csvText = await response.text();
+    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length < 2) return [];
 
-    return rows.map((columns, index) => {
-      const roleStr = (idxRole !== -1 ? (columns[idxRole] || '') : '').toUpperCase();
-      let mappedRole: AdminUser['role'] = 'Viewer';
-      if (roleStr.includes('SUPER')) mappedRole = 'Superadmin';
-      else if (roleStr.includes('EDITOR')) mappedRole = 'Editor';
-      
-      return {
-        id: (index + 1).toString(),
-        nip: (idxNip !== -1 ? (columns[idxNip] || '') : '').replace(/['\s]/g, ''),
-        name: idxName !== -1 ? columns[idxName] : 'User',
-        password: idxPass !== -1 ? columns[idxPass] : '',
-        role: mappedRole
-      };
-    }).filter(u => u.nip && u.nip.length > 5);
-  } catch (err) {
-    return [{ id: '1', nip: '1234567890', name: 'Admin SDM', password: 'admin', role: 'Superadmin' }];
+    const headers = splitCSVLine(lines[0]).map(h => h.trim().toUpperCase().replace(/[\s_]/g, ''));
+    const dataRows = lines.slice(1);
+
+    const result = dataRows.map(line => mapper(splitCSVLine(line), headers)).filter((item): item is T => item !== null);
+    localStorage.setItem(storageKey, JSON.stringify(result));
+    return result;
+  } catch (error) {
+    console.error(`Fetch Error (${storageKey}):`, error);
+    const saved = localStorage.getItem(storageKey);
+    return saved ? JSON.parse(saved) : [];
   }
 };
 
-export const fetchSKPFromSheets = async (): Promise<SKP[]> => {
-  const [headers, ...rows] = await fetchDataFromSheet('skp');
-  return rows.map((cols, i) => ({
-    id: (i+1).toString(),
-    nip: cols[headers.indexOf('NIP')],
-    namaPegawai: cols[headers.indexOf('NAMA')],
-    tahun: parseInt(cols[headers.indexOf('TAHUN')]),
-    nilaiKinerja: parseFloat(cols[headers.indexOf('KINERJA')]),
-    nilaiPerilaku: parseFloat(cols[headers.indexOf('PERILAKU')]),
-    predikat: cols[headers.indexOf('PREDIKAT')] as any,
-  })).filter(x => x.nip);
-};
+export const fetchUsersFromSheets = () => fetchTableData<AdminUser>('db_users_gid', '0', 'portal_users_db', (cols, headers) => {
+  const get = (keys: string[]) => {
+    const idx = headers.findIndex(h => keys.some(k => k.toUpperCase().replace(/[\s_]/g, '') === h));
+    return idx !== -1 ? cols[idx] : '';
+  };
+  return {
+    id: get(['ID']),
+    nip: get(['NIP']),
+    name: get(['NAME', 'NAMA']),
+    password: get(['PASSWORD', 'SANDI']),
+    role: get(['ROLE', 'AKSES']) as any,
+    foto: get(['FOTO', 'PICTURE'])
+  };
+});
 
-export const fetchPAKFromSheets = async (): Promise<PAK[]> => {
-  const [headers, ...rows] = await fetchDataFromSheet('pak');
-  return rows.map((cols, i) => ({
-    id: (i+1).toString(),
-    nip: cols[headers.indexOf('NIP')],
-    namaPegawai: cols[headers.indexOf('NAMA')],
-    periode: cols[headers.indexOf('PERIODE')],
-    jumlahKredit: parseFloat(cols[headers.indexOf('KREDIT')]),
-    keterangan: cols[headers.indexOf('KETERANGAN')],
-    status: cols[headers.indexOf('STATUS')] as any,
-  })).filter(x => x.nip);
-};
+export const fetchDossiersFromSheets = () => fetchTableData<Dossier>('db_dossier_gid', '1', 'portal_dossiers_db', (cols, headers) => {
+  const get = (keys: string[]) => {
+    const idx = headers.findIndex(h => keys.some(k => k.toUpperCase().replace(/[\s_]/g, '') === h));
+    return idx !== -1 ? cols[idx] : '';
+  };
+  return {
+    id: get(['ID']),
+    nip: get(['NIP']),
+    namaPegawai: get(['NAMAPEGAWAI', 'NAMA']),
+    tanggal: get(['TANGGAL', 'DATE']),
+    keterangan: get(['KETERANGAN', 'DESC']),
+    fileName: get(['FILENAME', 'NAMAFILE']),
+    fileUrl: get(['FILEURL', 'LINK']),
+    driveFileId: get(['DRIVEFILEID'])
+  };
+});
 
-export const fetchKenaikanFromSheets = async (): Promise<KenaikanKarir[]> => {
-  const [headers, ...rows] = await fetchDataFromSheet('kenaikan');
-  return rows.map((cols, i) => ({
-    id: (i+1).toString(),
-    nip: cols[headers.indexOf('NIP')],
-    namaPegawai: cols[headers.indexOf('NAMA')],
-    jenisUsulan: cols[headers.indexOf('JENIS')] as any,
-    dari: cols[headers.indexOf('DARI')],
-    menjadi: cols[headers.indexOf('MENJADI')],
-    tmtUsulan: cols[headers.indexOf('TMT')],
-    status: cols[headers.indexOf('STATUS')] as any,
-  })).filter(x => x.nip);
-};
+export const fetchSKPFromSheets = () => fetchTableData<SKP>('db_skp_gid', '2', 'skp_pro_db_v2', (cols, headers) => {
+  const get = (keys: string[]) => {
+    const idx = headers.findIndex(h => keys.some(k => k.toUpperCase().replace(/[\s_]/g, '') === h));
+    return idx !== -1 ? cols[idx] : '';
+  };
+  return {
+    id: get(['ID']),
+    nip: get(['NIP']),
+    namaPegawai: get(['NAMAPEGAWAI', 'NAMA']),
+    tahun: parseInt(get(['TAHUN', 'YEAR'])) || 0,
+    nilaiKinerja: parseFloat(get(['NILAIKINERJA'])) || 0,
+    nilaiPerilaku: parseFloat(get(['NILAIPERILAKU'])) || 0,
+    predikat: get(['PREDIKAT']) as any,
+    fileUrl: get(['FILEURL', 'LINK'])
+  };
+});
 
-export const fetchPengembanganFromSheets = async (): Promise<Pengembangan[]> => {
-  const [headers, ...rows] = await fetchDataFromSheet('pengembangan');
-  return rows.map((cols, i) => ({
-    id: (i+1).toString(),
-    nip: cols[headers.indexOf('NIP')],
-    namaPegawai: cols[headers.indexOf('NAMA')],
-    namaKegiatan: cols[headers.indexOf('KEGIATAN')],
-    tanggalMulai: cols[headers.indexOf('MULAI')],
-    tanggalSelesai: cols[headers.indexOf('SELESAI')],
-    jumlahJpl: parseInt(cols[headers.indexOf('JPL')]),
-    penyelenggara: cols[headers.indexOf('PENYELENGGARA')],
-  })).filter(x => x.nip);
-};
+export const fetchPAKFromSheets = () => fetchTableData<PAK>('db_pak_gid', '3', 'pak_pro_db_v4', (cols, headers) => {
+  const get = (keys: string[]) => {
+    const idx = headers.findIndex(h => keys.some(k => k.toUpperCase().replace(/[\s_]/g, '') === h));
+    return idx !== -1 ? cols[idx] : '';
+  };
+  return {
+    id: get(['ID']),
+    nip: get(['NIP']),
+    namaPegawai: get(['NAMAPEGAWAI', 'NAMA']),
+    periode: get(['PERIODE']),
+    jumlahKredit: parseFloat(get(['JUMLAHKREDIT', 'AK'])) || 0,
+    keterangan: get(['KETERANGAN']),
+    status: get(['STATUS']) as any
+  };
+});
 
-export const fetchKGBFromSheets = async (): Promise<KGB[]> => {
-  const [headers, ...rows] = await fetchDataFromSheet('kgb');
-  return rows.map((cols, i) => ({
-    id: (i+1).toString(),
-    nip: cols[headers.indexOf('NIP')],
-    namaPegawai: cols[headers.indexOf('NAMA')],
-    tmtLama: cols[headers.indexOf('TMT_LAMA')],
-    tmtBaru: cols[headers.indexOf('TMT_BARU')],
-    gajiLama: parseFloat(cols[headers.indexOf('GAJI_LAMA')]),
-    gajiBaru: parseFloat(cols[headers.indexOf('GAJI_BARU')]),
-    nomorSk: cols[headers.indexOf('NOMOR_SK')],
-    tglSk: cols[headers.indexOf('TANGGAL_SK')],
-    status: cols[headers.indexOf('STATUS')] as any,
-  })).filter(x => x.nip);
-};
+export const fetchKenaikanFromSheets = () => fetchTableData<KenaikanKarir>('db_kenaikan_gid', '4', 'portal_kenaikan_db', (cols, headers) => {
+  const get = (keys: string[]) => {
+    const idx = headers.findIndex(h => keys.some(k => k.toUpperCase().replace(/[\s_]/g, '') === h));
+    return idx !== -1 ? cols[idx] : '';
+  };
+  return {
+    id: get(['ID']),
+    nip: get(['NIP']),
+    namaPegawai: get(['NAMAPEGAWAI', 'NAMA']),
+    jenisUsulan: get(['JENISUSULAN', 'TYPE']) as any,
+    dari: get(['DARI', 'FROM']),
+    menjadi: get(['MENJADI', 'TO']),
+    tmtUsulan: get(['TMTUSULAN', 'TMT']),
+    status: get(['STATUS']) as any
+  };
+});
 
-export const fetchLaporanFromSheets = async (): Promise<Laporan[]> => {
-  const [headers, ...rows] = await fetchDataFromSheet('laporan');
-  return rows.map((columns, index) => ({
-    id: (index + 1).toString(),
-    judul: columns[headers.indexOf('JUDUL')],
-    jenis: columns[headers.indexOf('JENIS')] as any,
-    periode: columns[headers.indexOf('PERIODE')],
-    tahun: parseInt(columns[headers.indexOf('TAHUN')]) || 2024,
-    status: columns[headers.indexOf('STATUS')] as any,
-    fileUrl: columns[headers.indexOf('FILE_URL')],
-    createdAt: columns[headers.indexOf('CREATED_AT')]
-  })).filter(l => l.judul);
-};
+export const fetchPengembanganFromSheets = () => fetchTableData<Pengembangan>('db_pengembangan_gid', '5', 'portal_pengembangan_db', (cols, headers) => {
+  const get = (keys: string[]) => {
+    const idx = headers.findIndex(h => keys.some(k => k.toUpperCase().replace(/[\s_]/g, '') === h));
+    return idx !== -1 ? cols[idx] : '';
+  };
+  return {
+    id: get(['ID']),
+    nip: get(['NIP']),
+    namaPegawai: get(['NAMAPEGAWAI', 'NAMA']),
+    namaKegiatan: get(['NAMAKEGIATAN', 'KEGIATAN']),
+    tanggalMulai: get(['TANGGALMULAI', 'STARTDATE']),
+    tanggalSelesai: get(['TANGGALSELESAI', 'ENDDATE']),
+    jumlahJpl: parseInt(get(['JUMLAHJPL', 'JPL'])) || 0,
+    penyelenggara: get(['PENYELENGGARA']),
+    sertifikatUrl: get(['SERTIFIKATURL', 'LINK'])
+  };
+});
 
-export const fetchDossiersFromSheets = async (): Promise<Dossier[]> => {
-  const [headers, ...rows] = await fetchDataFromSheet('dossiers');
-  return rows.map((columns, index) => ({
-    id: (index + 1).toString(),
-    nip: columns[headers.indexOf('NIP')]?.replace(/['\s]/g, '') || '',
-    namaPegawai: columns[headers.indexOf('NAMA_PEGAWAI')] || '',
-    tanggal: columns[headers.indexOf('TANGGAL')] || '',
-    keterangan: columns[headers.indexOf('KETERANGAN')] || '',
-    fileName: columns[headers.indexOf('FILE_NAME')] || ''
-  })).filter(d => d.nip);
-};
+export const fetchKGBFromSheets = () => fetchTableData<KGB>('db_kgb_gid', '6', 'portal_kgb_db', (cols, headers) => {
+  const get = (keys: string[]) => {
+    const idx = headers.findIndex(h => keys.some(k => k.toUpperCase().replace(/[\s_]/g, '') === h));
+    return idx !== -1 ? cols[idx] : '';
+  };
+  return {
+    id: get(['ID']),
+    nip: get(['NIP']),
+    namaPegawai: get(['NAMAPEGAWAI', 'NAMA']),
+    tmtLama: get(['TMTLAMA']),
+    tmtBaru: get(['TMTBARU']),
+    gajiLama: parseFloat(get(['GAJILAMA'])) || 0,
+    gajiBaru: parseFloat(get(['GAJIBARU'])) || 0,
+    nomorSk: get(['NOMORSK']),
+    tglSk: get(['TGLSK']),
+    status: get(['STATUS']) as any
+  };
+});

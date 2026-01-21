@@ -25,12 +25,18 @@ const RekapAbsensiPage = () => {
     try {
       const pegawais = await fetchPegawaiFromSheets();
       setPegawaiList(pegawais);
+      localStorage.setItem('portal_pegawai_db', JSON.stringify(pegawais));
+      
       const savedHistory = localStorage.getItem('absensi_history_db');
       if (savedHistory) {
         const parsed = JSON.parse(savedHistory);
         setGlobalHistory(isViewer ? parsed.filter((a: any) => a.nip === user?.nip) : parsed);
       }
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) { 
+      console.error("Gagal sinkronisasi data rekap:", err);
+      const saved = localStorage.getItem('portal_pegawai_db');
+      if (saved) setPegawaiList(JSON.parse(saved));
+    } finally { setLoading(false); }
   };
 
   const handleExport = () => {

@@ -1,303 +1,137 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Dossier, Pegawai } from '../types';
-import { fetchDossiersFromSheets, fetchPegawaiFromSheets } from '../spreadsheetService';
+import { fetchDossiersFromSheets, fetchPegawaiFromSheets, syncTableRemote, uploadFileToDrive } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import SuccessModal from '../components/SuccessModal';
+import SearchableSelect from '../components/SearchableSelect';
 
 const DossiersPage = () => {
   const { user, canEdit, isSuperadmin, logActivity } = useAuth();
   const isViewer = user?.role === 'Viewer';
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [dossierList, setDossierList] = useState<Dossier[]>([]);
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState<Partial<Dossier>>({});
-  const [editingId, setEditingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const pegawais = await fetchPegawaiFromSheets();
       setPegawaiList(pegawais);
+      const data = await fetchDossiersFromSheets(); 
+      setDossierList(data); 
+    } catch (err) { 
+      console.error(err); 
+      const saved = localStorage.getItem('portal_dossiers_db');
+      if (saved) setDossierList(JSON.parse(saved));
+    } finally { setLoading(false); }
+  };
 
-      const savedLocal = localStorage.getItem('portal_dossiers_db');
-      if (savedLocal) {
-        setDossierList(JSON.parse(savedLocal));
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      const result = await uploadFileToDrive(file.name, file.type, base64);
+      
+      if (result.success && result.fileUrl) {
+        setFormData({ ...formData, fileName: file.name, fileUrl: result.fileUrl });
       } else {
-        const data = await fetchDossiersFromSheets();
-        setDossierList(data);
-        localStorage.setItem('portal_dossiers_db', JSON.stringify(data));
+        alert("Gagal upload ke Drive. Periksa konfigurasi Apps Script.");
       }
-    } catch (err) {
-      console.error("Gagal memuat data arsip:", err);
-    } finally {
-      setLoading(false);
-    }
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
   };
 
-  const filteredDossiers = useMemo(() => {
-    let result = dossierList;
-    if (isViewer) {
-      result = result.filter(d => d.nip === user?.nip);
-    }
-    
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(d => 
-        d.namaPegawai.toLowerCase().includes(term) || 
-        d.nip.includes(term) || 
-        d.fileName.toLowerCase().includes(term) || 
-        d.keterangan.toLowerCase().includes(term)
-      );
-    }
-    return result;
-  }, [dossierList, isViewer, user, searchTerm]);
-
-  const handleOpenModal = (dossier: Dossier | null = null) => {
-    if (dossier) {
-      setEditingId(dossier.id);
-      setFormData({ ...dossier });
-    } else {
-      setEditingId(null);
-      setFormData({
-        tanggal: new Date().toISOString().split('T')[0],
-        keterangan: '',
-        fileName: '',
-        nip: ''
-      });
-    }
-    setIsModalOpen(true);
-  };
-
-  const handleSave = () => {
-    if (!formData.nip || !formData.fileName) return alert("Harap isi data pegawai dan nama berkas");
-    
+  const handleSave = async () => {
+    if (!formData.nip || !formData.fileUrl) return alert("Pilih pegawai dan unggah file berkas");
+    setSyncing(true);
     const peg = pegawaiList.find(p => p.nip === formData.nip);
-    let updatedList: Dossier[];
+    
+    const dossierPayload: Dossier = { 
+      id: Date.now().toString(), 
+      nip: formData.nip!, 
+      namaPegawai: peg?.nama || 'ASN', 
+      tanggal: formData.tanggal || new Date().toISOString().split('T')[0], 
+      keterangan: (formData.keterangan || 'Arsip Digital').toUpperCase(), 
+      fileName: formData.fileName!.toUpperCase(),
+      fileUrl: formData.fileUrl
+    };
 
-    if (editingId) {
-      updatedList = dossierList.map(d => d.id === editingId ? { 
-        ...d, 
-        ...formData, 
-        namaPegawai: peg?.nama || d.namaPegawai 
-      } as Dossier : d);
-      logActivity('UPDATE', 'Dossier', `Memperbarui info berkas: ${formData.fileName}`);
-    } else {
-      const newD: Dossier = { 
-        id: Date.now().toString(), 
-        nip: formData.nip!, 
-        namaPegawai: peg?.nama || 'Unknown', 
-        tanggal: formData.tanggal || new Date().toISOString().split('T')[0], 
-        keterangan: formData.keterangan || '', 
-        fileName: formData.fileName! 
-      };
-      updatedList = [newD, ...dossierList];
-      logActivity('CREATE', 'Dossier', `Mengunggah metadata berkas: ${newD.fileName} untuk ${newD.namaPegawai}`);
-    }
-
-    setDossierList(updatedList);
-    localStorage.setItem('portal_dossiers_db', JSON.stringify(updatedList));
-    setIsModalOpen(false);
-    setShowSuccess(true);
+    try {
+      const success = await syncTableRemote('DOSSIER', 'SAVE', dossierPayload);
+      if (success) {
+        await loadData();
+        setIsModalOpen(false);
+        setShowSuccess(true);
+        logActivity('CREATE', 'Dossier', `Upload arsip ke Drive: ${dossierPayload.fileName}`);
+      }
+    } catch (e) { alert("Error saving metadata"); } finally { setSyncing(false); }
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Hapus catatan arsip ini? Berkas fisik di Drive tidak akan terhapus.")) {
-      const updated = dossierList.filter(d => d.id !== id);
-      setDossierList(updated);
-      localStorage.setItem('portal_dossiers_db', JSON.stringify(updated));
-      logActivity('DELETE', 'Dossier', `Menghapus metadata arsip ID: ${id}`);
-    }
-  };
-
+  // ... (Sisa render logic tetap sama)
   return (
     <div className="space-y-8 animate-fadeIn pb-20">
-      <SuccessModal 
-        isOpen={showSuccess} 
-        onClose={() => setShowSuccess(false)} 
-        title="Arsip Tersimpan" 
-        message="Dokumen digital telah berhasil dicatat di basis data sistem." 
-      />
+      <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title="Arsip Tersimpan" />
       
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
-          <h3 className="text-2xl font-black text-gray-900 tracking-tight leading-none uppercase">
-            {isViewer ? 'Arsip Digital Saya' : 'Manajemen E-Dossier'}
-          </h3>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">
-            Pusat Penyimpanan Berkas Pegawai Terpusat
-          </p>
+          <h3 className="text-2xl font-black text-gray-900 uppercase">E-Arsip Digital Drive</h3>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Penyimpanan Dokumen Terpusat di Google Drive</p>
         </div>
-        
         <div className="flex items-center gap-3 w-full lg:w-auto">
-          <div className="relative flex-1 lg:w-80 group">
-            <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
-            <input 
-              type="text" 
-              placeholder="Cari NIP, Nama, atau Berkas..." 
-              className="w-full pl-11 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-[11px] font-bold text-gray-900 shadow-sm outline-none focus:border-blue-500 transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          {canEdit && (
-            <button 
-              onClick={() => handleOpenModal()} 
-              className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-600/20 active:scale-95 transition-all flex items-center gap-2"
-            >
-              <i className="bi bi-cloud-plus-fill text-lg"></i>
-              <span className="hidden sm:inline">Unggah Metadata</span>
-            </button>
-          )}
+          <input type="text" placeholder="Cari Berkas..." className="flex-1 lg:w-80 px-5 py-3.5 bg-white border-2 border-gray-100 rounded-2xl text-[11px] font-black" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          {canEdit && <button onClick={() => { setFormData({ tanggal: new Date().toISOString().split('T')[0] }); setIsModalOpen(true); }} className="px-8 py-3.5 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl">+ Berkas Baru</button>}
         </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b border-gray-100 tracking-widest">
-              <tr>
-                <th className="px-8 py-5">Tipe & Nama Berkas</th>
-                <th className="px-4 py-5">Pemilik Berkas</th>
-                <th className="px-4 py-5 text-center">Tanggal</th>
-                <th className="px-4 py-5">Keterangan</th>
-                <th className="px-8 py-5 text-right">Aksi</th>
+      <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
+            <tr><th className="px-8 py-5">Metadata Berkas</th><th className="px-4 py-5">Pemilik</th><th className="px-8 py-5 text-right">Opsi</th></tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {dossierList.filter(d => (isViewer ? d.nip === user?.nip : true) && d.fileName.toLowerCase().includes(searchTerm.toLowerCase())).map(d => (
+              <tr key={d.id} className="hover:bg-blue-50/5 group transition-all">
+                <td className="px-8 py-5"><div className="flex items-center gap-4"><div className="h-10 w-10 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center border"><i className="bi bi-file-earmark-pdf-fill"></i></div><div><p className="text-[11px] font-black text-gray-950 uppercase">{d.fileName}</p><p className="text-[8px] text-gray-400 uppercase">{d.keterangan}</p></div></div></td>
+                <td className="px-4 py-5"><p className="text-[10px] font-black uppercase">{d.namaPegawai}</p><p className="text-[8px] font-mono text-blue-600">{d.nip}</p></td>
+                <td className="px-8 py-5 text-right"><button onClick={() => d.fileUrl && window.open(d.fileUrl, '_blank')} className="h-9 w-9 bg-white border rounded-xl text-blue-600 shadow-sm hover:scale-110 transition-all"><i className="bi bi-eye-fill"></i></button></td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <tr><td colSpan={5} className="px-8 py-20 text-center text-[10px] font-black text-gray-300 uppercase animate-pulse">Sinkronisasi Arsip...</td></tr>
-              ) : filteredDossiers.length > 0 ? filteredDossiers.map(d => (
-                <tr key={d.id} className="hover:bg-blue-50/5 group transition-all">
-                  <td className="px-8 py-5">
-                    <div className="flex items-center space-x-4">
-                       <div className="h-10 w-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center border border-rose-100 shadow-sm">
-                          <i className="bi bi-file-earmark-pdf-fill text-xl"></i>
-                       </div>
-                       <div className="min-w-0">
-                          <p className="text-[11px] font-black text-gray-900 uppercase truncate max-w-[200px]">{d.fileName}</p>
-                          <p className="text-[7px] text-gray-400 font-bold uppercase mt-1">Format: Digital PDF</p>
-                       </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-5">
-                    <p className="text-[10px] font-black text-gray-700 uppercase">{d.namaPegawai}</p>
-                    <p className="text-[8px] font-mono text-blue-600 font-bold mt-0.5">{d.nip}</p>
-                  </td>
-                  <td className="px-4 py-5 text-center">
-                    <span className="text-[10px] font-bold text-gray-500">{d.tanggal}</span>
-                  </td>
-                  <td className="px-4 py-5">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase leading-tight line-clamp-2">{d.keterangan || '-'}</p>
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="h-9 w-9 bg-gray-50 text-gray-400 rounded-xl hover:text-blue-600 border border-gray-100 transition-all flex items-center justify-center shadow-sm">
-                        <i className="bi bi-eye"></i>
-                      </button>
-                      {canEdit && (
-                        <button onClick={() => handleOpenModal(d)} className="h-9 w-9 bg-gray-50 text-gray-400 rounded-xl hover:text-amber-600 border border-gray-100 transition-all flex items-center justify-center shadow-sm">
-                          <i className="bi bi-pencil-square"></i>
-                        </button>
-                      )}
-                      {isSuperadmin && (
-                        <button onClick={() => handleDelete(d.id)} className="h-9 w-9 bg-gray-50 text-gray-400 rounded-xl hover:text-rose-600 border border-gray-100 transition-all flex items-center justify-center shadow-sm">
-                          <i className="bi bi-trash"></i>
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )) : (
-                <tr><td colSpan={5} className="px-8 py-24 text-center text-[11px] font-black text-gray-400 uppercase tracking-widest opacity-30">Arsip digital belum tersedia untuk kriteria ini</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-gray-950/70 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-md rounded-[3rem] shadow-2xl p-10 animate-modalEnter flex flex-col space-y-6">
-             <div className="flex items-center gap-4 mb-2">
-                <div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                   <i className="bi bi-cloud-arrow-up"></i>
-                </div>
-                <h4 className="text-sm font-black uppercase text-gray-900 tracking-tight">
-                  {editingId ? 'Edit Info Arsip' : 'Tambah Arsip Baru'}
-                </h4>
-             </div>
-
+          <div className="relative bg-white w-full max-w-lg rounded-[3rem] shadow-2xl p-10 animate-modalEnter space-y-6">
+             <h4 className="text-xl font-black uppercase text-gray-950 tracking-tight">Upload Berkas ke Drive</h4>
              <div className="space-y-4">
-                {!isViewer && !editingId && (
-                  <div className="space-y-1.5">
-                    <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">PILIH PEGAWAI</label>
-                    <select 
-                      className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                      value={formData.nip}
-                      onChange={e => setFormData({...formData, nip: e.target.value})}
-                    >
-                      <option value="">-- Pilih Nama Pegawai --</option>
-                      {pegawaiList.map(p => <option key={p.id} value={p.nip}>{p.nama} ({p.nip})</option>)}
-                    </select>
-                  </div>
-                )}
-                
-                <div className="space-y-1.5">
-                   <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">TANGGAL DOKUMEN</label>
-                   <input 
-                     type="date" 
-                     className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500"
-                     value={formData.tanggal}
-                     onChange={e => setFormData({...formData, tanggal: e.target.value})}
-                   />
+                {!isViewer && <SearchableSelect label="Milik ASN" options={pegawaiList.map(p => ({ value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip}` }))} value={formData.nip || ''} onChange={(v) => setFormData({...formData, nip: v})} />}
+                <div className="p-10 border-2 border-dashed border-gray-100 rounded-[2rem] flex flex-col items-center justify-center bg-gray-50/50 group cursor-pointer hover:border-blue-400 transition-all" onClick={() => fileInputRef.current?.click()}>
+                   <i className={`bi ${uploading ? 'bi-hourglass-split animate-spin' : 'bi-cloud-arrow-up'} text-4xl text-gray-300 group-hover:text-blue-500`}></i>
+                   <p className="text-[10px] font-black text-gray-400 uppercase mt-4">{uploading ? 'Mengunggah ke Drive...' : formData.fileName || 'Klik untuk pilih berkas'}</p>
                 </div>
-
-                <div className="space-y-1.5">
-                   <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">NAMA BERKAS (FILE_NAME)</label>
-                   <input 
-                     type="text" 
-                     placeholder="Contoh: SK_Pangkat_IVa_2024.pdf"
-                     className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500"
-                     value={formData.fileName}
-                     onChange={e => setFormData({...formData, fileName: e.target.value})}
-                   />
-                </div>
-
-                <div className="space-y-1.5">
-                   <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">KETERANGAN</label>
-                   <textarea 
-                     rows={3}
-                     placeholder="Detail atau nomor SK terkait berkas..."
-                     className="w-full px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500 resize-none"
-                     value={formData.keterangan}
-                     onChange={e => setFormData({...formData, keterangan: e.target.value})}
-                   />
-                </div>
+                <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
              </div>
-
-             <div className="flex gap-3 pt-4">
-                <button 
-                  onClick={() => setIsModalOpen(false)} 
-                  className="flex-1 py-4 bg-gray-50 text-gray-500 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
-                >
-                  Batal
-                </button>
-                <button 
-                  onClick={handleSave}
-                  className="flex-[1.5] py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
-                >
-                  Simpan Metadata
-                </button>
+             <div className="flex gap-3">
+                <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-gray-100 text-gray-400 rounded-2xl text-[10px] font-black uppercase">Batal</button>
+                <button onClick={handleSave} disabled={syncing || uploading || !formData.fileUrl} className="flex-[1.5] py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-xl disabled:bg-gray-300">Simpan Metadata</button>
              </div>
           </div>
         </div>

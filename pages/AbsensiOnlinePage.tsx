@@ -54,7 +54,6 @@ const AbsensiOnlinePage = () => {
 
   const loadModels = async () => {
     try {
-      // Menggunakan URL model yang lebih stabil dari github pages vladmandic
       const MODEL_URL = 'https://vladmandic.github.io/face-api/model/';
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
@@ -72,19 +71,20 @@ const AbsensiOnlinePage = () => {
   const loadCurrentPegawai = async () => {
     if (!user) return null;
     try {
-      const savedLocal = localStorage.getItem('portal_pegawai_db');
-      let data: Pegawai[] = [];
-      if (savedLocal) {
-        data = JSON.parse(savedLocal);
-      } else {
-        data = await fetchPegawaiFromSheets();
-      }
-      
-      const found = data.find(p => p.nip === user.nip);
+      const pegData = await fetchPegawaiFromSheets();
+      localStorage.setItem('portal_pegawai_db', JSON.stringify(pegData));
+      const found = pegData.find(p => p.nip === user.nip);
       setCurrentPegawai(found || null);
       return found || null;
     } catch (err) {
-      console.error("Gagal memuat data pegawai:", err);
+      console.error("Gagal sinkronisasi data pegawai, mencoba local storage:", err);
+      const saved = localStorage.getItem('portal_pegawai_db');
+      if (saved) {
+        const data: Pegawai[] = JSON.parse(saved);
+        const found = data.find(p => p.nip === user.nip);
+        setCurrentPegawai(found || null);
+        return found || null;
+      }
       return null;
     }
   };
