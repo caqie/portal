@@ -4,7 +4,7 @@ export enum TaskType {
   APEL = 'APEL',
   LHKPN = 'LHKPN',
   LHKASN = 'LHKASN',
-  TUGAS_BELAJAR = 'TUGAS_BELAJAR',
+  TUGAS_BELAJAR = 'TUGAS_BELBELAJAR',
   MAGANG = 'MAGANG',
   PENELITIAN = 'PENELITIAN',
   SATYA_LENCANA = 'SATYA_LENCANA',
@@ -22,124 +22,8 @@ export enum TaskType {
   HUKUMAN = 'HUKUMAN',
   PENSIUN = 'PENSIUN',
   GRATIFIKASI = 'GRATIFIKASI',
-  KGB = 'KGB'
-}
-
-export interface SpmtSppRecord {
-  id: string;
-  type: 'SPP' | 'SPMT';
-  nomor: string;
-  pejabatNip: string;
-  pegawaiNip: string;
-  nomorSK: string;
-  tentangSK: string;
-  tanggalSK: string;
-  jabatanBaru: string;
-  unitKerja: string;
-  tanggalLantikAtauSpmt: string;
-  tanggalSppAtauSpmt: string;
-  tempatTandaTangan: string;
-  signatureLabel?: string;
-}
-
-export interface CloudConfig {
-  driveFolderId: string;
-  appsScriptUrl: string;
-  logoUrl: string;
-}
-
-export interface MaintenanceConfig {
-  all: boolean;
-  pages: string[];
-}
-
-export interface AuditLog {
-  id: string;
-  timestamp: string;
-  userNip: string;
-  userName: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'LOGIN';
-  module: string;
-  description: string;
-}
-
-export interface KGB {
-  id: string;
-  nip: string;
-  namaPegawai: string;
-  tmtLama: string;
-  tmtBaru: string;
-  gajiLama: number;
-  gajiBaru: number;
-  nomorSk: string;
-  tglSk: string;
-  status: 'Proses' | 'Selesai';
-}
-
-export interface AbsensiRecord {
-  id: string;
-  nip: string;
-  nama: string;
-  waktu: string;
-  tipe: 'MASUK' | 'PULANG';
-  status: 'VERIFIED' | 'REJECTED';
-  lokasi: string;
-  fotoAbsen: string;
-  confidence: number;
-}
-
-export interface Pegawai {
-  id: string;
-  nip: string;
-  nama: string;
-  jabatan: string;
-  bagian?: string;
-  unitKerja: string;
-  gender: 'L' | 'P';
-  golRuang: string;
-  jenisPegawai: 'PNS' | 'CPNS' | 'PPPK' | 'PPPK PARUH WAKTU' | 'HONORER';
-  status: 'Aktif' | 'Tidak Aktif' | 'Cuti' | 'Tugas Belajar' | 'Pensiun';
-  foto?: string;
-  driveFolderId?: string;
-  tempatLahir?: string;
-  tanggalLahir?: string;
-  pangkat?: string;
-  tmtPangkat?: string;
-  klasifikasiJabatan?: string;
-  eselon?: string;
-  pendidikan?: string;
-  bidang?: string;
-  agama?: string;
-  telepon?: string;
-  alamat?: string;
-  tmtJabatan?: string;
-  tmtStatus?: string;
-}
-
-export interface ABKAnjab {
-  id: string;
-  namaJabatan: string;
-  unitKerja: string;
-  jumlahSaatIni: number;
-  totalMenitBebanKerja: number;
-  jamKerjaEfektif: number; 
-  kebutuhanPegawai: number;
-  selisih: number;
-  status: 'IDEAL' | 'KURANG' | 'LEBIH';
-  // ANJAB Properti Baru
-  ikhtisarJabatan?: string;
-  kualifikasiPendidikan?: string;
-  kualifikasiPelatihan?: string;
-  pengalamanKerja?: string;
-  tanggungJawab?: string;
-  wewenang?: string;
-  risikoBahaya?: string;
-  uraianTugas: Array<{
-    tugas: string;
-    volume: number;
-    normaWaktu: number; 
-    totalWaktu: number;
-  }>;
+  KGB = 'KGB',
+  UANG_MAKAN = 'UANG_MAKAN'
 }
 
 export interface SKP {
@@ -147,10 +31,8 @@ export interface SKP {
   nip: string;
   namaPegawai: string;
   tahun: number;
-  nilaiKinerja: number;
-  nilaiPerilaku: number;
-  predikat: 'Sangat Baik' | 'Baik' | 'Butuh Perbaikan' | 'Kurang' | 'Sangat Kurang';
-  fileUrl?: string;
+  predikatKinerja: string;
+  capaianOrganisasi: string;
 }
 
 export interface PAK {
@@ -159,31 +41,18 @@ export interface PAK {
   namaPegawai: string;
   periode: string;
   jumlahKredit: number;
-  keterangan: string;
-  status: 'Proses' | 'Selesai';
+  status: string;
 }
 
-export interface PAKRecord extends PAK {
-  nomor: string;
-  nomorKarpeg: string;
-  tglDibuat: string;
-  tempatDibuat: string;
-  periodeMulai: string;
-  periodeSelesai: string;
-  jumlahBulan: number;
-  predikat: string;
-  hasBonusIjazah: boolean;
-  prosentase: number;
-  koefisien: number;
-  akBaru: number;
-  akDasar: number;
-  akJFLama: number;
-  akPenyetaraan: number;
-  akKonversi: number;
-  akPendidikan: number;
-  rekomendasi: string;
-  pejabatPenilai?: Pegawai;
-  historyRows: any[];
+export interface KenaikanKarir {
+  id: string;
+  nip: string;
+  namaPegawai: string;
+  jenisUsulan: 'PANGKAT' | 'JENJANG' | string;
+  dari: string;
+  menjadi: string;
+  tmtUsulan: string;
+  status: 'Proses' | 'Selesai' | 'Ditolak' | string;
 }
 
 export interface Pengembangan {
@@ -195,69 +64,107 @@ export interface Pengembangan {
   tanggalSelesai: string;
   jumlahJpl: number;
   penyelenggara: string;
-  sertifikatUrl?: string;
 }
 
-export interface KenaikanKarir {
+export interface PAKRecord {
   id: string;
   nip: string;
   namaPegawai: string;
-  jenisUsulan: 'Pangkat' | 'Jabatan';
-  dari: string;
-  menjadi: string;
-  tmtUsulan: string;
-  status: 'Usulan' | 'Verifikasi BKN' | 'Selesai';
-}
-
-export interface AdminUser {
-  id: string;
-  nip: string;
-  name: string;
-  password?: string;
-  role: 'Superadmin' | 'Editor' | 'Viewer';
-  foto?: string;
-}
-
-export interface TugasRutin {
-  id: string;
-  timestamp: string;
-  bulan: string;
-  tahun: number;
-  jenis: TaskType;
-  detail: string;
-  data: any;
-}
-
-export interface Laporan {
-  id: string;
-  judul: string;
-  jenis: 'Bulanan' | 'Triwulan' | 'Semester' | 'Tahunan';
+  nomor: string;
   periode: string;
-  tahun: number;
-  status: 'Draft' | 'Submit' | 'Approved';
-  fileUrl?: string;
-  createdAt: string;
+  tglDibuat: string;
+  penilaiNip: string;
+  status?: string;
+  nomorKarpeg: string;
+  tmtGolongan: string;
+  tmtJabatan: string;
+  predikat: string;
+  prosentase: number;
+  koefisien: number;
+  akDiperoleh: number;
+  akumulasi: Array<{
+    tahun: number;
+    periodik: string;
+    predikat: string;
+    prosentase: number;
+    koefisien: number;
+    ak: number;
+  }>;
+  akIntegrasi: number;
+  akDasar: number;
+  akJFLama: number;
+  akPenyesuaian: number;
+  akKonversi: number;
+  akPendidikan: number;
+  akMinPangkat: number;
+  akMinJenjang: number;
+  jumlahKredit?: number;
 }
 
-export interface Dossier {
+export interface DPCPRecord {
   id: string;
   nip: string;
   namaPegawai: string;
-  tanggal: string;
-  keterangan: string;
-  fileName: string;
-  fileUrl?: string;
-  driveFileId?: string;
+  tglDibuat: string;
+  instansiInduk: string;
+  unitKerjaHeader: string;
+  provinsi: string;
+  pembayaran: string;
+  kabKota: string;
+  bup: string;
+  tmtGolRuang: string;
+  gajiPokokTerakhir: string;
+  mkgTahun: string;
+  mkgBulan: string;
+  mkgTgl: string;
+  mkpTahun: string;
+  mkpBulan: string;
+  mkSebelumPnsDari?: string;
+  mkSebelumPnsSampai?: string;
+  pendidikanDasar: string;
+  pendidikanDasarTahun: string;
+  mulaiMasukPns: string;
+  istriSuami: Array<{
+    nama: string;
+    tglLahir: string;
+    tglKawin: string;
+    istriKe: string;
+  }>;
+  anak: Array<{
+    nama: string;
+    tglLahir: string;
+    status: 'KANDUNG' | 'TIRI' | 'ANGKAT';
+    ayahIbu: string;
+  }>;
+  alamatSekarang: string;
+  kecSekarang: string;
+  provSekarang: string;
+  alamatPensiun: string;
+  kecPensiun: string;
+  provPensiun: string;
+  kodePosPensiun: string;
+  pejabatNama?: string;
+  pejabatNip?: string;
+  riwayatKepegawaian?: {
+    tmtCpns: string;
+    masaKerjaTotal: string;
+    pendidikanAwal: string;
+  };
 }
 
-export interface Kegiatan {
-  id: string;
-  tanggal: string;
-  judulKegiatan: string;
-  tempat: string;
-  jumlahPeserta: number;
-  asalPeserta: string;
-  laporanSingkat: string;
-  linkDriveFoto: string;
-  status?: 'Direncanakan' | 'Berlangsung' | 'Selesai' | 'Dibatalkan';
-}
+export interface MaintenanceConfig { all: boolean; pages: string[]; }
+export interface Dossier { id: string; nip: string; namaPegawai: string; tanggal: string; keterangan: string; fileName: string; fileUrl?: string; }
+export interface TugasRutin { id: string; timestamp: string; bulan: string; tahun: number; jenis: TaskType; detail: string; data?: any; }
+export interface Laporan { id: string; judul: string; jenis: string; periode: string; tahun: number; status: string; createdAt: string; }
+export interface Kegiatan { id: string; tanggal: string; judulKegiatan: string; tempat: string; jumlahPeserta: number; asalPeserta: string; laporanSingkat: string; linkDriveFoto: string; status: 'Direncanakan' | 'Berlangsung' | 'Selesai' | 'Dibatalkan'; }
+export interface AdminUser { id: string; nip: string; name: string; password?: string; role: 'Superadmin' | 'Editor' | 'Viewer'; foto?: string; }
+export interface CloudConfig { driveFolderId: string; appsScriptUrl: string; logoUrl?: string; }
+export interface HasilKerjaRow { rencanaPimpinan: string; rencanaPegawai: string; aspek: 'Kualitas' | 'Kuantitas' | 'Waktu' | 'Biaya'; indikator: string; target: string; realisasi: string; umpanBalik: string; }
+export interface PerilakuKerjaRow { poin: string; deskripsi: string; ekspektasi: string; umpanBalik: string; }
+export interface SKPRecord { id: string; nip: string; namaPegawai: string; penilaiNip: string; atasanPenilaiNip: string; tahun: number; periodeMulai: string; periodeSelesai: string; tglPenilaian: string; capaianOrganisasi: string; ratingHasilKerja: string; ratingPerilaku: string; predikatKinerja: string; catatan: string; hasilKerja: HasilKerjaRow[]; perilakuKerja: PerilakuKerjaRow[]; lampiran: any; }
+export interface Pegawai { id: string; nip: string; nama: string; gelar?: string; jabatan: string; unitKerja: string; gender: 'L' | 'P'; golRuang: string; jenisPegawai: string; status: string; pangkat?: string; foto?: string; tmtPangkat?: string; pendidikan?: string; alamat?: string; telepon?: string; tempatLahir?: string; tanggalLahir?: string; agama?: string; eselon?: string; tmtStatus?: string; tmtJabatan?: string; }
+export interface AbsensiRecord { id: string; nip: string; nama: string; waktu: string; tipe: 'MASUK' | 'PULANG'; status: string; lokasi: string; fotoAbsen: string; confidence: number; }
+export interface SpmtSppRecord { id: string; type: 'SPP' | 'SPMT'; nomor: string; pejabatNip: string; pegawaiNip: string; nomorSK: string; tentangSK: string; tanggalSK: string; jabatanBaru: string; unitKerja: string; tanggalLantikAtauSpmt: string; tanggalSppAtauSpmt: string; tempatTandaTangan: string; signatureLabel?: string; }
+export interface AuditLog { id: string; timestamp: string; userNip: string; userName: string; action: 'CREATE' | 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'LOGIN'; module: string; description: string; }
+export interface ABKAnjab { id: string; namaJabatan: string; unitKerja: string; jumlahSaatIni: number; totalMenitBebanKerja: number; kebutuhanPegawai: number; selisih: number; status: 'IDEAL' | 'KURANG' | 'LEBIH'; kualifikasiPendidikan?: string; }
+export interface KGB { id: string; nip: string; namaPegawai: string; tmtLama: string; tmtBaru: string; gajiLama: number; gajiBaru: number; nomorSk: string; tglSk: string; status: 'Proses' | 'Selesai'; }

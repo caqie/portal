@@ -4,6 +4,7 @@ import { Kegiatan } from '../types';
 import { useAuth } from '../AuthContext';
 import { syncTableRemote } from '../spreadsheetService';
 import SuccessModal from '../components/SuccessModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const KegiatanPage = () => {
   const { canEdit, isSuperadmin, logActivity } = useAuth();
@@ -14,6 +15,10 @@ const KegiatanPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [editingKegiatan, setEditingKegiatan] = useState<Kegiatan | null>(null);
   const [formData, setFormData] = useState<Partial<Kegiatan>>({});
+
+  // Confirmation state
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [agendaToDeleteId, setAgendaToDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -72,15 +77,22 @@ const KegiatanPage = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(`Hapus agenda ini dari database cloud?`)) return;
+  const confirmDelete = (id: string) => {
+    setAgendaToDeleteId(id);
+    setIsConfirmOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!agendaToDeleteId) return;
     setSyncing(true);
     try {
-      await syncTableRemote('KEGIATAN', 'DELETE', { id });
-      const updated = kegiatanList.filter(x => x.id !== id);
+      await syncTableRemote('KEGIATAN', 'DELETE', { id: agendaToDeleteId });
+      const updated = kegiatanList.filter(x => x.id !== agendaToDeleteId);
       setKegiatanList(updated);
       localStorage.setItem('portal_agenda_db', JSON.stringify(updated));
-      logActivity('DELETE', 'Agenda', `Hapus agenda ID: ${id}`);
+      logActivity('DELETE', 'Agenda', `Hapus agenda ID: ${agendaToDeleteId}`);
+      setIsConfirmOpen(false);
+      setAgendaToDeleteId(null);
     } catch (e) {
       alert("Gagal menghapus agenda dari cloud.");
     } finally {
@@ -91,6 +103,13 @@ const KegiatanPage = () => {
   return (
     <div className="space-y-6 animate-fadeIn pb-20">
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title="Agenda Disinkronkan" />
+      <ConfirmationModal 
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={handleDelete}
+        loading={syncing}
+        message="Hapus agenda ini dari database cloud?"
+      />
       
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -118,9 +137,9 @@ const KegiatanPage = () => {
                   <td className="px-4 py-5"><p className="text-[11px] font-black text-gray-950 uppercase leading-tight line-clamp-1">{k.judulKegiatan}</p><p className="text-[8px] text-gray-400 font-bold uppercase mt-1">{k.jumlahPeserta} Peserta • {k.asalPeserta}</p></td>
                   <td className="px-4 py-5"><p className="text-[10px] font-bold text-gray-600 uppercase">{k.tempat}</p></td>
                   <td className="px-8 py-5 text-right">
-                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {canEdit && <button onClick={() => handleOpenModal(k)} className="h-9 w-9 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-white rounded-xl border shadow-sm"><i className="bi bi-pencil-square"></i></button>}
-                      {isSuperadmin && <button onClick={() => handleDelete(k.id)} className="h-9 w-9 flex items-center justify-center text-gray-400 hover:text-rose-600 hover:bg-white rounded-xl border shadow-sm"><i className="bi bi-trash"></i></button>}
+                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      {canEdit && <button onClick={() => handleOpenModal(k)} className="h-9 w-9 flex items-center justify-center bg-amber-50 text-amber-600 border border-amber-100 rounded-xl shadow-sm hover:bg-amber-600 hover:text-white transition-all" title="Edit"><i className="bi bi-pencil-square"></i></button>}
+                      {isSuperadmin && <button onClick={() => confirmDelete(k.id)} className="h-9 w-9 flex items-center justify-center bg-rose-50 text-rose-600 border border-rose-100 rounded-xl shadow-sm hover:bg-rose-600 hover:text-white transition-all" title="Hapus"><i className="bi bi-trash3-fill"></i></button>}
                     </div>
                   </td>
                 </tr>

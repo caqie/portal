@@ -2,20 +2,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchPegawaiFromSheets } from '../spreadsheetService';
 import { Pegawai, AbsensiRecord } from '../types';
-import { UNIT_KERJA } from '../constants';
 import { useAuth } from '../AuthContext';
 import * as XLSX from 'xlsx';
 
 const RekapAbsensiPage = () => {
   const { user, logActivity } = useAuth();
   const isViewer = user?.role === 'Viewer';
-  
   const [globalHistory, setGlobalHistory] = useState<AbsensiRecord[]>([]);
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  const [filterType, setFilterType] = useState<'SEMUA' | 'UNIT' | 'PEGAWAI'>('SEMUA');
-  const [selectedUnit, setSelectedUnit] = useState('Semua Unit');
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => { loadData(); }, []);
@@ -25,100 +20,122 @@ const RekapAbsensiPage = () => {
     try {
       const pegawais = await fetchPegawaiFromSheets();
       setPegawaiList(pegawais);
-      localStorage.setItem('portal_pegawai_db', JSON.stringify(pegawais));
-      
-      const savedHistory = localStorage.getItem('absensi_history_db');
-      if (savedHistory) {
-        const parsed = JSON.parse(savedHistory);
+      const saved = localStorage.getItem('absensi_history_db');
+      if (saved) {
+        const parsed = JSON.parse(saved);
         setGlobalHistory(isViewer ? parsed.filter((a: any) => a.nip === user?.nip) : parsed);
       }
-    } catch (err) { 
-      console.error("Gagal sinkronisasi data rekap:", err);
-      const saved = localStorage.getItem('portal_pegawai_db');
-      if (saved) setPegawaiList(JSON.parse(saved));
-    } finally { setLoading(false); }
-  };
-
-  const handleExport = () => {
-    const dataToExport = filteredLogs.map(l => ({
-      NIP: l.nip,
-      Nama: l.nama,
-      Waktu: l.waktu,
-      Tipe: l.tipe,
-      'Match Score': `${(l.confidence * 100).toFixed(0)}%`,
-      Lokasi: l.lokasi
-    }));
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Rekap Absensi");
-    XLSX.writeFile(wb, `Rekap_Absensi_${new Date().toLocaleDateString()}.xlsx`);
-    logActivity('DOWNLOAD', 'Absensi', 'Mengekspor rekap absensi ke Excel');
+    } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
   const filteredLogs = useMemo(() => {
-    return globalHistory.filter(log => {
-      const matchesSearch = log.nama.toLowerCase().includes(searchTerm.toLowerCase()) || log.nip.includes(searchTerm);
-      if (isViewer) return matchesSearch;
-      if (filterType === 'SEMUA') return matchesSearch;
-      if (filterType === 'UNIT') return matchesSearch && (selectedUnit === 'Semua Unit' || pegawaiList.find(p => p.nip === log.nip)?.unitKerja === selectedUnit);
-      return matchesSearch;
-    });
-  }, [globalHistory, isViewer, searchTerm, filterType, selectedUnit, pegawaiList]);
+    return globalHistory.filter(log => 
+      log.nama.toLowerCase().includes(searchTerm.toLowerCase()) || log.nip.includes(searchTerm)
+    );
+  }, [globalHistory, searchTerm]);
 
-  const stats = useMemo(() => ({
-    total: filteredLogs.length,
-    masuk: filteredLogs.filter(l => l.tipe === 'MASUK').length,
-    avgConfidence: filteredLogs.length > 0 ? (filteredLogs.reduce((acc, l) => acc + l.confidence, 0) / filteredLogs.length) * 100 : 0
-  }), [filteredLogs]);
+  const handleExport = () => {
+    const data = filteredLogs.map(l => ({ NIP: l.nip, Nama: l.nama, Waktu: l.waktu, Tipe: l.tipe, Skor: `${(l.confidence * 100).toFixed(0)}%`, Lokasi: l.lokasi }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Rekap Absensi");
+    XLSX.writeFile(wb, `Rekap_Absen_${new Date().getTime()}.xlsx`);
+    logActivity('DOWNLOAD', 'Absensi', 'Mengekspor rekap absensi ke Excel');
+  };
 
   return (
-    <div className="space-y-8 animate-fadeIn pb-20">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+    <div className="space-y-8 animate-fadeIn pb-24">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h3 className="text-2xl font-black text-gray-900 tracking-tight leading-none uppercase">{isViewer ? 'Riwayat Kehadiran Personal' : 'Rekapitulasi Kehadiran'}</h3>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">{isViewer ? 'Pantau Log Presensi Wajah Anda' : 'Dashboard Monitoring Kehadiran Pegawai Terintegrasi'}</p>
+          <h3 className="text-2xl md:text-4xl font-black text-gray-950 uppercase tracking-tighter leading-none">{isViewer ? 'Riwayat Absensi' : 'Rekapitulasi Global'}</h3>
+          <p className="text-[10px] md:text-[11px] text-gray-400 font-bold uppercase tracking-[0.3em] mt-3">Monitoring Kehadiran Biometrik Real-Time</p>
         </div>
-        <div className="flex gap-2">
-            <button onClick={handleExport} className="h-12 w-12 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shadow-sm hover:bg-emerald-600 hover:text-white transition-all">
-               <i className="bi bi-file-earmark-excel-fill text-xl"></i>
-            </button>
-            <button onClick={loadData} className="px-6 py-3.5 bg-gray-100 text-gray-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all"><i className="bi bi-arrow-clockwise mr-2"></i>Sync Data</button>
+        <div className="flex gap-3 w-full md:w-auto">
+          <button onClick={loadData} className="h-14 w-14 flex items-center justify-center bg-white border border-gray-100 text-gray-400 rounded-2xl shadow-sm hover:text-blue-600 transition-all"><i className={`bi bi-arrow-clockwise text-2xl ${loading ? 'animate-spin' : ''}`}></i></button>
+          <button onClick={handleExport} className="flex-1 md:flex-none h-14 px-8 bg-emerald-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-3">
+             <i className="bi bi-file-earmark-spreadsheet-fill text-xl"></i> Ekspor Data
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm"><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Aktivitas</p><h4 className="text-2xl font-black text-gray-900">{stats.total}</h4></div>
-        <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100 shadow-sm"><p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-1">Presensi Masuk</p><h4 className="text-2xl font-black text-blue-600">{stats.masuk}</h4></div>
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm"><p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Match Score</p><h4 className="text-2xl font-black text-emerald-600">{stats.avgConfidence.toFixed(0)}%</h4></div>
+      {/* ANALYTICS MINI CARDS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+         <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Logs</p><h4 className="text-2xl font-black text-blue-600">{filteredLogs.length}</h4></div>
+         <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Presensi Masuk</p><h4 className="text-2xl font-black text-emerald-600">{filteredLogs.filter(l=>l.tipe==='MASUK').length}</h4></div>
+         <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Presensi Pulang</p><h4 className="text-2xl font-black text-amber-600">{filteredLogs.filter(l=>l.tipe==='PULANG').length}</h4></div>
+         <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Status Sistem</p><h4 className="text-2xl font-black text-gray-950">LIVE</h4></div>
       </div>
 
-      <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
-        {!isViewer && (
-           <div className="flex flex-col md:flex-row gap-6 items-end mb-8">
-              <div className="flex bg-gray-50 p-1.5 rounded-2xl border border-gray-200 flex-1">
-                 <button onClick={() => setFilterType('SEMUA')} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all ${filterType === 'SEMUA' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>Semua</button>
-                 <button onClick={() => setFilterType('UNIT')} className={`flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all ${filterType === 'UNIT' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>Unit</button>
-              </div>
-              <input type="text" className="w-full md:w-64 pl-4 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold shadow-sm" placeholder="Cari Nama/NIP..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-           </div>
-        )}
+      <div className="bg-white p-6 md:p-10 rounded-[3rem] md:rounded-[4rem] border border-gray-100 shadow-sm space-y-8">
+        <div className="relative max-w-lg">
+          <i className="bi bi-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 text-xl"></i>
+          <input type="text" placeholder="Cari Nama Pegawai atau NIP..." className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-[1.5rem] text-xs md:text-sm font-bold uppercase outline-none focus:border-blue-600 focus:bg-white transition-all shadow-inner" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        </div>
 
-        <div className="overflow-x-auto">
+        {/* MOBILE CARD VIEW - AUTO SHOWN ON MOBILE */}
+        <div className="grid grid-cols-1 gap-4 md:hidden">
+          {filteredLogs.map(l => (
+            <div key={l.id} className="p-6 bg-gray-50 border border-gray-100 rounded-[2.5rem] flex items-center gap-6 active:scale-95 transition-all">
+               <div className="h-16 w-16 rounded-[1.5rem] bg-white border-2 border-white ring-1 ring-gray-100 overflow-hidden shrink-0 shadow-lg"><img src={l.fotoAbsen} className="h-full w-full object-cover" /></div>
+               <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start mb-2"><h6 className="text-[12px] font-black uppercase truncate pr-2 text-gray-950">{l.nama}</h6><span className={`text-[8px] font-black uppercase px-3 py-1 rounded-lg ${l.tipe==='MASUK'?'bg-emerald-600 text-white':'bg-amber-600 text-white'}`}>{l.tipe}</span></div>
+                  <p className="text-[10px] font-mono text-blue-600 font-bold tracking-tighter">NIP. {l.nip}</p>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-dashed border-gray-200">
+                     <p className="text-[10px] font-bold text-gray-400">{l.waktu}</p>
+                     <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">{(l.confidence*100).toFixed(0)}% Verified</p>
+                  </div>
+               </div>
+            </div>
+          ))}
+          {filteredLogs.length === 0 && <div className="py-20 text-center text-gray-300 font-black uppercase text-[11px] tracking-widest">Data tidak ditemukan</div>}
+        </div>
+
+        {/* DESKTOP TABLE VIEW - AUTO SHOWN ON DESKTOP */}
+        <div className="hidden md:block overflow-hidden rounded-[2rem] border border-gray-50 shadow-inner">
            <table className="w-full text-left">
-              <thead className="bg-gray-50 text-gray-400 uppercase text-[8px] font-black border-b border-gray-100 tracking-widest">
-                 <tr><th className="px-6 py-4">Foto</th><th className="px-4 py-4">Waktu & Tipe</th><th className="px-4 py-4 text-center">Confidence</th><th className="px-6 py-4 text-right">Status</th></tr>
+              <thead className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 border-b tracking-[0.2em]">
+                 <tr>
+                    <th className="px-10 py-6">Identity Check</th>
+                    <th className="px-4 py-6 text-center">Waktu & Tipe</th>
+                    <th className="px-4 py-6">Lokasi / Status</th>
+                    <th className="px-4 py-6 text-center">Biometric Score</th>
+                    <th className="px-10 py-6 text-right">Verification</th>
+                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
-                 {filteredLogs.length > 0 ? filteredLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-blue-50/5 transition-all">
-                       <td className="px-6 py-4"><div className="h-12 w-12 rounded-xl overflow-hidden bg-gray-100 border border-gray-100 shadow-sm"><img src={log.fotoAbsen} className="w-full h-full object-cover" /></div></td>
-                       <td className="px-4 py-4"><div className={`inline-flex px-2 py-0.5 rounded text-[7px] font-black uppercase mb-1 ${log.tipe === 'MASUK' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-white'}`}>{log.tipe}</div><p className="text-[9px] font-bold text-gray-700 uppercase tracking-tight">{log.waktu}</p></td>
-                       <td className="px-4 py-4 text-center text-[10px] font-black text-emerald-600">{(log.confidence * 100).toFixed(0)}%</td>
-                       <td className="px-6 py-4 text-right text-[8px] font-black uppercase text-emerald-600">VERIFIED</td>
+              <tbody className="divide-y divide-gray-50 bg-white">
+                 {filteredLogs.map(l => (
+                    <tr key={l.id} className="hover:bg-blue-50/5 transition-all group">
+                       <td className="px-10 py-6">
+                          <div className="flex items-center gap-5">
+                             <div className="h-14 w-14 rounded-2xl overflow-hidden bg-gray-100 border-2 border-white ring-1 ring-gray-100 shadow-xl group-hover:scale-110 transition-transform"><img src={l.fotoAbsen} className="w-full h-full object-cover" /></div>
+                             <div className="min-w-0">
+                                <p className="text-[13px] font-black uppercase text-gray-950 leading-tight">{l.nama}</p>
+                                <p className="text-[10px] font-mono text-gray-400 mt-1">NIP. {l.nip}</p>
+                             </div>
+                          </div>
+                       </td>
+                       <td className="px-4 py-6 text-center">
+                          <div className={`inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase mb-1.5 ${l.tipe === 'MASUK' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-amber-600 text-white shadow-lg shadow-amber-600/20'}`}>{l.tipe}</div>
+                          <p className="text-[11px] font-bold text-gray-700">{l.waktu}</p>
+                       </td>
+                       <td className="px-4 py-6">
+                          <p className="text-[11px] font-black text-gray-950 uppercase">{l.lokasi}</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1 tracking-widest">Network Verified</p>
+                       </td>
+                       <td className="px-4 py-6 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                             <div className="h-1.5 w-16 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${l.confidence * 100}%` }}></div>
+                             </div>
+                             <span className="text-[11px] font-black text-emerald-600">{(l.confidence * 100).toFixed(0)}%</span>
+                          </div>
+                       </td>
+                       <td className="px-10 py-6 text-right">
+                          <span className="px-4 py-1.5 bg-blue-50 text-blue-600 text-[9px] font-black uppercase rounded-xl border border-blue-100 tracking-widest">VERIFIED</span>
+                       </td>
                     </tr>
-                 )) : (
-                    <tr><td colSpan={5} className="px-8 py-20 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Belum ada data absensi</td></tr>
-                 )}
+                 ))}
               </tbody>
            </table>
         </div>

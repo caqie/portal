@@ -17,7 +17,7 @@ interface SearchableSelectProps {
 }
 
 const SearchableSelect: React.FC<SearchableSelectProps> = ({ 
-  options, 
+  options = [], 
   value, 
   onChange, 
   placeholder = "Cari...", 
@@ -28,18 +28,20 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
 
+  const safeOptions = Array.isArray(options) ? options : [];
+
   const selectedOption = useMemo(() => 
-    options.find(opt => opt.value === value), 
-  [options, value]);
+    safeOptions.find(opt => opt.value === value), 
+  [safeOptions, value]);
 
   const filteredOptions = useMemo(() => {
-    if (!searchTerm) return options;
+    if (!searchTerm) return safeOptions;
     const term = searchTerm.toLowerCase();
-    return options.filter(opt => 
-      opt.label.toLowerCase().includes(term) || 
+    return safeOptions.filter(opt => 
+      (opt.label && opt.label.toLowerCase().includes(term)) || 
       (opt.subLabel && opt.subLabel.toLowerCase().includes(term))
     );
-  }, [options, searchTerm]);
+  }, [safeOptions, searchTerm]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -137,7 +139,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e880; border-radius: 10px; }
       `}</style>
     </div>
   );

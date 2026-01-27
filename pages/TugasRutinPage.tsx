@@ -1,385 +1,300 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { TASK_LABELS, BULAN, UNIT_KERJA } from '../constants';
-import { TaskType, TugasRutin, Pegawai } from '../types';
-import { fetchPegawaiFromSheets, syncTableRemote } from '../spreadsheetService';
+import React, { useState, useEffect } from 'react';
+import { TugasRutin, TaskType } from '../types';
+import { fetchTugasRutinFromSheets, syncTableRemote } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
-import * as XLSX from 'xlsx';
+import { BULAN, TASK_LABELS } from '../constants';
 import SuccessModal from '../components/SuccessModal';
-
-const SectionHeader = ({ icon, label, color = "text-blue-600", bg = "bg-blue-50" }: { icon: string, label: string, color?: string, bg?: string }) => (
-  <div className="flex items-center space-x-2 mb-3 mt-4 first:mt-0 col-span-full border-b border-gray-100 pb-2 animate-fadeIn">
-    <div className={`h-6 w-6 ${bg} ${color} rounded-md flex items-center justify-center`}>
-      <i className={`bi ${icon} text-[10px]`}></i>
-    </div>
-    <h5 className="text-[9px] font-black text-gray-950 uppercase tracking-widest">{label}</h5>
-  </div>
-);
-
-const InputField = ({ label, name, type = "text", placeholder = "", value, onChange, fullWidth = false, disabled = false }: any) => (
-  <div className={`space-y-0.5 ${fullWidth ? 'col-span-full' : ''}`}>
-    <label className="text-[8px] font-black text-gray-700 uppercase tracking-wider block pl-0.5">{label}</label>
-    <input 
-      type={type} 
-      name={name}
-      placeholder={placeholder}
-      value={value || ''}
-      disabled={disabled}
-      onChange={(e) => onChange(name, e.target.value)}
-      className={`w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-black text-gray-950 outline-none focus:ring-1 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm focus:bg-white ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`} 
-    />
-  </div>
-);
-
-const SelectField = ({ label, name, options, value, onChange, fullWidth = false }: any) => (
-  <div className={`space-y-0.5 ${fullWidth ? 'col-span-full' : ''}`}>
-    <label className="text-[8px] font-black text-gray-700 uppercase tracking-wider block pl-0.5">{label}</label>
-    <div className="relative group">
-      <select 
-        name={name}
-        value={value || ''}
-        onChange={(e) => onChange(name, e.target.value)}
-        className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-black text-gray-950 outline-none focus:ring-1 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer shadow-sm focus:bg-white"
-      >
-        <option value="">Pilih {label}</option>
-        {options.map((opt: any) => (
-          <option key={typeof opt === 'string' ? opt : opt.value} value={typeof opt === 'string' ? opt : opt.value}>
-            {typeof opt === 'string' ? opt : opt.label}
-          </option>
-        ))}
-      </select>
-      <i className="bi bi-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-[8px] pointer-events-none"></i>
-    </div>
-  </div>
-);
-
-const TextAreaField = ({ label, name, placeholder = "", value, onChange, fullWidth = true }: any) => (
-  <div className={`space-y-0.5 ${fullWidth ? 'col-span-full' : ''}`}>
-    <label className="text-[8px] font-black text-gray-700 uppercase tracking-wider block pl-0.5">{label}</label>
-    <textarea 
-      name={name}
-      placeholder={placeholder}
-      value={value || ''}
-      onChange={(e) => onChange(name, e.target.value)}
-      rows={3}
-      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-black text-gray-950 outline-none focus:ring-1 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm focus:bg-white resize-none" 
-    />
-  </div>
-);
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const TugasRutinPage = () => {
   const { canEdit, isSuperadmin, logActivity } = useAuth();
   const [tasks, setTasks] = useState<TugasRutin[]>([]);
-  const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
-  const [filterBulan, setFilterBulan] = useState('Semua');
-  const [filterJenis, setFilterJenis] = useState('ALL');
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [editingTask, setEditingTask] = useState<TugasRutin | null>(null);
-  const [formData, setFormData] = useState<any>({});
-  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState<Partial<TugasRutin>>({
+    data: {}
+  });
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<TugasRutin | null>(null);
   const [syncing, setSyncing] = useState(false);
 
-  useEffect(() => {
-    loadInitialData();
-  }, []);
+  // Define shared classes in component scope to avoid "not found" errors in the main render block
+  const inputClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-xs font-black outline-none focus:border-blue-600 transition-all";
+  const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-2 tracking-widest";
 
-  const loadInitialData = async () => {
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
     setLoading(true);
-    const saved = localStorage.getItem('tugas_rutin_db');
-    if (saved) setTasks(JSON.parse(saved));
     try {
-      const pData = await fetchPegawaiFromSheets();
-      setPegawaiList(pData);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+      const data = await fetchTugasRutinFromSheets();
+      setTasks(data);
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
-  const filteredTasks = useMemo(() => {
-    return tasks.filter(t => 
-      (filterBulan === 'Semua' || t.bulan === filterBulan) && 
-      (filterJenis === 'ALL' || t.jenis === filterJenis)
-    );
-  }, [tasks, filterBulan, filterJenis]);
-
-  const handleExport = () => {
-    const dataToExport = filteredTasks.map(t => ({
-      Bulan: t.bulan,
-      Tahun: t.tahun,
-      Kategori: TASK_LABELS[t.jenis],
-      Detail: t.detail,
-      ...t.data
-    }));
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Database Laporan Rutin");
-    XLSX.writeFile(wb, `Laporan_Rutin_${new Date().getTime()}.xlsx`);
-    logActivity('DOWNLOAD', 'Tugas Rutin', 'Mengekspor laporan rutin ke Excel');
-  };
-
-  const handleInputChange = (field: string, value: any) => {
-    setFormData((prev: any) => ({ ...prev, [field]: value }));
-  };
-
-  const handleOpenModal = (task: TugasRutin | null = null) => {
-    if (task) {
-      setEditingTask(task);
-      setFormData({ 
-        bulan_laporan: task.bulan, 
-        tahun_laporan: task.tahun, 
-        jenis_tugas: task.jenis,
-        ...task.data 
-      });
-    } else {
-      setEditingTask(null);
-      setFormData({ 
-        bulan_laporan: BULAN[new Date().getMonth()], 
-        tahun_laporan: new Date().getFullYear(), 
-        jenis_tugas: '' 
-      });
-    }
-    setIsModalOpen(true);
-  };
-
-  const handleSave = async () => {
-    if (!formData.jenis_tugas) {
-      alert("Harap pilih kategori tugas");
-      return;
-    }
-
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
     setSyncing(true);
-    const { bulan_laporan, tahun_laporan, jenis_tugas, ...restData } = formData;
-    const taskDetail = `${TASK_LABELS[jenis_tugas as TaskType]} - ${bulan_laporan} ${tahun_laporan}`;
-
-    const taskPayload: TugasRutin = {
-      id: editingTask?.id || Date.now().toString(),
-      timestamp: editingTask?.timestamp || new Date().toISOString(),
-      bulan: bulan_laporan,
-      tahun: parseInt(tahun_laporan),
-      jenis: jenis_tugas as TaskType,
-      detail: taskDetail,
-      data: restData
+    const payload = { 
+      ...formData, 
+      id: editingTask?.id || Date.now().toString(), 
+      timestamp: new Date().toISOString() 
     };
-
-    try {
-      await syncTableRemote('TUGAS_RUTIN', 'SAVE', taskPayload);
-      
-      const updatedList = editingTask 
-        ? tasks.map(t => t.id === editingTask.id ? taskPayload : t)
-        : [taskPayload, ...tasks];
-      
-      setTasks(updatedList);
-      localStorage.setItem('tugas_rutin_db', JSON.stringify(updatedList));
-      logActivity(editingTask ? 'UPDATE' : 'CREATE', 'Tugas Rutin', `Mencatat tugas: ${taskDetail}`);
+    const success = await syncTableRemote('TUGAS_RUTIN', 'SAVE', payload);
+    if (success) {
+      await loadData();
       setIsModalOpen(false);
       setShowSuccess(true);
-    } catch (e) {
-      alert("Gagal sinkronisasi data ke cloud.");
-    } finally {
-      setSyncing(false);
+      logActivity(editingTask ? 'UPDATE' : 'CREATE', 'Log Tugas', `Simpan log: ${payload.jenis}`);
+    } else {
+      alert("Gagal menyimpan ke cloud. Cek koneksi Anda.");
     }
+    setSyncing(false);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(`Hapus catatan tugas ini dari database?`)) return;
-    setSyncing(true);
-    try {
-      await syncTableRemote('TUGAS_RUTIN', 'DELETE', { id });
-      const updatedList = tasks.filter(t => t.id !== id);
-      setTasks(updatedList);
-      localStorage.setItem('tugas_rutin_db', JSON.stringify(updatedList));
-      logActivity('DELETE', 'Tugas Rutin', `Menghapus tugas ID: ${id}`);
-    } catch (e) {
-      alert("Gagal menghapus data dari cloud.");
-    } finally {
-      setSyncing(false);
-    }
+  const updateDataField = (field: string, value: any) => {
+    setFormData({
+      ...formData,
+      data: {
+        ...(formData.data || {}),
+        [field]: value
+      }
+    });
   };
 
-  const renderCategoryFields = () => {
-    const common = { onChange: handleInputChange };
-    const { jenis_tugas } = formData;
-    const val = (name: string) => formData[name] || '';
+  const renderDynamicFields = () => {
+    const data = formData.data || {};
+    // Removed local definitions of inputClass and labelClass since they are now at component scope
 
-    switch (jenis_tugas) {
+    switch (formData.jenis) {
       case TaskType.PELANTIKAN:
         return (
-          <>
-            <SectionHeader icon="bi-award" label="Detail Pelantikan" />
-            <InputField label="Tanggal Pelantikan" name="tanggal_pelantikan" type="date" value={val('tanggal_pelantikan')} {...common} />
-            <InputField label="Judul Pelantikan" name="judul_pelantikan" value={val('judul_pelantikan')} {...common} />
-            <InputField label="Nama Pelantikan" name="nama_pelantikan" value={val('nama_pelantikan')} {...common} />
-            <InputField label="Tempat Pelantikan" name="tempat_pelantikan" value={val('tempat_pelantikan')} {...common} />
-            <InputField label="Jumlah Peserta" name="jumlah_peserta_pelantikan" type="number" value={val('jumlah_peserta_pelantikan')} {...common} />
-            <InputField label="Link Dokumen Pelantikan" name="link_dokumen_pelantikan" fullWidth value={val('link_dokumen_pelantikan')} {...common} placeholder="https://drive.google.com/..." />
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Tanggal Pelantikan</label><input type="date" className={inputClass} value={data.tanggal_pelantikan || ''} onChange={e => updateDataField('tanggal_pelantikan', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Judul Pelantikan</label><input type="text" className={inputClass} value={data.judul_pelantikan || ''} onChange={e => updateDataField('judul_pelantikan', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Nama Terlantik</label><input type="text" className={inputClass} value={data.nama_pelantikan || ''} onChange={e => updateDataField('nama_pelantikan', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Tempat Pelantikan</label><input type="text" className={inputClass} value={data.tempat_pelantikan || ''} onChange={e => updateDataField('tempat_pelantikan', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jumlah Peserta</label><input type="number" className={inputClass} value={data.jumlah_peserta_pelantikan || ''} onChange={e => updateDataField('jumlah_peserta_pelantikan', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data.link_dokumen_pelantikan || ''} onChange={e => updateDataField('link_dokumen_pelantikan', e.target.value)} /></div>
+          </div>
         );
-
       case TaskType.APEL:
         return (
-          <>
-            <SectionHeader icon="bi-megaphone" label="Laporan Apel" color="text-orange-600" bg="bg-orange-50" />
-            <InputField label="Tanggal Apel" name="tanggal_apel" type="date" value={val('tanggal_apel')} {...common} />
-            <TextAreaField label="Keterangan Apel" name="keterangan_apel" value={val('keterangan_apel')} {...common} />
-            <InputField label="Tempat Apel" name="tempat_apel" value={val('tempat_apel')} {...common} />
-            <InputField label="Jumlah Peserta" name="jumlah_peserta_apel" type="number" value={val('jumlah_peserta_apel')} {...common} />
-            <InputField label="Link Dokumen Apel" name="link_dokumen_apel" fullWidth value={val('link_dokumen_apel')} {...common} />
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Tanggal Apel</label><input type="date" className={inputClass} value={data.tanggal_apel || ''} onChange={e => updateDataField('tanggal_apel', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Tempat Apel</label><input type="text" className={inputClass} value={data.tempat_apel || ''} onChange={e => updateDataField('tempat_apel', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jumlah Peserta</label><input type="number" className={inputClass} value={data.jumlah_peserta_apel || ''} onChange={e => updateDataField('jumlah_peserta_apel', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Keterangan</label><input type="text" className={inputClass} value={data.keterangan_apel || ''} onChange={e => updateDataField('keterangan_apel', e.target.value)} /></div>
+            <div className="col-span-full space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data.link_dokumen_apel || ''} onChange={e => updateDataField('link_dokumen_apel', e.target.value)} /></div>
+          </div>
         );
-
       case TaskType.LHKPN:
       case TaskType.LHKASN:
-        const pref = jenis_tugas === TaskType.LHKPN ? 'lhkpn' : 'lhkasn';
+        const p = formData.jenis.toLowerCase();
         return (
-          <>
-            <SectionHeader icon="bi-safe" label={`Pelaporan ${jenis_tugas}`} color="text-emerald-600" bg="bg-emerald-50" />
-            <SelectField label={`Unit ${jenis_tugas}`} name={`unit_${pref}`} options={UNIT_KERJA} value={val(`unit_${pref}`)} {...common} fullWidth />
-            <InputField label={`Jumlah ${jenis_tugas}`} name={`jumlah_${pref}`} type="number" value={val(`jumlah_${pref}`)} {...common} />
-            <TextAreaField label="Daftar Nama Pelapor" name={`daftar_nama_${pref}`} value={val(`daftar_nama_${pref}`)} {...common} />
-            <InputField label={`Link Dokumen ${jenis_tugas}`} name={`link_dokumen_${pref}`} fullWidth value={val(`link_dokumen_${pref}`)} {...common} />
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Unit Kerja</label><input type="text" className={inputClass} value={data[`unit_${p}`] || ''} onChange={e => updateDataField(`unit_${p}`, e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jumlah Laporan</label><input type="number" className={inputClass} value={data[`jumlah_${p}`] || ''} onChange={e => updateDataField(`jumlah_${p}`, e.target.value)} /></div>
+            <div className="col-span-full space-y-1"><label className={labelClass}>Daftar Nama</label><textarea className={inputClass} rows={3} value={data[`daftar_nama_${p}`] || ''} onChange={e => updateDataField(`daftar_nama_${p}`, e.target.value)} /></div>
+            <div className="col-span-full space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data[`link_dokumen_${p}`] || ''} onChange={e => updateDataField(`link_dokumen_${p}`, e.target.value)} /></div>
+          </div>
         );
-
+      case TaskType.TUGAS_BELAJAR:
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Jenis Tubel</label><input type="text" className={inputClass} value={data.jenis_tugas_belajar || ''} onChange={e => updateDataField('jenis_tugas_belajar', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Nama Pegawai</label><input type="text" className={inputClass} value={data.nama_tugas_belajar || ''} onChange={e => updateDataField('nama_tugas_belajar', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jenjang</label><input type="text" className={inputClass} value={data.jenjang_pendidikan || ''} onChange={e => updateDataField('jenjang_pendidikan', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jurusan</label><input type="text" className={inputClass} value={data.jurusan_tugas_belajar || ''} onChange={e => updateDataField('jurusan_tugas_belajar', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Kampus</label><input type="text" className={inputClass} value={data.kampus_tugas_belajar || ''} onChange={e => updateDataField('kampus_tugas_belajar', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Periode</label><input type="text" className={inputClass} value={data.periode_tugas_belajar || ''} onChange={e => updateDataField('periode_tugas_belajar', e.target.value)} /></div>
+            <div className="col-span-full space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data.link_dokumen_tugas_belajar || ''} onChange={e => updateDataField('link_dokumen_tugas_belajar', e.target.value)} /></div>
+          </div>
+        );
+      case TaskType.MUTASI:
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Nama Pegawai</label><input type="text" className={inputClass} value={data.nama_pegawai_mutasi || ''} onChange={e => updateDataField('nama_pegawai_mutasi', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jumlah Diproses</label><input type="number" className={inputClass} value={data.jumlah_diproses_mutasi || ''} onChange={e => updateDataField('jumlah_diproses_mutasi', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jabatan Lama</label><input type="text" className={inputClass} value={data.jabatan_lama || ''} onChange={e => updateDataField('jabatan_lama', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Unit Lama</label><input type="text" className={inputClass} value={data.unit_kerja_lama || ''} onChange={e => updateDataField('unit_kerja_lama', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jabatan Baru</label><input type="text" className={inputClass} value={data.jabatan_baru || ''} onChange={e => updateDataField('jabatan_baru', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Unit Baru</label><input type="text" className={inputClass} value={data.unit_kerja_baru || ''} onChange={e => updateDataField('unit_kerja_baru', e.target.value)} /></div>
+            <div className="col-span-full space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data.link_dokumen_mutasi || ''} onChange={e => updateDataField('link_dokumen_mutasi', e.target.value)} /></div>
+          </div>
+        );
+      case TaskType.KARTU_SUAMI_ISTRI:
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Usulan Istri</label><input type="number" className={inputClass} value={data.jumlah_usulan_istri || ''} onChange={e => updateDataField('jumlah_usulan_istri', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Diterima Istri</label><input type="number" className={inputClass} value={data.jumlah_diterima_istri || ''} onChange={e => updateDataField('jumlah_diterima_istri', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Usulan Suami</label><input type="number" className={inputClass} value={data.jumlah_usulan_suami || ''} onChange={e => updateDataField('jumlah_usulan_suami', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Diterima Suami</label><input type="number" className={inputClass} value={data.jumlah_diterima_suami || ''} onChange={e => updateDataField('jumlah_diterima_suami', e.target.value)} /></div>
+            <div className="col-span-full space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data.link_dokumen_kartu_suami_istri || ''} onChange={e => updateDataField('link_dokumen_kartu_suami_istri', e.target.value)} /></div>
+          </div>
+        );
+      case TaskType.PERKAWINAN:
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Jumlah Perkawinan</label><input type="number" className={inputClass} value={data.jumlah_perkawinan || ''} onChange={e => updateDataField('jumlah_perkawinan', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jumlah Perceraian</label><input type="number" className={inputClass} value={data.jumlah_perceraian || ''} onChange={e => updateDataField('jumlah_perceraian', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jumlah Kelahiran</label><input type="number" className={inputClass} value={data.jumlah_kelahiran || ''} onChange={e => updateDataField('jumlah_kelahiran', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data.link_dokumen_perkawinan || ''} onChange={e => updateDataField('link_dokumen_perkawinan', e.target.value)} /></div>
+          </div>
+        );
+      case TaskType.GRATIFIKASI:
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Jumlah Gratifikasi</label><input type="number" className={inputClass} value={data.jumlah_gratifikasi || ''} onChange={e => updateDataField('jumlah_gratifikasi', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jumlah Benturan Kepentingan</label><input type="number" className={inputClass} value={data.jumlah_benturan_kepentingan || ''} onChange={e => updateDataField('jumlah_benturan_kepentingan', e.target.value)} /></div>
+            <div className="col-span-full space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data.link_dokumen_gratifikasi || ''} onChange={e => updateDataField('link_dokumen_gratifikasi', e.target.value)} /></div>
+          </div>
+        );
+      case TaskType.HUKUMAN:
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Hukuman Ringan</label><input type="number" className={inputClass} value={data.jumlah_ringan || ''} onChange={e => updateDataField('jumlah_ringan', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Hukuman Sedang</label><input type="number" className={inputClass} value={data.jumlah_sedang || ''} onChange={e => updateDataField('jumlah_sedang', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Hukuman Berat</label><input type="number" className={inputClass} value={data.jumlah_berat || ''} onChange={e => updateDataField('jumlah_berat', e.target.value)} /></div>
+            <div className="col-span-full space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data.link_dokumen_hukuman || ''} onChange={e => updateDataField('link_dokumen_hukuman', e.target.value)} /></div>
+          </div>
+        );
+      case TaskType.PENSIUN:
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Jumlah Usulan</label><input type="number" className={inputClass} value={data.jumlah_usulan_pensiun || ''} onChange={e => updateDataField('jumlah_usulan_pensiun', e.target.value)} /></div>
+            <div className="space-y-1"><label className={labelClass}>Jumlah SK</label><input type="number" className={inputClass} value={data.jumlah_sk_pensiun || ''} onChange={e => updateDataField('jumlah_sk_pensiun', e.target.value)} /></div>
+            <div className="col-span-full space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data.link_dokumen_pensiun || ''} onChange={e => updateDataField('link_dokumen_pensiun', e.target.value)} /></div>
+          </div>
+        );
+      case TaskType.GAJI:
       case TaskType.KGB:
         return (
-          <>
-            <SectionHeader icon="bi-cash-stack" label="KGB (Gaji Berkala)" color="text-emerald-600" bg="bg-emerald-50" />
-            <SelectField label="Status Pegawai" name="status_pegawai_gaji" options={['PNS', 'CPNS', 'PPPK']} value={val('status_pegawai_gaji')} {...common} />
-            <InputField label="Jumlah Diproses" name="jumlah_diproses_gaji" type="number" value={val('jumlah_diproses_gaji')} {...common} />
-            <InputField label="Link Dokumen Gaji" name="link_dokumen_gaji" fullWidth value={val('link_dokumen_gaji')} {...common} />
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+            <div className="space-y-1"><label className={labelClass}>Status Pegawai</label><select className={inputClass} value={data.status_pegawai_gaji || ''} onChange={e => updateDataField('status_pegawai_gaji', e.target.value)}><option value="PNS">PNS</option><option value="PPPK">PPPK</option></select></div>
+            <div className="space-y-1"><label className={labelClass}>Jumlah Diproses</label><input type="number" className={inputClass} value={data.jumlah_diproses_gaji || ''} onChange={e => updateDataField('jumlah_diproses_gaji', e.target.value)} /></div>
+            <div className="col-span-full space-y-1"><label className={labelClass}>Link Dokumen</label><input type="text" className={inputClass} value={data.link_dokumen_gaji || ''} onChange={e => updateDataField('link_dokumen_gaji', e.target.value)} /></div>
+          </div>
         );
-
-      case TaskType.PANGKAT:
-      case TaskType.JENJANG:
-        const isPangkat = jenis_tugas === TaskType.PANGKAT;
-        const key = isPangkat ? 'pangkat' : 'jenjang';
-        return (
-          <>
-            <SectionHeader icon="bi-arrow-up-circle" label={`Kenaikan ${isPangkat ? 'Pangkat' : 'Jenjang'}`} color="text-blue-600" bg="bg-blue-50" />
-            <InputField label={`Usulan ${key}`} name={`jumlah_usulan_${key}`} type="number" value={val(`jumlah_usulan_${key}`)} {...common} />
-            <InputField label={`Selesai ${key}`} name={`jumlah_diterima_${key}`} type="number" value={val(`jumlah_diterima_${key}`)} {...common} />
-            <InputField label={`Link Dokumen ${key}`} name={`link_dokumen_${key}`} fullWidth value={val(`link_dokumen_${key}`)} {...common} />
-          </>
-        );
-
-      case TaskType.CUTI:
-        return (
-          <>
-            <SectionHeader icon="bi-calendar-event" label="Cuti Pegawai" color="text-blue-600" bg="bg-blue-50" />
-            <SelectField label="Jenis Cuti" name="jenis_cuti" options={['Tahunan', 'Sakit', 'Melahirkan', 'Besar', 'Alasan Penting', 'CLTN']} value={val('jenis_cuti')} {...common} fullWidth />
-            <InputField label="Jumlah" name="jumlah" type="number" value={val('jumlah')} {...common} />
-            <InputField label="Link Dokumen" name="link_dokumen_cuti" fullWidth value={val('link_dokumen_cuti')} {...common} />
-          </>
-        );
-
       default:
         return (
-          <div className="col-span-full py-16 text-center border-2 border-dashed border-gray-100 rounded-[2.5rem] bg-gray-50/50">
-             <i className="bi bi-database-exclamation text-4xl text-gray-200 block mb-3"></i>
-             <p className="text-[10px] font-black uppercase text-gray-700 tracking-widest">Pilih Kategori Tugas Untuk Memetakan Field Database</p>
-          </div>
+          <div className="space-y-2"><label className={labelClass}>Narasi Detail</label><textarea rows={5} className="w-full px-6 py-4 bg-gray-50 border-2 rounded-2xl text-xs font-bold leading-relaxed focus:border-blue-600 outline-none resize-none shadow-inner" value={formData.detail || ''} onChange={e => setFormData({...formData, detail: e.target.value})} placeholder="Input detail manual jika kategori tidak terdefinisi..." /></div>
         );
     }
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn pb-20">
-      <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title="Laporan Berhasil Dicatat" />
+    <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
+      <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} />
+      <ConfirmationModal 
+        isOpen={isConfirmOpen} 
+        onClose={() => setIsConfirmOpen(false)} 
+        onConfirm={async () => {
+          if (!taskToDelete) return;
+          setSyncing(true);
+          const success = await syncTableRemote('TUGAS_RUTIN', 'DELETE', { id: taskToDelete.id });
+          if (success) {
+            await loadData();
+            setIsConfirmOpen(false);
+            logActivity('DELETE', 'Log Tugas', `Hapus log: ${taskToDelete.jenis}`);
+          } else {
+            alert("Gagal menghapus dari cloud.");
+          }
+          setSyncing(false);
+        }} 
+        message={`Hapus log ini secara permanen dari cloud?`}
+      />
       
-      <div className="flex flex-col lg:flex-row justify-between items-end gap-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 w-full max-w-2xl">
-          <SelectField label="Filter Bulan" options={['Semua', ...BULAN]} value={filterBulan} onChange={(_:any, v:any) => setFilterBulan(v)} />
-          <SelectField label="Filter Kategori" options={[{ value: 'ALL', label: 'SEMUA KATEGORI' }, ...Object.entries(TASK_LABELS).map(([k, v]) => ({ value: k, label: (v as string).toUpperCase() }))]} value={filterJenis} onChange={(_:any, v:any) => setFilterJenis(v)} />
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <h3 className="text-2xl md:text-4xl font-black text-gray-950 uppercase tracking-tighter leading-none">Logistik & Tugas</h3>
+          <p className="text-[10px] md:text-[11px] text-gray-400 font-bold uppercase tracking-[0.3em] mt-3">Monthly Personnel Service Logs • DJKI Cloud</p>
         </div>
-        <div className="flex items-center gap-2 w-full lg:w-auto">
-          <button onClick={handleExport} className="h-12 w-12 flex items-center justify-center bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-2xl shadow-sm hover:bg-emerald-600 hover:text-white transition-all" title="Ekspor Database">
-              <i className="bi bi-file-earmark-excel-fill text-xl"></i>
+        {canEdit && (
+          <button onClick={() => { setEditingTask(null); setFormData({ bulan: BULAN[new Date().getMonth()], tahun: new Date().getFullYear(), jenis: TaskType.PELANTIKAN, data: {} }); setIsModalOpen(true); }} className="w-full md:w-auto h-16 px-10 bg-[#111827] text-white rounded-[1.8rem] font-black text-[11px] uppercase shadow-2xl tracking-widest transition-all active:scale-95 flex items-center justify-center gap-4">
+             <i className="bi bi-plus-lg text-lg"></i> Tambah Log Tugas
           </button>
-          {canEdit && (
-            <button onClick={() => handleOpenModal()} className="flex-1 lg:flex-none px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] hover:bg-blue-700 shadow-lg shadow-blue-600/20 uppercase tracking-widest transition-all">
-              <i className="bi bi-plus-lg mr-2"></i>Entry Data Baru
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden min-h-[400px]">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50/80 text-gray-700 uppercase text-[8px] font-black border-b border-gray-100 tracking-widest">
-              <tr>
-                <th className="px-8 py-5">Periode</th>
-                <th className="px-4 py-5">Kategori</th>
-                <th className="px-4 py-5">Ringkasan Laporan</th>
-                <th className="px-8 py-5 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <tr><td colSpan={4} className="px-8 py-20 text-center text-[10px] font-black text-gray-300 uppercase animate-pulse">Sinkronisasi Cloud...</td></tr>
-              ) : filteredTasks.length > 0 ? filteredTasks.map((t) => (
-                <tr key={t.id} className="hover:bg-blue-50/5 group transition-all">
-                  <td className="px-8 py-5">
-                    <p className="text-[10px] font-black text-gray-950 uppercase">{t.bulan} {t.tahun}</p>
-                  </td>
-                  <td className="px-4 py-5">
-                    <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-[8px] font-black uppercase rounded-lg border border-indigo-100">{TASK_LABELS[t.jenis] || t.jenis}</span>
-                  </td>
-                  <td className="px-4 py-5">
-                    <div className="flex flex-wrap gap-2">
-                       {Object.entries(t.data)
-                        .filter(([k,v]) => v && !k.startsWith('link_dokumen'))
-                        .slice(0, 4)
-                        .map(([k,v]) => (
-                          <span key={k} className="text-[7px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-700 font-black uppercase">{k.replace(/_/g,' ')}: {String(v)}</span>
-                        ))}
-                    </div>
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {canEdit && <button onClick={() => handleOpenModal(t)} className="h-9 w-9 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-white rounded-xl border border-gray-100 shadow-sm"><i className="bi bi-pencil-square"></i></button>}
-                      {isSuperadmin && <button onClick={() => handleDelete(t.id)} className="h-9 w-9 flex items-center justify-center text-gray-400 hover:text-rose-600 hover:bg-white rounded-xl border border-gray-100 shadow-sm"><i className="bi bi-trash"></i></button>}
-                    </div>
-                  </td>
-                </tr>
-              )) : (
-                <tr><td colSpan={4} className="px-8 py-24 text-center text-[11px] font-black text-gray-400 uppercase tracking-widest opacity-30">Database belum berisi laporan</td></tr>
-              )}
-            </tbody>
-          </table>
+      <div className="bg-white rounded-[3rem] md:rounded-[4rem] border border-gray-100 shadow-sm overflow-hidden">
+        <div className="grid grid-cols-1 divide-y divide-gray-50">
+           {loading ? Array(4).fill(0).map((_,i)=><div key={i} className="p-8 h-40 animate-pulse bg-gray-50/50"></div>) : (
+             tasks.length > 0 ? tasks.map(t => (
+               <div key={t.id} className="p-8 flex flex-col md:flex-row md:items-center gap-6 group hover:bg-blue-50/10 transition-colors">
+                  <div className="flex-1 space-y-4">
+                     <div className="flex justify-between items-start">
+                        <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[8px] font-black rounded-lg uppercase border border-blue-100 tracking-widest">{TASK_LABELS[t.jenis] || t.jenis}</span>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t.bulan} {t.tahun}</p>
+                     </div>
+                     <p className="text-[13px] font-bold text-gray-950 uppercase leading-relaxed line-clamp-2">{t.detail || `Log aktivitas ${TASK_LABELS[t.jenis] || t.jenis}`}</p>
+                     <div className="flex items-center gap-3">
+                        <div className="h-6 w-6 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 text-[10px]"><i className="bi bi-clock"></i></div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase">Input: {new Date(t.timestamp).toLocaleString('id-ID')}</p>
+                     </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                     <button onClick={() => { setEditingTask(t); setFormData({ ...t }); setIsModalOpen(true); }} className="h-12 px-6 flex items-center justify-center bg-amber-50 text-amber-600 rounded-2xl border border-amber-100 transition-all hover:bg-amber-600 hover:text-white"><i className="bi bi-pencil-square mr-2"></i> <span className="text-[9px] font-black uppercase">Edit</span></button>
+                     {isSuperadmin && <button onClick={() => { setTaskToDelete(t); setIsConfirmOpen(true); }} className="h-12 w-12 flex items-center justify-center bg-rose-50 text-rose-600 rounded-2xl border border-rose-100 transition-all hover:bg-rose-600 hover:text-white"><i className="bi bi-trash-fill"></i></button>}
+                  </div>
+               </div>
+             )) : (
+                <div className="py-32 text-center">
+                   <i className="bi bi-clipboard-x text-6xl text-gray-200 block mb-6"></i>
+                   <p className="text-[11px] font-black uppercase text-gray-300 tracking-widest">Belum ada log tugas yang tersimpan</p>
+                </div>
+             )
+           )}
         </div>
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-gray-950/70 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-3xl max-h-[calc(100dvh-5rem)] flex flex-col rounded-[3rem] shadow-2xl overflow-hidden animate-modalEnter">
-            <div className="px-10 py-7 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
-               <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 bg-blue-600 rounded-xl flex items-center justify-center text-white"><i className="bi bi-database-fill-add"></i></div>
-                  <h4 className="text-[14px] font-black text-gray-950 uppercase tracking-tight">{editingTask ? 'Perbarui Entri' : 'Entry Laporan Baru'}</h4>
-               </div>
-               <button onClick={() => setIsModalOpen(false)} className="h-10 w-10 text-gray-400 hover:text-rose-500 transition-all"><i className="bi bi-x-lg"></i></button>
-            </div>
-            <form className="p-10 overflow-y-auto custom-scrollbar flex-1 bg-white space-y-8" onSubmit={e => e.preventDefault()}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
-                <SectionHeader icon="bi-calendar-check" label="I. Administrasi Periode" />
-                <SelectField label="Bulan Laporan" name="bulan_laporan" options={BULAN} value={formData.bulan_laporan} onChange={handleInputChange} />
-                <InputField label="Tahun" name="tahun_laporan" type="number" value={formData.tahun_laporan} onChange={handleInputChange} />
-                <SectionHeader icon="bi-tags" label="II. Klasifikasi Kategori" />
-                <SelectField label="Pilih Kategori" name="jenis_tugas" fullWidth options={Object.entries(TASK_LABELS).map(([k, v]) => ({ value: k, label: (v as string).toUpperCase() }))} value={formData.jenis_tugas} onChange={handleInputChange} />
-                {renderCategoryFields()}
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-0 md:p-4">
+           <div className="fixed inset-0 bg-gray-950/85 backdrop-blur-md" onClick={() => !syncing && setIsModalOpen(false)}></div>
+           <div className="relative bg-white w-full max-w-4xl md:rounded-[3.5rem] shadow-2xl overflow-hidden animate-modalEnter flex flex-col h-full md:h-auto md:max-h-[95vh]">
+              <div className="p-8 md:p-10 border-b bg-gray-50/50 flex justify-between items-center shrink-0">
+                 <div>
+                    <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter leading-none">{editingTask ? 'Perbarui Log Tugas' : 'Registrasi Log Baru'}</h4>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-3">Smart Categorization Engine • Real-Time Cloud</p>
+                 </div>
+                 <button onClick={() => !syncing && setIsModalOpen(false)} className="h-12 w-12 flex items-center justify-center bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-2xl transition-all shadow-sm"><i className="bi bi-x-lg text-xl"></i></button>
               </div>
-            </form>
-            <div className="px-10 py-7 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 shrink-0">
-              <button onClick={() => setIsModalOpen(false)} className="px-8 py-3.5 text-[10px] font-black text-gray-500 uppercase bg-white border border-gray-200 rounded-xl active:scale-95 transition-all">Batal</button>
-              <button className="px-12 py-3.5 text-[10px] font-black text-white bg-blue-600 rounded-xl shadow-xl shadow-blue-600/20 uppercase active:scale-95 transition-all disabled:bg-blue-300" disabled={syncing} onClick={handleSave}>
-                {syncing ? 'Menyimpan ke Cloud...' : 'Simpan Laporan'}
-              </button>
-            </div>
-          </div>
+              <form onSubmit={handleSave} className="p-8 md:p-10 overflow-y-auto custom-scrollbar space-y-10 flex-1">
+                 <div className="space-y-6">
+                    <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-3 tracking-widest flex items-center gap-3"><i className="bi bi-1-circle-fill"></i> Klasifikasi Periode & Kategori</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                       <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2 tracking-widest">Bulan</label><select className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black uppercase outline-none focus:border-blue-600 transition-all" value={formData.bulan} onChange={e => setFormData({...formData, bulan: e.target.value})}>{BULAN.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}</select></div>
+                       <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2 tracking-widest">Tahun</label><input type="number" className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none focus:border-blue-600 transition-all" value={formData.tahun} onChange={e => setFormData({...formData, tahun: parseInt(e.target.value)})} /></div>
+                       <div className="space-y-1.5"><label className="text-[9px] font-black text-indigo-600 uppercase ml-2 tracking-widest">Jenis Tugas Rutin</label><select className="w-full px-6 py-3.5 bg-indigo-50 border-2 border-indigo-100 rounded-2xl text-xs font-black outline-none focus:border-indigo-600" value={formData.jenis} onChange={e => setFormData({...formData, jenis: e.target.value as any, data: {} })}>{Object.entries(TASK_LABELS).map(([val, label]) => <option key={val} value={val}>{label.toUpperCase()}</option>)}</select></div>
+                    </div>
+                 </div>
+
+                 <div className="space-y-6">
+                    <h5 className="text-[10px] font-black text-emerald-600 uppercase border-b pb-3 tracking-widest flex items-center gap-3"><i className="bi bi-2-circle-fill"></i> Detail Data Spesifik Kategori</h5>
+                    <div className="bg-gray-50/30 p-6 rounded-[2.5rem] border border-dashed border-gray-200 min-h-[150px]">
+                        {renderDynamicFields()}
+                    </div>
+                 </div>
+
+                 <div className="space-y-2"><label className={labelClass}>Ringkasan Narasi (Muncul di List)</label><textarea rows={2} className="w-full px-8 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-bold leading-relaxed outline-none focus:border-blue-600 resize-none" value={formData.detail || ''} onChange={e => setFormData({...formData, detail: e.target.value})} placeholder="Opsional: Tuliskan ringkasan singkat log ini..." /></div>
+              </form>
+              <div className="p-8 md:p-10 bg-gray-50 border-t flex flex-col md:flex-row gap-4 shrink-0">
+                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-5 bg-white border border-gray-200 text-gray-400 rounded-2xl text-[11px] font-black uppercase tracking-widest active:scale-95 transition-all">Batal</button>
+                 <button onClick={handleSave} disabled={syncing} className="flex-[2] py-5 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-600/30 active:scale-95 flex items-center justify-center gap-4 transition-all">
+                    {syncing ? <div className="h-5 w-5 border-3 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-upload-fill text-xl"></i>} 
+                    <span>{syncing ? 'Menyinkronkan...' : 'Simpan Log ke Cloud'}</span>
+                 </button>
+              </div>
+           </div>
         </div>
       )}
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+      `}</style>
     </div>
   );
 };

@@ -21,7 +21,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const savedUser = localStorage.getItem('auth_user');
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error("Auth initialization error:", e);
+        localStorage.removeItem('auth_user');
+      }
     }
     setLoading(false);
   }, []);
@@ -52,7 +57,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const existingLogsRaw = localStorage.getItem('portal_audit_logs');
-    const existingLogs = existingLogsRaw ? JSON.parse(existingLogsRaw) : [];
+    let existingLogs = [];
+    if (existingLogsRaw) {
+      try {
+        existingLogs = JSON.parse(existingLogsRaw);
+      } catch (e) {
+        existingLogs = [];
+      }
+    }
     localStorage.setItem('portal_audit_logs', JSON.stringify([newLog, ...existingLogs].slice(0, 1000)));
   };
 

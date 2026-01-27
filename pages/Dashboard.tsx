@@ -1,50 +1,41 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList 
-} from 'recharts';
-import { fetchPegawaiFromSheets, calculateRetirementDate } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, getRetirementDetails } from '../spreadsheetService';
 import { Pegawai } from '../types';
 import { useAuth } from '../AuthContext';
-import { UNIT_KERJA, normalizeUnitName, DEFAULT_LOGO } from '../constants';
+import { UNIT_KERJA, normalizeUnitName } from '../constants';
 import * as XLSX from 'xlsx';
 
-const COLORS = ['#2563eb', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-
-const StatsCard = ({ title, value, icon, color, loading, subValue }: { title: string, value: string | number, icon: string, color: string, loading?: boolean, subValue?: string }) => (
-  <div className="bg-white p-6 md:p-7 rounded-[2.5rem] md:rounded-[3rem] shadow-sm border border-gray-100 flex items-center space-x-5 md:space-x-6 hover:shadow-2xl transition-all duration-500 group relative overflow-hidden">
-    <div className={`h-14 w-14 md:h-16 md:w-16 rounded-[1.5rem] md:rounded-3xl flex items-center justify-center text-white shadow-xl shrink-0 ${color} relative z-10`}>
-      <i className={`bi ${icon} text-2xl md:text-3xl`}></i>
+const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: string, value: string | number, icon: string, color: string, loading?: boolean, subtext?: string }) => (
+  <div className="bg-white p-5 md:p-6 rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 flex items-center space-x-4 hover:shadow-xl transition-all duration-300 group">
+    <div className={`h-12 w-12 md:h-14 md:w-14 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0 transition-transform group-hover:scale-110 ${color}`}>
+      <i className={`bi ${icon} text-xl md:text-2xl`}></i>
     </div>
-    <div className="min-w-0 flex-1 relative z-10">
-      <p className="text-[9px] md:text-[11px] text-gray-500 font-black uppercase tracking-[0.2em] truncate mb-1">{title}</p>
+    <div className="min-w-0 flex-1">
+      <p className="text-[8px] md:text-[9px] text-gray-400 font-black uppercase tracking-[0.2em] truncate mb-1">{title}</p>
       {loading ? (
-        <div className="h-8 w-20 bg-gray-50 animate-pulse rounded-xl"></div>
+        <div className="h-6 w-16 bg-gray-100 animate-pulse rounded-lg"></div>
       ) : (
-        <>
-          <h3 className="text-2xl md:text-3xl font-black text-gray-950 tracking-tighter leading-none">{value}</h3>
-          {subValue && <p className="text-[8px] md:text-[9px] font-black text-blue-600 uppercase mt-2 tracking-widest">{subValue}</p>}
-        </>
+        <div className="flex items-baseline gap-2">
+           <h3 className="text-lg md:text-2xl font-black text-gray-950 tracking-tighter leading-none">{value}</h3>
+           {subtext && <span className="text-[9px] font-bold text-gray-400 uppercase">{subtext}</span>}
+        </div>
       )}
     </div>
-    <div className={`absolute -right-4 -bottom-4 h-24 w-24 rounded-full opacity-[0.03] group-hover:scale-150 transition-transform duration-700 ${color.replace('bg-', 'bg-')}`}></div>
   </div>
 );
 
 const Dashboard = () => {
-  const { user, logActivity } = useAuth();
   const [pegawai, setPegawai] = useState<Pegawai[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [activeNotifTab, setActiveNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat'>('pensiun');
-  const [jobFilterUnit, setJobFilterUnit] = useState('Semua Unit');
+  const [notifTab, setNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat' | 'satya'>('pensiun');
 
-  useEffect(() => {
-    loadDashboardData();
-    window.addEventListener('storage_updated', loadDashboardData);
-    return () => window.removeEventListener('storage_updated', loadDashboardData);
-  }, []);
+  const [filterUnit, setFilterUnit] = useState('Semua Unit');
+  const [filterJenis, setFilterJenis] = useState('Semua Jenis');
+  const [filterJenisMatrix, setFilterJenisMatrix] = useState('Semua Jenis');
+
+  useEffect(() => { loadDashboardData(); }, []);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -52,8 +43,7 @@ const Dashboard = () => {
       const pegData = await fetchPegawaiFromSheets();
       setPegawai(pegData);
     } catch (error) {
-      const saved = localStorage.getItem('portal_pegawai_db');
-      if (saved) setPegawai(JSON.parse(saved));
+      console.error("Dashboard Load Error:", error);
     } finally {
       setLoading(false);
     }
@@ -66,246 +56,401 @@ const Dashboard = () => {
     });
   }, [pegawai]);
 
-  const categorizedNotifs = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const data = { pensiun: [] as any[], kgb: [] as any[], pangkat: [] as any[] };
-    const pnsOnly = pegawai.filter(p => p.jenisPegawai === 'PNS');
-
-    pnsOnly.forEach(p => {
-      try {
-        const retirementDate = calculateRetirementDate(p.nip, p.jabatan);
-        if (retirementDate && retirementDate.getFullYear() === currentYear) {
-          data.pensiun.push({ id: p.nip, nip: p.nip, name: p.nama, category: 'BUP PENSIUN', info: retirementDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), color: 'text-rose-600', bg: 'bg-rose-50' });
-        }
-        if (p.tmtStatus) {
-          const tmtDate = new Date(p.tmtStatus);
-          if (!isNaN(tmtDate.getTime()) && (currentYear - tmtDate.getFullYear()) % 2 === 0) {
-            data.kgb.push({ id: p.nip, nip: p.nip, name: p.nama, category: 'KGB BERKALA', info: `Jatuh Tempo: ${currentYear}`, color: 'text-emerald-600', bg: 'bg-emerald-50' });
-          }
-        }
-        if (p.tmtPangkat) {
-          const tmtPkt = new Date(p.tmtPangkat);
-          if (!isNaN(tmtPkt.getTime())) {
-            const selisih = currentYear - tmtPkt.getFullYear();
-            if (selisih > 0 && selisih % 4 === 0) {
-              data.pangkat.push({ id: p.nip, nip: p.nip, name: p.nama, category: 'KP REGULER', info: `Gol: ${p.golRuang}`, color: 'text-blue-600', bg: 'bg-blue-50' });
-            }
-          }
-        }
-      } catch (e) {}
-    });
-    return data;
-  }, [pegawai]);
-
-  const totalNotifs = categorizedNotifs.pensiun.length + categorizedNotifs.kgb.length + categorizedNotifs.pangkat.length;
-
-  const genderData = useMemo(() => [
-    { name: 'LAKI-LAKI', value: activePegawaiList.filter(p => p.gender === 'L').length },
-    { name: 'PEREMPUAN', value: activePegawaiList.filter(p => p.gender === 'P').length }
-  ], [activePegawaiList]);
-
-  const educationData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    activePegawaiList.forEach(p => {
-      const eduRaw = (p.pendidikan || 'LAINNYA').toUpperCase();
-      let label = 'LAINNYA';
-      if (eduRaw.startsWith('S3')) label = 'S3';
-      else if (eduRaw.startsWith('S2')) label = 'S2';
-      else if (eduRaw.startsWith('S1')) label = 'S1';
-      else if (eduRaw.startsWith('DIV')) label = 'D4';
-      else if (eduRaw.startsWith('DIII')) label = 'D3';
-      else if (eduRaw.includes('SLTA') || eduRaw.includes('SMA')) label = 'SLTA';
-      counts[label] = (counts[label] || 0) + 1;
-    });
-    return Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-  }, [activePegawaiList]);
-
-  const sebaranStatusUnit = useMemo(() => {
+  // --- ANALISA SEBARAN PEGAWAI PER UNIT KERJA ---
+  const unitDistribution = useMemo(() => {
     return UNIT_KERJA.map(unit => {
-      const members = activePegawaiList.filter(p => normalizeUnitName(p.unitKerja) === unit);
+      const perUnit = activePegawaiList.filter(p => normalizeUnitName(p.unitKerja) === unit);
       return {
         unit,
-        pns: members.filter(p => (p.jenisPegawai || '').toUpperCase() === 'PNS').length,
-        cpns: members.filter(p => (p.jenisPegawai || '').toUpperCase() === 'CPNS').length,
-        pppkFull: members.filter(p => (p.jenisPegawai || '').toUpperCase() === 'PPPK').length,
-        pppkPart: members.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PARUH WAKTU')).length,
-        total: members.length
+        pns: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase() === 'PNS').length,
+        cpns: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase() === 'CPNS').length,
+        pppk: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase() === 'PPPK').length,
+        pppkParuh: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PARUH')).length,
+        total: perUnit.length
       };
-    });
+    }).sort((a, b) => b.total - a.total);
   }, [activePegawaiList]);
 
-  const sebaranNamaJabatan = useMemo(() => {
-    const jobCounts: Record<string, number> = {};
-    const filteredForJobs = jobFilterUnit === 'Semua Unit' 
-      ? activePegawaiList 
-      : activePegawaiList.filter(p => normalizeUnitName(p.unitKerja) === jobFilterUnit);
+  // --- MATRIKS NOMENKLATUR JABATAN (DENGAN FILTER JENIS) ---
+  const matrixJabatan = useMemo(() => {
+    let list = activePegawaiList;
+    if (filterJenisMatrix !== 'Semua Jenis') {
+        if (filterJenisMatrix === 'PARUH') {
+            list = list.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PARUH'));
+        } else {
+            list = list.filter(p => (p.jenisPegawai || '').toUpperCase() === filterJenisMatrix.toUpperCase());
+        }
+    }
+    if (filterUnit !== 'Semua Unit') {
+      list = list.filter(p => normalizeUnitName(p.unitKerja) === filterUnit);
+    }
 
-    filteredForJobs.forEach(p => {
-      const job = (p.jabatan || 'TIDAK TERIDENTIFIKASI').toUpperCase();
-      jobCounts[job] = (jobCounts[job] || 0) + 1;
+    const groups: Record<string, number> = {};
+    list.forEach(p => {
+      const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
+      groups[jab] = (groups[jab] || 0) + 1;
     });
-    return Object.entries(jobCounts)
-      .map(([name, total]) => ({ name, total }))
+
+    return Object.entries(groups).map(([jabatan, total]) => ({ jabatan, total }))
       .sort((a, b) => b.total - a.total);
-  }, [activePegawaiList, jobFilterUnit]);
+  }, [activePegawaiList, filterUnit, filterJenisMatrix]);
 
-  const handleDownloadDashboard = () => {
+  // --- STATISTIK GENDER & PENDIDIKAN (LOGIKA REAL DARI SHEET) ---
+  const genderStats = useMemo(() => ({
+    pria: activePegawaiList.filter(p => p.gender === 'L').length,
+    wanita: activePegawaiList.filter(p => p.gender === 'P').length
+  }), [activePegawaiList]);
+
+  const educationStats = useMemo(() => {
+    const eduMap: Record<string, number> = {};
+    activePegawaiList.forEach(p => {
+      let edu = 'LAINNYA';
+      // Mengambil data murni dari kolom pendidikan jika tersedia
+      const pStr = (p.pendidikan || '').toUpperCase().trim();
+      
+      if (pStr.includes('S3') || pStr.includes('DOKTOR')) edu = 'S3 (DOKTOR)';
+      else if (pStr.includes('S2') || pStr.includes('MAGISTER')) edu = 'S2 (MAGISTER)';
+      else if (pStr.includes('S1') || pStr.includes('SARJANA')) edu = 'S1 (SARJANA)';
+      else if (pStr.includes('DIV') || pStr.includes('D-IV')) edu = 'D-IV / SARJANA TERAPAN';
+      else if (pStr.includes('DIII') || pStr.includes('D3') || pStr.includes('D-III')) edu = 'D-III';
+      else if (pStr.includes('SMA') || pStr.includes('SMK') || pStr.includes('SLTA')) edu = 'SMA / SEDERAJAT';
+      else if (pStr.includes('SMP') || pStr.includes('SLTP')) edu = 'SMP / SEDERAJAT';
+      else if (pStr !== '') edu = pStr; // Jika ada teks tapi tidak masuk kategori di atas
+      
+      eduMap[edu] = (eduMap[edu] || 0) + 1;
+    });
+    return Object.entries(eduMap).map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [activePegawaiList]);
+
+  // --- DOWNLOAD ANALYTICS ---
+  const handleDownloadAnalytics = () => {
     const wb = XLSX.utils.book_new();
-
-    // Sheet 1: Kekuatan Unit
-    const unitData = sebaranStatusUnit.map(u => ({
+    
+    // Sheet 1: Sebaran Per Unit
+    const unitWs = XLSX.utils.json_to_sheet(unitDistribution.map(u => ({
       'Unit Kerja': u.unit,
       'PNS': u.pns,
       'CPNS': u.cpns,
-      'PPPK': u.pppkFull,
-      'PPPK Paruh Waktu': u.pppkPart,
-      'Total': u.total
-    }));
-    const wsUnit = XLSX.utils.json_to_sheet(unitData);
-    XLSX.utils.book_append_sheet(wb, wsUnit, "Kekuatan Unit");
+      'PPPK': u.pppk,
+      'PPPK Paruh Waktu': u.pppkParuh,
+      'Total ASN': u.total
+    })));
+    XLSX.utils.book_append_sheet(wb, unitWs, "Sebaran Unit");
 
-    // Sheet 2: Demografi
-    const demoData = [
-      { 'Kategori': 'Gender: Laki-laki', 'Jumlah': genderData[0].value },
-      { 'Kategori': 'Gender: Perempuan', 'Jumlah': genderData[1].value },
-      { 'Kategori': '---', 'Jumlah': '---' },
-      ...educationData.map(e => ({ 'Kategori': `Pendidikan: ${e.name}`, 'Jumlah': e.value }))
+    // Sheet 2: Matriks Jabatan
+    const jabWs = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({
+      'Nomenklatur Jabatan': j.jabatan,
+      'Jumlah Pegawai': j.total
+    })));
+    XLSX.utils.book_append_sheet(wb, jabWs, "Matriks Jabatan");
+
+    // Sheet 3: Statistik Tambahan
+    const extraData = [
+      { Kategori: 'Gender Laki-laki', Jumlah: genderStats.pria },
+      { Kategori: 'Gender Perempuan', Jumlah: genderStats.wanita },
+      ...educationStats.map(e => ({ Kategori: `Pendidikan ${e.label}`, Jumlah: e.count }))
     ];
-    const wsDemo = XLSX.utils.json_to_sheet(demoData);
-    XLSX.utils.book_append_sheet(wb, wsDemo, "Statistik Demografi");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(extraData), "Statistik Pendukung");
 
-    // Sheet 3: Sebaran Jabatan
-    const jobDetailedData: any[] = [];
-    sebaranNamaJabatan.forEach(j => {
-      const employeesWithThisJob = activePegawaiList.filter(p => (p.jabatan || '').toUpperCase() === j.name);
-      const distribution: Record<string, number> = {};
-      employeesWithThisJob.forEach(p => {
-        const u = normalizeUnitName(p.unitKerja);
-        distribution[u] = (distribution[u] || 0) + 1;
-      });
-      const unitsToProcess = jobFilterUnit === 'Semua Unit' 
-        ? Object.keys(distribution) 
-        : Object.keys(distribution).filter(u => u === jobFilterUnit);
-
-      unitsToProcess.forEach(unitName => {
-        jobDetailedData.push({
-          'Nama Jabatan': j.name,
-          'Unit Kerja': unitName,
-          'Jumlah di Unit Ini': distribution[unitName],
-          'Total Keseluruhan (Sesuai Filter UI)': j.total
-        });
-      });
-    });
-
-    const wsJob = XLSX.utils.json_to_sheet(jobDetailedData);
-    XLSX.utils.book_append_sheet(wb, wsJob, "Sebaran Jabatan Per Unit");
-
-    const fileName = `DASHBOARD_ANALYTICS_SDM_${new Date().getTime()}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    logActivity('DOWNLOAD', 'Dashboard', 'Ekspor Analytics Dashboard');
+    XLSX.writeFile(wb, `Analitik_SDM_DJKI_${new Date().getTime()}.xlsx`);
   };
 
+  const reminders = useMemo(() => {
+    const now = new Date();
+    const listKGB: any[] = [];
+    const listPangkat: any[] = [];
+    const listPensiun: any[] = [];
+    const listSatya: any[] = [];
+
+    activePegawaiList.forEach(p => {
+      // Logic Pensiun
+      const ret = getRetirementDetails(p.nip, p.jabatan || '');
+      if (ret) {
+        const diffMonths = (ret.tmtPensiun.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30);
+        if (diffMonths > -1 && diffMonths <= 24) {
+          listPensiun.push({ nama: p.nama, nip: p.nip, tmt: ret.tmtPensiun.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), sisa: ret.sisaMasaKerja });
+        }
+      }
+      // Logic KGB & Pangkat (berdasarkan TMT Pangkat Terakhir)
+      if (p.tmtPangkat) {
+        const tmtParts = p.tmtPangkat.split('-');
+        if (tmtParts.length === 3) {
+            const tmtDate = new Date(parseInt(tmtParts[0]), parseInt(tmtParts[1])-1, parseInt(tmtParts[2]));
+            const diffMonths = (now.getFullYear() - tmtDate.getFullYear()) * 12 + (now.getMonth() - tmtDate.getMonth());
+            
+            // KGB setiap 2 tahun (24 bulan), notif muncul di bulan ke-22 atau ke-23
+            if (diffMonths > 0 && (diffMonths % 24 >= 22)) {
+                listKGB.push({ nama: p.nama, nip: p.nip, tmtTerakhir: p.tmtPangkat, keterangan: `KGB Berikutnya: ${24 - (diffMonths % 24)} bulan lagi` });
+            }
+            // Pangkat setiap 4 tahun (48 bulan), notif muncul di bulan ke-46 atau ke-47
+            if (diffMonths >= 46 && (diffMonths % 48 >= 46 || diffMonths % 48 === 0)) {
+                listPangkat.push({ nama: p.nama, nip: p.nip, tmtTerakhir: p.tmtPangkat, keterangan: `KP Berikutnya: ${48 - (diffMonths % 48)} bulan lagi` });
+            }
+        }
+      }
+      // Logic Satya Lencana (Berdasarkan NIP digit 9-12)
+      const cleanNip = p.nip.replace(/\s/g, '');
+      if (cleanNip.length >= 14) {
+        const cpnsYear = parseInt(cleanNip.substring(8, 12));
+        const diffYears = now.getFullYear() - cpnsYear;
+        if ([10, 20, 30].includes(diffYears)) {
+           listSatya.push({ nama: p.nama, nip: p.nip, tahun: diffYears, pengabdian: `${diffYears} Tahun` });
+        }
+      }
+    });
+    return { kgb: listKGB, pangkat: listPangkat, pensiun: listPensiun, satya: listSatya };
+  }, [activePegawaiList]);
+
   return (
-    <div className="space-y-6 md:space-y-10 animate-fadeIn relative pb-24 lg:pb-0">
-      <button onClick={() => setIsNotifOpen(true)} className="fixed bottom-24 right-6 lg:bottom-10 lg:right-10 z-[110] h-14 w-14 md:h-16 md:w-16 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all">
-        <div className="absolute -top-1 -right-1 h-6 w-6 bg-rose-600 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white shadow-lg">{totalNotifs}</div>
-        <i className="bi bi-bell-fill text-xl md:text-2xl"></i>
-      </button>
-
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
+    <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h3 className="text-2xl font-black text-gray-950 uppercase tracking-tighter leading-none">Real-time Analytics</h3>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Monitoring Kekuatan SDM DJKI Secara Komprehensif</p>
+          <h3 className="text-2xl md:text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">Intelligence Hub DJKI</h3>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em] mt-3 flex items-center gap-3">
+             <i className="bi bi-cpu-fill text-blue-600"></i> Real-time Analytics Dashboard
+          </p>
         </div>
-        <button onClick={handleDownloadDashboard} className="px-8 py-3.5 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all flex items-center gap-3 active:scale-95">
-          <i className="bi bi-file-earmark-excel-fill text-lg"></i>
-          <span>Unduh Analytics</span>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-8">
-        <StatsCard title="Personel Aktif" value={activePegawaiList.length} icon="bi-people-fill" color="bg-blue-600" loading={loading} subValue="Status Terverifikasi" />
-        <StatsCard title="Total PNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase()==='PNS').length} icon="bi-person-vcard-fill" color="bg-indigo-600" loading={loading} subValue="ASN Definitif" />
-        <StatsCard title="Total CPNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase()==='CPNS').length} icon="bi-person-badge-fill" color="bg-amber-600" loading={loading} subValue="Masa Percobaan" />
-        <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase()==='PPPK').length} icon="bi-person-gear-fill" color="bg-emerald-600" loading={loading} subValue="Kontrak Kerja" />
-        <StatsCard title="Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH WAKTU')).length} icon="bi-person-workspace" color="bg-cyan-600" loading={loading} subValue="PPPK Terbatas" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
-        <div className="lg:col-span-4 bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[4rem] border border-gray-100 shadow-sm flex flex-col min-h-[400px]">
-           <div className="mb-6 md:mb-10">
-              <h4 className="text-[14px] md:text-[16px] font-black text-gray-950 uppercase tracking-[0.25em] leading-none">Peta Gender</h4>
-              <p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase mt-2 md:mt-3 tracking-widest">Komposisi Jenis Kelamin</p>
-           </div>
-           <div className="flex-1 min-h-[300px]">
-             <ResponsiveContainer width="100%" height="100%">
-               <PieChart>
-                 <Pie data={genderData} cx="50%" cy="50%" innerRadius="60%" outerRadius="85%" paddingAngle={5} dataKey="value">
-                   {genderData.map((e, i) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
-                 </Pie>
-                 <Tooltip contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', fontSize: '10px', fontWeight: '900' }} />
-                 <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'black', textTransform: 'uppercase' }} />
-               </PieChart>
-             </ResponsiveContainer>
-           </div>
-        </div>
-
-        <div className="lg:col-span-8 bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[4rem] border border-gray-100 shadow-sm flex flex-col min-h-[400px]">
-           <div className="mb-6 md:mb-10">
-              <h4 className="text-[14px] md:text-[16px] font-black text-gray-950 uppercase tracking-[0.25em] leading-none">Statistik Pendidikan</h4>
-              <p className="text-[10px] md:text-[11px] font-bold text-gray-400 uppercase mt-2 md:mt-3 tracking-widest">Kualifikasi Akademik ASN</p>
-           </div>
-           <div className="flex-1 min-h-[300px]">
-             <ResponsiveContainer width="100%" height="100%">
-               <BarChart data={educationData} layout="vertical" margin={{ left: 10, right: 30, top: 0, bottom: 0 }}>
-                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                 <XAxis type="number" hide />
-                 <YAxis dataKey="name" type="category" width={80} axisLine={false} tickLine={false} style={{ fontSize: '9px', fontWeight: '900', fill: '#64748b' }} />
-                 <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)', fontSize: '10px' }} />
-                 <Bar dataKey="value" fill="#2563eb" radius={[0, 10, 10, 0]} barSize={16}>
-                    <LabelList dataKey="value" position="right" style={{ fontSize: '10px', fontWeight: '900', fill: '#2563eb' }} />
-                 </Bar>
-               </BarChart>
-             </ResponsiveContainer>
-           </div>
+        <div className="flex gap-3 w-full md:w-auto">
+          <button onClick={handleDownloadAnalytics} className="flex items-center gap-3 bg-emerald-600 p-4 px-8 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
+             <i className="bi bi-file-earmark-spreadsheet-fill text-lg"></i>
+             Download Analytics
+          </button>
+          <button onClick={() => setIsNotifOpen(true)} className="relative flex items-center gap-4 bg-white p-4 px-8 rounded-2xl border border-gray-100 shadow-sm active:scale-95 transition-all group">
+             <i className="bi bi-bell-fill text-xl text-blue-600 group-hover:animate-swing"></i>
+             {reminders.kgb.length + reminders.pangkat.length + reminders.pensiun.length + reminders.satya.length > 0 && (
+               <span className="absolute -top-2 -right-2 h-6 w-6 bg-rose-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-4 border-[#F8F9FC] animate-bounce">
+                  {reminders.kgb.length + reminders.pangkat.length + reminders.pensiun.length + reminders.satya.length}
+               </span>
+             )}
+          </button>
         </div>
       </div>
 
-      {isNotifOpen && (
-        <div className="fixed inset-0 z-[200] flex items-end md:items-center justify-center p-0 md:p-10">
-          <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-xl animate-fadeIn" onClick={() => setIsNotifOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-4xl h-[90vh] md:h-auto md:max-h-[85dvh] rounded-t-[3rem] md:rounded-[4rem] shadow-2xl overflow-hidden flex flex-col animate-modalEnter border border-white/20">
-            <div className="px-8 md:px-12 py-8 md:py-10 border-b border-gray-100 bg-gray-50 shrink-0">
-               <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl md:text-2xl font-black text-gray-950 uppercase tracking-tighter">Agenda Prioritas</h3>
-                  <button onClick={() => setIsNotifOpen(false)} className="h-10 w-10 md:h-12 md:w-12 bg-white border border-gray-100 rounded-full text-gray-400 flex items-center justify-center hover:text-rose-600 shadow-sm transition-all"><i className="bi bi-x-lg text-lg"></i></button>
-               </div>
-               <div className="flex bg-white p-1.5 rounded-[1.5rem] md:rounded-[2rem] shadow-inner border border-gray-100 overflow-x-auto no-scrollbar">
-                  {[
-                    {id:'pensiun', label:'Pensiun', count:categorizedNotifs.pensiun.length, color:'rose'},
-                    {id:'kgb', label:'KGB', count:categorizedNotifs.kgb.length, color:'emerald'},
-                    {id:'pangkat', label:'Pangkat', count:categorizedNotifs.pangkat.length, color:'blue'}
-                  ].map(tab => (
-                    <button key={tab.id} onClick={() => setActiveNotifTab(tab.id as any)} className={`flex-1 min-w-[100px] px-4 md:px-8 py-3 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${activeNotifTab === tab.id ? `bg-${tab.color}-600 text-white shadow-lg` : 'text-gray-400 hover:text-gray-600'}`}>{tab.label} ({tab.count})</button>
+      {/* QUICK ANALYTICS CARDS */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatsCard title="Total ASN Aktif" value={activePegawaiList.length} icon="bi-people-fill" color="bg-blue-600" loading={loading} />
+        <StatsCard title="Total PNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'PNS').length} icon="bi-person-vcard" color="bg-indigo-600" loading={loading} />
+        <StatsCard title="Total CPNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'CPNS').length} icon="bi-person-plus" color="bg-cyan-600" loading={loading} />
+        <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'PPPK').length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
+        <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
+      </div>
+
+      {/* TABEL SEBARAN PER UNIT KERJA */}
+      <div className="bg-white p-8 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden">
+         <div className="mb-10">
+            <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Sebaran Pegawai Aktif per Unit Kerja</h4>
+            <p className="text-[9px] text-gray-400 font-bold uppercase mt-1 tracking-widest text-blue-600">Komposisi Jenis Kepegawaian Internal DJKI</p>
+         </div>
+         <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+               <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400">
+                  <tr>
+                     <th className="px-10 py-6 border-b">Unit Kerja Pengampu</th>
+                     <th className="px-4 py-6 border-b text-center">PNS</th>
+                     <th className="px-4 py-6 border-b text-center">CPNS</th>
+                     <th className="px-4 py-6 border-b text-center">PPPK</th>
+                     <th className="px-4 py-6 border-b text-center bg-rose-50 text-rose-600">PPPK Paruh Waktu</th>
+                     <th className="px-6 py-6 border-b text-right bg-blue-50 text-blue-600 font-black">Total ASN</th>
+                  </tr>
+               </thead>
+               <tbody className="divide-y divide-gray-50">
+                  {unitDistribution.map((row, i) => (
+                    <tr key={i} className="hover:bg-gray-50 transition-colors">
+                       <td className="px-10 py-5 font-black text-[10px] text-gray-800 uppercase leading-tight">{row.unit}</td>
+                       <td className="px-4 py-5 text-center font-bold text-gray-600">{row.pns}</td>
+                       <td className="px-4 py-5 text-center font-bold text-gray-600">{row.cpns}</td>
+                       <td className="px-4 py-5 text-center font-bold text-gray-600">{row.pppk}</td>
+                       <td className="px-4 py-5 text-center font-black text-rose-600 bg-rose-50/20">{row.pppkParuh}</td>
+                       <td className="px-6 py-5 text-right font-black text-[12px] text-blue-600 bg-blue-50/20">{row.total}</td>
+                    </tr>
                   ))}
-               </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6 md:p-12 custom-scrollbar bg-white">
-               <div className="space-y-4 animate-fadeIn">
-                  {categorizedNotifs[activeNotifTab].map((agenda: any) => (
-                    <div key={agenda.id} className="p-5 md:p-6 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col md:flex-row justify-between items-center group hover:bg-white hover:shadow-xl transition-all duration-300">
-                       <div className="flex items-center gap-4 md:gap-6 mb-4 md:mb-0 w-full md:w-auto">
-                          <div className={`h-12 w-12 md:h-14 md:w-14 rounded-2xl ${agenda.bg} ${agenda.color} flex items-center justify-center border border-current/10 shrink-0`}><i className={`bi ${activeNotifTab === 'pensiun' ? 'bi-door-open-fill' : activeNotifTab === 'kgb' ? 'bi-cash-stack' : 'bi-arrow-up-right-circle-fill'} text-xl md:text-2xl`}></i></div>
-                          <div className="min-w-0"><h5 className="text-[12px] md:text-[13px] font-black text-gray-950 uppercase truncate leading-tight mb-1">{agenda.name}</h5><p className="text-[9px] font-mono text-gray-400 font-bold uppercase tracking-tighter">NIP. {agenda.nip}</p></div>
-                       </div>
-                       <div className="text-right w-full md:w-auto flex md:flex-col justify-between md:justify-center items-center md:items-end"><span className={`px-3 md:px-4 py-1.5 rounded-xl text-[8px] md:text-[9px] font-black uppercase border md:mb-2 ${agenda.bg} ${agenda.color} border-current/10`}>{agenda.category}</span><p className="text-[10px] md:text-[11px] font-bold text-gray-900 uppercase tracking-widest">{agenda.info}</p></div>
+               </tbody>
+               <tfoot className="bg-[#111827] text-white">
+                  <tr className="font-black uppercase text-[10px]">
+                     <td className="px-10 py-5">TOTAL KESELURUHAN</td>
+                     <td className="px-4 py-5 text-center">{unitDistribution.reduce((a,b)=>a+b.pns,0)}</td>
+                     <td className="px-4 py-5 text-center">{unitDistribution.reduce((a,b)=>a+b.cpns,0)}</td>
+                     <td className="px-4 py-5 text-center">{unitDistribution.reduce((a,b)=>a+b.pppk,0)}</td>
+                     <td className="px-4 py-5 text-center text-rose-400">{unitDistribution.reduce((a,b)=>a+b.pppkParuh,0)}</td>
+                     <td className="px-6 py-5 text-right text-[14px] bg-blue-600">{unitDistribution.reduce((a,b)=>a+b.total,0)}</td>
+                  </tr>
+               </tfoot>
+            </table>
+         </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* STATISTIK GENDER & PENDIDIKAN */}
+        <div className="space-y-8">
+           <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+              <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em] mb-6">Statistik Gender</h4>
+              <div className="grid grid-cols-2 gap-6">
+                 <div className="p-6 bg-sky-50 rounded-3xl border border-sky-100">
+                    <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Laki-laki</p>
+                    <h5 className="text-3xl font-black text-sky-900">{genderStats.pria}</h5>
+                 </div>
+                 <div className="p-6 bg-pink-50 rounded-3xl border border-pink-100">
+                    <p className="text-[9px] font-black text-pink-600 uppercase tracking-widest mb-1">Perempuan</p>
+                    <h5 className="text-3xl font-black text-pink-900">{genderStats.wanita}</h5>
+                 </div>
+              </div>
+           </div>
+
+           <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+              <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em] mb-6">Statistik Tingkat Pendidikan</h4>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                 {educationStats.map((edu, i) => (
+                    <div key={i} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors group">
+                       <span className="text-[10px] font-black text-gray-600 uppercase group-hover:text-blue-600 transition-colors">{edu.label}</span>
+                       <span className="text-[12px] font-black text-gray-950">{edu.count} ASN</span>
                     </div>
-                  ))}
-               </div>
-            </div>
-          </div>
+                 ))}
+                 {educationStats.length === 0 && (
+                    <div className="py-10 text-center text-gray-300 uppercase text-[10px] font-black">Data tidak terdeteksi</div>
+                 )}
+              </div>
+           </div>
+        </div>
+
+        {/* MATRIKS SEBARAN JABATAN */}
+        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-full">
+           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
+              <div>
+                 <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Matriks Nomenklatur Jabatan</h4>
+                 <p className="text-[8px] text-gray-400 font-bold uppercase mt-1 tracking-widest text-blue-600">Total Sebaran Nomenklatur Jabatan Terpusat</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                 <select className="px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-[8px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
+                    <option value="Semua Unit">Unit Kerja</option>
+                    {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase().substring(0, 20)}...</option>)}
+                 </select>
+                 <select className="px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-[8px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterJenisMatrix} onChange={e => setFilterJenisMatrix(e.target.value)}>
+                    <option value="Semua Jenis">Jenis ASN</option>
+                    <option value="PNS">PNS</option>
+                    <option value="CPNS">CPNS</option>
+                    <option value="PPPK">PPPK</option>
+                    <option value="PARUH">Paruh Waktu</option>
+                 </select>
+              </div>
+           </div>
+           
+           <div className="overflow-x-auto max-h-[480px] flex-1 custom-scrollbar border border-gray-50 rounded-3xl">
+              <table className="w-full text-left border-collapse">
+                 <thead className="sticky top-0 bg-white z-20 shadow-sm text-[8px] font-black uppercase text-gray-400">
+                    <tr>
+                       <th className="px-10 py-6 border-b">Nama Nomenklatur Jabatan</th>
+                       <th className="px-6 py-6 text-right border-b text-blue-600">Total ASN</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-50">
+                    {matrixJabatan.map((row, i) => (
+                      <tr key={i} className="hover:bg-gray-50 transition-colors">
+                         <td className="px-10 py-4 font-bold text-[10px] text-gray-800 uppercase leading-tight">{row.jabatan}</td>
+                         <td className="px-6 py-4 text-right font-black text-[12px] text-gray-950">{row.total}</td>
+                      </tr>
+                    ))}
+                    {matrixJabatan.length === 0 && (
+                      <tr><td colSpan={2} className="py-20 text-center text-gray-300 font-black uppercase text-[10px]">Data tidak tersedia</td></tr>
+                    )}
+                 </tbody>
+              </table>
+           </div>
+        </div>
+      </div>
+
+      {/* NOTIFICATION MODAL (AKTIF & TERHUBUNG DATA) */}
+      {isNotifOpen && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-0 md:p-4">
+           <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => setIsNotifOpen(false)}></div>
+           <div className="relative bg-white w-full max-w-2xl md:rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col animate-modalEnter h-full md:h-auto md:max-h-[85vh]">
+              <div className="p-8 md:p-10 shrink-0 bg-gray-50/50 border-b">
+                 <div className="flex items-center justify-between mb-8">
+                    <div>
+                       <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">Personnel Monitoring</h4>
+                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Daftar ASN yang Memerlukan Tindakan Administrasi</p>
+                    </div>
+                    <button onClick={() => setIsNotifOpen(false)} className="h-12 w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white rounded-2xl shadow-sm transition-all"><i className="bi bi-x-lg text-xl"></i></button>
+                 </div>
+                 <div className="flex bg-gray-200 p-1.5 rounded-[1.5rem] overflow-x-auto no-scrollbar gap-1">
+                    <button onClick={() => setNotifTab('pensiun')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-2xl transition-all ${notifTab==='pensiun' ? 'bg-white text-rose-600 shadow-md' : 'text-gray-500'}`}>Pensiun ({reminders.pensiun.length})</button>
+                    <button onClick={() => setNotifTab('kgb')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-2xl transition-all ${notifTab==='kgb' ? 'bg-white text-emerald-600 shadow-md' : 'text-gray-500'}`}>KGB ({reminders.kgb.length})</button>
+                    <button onClick={() => setNotifTab('pangkat')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-2xl transition-all ${notifTab==='pangkat' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500'}`}>Pangkat ({reminders.pangkat.length})</button>
+                    <button onClick={() => setNotifTab('satya')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-2xl transition-all ${notifTab==='satya' ? 'bg-white text-amber-600 shadow-md' : 'text-gray-500'}`}>Satya ({reminders.satya.length})</button>
+                 </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar space-y-4 min-h-[300px]">
+                 {notifTab === 'pensiun' && reminders.pensiun.map((item, i) => (
+                    <div key={i} className="p-5 bg-rose-50/30 border border-rose-100 rounded-3xl flex justify-between items-center group hover:bg-rose-50 transition-all">
+                       <div>
+                          <p className="text-[11px] font-black text-gray-950 uppercase">{item.nama}</p>
+                          <p className="text-[9px] font-bold text-rose-600 uppercase mt-1">TMT Pensiun: {item.tmt}</p>
+                       </div>
+                       <span className="px-3 py-1 bg-white border border-rose-100 rounded-lg text-[9px] font-black text-rose-600 shadow-sm">{item.sisa}</span>
+                    </div>
+                 ))}
+                 
+                 {notifTab === 'kgb' && reminders.kgb.map((item, i) => (
+                    <div key={i} className="p-5 bg-emerald-50/30 border border-emerald-100 rounded-3xl flex justify-between items-center group hover:bg-emerald-50 transition-all">
+                       <div>
+                          <p className="text-[11px] font-black text-gray-950 uppercase">{item.nama}</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">NIP. {item.nip}</p>
+                       </div>
+                       <div className="text-right">
+                          <p className="text-[9px] font-black text-emerald-600 uppercase">{item.keterangan}</p>
+                          <p className="text-[7px] text-gray-400 uppercase mt-1">TMT Terakhir: {item.tmtTerakhir}</p>
+                       </div>
+                    </div>
+                 ))}
+
+                 {notifTab === 'pangkat' && reminders.pangkat.map((item, i) => (
+                    <div key={i} className="p-5 bg-blue-50/30 border border-blue-100 rounded-3xl flex justify-between items-center group hover:bg-blue-50 transition-all">
+                       <div>
+                          <p className="text-[11px] font-black text-gray-950 uppercase">{item.nama}</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">NIP. {item.nip}</p>
+                       </div>
+                       <div className="text-right">
+                          <p className="text-[9px] font-black text-blue-600 uppercase">{item.keterangan}</p>
+                          <p className="text-[7px] text-gray-400 uppercase mt-1">TMT Terakhir: {item.tmtTerakhir}</p>
+                       </div>
+                    </div>
+                 ))}
+
+                 {notifTab === 'satya' && reminders.satya.map((item, i) => (
+                    <div key={i} className="p-5 bg-amber-50/30 border border-amber-100 rounded-3xl flex justify-between items-center group hover:bg-amber-50 transition-all">
+                       <div>
+                          <p className="text-[11px] font-black text-gray-950 uppercase">{item.nama}</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">NIP. {item.nip}</p>
+                       </div>
+                       <span className="px-4 py-1.5 bg-amber-500 text-white rounded-xl text-[10px] font-black shadow-lg shadow-amber-500/20 uppercase tracking-widest">{item.pengabdian}</span>
+                    </div>
+                 ))}
+
+                 {(reminders[notifTab] || []).length === 0 && (
+                    <div className="py-20 text-center opacity-40">
+                       <i className="bi bi-shield-check text-6xl text-gray-300 block mb-6"></i>
+                       <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Tidak ada notifikasi aktif untuk kategori ini</p>
+                    </div>
+                 )}
+              </div>
+           </div>
         </div>
       )}
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        @keyframes swing {
+           0% { transform: rotate(0deg); }
+           20% { transform: rotate(15deg); }
+           40% { transform: rotate(-10deg); }
+           60% { transform: rotate(5deg); }
+           80% { transform: rotate(-5deg); }
+           100% { transform: rotate(0deg); }
+        }
+        .group:hover .group-hover\\:animate-swing { animation: swing 0.8s ease-in-out; }
+      `}</style>
     </div>
   );
 };
