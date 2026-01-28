@@ -80,7 +80,7 @@ const ABKAnjabPage = () => {
   };
 
   const handleRemoveUraian = (index: number) => {
-    const updatedUraian = (formData.uraianTugas || []).filter((_, i) => i !== index);
+    const updatedUraian = (formData.uraianTugas || []).filter((_: any, i: number) => i !== index);
     setFormData({ ...formData, uraianTugas: updatedUraian });
   };
 

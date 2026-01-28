@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, syncTableRemote, fetchSKPFromSheets } from '../spreadsheetService';
@@ -337,7 +338,7 @@ const SKPPage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10 animate-fadeIn">
                        <div className="space-y-6">
                           <h6 className="text-[10px] font-black text-gray-950 uppercase tracking-[0.2em] border-b pb-4 flex items-center gap-2"><i className="bi bi-box-seam-fill text-blue-600"></i> Dukungan Sumber Daya</h6>
-                          {(formData.lampiran?.dukungan || []).map((d, i) => (
+                          {(formData.lampiran?.dukungan || []).map((d: string, i: number) => (
                              <textarea key={i} rows={2} className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[11px] font-bold outline-none focus:border-blue-600 resize-none" value={d} onChange={e => {
                                 const newDuk = [...(formData.lampiran?.dukungan || [])];
                                 newDuk[i] = e.target.value;
@@ -347,7 +348,7 @@ const SKPPage = () => {
                        </div>
                        <div className="space-y-6">
                           <h6 className="text-[10px] font-black text-gray-950 uppercase tracking-[0.2em] border-b pb-4 flex items-center gap-2"><i className="bi bi-layout-text-window-reverse text-indigo-600"></i> Skema Pertanggungjawaban</h6>
-                          {(formData.lampiran?.skema || []).map((s, i) => (
+                          {(formData.lampiran?.skema || []).map((s: string, i: number) => (
                              <textarea key={i} rows={2} className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[11px] font-bold outline-none focus:border-indigo-600 resize-none" value={s} onChange={e => {
                                 const newSkem = [...(formData.lampiran?.skema || [])];
                                 newSkem[i] = e.target.value;
@@ -357,7 +358,7 @@ const SKPPage = () => {
                        </div>
                        <div className="space-y-6">
                           <h6 className="text-[10px] font-black text-gray-950 uppercase tracking-[0.2em] border-b pb-4 flex items-center gap-2"><i className="bi bi-exclamation-triangle-fill text-rose-600"></i> Konsekuensi</h6>
-                          {(formData.lampiran?.konsekuensi || []).map((k, i) => (
+                          {(formData.lampiran?.konsekuensi || []).map((k: string, i: number) => (
                              <textarea key={i} rows={2} className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[11px] font-bold outline-none focus:border-rose-600 resize-none" value={k} onChange={e => {
                                 const newKon = [...(formData.lampiran?.konsekuensi || [])];
                                 newKon[i] = e.target.value;

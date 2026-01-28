@@ -97,7 +97,7 @@ const LaporanPage = () => {
       else if (pStr.includes('S1')) edu = 'S1';
       else if (pStr.includes('DIV')) edu = 'D-IV';
       else if (pStr.includes('DIII') || pStr.includes('D3')) edu = 'D-III';
-      else if (pStr.includes('SMA') || pStr.includes('SMK')) edu = 'SMA/SMK';
+      else if (pStr.includes('SMA') || pStr.includes('SMK') || pStr.includes('SLTA')) edu = 'SMA/SMK';
       else if (pStr !== '') edu = pStr;
       educationMap[edu] = (educationMap[edu] || 0) + 1;
     });
@@ -252,7 +252,7 @@ const LaporanPage = () => {
                     <div className="text-[10pt] space-y-10">
                        <section>
                           <p className="font-bold border-b border-black mb-3 pb-1">I. STATISTIK ASN PER UNIT KERJA</p>
-                          <table className="w-full border-collapse border border-black text-[8.5pt]">
+                          <table className="w-full border-collapse border border-black text-[8pt]">
                              <thead className="bg-gray-100 font-bold">
                                 <tr className="text-center">
                                    <th className="border border-black p-2 w-8">NO</th>
@@ -267,10 +267,10 @@ const LaporanPage = () => {
                                 {reportData.analytics.map((a, i) => (
                                    <tr key={i}>
                                       <td className="border border-black p-2 text-center">{i+1}</td>
-                                      <td className="border border-black p-2 uppercase text-[7.5pt]">{a.unit}</td>
+                                      <td className="border border-black p-2 uppercase text-[7pt]">{a.unit}</td>
                                       <td className="border border-black p-2 text-center">{a.pns}</td>
                                       <td className="border border-black p-2 text-center">{a.pppk}</td>
-                                      <td className="border border-black p-2 text-center font-bold text-rose-700">{a.pppkParuh}</td>
+                                      <td className="border border-black p-2 text-center font-bold">{a.pppkParuh}</td>
                                       <td className="border border-black p-2 text-center font-bold">{a.total}</td>
                                    </tr>
                                 ))}
