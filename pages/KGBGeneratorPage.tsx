@@ -68,6 +68,7 @@ const KGBGeneratorPage = () => {
     masaKerjaBaru: '',
     golRuangBaru: '',
     tmtBaru: '',
+    penandatanganNip: '197410061998031002',
     penandatanganNama: 'Andrieansjah',
     penandatanganJabatan: 'Sekretaris Direktorat Jenderal Kekayaan Intelektual',
   });
@@ -104,6 +105,18 @@ const KGBGeneratorPage = () => {
         pangkatGol: `${p.pangkat} - ${p.golRuang}`,
         jabatan: p.jabatan,
         golRuangBaru: `${p.pangkat} ${p.golRuang}`
+      });
+    }
+  };
+
+  const handlePjbSelect = (nip: string) => {
+    const p = pegawaiList.find(peg => peg.nip === nip);
+    if (p) {
+      setFormData({
+        ...formData,
+        penandatanganNip: p.nip,
+        penandatanganNama: p.nama,
+        penandatanganJabatan: p.jabatan
       });
     }
   };
@@ -223,7 +236,7 @@ const KGBGeneratorPage = () => {
           new Paragraph({
             alignment: AlignmentType.RIGHT,
             children: [
-                new TextRun({ text: "Sekretaris Direktorat Jenderal", bold: true, font: "Arial" }),
+                new TextRun({ text: formData.penandatanganJabatan, bold: true, font: "Arial" }),
                 new TextRun({ text: "\n\n\n\n\n", font: "Arial" }),
                 new TextRun({ text: formData.penandatanganNama, bold: true, underline: { type: UnderlineType.SINGLE }, font: "Arial" }),
             ]
@@ -409,7 +422,11 @@ const KGBGeneratorPage = () => {
                     <h5 className="text-[10px] font-black text-gray-600 uppercase border-b pb-3 tracking-widest mt-4 flex items-center gap-2"><i className="bi bi-send-check"></i> Distribusi & Penandatangan</h5>
                     <div className="space-y-4">
                        <div className="space-y-1.5"><label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-3">Tujuan KPPN</label><input type="text" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-[10px] font-bold" value={formData.kppn} onChange={e => setFormData({...formData, kppn: e.target.value})} /></div>
-                       <div className="space-y-1.5"><label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-3">Pejabat Penandatangan</label><input type="text" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-[10px] font-bold" value={formData.penandatanganNama} onChange={e => setFormData({...formData, penandatanganNama: e.target.value})} /></div>
+                       <div className="space-y-1.5">
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-3">Pejabat Penandatangan</label>
+                          <SearchableSelect label="Pilih Pejabat" options={searchablePegawaiOptions} value={formData.penandatanganNip} onChange={handlePjbSelect} />
+                          <div className="mt-2 space-y-1.5"><label className="text-[8px] font-black text-gray-400 uppercase ml-3">Jabatan Penandatangan (TND)</label><input type="text" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-[10px] font-black uppercase" value={formData.penandatanganJabatan} onChange={e => setFormData({...formData, penandatanganJabatan: e.target.value})} /></div>
+                       </div>
                     </div>
                  </div>
               </div>

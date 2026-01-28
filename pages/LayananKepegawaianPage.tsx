@@ -15,7 +15,8 @@ const MenuCard = ({ icon, label, description, color, onClick, badge, adminOnly =
     cyan: "bg-cyan-600 shadow-cyan-600/20",
     rose: "bg-rose-600 shadow-rose-600/20",
     violet: "bg-violet-600 shadow-violet-600/20",
-    slate: "bg-slate-700 shadow-slate-700/20"
+    slate: "bg-slate-700 shadow-slate-700/20",
+    teal: "bg-teal-600 shadow-teal-600/20"
   };
 
   return (
@@ -54,7 +55,8 @@ const LayananKepegawaianPage = () => {
     { id: 'pangkat', icon: 'bi-award-fill', label: 'Kenaikan Pangkat', description: 'Usulan Kenaikan Pangkat Reguler & Istimewa (Prestasi Luar Biasa)', color: 'blue', route: '/kenaikan-pangkat' },
     { id: 'skp', icon: 'bi-graph-up-arrow', label: 'E-Kinerja (SKP)', description: 'Evaluasi & Penilaian Kinerja Pegawai (Permenpan 6/2022)', color: 'blue', route: '/skp' },
     { id: 'pak', icon: 'bi-patch-check-fill', label: 'Angka Kredit (PAK)', description: 'Penetapan Angka Kredit Fungsional & TND Konversi', color: 'indigo', route: '/pak' },
-    { id: 'satya', icon: 'bi-star-fill', label: 'Satyalencana', description: 'Monitoring Pengabdian 10, 20, 30 Tahun & Usulan Penghargaan', color: 'amber', route: null },
+    { id: 'magang', icon: 'bi-mortarboard-fill', label: 'Magang & PKL', description: 'Manajemen Peserta Magang, Penempatan Unit, & Sertifikat Suker', color: 'teal', route: '/magang-pkl' },
+    { id: 'satya', icon: 'bi-star-fill', label: 'Satyalencana', description: 'Monitoring Pengabdian 10, 20, 30 Tahun & Usulan Penghargaan', color: 'amber', route: '/satya-lencana' },
     { id: 'kgb', icon: 'bi-cash-stack', label: 'Gaji Berkala', description: 'Generator Surat Kenaikan Gaji Berkala Sesuai Template TND', color: 'emerald', route: '/kgb-gen', adminOnly: true, badge: 'Admin' },
     { id: 'anjab', icon: 'bi-calculator-fill', label: 'ANJAB & ABK', description: 'Analisis Jabatan & Perhitungan Beban Kerja Organisasi', color: 'cyan', route: '/anjab-abk' },
     { id: 'pensiun', icon: 'bi-door-open-fill', label: 'DPCP Generator', description: 'Monitoring Batas Usia Pensiun & Generator Dokumen DPCP', color: 'rose', route: '/pensiun' },
@@ -71,7 +73,7 @@ const LayananKepegawaianPage = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
         {services.map((s) => (
-          <MenuCard key={s.id} {...s} onClick={() => s.route ? navigate(s.route) : alert("Fitur monitoring Satyalencana aktif di notifikasi Dashboard. Modul usulan digital sedang dalam pengembangan.")} />
+          <MenuCard key={s.id} {...s} onClick={() => s.route ? navigate(s.route) : alert("Fitur sedang dalam pengembangan.")} />
         ))}
       </div>
 

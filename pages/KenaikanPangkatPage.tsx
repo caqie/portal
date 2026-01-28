@@ -28,12 +28,15 @@ const KenaikanPangkatPage = () => {
   const [itemToDelete, setItemToDelete] = useState<KenaikanKarir | null>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
 
-  const [formData, setFormData] = useState<Partial<KenaikanKarir>>({
+  const [formData, setFormData] = useState<any>({
     jenisUsulan: 'REGULER',
     dari: '',
     menjadi: '',
     tmtUsulan: '01-04-2025',
-    status: 'Proses'
+    status: 'Proses',
+    pjbNama: 'Andrieansjah',
+    pjbNip: '197410061998031002',
+    pjbJabatan: 'Sekretaris Direktorat Jenderal'
   });
 
   useEffect(() => { loadData(); }, []);
@@ -50,26 +53,87 @@ const KenaikanPangkatPage = () => {
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
+  // --- LOGIKA KENAIKAN PANGKAT REGULER (PERBAIKAN) ---
   const candidateList = useMemo(() => {
     const now = new Date();
+    const RANKS = ['I/a', 'I/b', 'I/c', 'I/d', 'II/a', 'II/b', 'II/c', 'II/d', 'III/a', 'III/b', 'III/c', 'III/d', 'IV/a', 'IV/b', 'IV/c', 'IV/d', 'IV/e'];
+
+    const getCeiling = (p: Pegawai): string => {
+      const ese = (p.eselon || '').toUpperCase();
+      const edu = (p.pendidikan || '').toUpperCase();
+
+      // 1. Pimpinan Tinggi Madya (Eselon I) -> IV/e
+      if (ese.includes('I') || ese.includes('MADYA')) return 'IV/e';
+      
+      // 2. Pimpinan Tinggi Pratama (Eselon II) -> IV/d
+      if (ese.includes('II') || ese.includes('PRATAMA')) return 'IV/d';
+      
+      // 3. Administrator (Eselon III) -> IV/b
+      if (ese.includes('III')) return 'IV/b';
+      
+      // 4. Pengawas (Eselon IV)
+      if (ese.includes('IV')) {
+        if (edu.includes('S2') || edu.includes('MAGISTER')) return 'IV/a';
+        if (edu.includes('S1') || edu.includes('SARJANA')) return 'III/d';
+        return 'III/d'; // Default S1 per instruksi
+      }
+
+      // 5. Pelaksana (Berdasarkan Pendidikan)
+      if (edu.includes('S3') || edu.includes('DOKTOR')) return 'IV/b';
+      if (edu.includes('S2') || edu.includes('MAGISTER')) return 'IV/a';
+      if (edu.includes('S1') || edu.includes('SARJANA')) return 'III/d';
+      if (edu.includes('SMA') || edu.includes('SLTA')) return 'III/b';
+
+      return 'III/b'; // Default Pelaksana terendah
+    };
+
     return pegawaiList.filter(p => {
-      if (!p.tmtPangkat) return false;
+      if (!p.tmtPangkat || !p.golRuang) return false;
+      
+      // Hitung masa kerja sejak TMT Pangkat terakhir (Min 4 tahun, toleransi 3.5 tahun)
       const tmtParts = p.tmtPangkat.split('-');
       if (tmtParts.length !== 3) return false;
-      const tmt = new Date(parseInt(tmtParts[0]), parseInt(tmtParts[1])-1, parseInt(tmtParts[2]));
-      const diffYears = (now.getFullYear() - tmt.getFullYear());
-      return diffYears >= 3.5; // Mendekati 4 tahun
+      const tmtDate = new Date(parseInt(tmtParts[0]), parseInt(tmtParts[1]) - 1, parseInt(tmtParts[2]));
+      const diffYears = (now.getTime() - tmtDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      
+      if (diffYears < 3.5) return false;
+
+      // Cek Batas Pangkat Puncak (Ceiling)
+      const currentRankIdx = RANKS.indexOf(p.golRuang);
+      const ceilingRank = getCeiling(p);
+      const ceilingRankIdx = RANKS.indexOf(ceilingRank);
+
+      // Hanya muncul jika pangkat saat ini masih di bawah batas puncak
+      return currentRankIdx < ceilingRankIdx;
     });
   }, [pegawaiList]);
 
   const handleASNSelect = (nip: string) => {
     const p = pegawaiList.find(peg => peg.nip === nip);
     if (p) {
+      const RANKS = ['I/a', 'I/b', 'I/c', 'I/d', 'II/a', 'II/b', 'II/c', 'II/d', 'III/a', 'III/b', 'III/c', 'III/d', 'IV/a', 'IV/b', 'IV/c', 'IV/d', 'IV/e'];
+      const currentIdx = RANKS.indexOf(p.golRuang || 'III/a');
+      const nextRank = currentIdx !== -1 && currentIdx < RANKS.length - 1 ? RANKS[currentIdx + 1] : p.golRuang;
+      const nextPangkat = PANGKAT_MAP[nextRank || ''] || '-';
+
       setFormData({
         ...formData,
         nip: p.nip,
         namaPegawai: p.nama,
         dari: `${p.pangkat} (${p.golRuang})`,
+        menjadi: `${nextPangkat} (${nextRank})`,
+      });
+    }
+  };
+
+  const handlePjbSelect = (nip: string) => {
+    const p = pegawaiList.find(peg => peg.nip === nip);
+    if (p) {
+      setFormData({
+        ...formData,
+        pjbNip: p.nip,
+        pjbNama: p.nama,
+        pjbJabatan: p.jabatan
       });
     }
   };
@@ -79,7 +143,7 @@ const KenaikanPangkatPage = () => {
     setSyncing(true);
     const newRecord: KenaikanKarir = {
       ...formData as KenaikanKarir,
-      id: Date.now().toString()
+      id: formData.id || Date.now().toString()
     };
     
     try {
@@ -135,7 +199,7 @@ const KenaikanPangkatPage = () => {
         </div>
         <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100">
            <button onClick={() => setActiveView('list')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'list' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400'}`}>Daftar Usulan</button>
-           {canEdit && <button onClick={() => { setFormData({ jenisUsulan: 'REGULER', tmtUsulan: '01-04-2025', status: 'Proses' }); setActiveView('editor'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'editor' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400'}`}>Buat Usulan</button>}
+           {canEdit && <button onClick={() => { setFormData({ ...formData, id: undefined, jenisUsulan: 'REGULER', tmtUsulan: '01-04-2025', status: 'Proses' }); setActiveView('editor'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'editor' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400'}`}>Buat Usulan</button>}
         </div>
       </div>
 
@@ -146,14 +210,24 @@ const KenaikanPangkatPage = () => {
                  <h5 className="text-[11px] font-black text-blue-600 uppercase border-b pb-4 tracking-widest flex items-center gap-2">
                     <i className="bi bi-person-check-fill"></i> Kandidat Eligible (Reguler)
                  </h5>
+                 <p className="text-[9px] text-gray-400 font-bold uppercase mb-4 leading-relaxed">ASN yang telah mencapai 4 tahun masa pangkat dan belum mencapai pangkat puncak jabatan/pendidikan.</p>
                  <div className="mt-6 space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
                     {candidateList.map(p => (
                        <div key={p.nip} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 group hover:border-blue-200 transition-all">
                           <p className="text-[11px] font-black text-gray-900 uppercase truncate">{p.nama}</p>
-                          <p className="text-[8px] text-gray-400 font-bold mt-1 uppercase">TMT Terakhir: {p.tmtPangkat}</p>
+                          <div className="flex justify-between items-center mt-1">
+                             <p className="text-[8px] text-gray-400 font-bold uppercase">GOL: {p.golRuang}</p>
+                             <p className="text-[8px] text-blue-600 font-black uppercase">{p.pendidikan?.split(' ')[0]}</p>
+                          </div>
                           <button onClick={() => { handleASNSelect(p.nip); setActiveView('editor'); }} className="mt-3 w-full py-2 bg-white border border-gray-200 text-[9px] font-black uppercase rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">Proses Usul</button>
                        </div>
                     ))}
+                    {candidateList.length === 0 && !loading && (
+                      <div className="py-10 text-center opacity-40">
+                         <i className="bi bi-clipboard-x text-3xl mb-2"></i>
+                         <p className="text-[9px] font-black uppercase">Tidak ada kandidat reguler</p>
+                      </div>
+                    )}
                  </div>
               </div>
            </div>
@@ -204,7 +278,7 @@ const KenaikanPangkatPage = () => {
            </div>
 
            <div className="space-y-6">
-              <SearchableSelect label="Pilih Pegawai" options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.pangkat}`}))} value={formData.nip || ''} onChange={handleASNSelect} />
+              <SearchableSelect label="Pilih Pegawai" options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.pangkat} (${p.golRuang})`}))} value={formData.nip || ''} onChange={handleASNSelect} />
               <div className="grid grid-cols-2 gap-6">
                  <div className="space-y-1.5"><label className="text-[8px] font-black text-gray-500 uppercase ml-2">Pangkat/Gol Saat Ini</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border-2 rounded-xl text-xs font-black uppercase" value={formData.dari} readOnly /></div>
                  <div className="space-y-1.5"><label className="text-[8px] font-black text-gray-500 uppercase ml-2">Usul Pangkat/Gol Baru</label><input type="text" className="w-full px-5 py-3 bg-white border-2 border-blue-100 rounded-xl text-xs font-black uppercase focus:border-blue-600 outline-none" value={formData.menjadi} onChange={e => setFormData({...formData, menjadi: e.target.value})} placeholder="Contoh: Pembina (IV/a)" /></div>
@@ -219,6 +293,12 @@ const KenaikanPangkatPage = () => {
                        <option value="PILIHAN">Jabatan Struktural/Fungsional (Pilihan)</option>
                     </select>
                  </div>
+              </div>
+
+              <div className="pt-6 border-t">
+                 <h5 className="text-[10px] font-black text-gray-950 uppercase border-b pb-3 tracking-widest flex items-center gap-2 mb-4"><i className="bi bi-person-check-fill"></i> Data Penandatangan</h5>
+                 <SearchableSelect label="Pilih Pejabat Penandatangan" options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.jabatan}`}))} value={formData.pjbNip} onChange={handlePjbSelect} />
+                 <div className="space-y-1.5 mt-4"><label className="text-[8px] font-black text-gray-500 uppercase ml-2">Jabatan Penandatangan</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border-2 rounded-xl text-xs font-black uppercase" value={formData.pjbJabatan} onChange={e => setFormData({...formData, pjbJabatan: e.target.value})} /></div>
               </div>
            </div>
 
@@ -276,9 +356,9 @@ const KenaikanPangkatPage = () => {
 
                     <div className="mt-12 ml-[50%] flex flex-col items-start leading-tight">
                        <p>Jakarta, {new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
-                       <p className="font-bold uppercase mb-24 mt-2">Sekretaris Direktorat Jenderal,</p>
-                       <p className="font-bold uppercase underline leading-none">Andrieansjah</p>
-                       <p className="mt-1">NIP 197410061998031002</p>
+                       <p className="font-bold uppercase mb-24 mt-2">{record.pjbJabatan},</p>
+                       <p className="font-bold uppercase underline leading-none">{record.pjbNama}</p>
+                       <p className="mt-1">NIP {record.pjbNip}</p>
                     </div>
                  </div>
 

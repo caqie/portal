@@ -29,7 +29,7 @@ const PensiunPage = () => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<DPCPRecord | null>(null);
 
-  const [formData, setFormData] = useState<Partial<DPCPRecord>>({
+  const [formData, setFormData] = useState<any>({
     tglDibuat: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
     instansiInduk: 'DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL',
     provinsi: 'DKI JAKARTA',
@@ -37,7 +37,10 @@ const PensiunPage = () => {
     pembayaran: 'BANK MANDIRI / KPPN JAKARTA V',
     istriSuami: [{ nama: '', tglLahir: '', tglKawin: '', istriKe: '1' }],
     anak: [{ nama: '', tglLahir: '', status: 'KANDUNG', ayahIbu: '' }],
-    riwayatKepegawaian: { tmtCpns: '', masaKerjaTotal: '', pendidikanAwal: '' }
+    riwayatKepegawaian: { tmtCpns: '', masaKerjaTotal: '', pendidikanAwal: '' },
+    pjbNama: 'ANDRIEANSJAH',
+    pjbNip: '197410061998031002',
+    pjbJabatan: 'SEKRETARIS DIREKTORAT JENDERAL'
   } as any);
 
   useEffect(() => { loadInitialData(); }, []);
@@ -82,6 +85,18 @@ const PensiunPage = () => {
         provSekarang: 'DKI JAKARTA',
         istriSuami: formData.istriSuami || [{ nama: '', tglLahir: '', tglKawin: '', istriKe: '1' }],
         anak: formData.anak || [{ nama: '', tglLahir: '', status: 'KANDUNG', ayahIbu: '' }]
+      });
+    }
+  };
+
+  const handlePjbSelect = (nip: string) => {
+    const p = pegawaiList.find(peg => peg.nip === nip);
+    if (p) {
+      setFormData({
+        ...formData,
+        pjbNip: p.nip,
+        pjbNama: p.nama,
+        pjbJabatan: p.jabatan
       });
     }
   };
@@ -176,7 +191,7 @@ const PensiunPage = () => {
         </div>
         <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100">
            <button onClick={() => setActiveView('list')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'list' ? 'bg-rose-600 text-white shadow-lg' : 'text-gray-400'}`}>Monitoring</button>
-           {canEdit && <button onClick={() => { setFormData({tglDibuat: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), instansiInduk: 'DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL', provinsi: 'DKI JAKARTA', kabKota: 'JAKARTA SELATAN', pembayaran: 'BANK MANDIRI / KPPN JAKARTA V', istriSuami: [{ nama: '', tglLahir: '', tglKawin: '', istriKe: '1' }], anak: [{ nama: '', tglLahir: '', status: 'KANDUNG', ayahIbu: '' }] } as any); setActiveView('editor'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'editor' ? 'bg-rose-600 text-white shadow-lg' : 'text-gray-400'}`}>Input DPCP</button>}
+           {canEdit && <button onClick={() => { setFormData({ ...formData, id: undefined, tglDibuat: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) } as any); setActiveView('editor'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'editor' ? 'bg-rose-600 text-white shadow-lg' : 'text-gray-400'}`}>Input DPCP</button>}
         </div>
       </div>
 
@@ -285,6 +300,10 @@ const PensiunPage = () => {
                        <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Kab/Kota</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border-2 rounded-xl text-[11px] font-black uppercase" value={formData.kabKota} onChange={e => setFormData({...formData, kabKota: e.target.value})} /></div>
                        <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">BUP</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border-2 rounded-xl text-[11px] font-black uppercase" value={formData.bup} onChange={e => setFormData({...formData, bup: e.target.value})} /></div>
                     </div>
+
+                    <h5 className="text-[10px] font-black text-gray-950 uppercase border-b pb-3 tracking-widest flex items-center gap-2 mt-4"><i className="bi bi-person-check-fill"></i> Data Penandatangan</h5>
+                    <SearchableSelect label="Pilih Pejabat Penandatangan" options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.jabatan}`}))} value={formData.pjbNip} onChange={handlePjbSelect} />
+                    <div className="space-y-1.5 mt-4"><label className="text-[8px] font-black text-gray-500 uppercase ml-2">Jabatan Penandatangan (TND)</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border-2 rounded-xl text-xs font-black uppercase" value={formData.pjbJabatan} onChange={e => setFormData({...formData, pjbJabatan: e.target.value})} /></div>
                  </div>
 
                  <div className="space-y-8">
@@ -520,9 +539,9 @@ const PensiunPage = () => {
                       {/* SIGNATURES (LANDSCAPE OPTIMIZED SIDE BY SIDE) */}
                       <div className="grid grid-cols-2 gap-2 text-[8.5pt] text-center pt-2">
                          <div>
-                            <p className="font-bold text-[7pt] mb-10 uppercase">PEJABAT KEPEGAWAIAN</p>
-                            <p className="font-bold uppercase underline">ANDRIEANSJAH</p>
-                            <p className="text-[7pt]">NIP 197410061998031002</p>
+                            <p className="font-bold text-[7pt] mb-10 uppercase">{formData.pjbJabatan}</p>
+                            <p className="font-bold uppercase underline">{formData.pjbNama}</p>
+                            <p className="text-[7pt]">NIP {formData.pjbNip}</p>
                          </div>
                          <div>
                             <p className="text-[7pt] mb-1">{formData.tglDibuat}</p>

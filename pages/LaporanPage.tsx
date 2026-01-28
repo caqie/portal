@@ -1,158 +1,240 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Laporan, TugasRutin, Kegiatan, Pegawai } from '../types';
-import { BULAN, UNIT_KERJA, normalizeUnitName } from '../constants';
+import { BULAN, UNIT_KERJA, normalizeUnitName, DEFAULT_LOGO, TASK_LABELS } from '../constants';
 import { fetchPegawaiFromSheets, fetchTugasRutinFromSheets, fetchKegiatanFromSheets } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import SuccessModal from '../components/SuccessModal';
+import SearchableSelect from '../components/SearchableSelect';
 import * as XLSX from 'xlsx';
+// @ts-ignore
+import html2canvas from 'html2canvas';
+// @ts-ignore
+import { jsPDF } from 'jspdf';
 
 const LaporanPage = () => {
   const { logActivity } = useAuth();
-  const [laporanList, setLaporanList] = useState<Laporan[]>([]);
+  const pdfRef = useRef<HTMLDivElement>(null);
+  
+  const [pegawai, setPegawai] = useState<Pegawai[]>([]);
   const [tasks, setTasks] = useState<TugasRutin[]>([]);
   const [kegiatan, setKegiatan] = useState<Kegiatan[]>([]);
-  const [pegawai, setPegawai] = useState<Pegawai[]>([]);
-  const [activeTab, setActiveTab] = useState<'list' | 'generator'>('list');
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [laporanHistory, setLaporanHistory] = useState<Laporan[]>([]);
+  
+  const [activeTab, setActiveTab] = useState<'list' | 'generator'>('generator');
   const [loading, setLoading] = useState(false);
-  const [genMonth, setGenMonth] = useState(BULAN[new Date().getMonth()]);
-  const [genYear, setGenYear] = useState(new Date().getFullYear());
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Filter & Config State
+  const [selMonth, setSelMonth] = useState(BULAN[new Date().getMonth()]);
+  const [selYear, setSelYear] = useState(new Date().getFullYear());
+  
+  // Signatory State - Default ke Sekretaris
+  const [signatoryNip, setSignatoryNip] = useState('197410061998031002'); 
+  const [signatoryData, setSignatoryData] = useState({
+    nama: 'Andrieansjah',
+    jabatan: 'Sekretaris Direktorat Jenderal'
+  });
 
   useEffect(() => { loadAllData(); }, []);
 
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [tData, kData, pData] = await Promise.all([fetchTugasRutinFromSheets(), fetchKegiatanFromSheets(), fetchPegawaiFromSheets()]);
-      setTasks(tData || []);
-      setKegiatan(kData || []);
-      setPegawai(pData || []);
-      const saved = localStorage.getItem('portal_laporan_db');
-      if (saved) setLaporanList(JSON.parse(saved));
+      const [p, t, k] = await Promise.all([
+        fetchPegawaiFromSheets(),
+        fetchTugasRutinFromSheets(),
+        fetchKegiatanFromSheets()
+      ]);
+      setPegawai(p);
+      setTasks(t);
+      setKegiatan(k);
+      
+      const saved = localStorage.getItem('portal_laporan_history');
+      if (saved) setLaporanHistory(JSON.parse(saved));
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
-  const handleGenerate = () => {
+  const handleSignatoryChange = (nip: string) => {
+    const p = pegawai.find(x => x.nip === nip);
+    if (p) {
+      setSignatoryNip(nip);
+      setSignatoryData({
+        nama: p.nama,
+        jabatan: p.jabatan || 'Pejabat Terkait'
+      });
+    }
+  };
+
+  const reportData = useMemo(() => {
+    const analytics = UNIT_KERJA.map(unit => ({
+      unit,
+      total: pegawai.filter(p => normalizeUnitName(p.unitKerja) === unit).length,
+      pns: pegawai.filter(p => normalizeUnitName(p.unitKerja) === unit && p.jenisPegawai === 'PNS').length,
+      pppk: pegawai.filter(p => normalizeUnitName(p.unitKerja) === unit && p.jenisPegawai === 'PPPK').length
+    }));
+
+    const filteredTasks = tasks.filter(t => t.bulan === selMonth && Number(t.tahun) === selYear);
+    const filteredKegiatan = kegiatan.filter(k => {
+      if (!k.tanggal) return false;
+      const d = new Date(k.tanggal);
+      return BULAN[d.getMonth()] === selMonth && d.getFullYear() === selYear;
+    });
+
+    return { analytics, filteredTasks, filteredKegiatan };
+  }, [pegawai, tasks, kegiatan, selMonth, selYear]);
+
+  const handleDownloadPdf = async () => {
+    if (!pdfRef.current) return;
     setLoading(true);
-    setTimeout(() => {
-      const wb = XLSX.utils.book_new();
-      const analytics = UNIT_KERJA.map(u => ({ 'Unit Kerja': u, 'Total': pegawai.filter(p => normalizeUnitName(p.unitKerja) === u).length }));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(analytics), "Analytics SDM");
-      XLSX.writeFile(wb, `Laporan_SDM_${genMonth}_${genYear}.xlsx`);
-      
-      const newLaporan: Laporan = { id: Date.now().toString(), judul: `KONSOLIDASI ${genMonth.toUpperCase()} ${genYear}`, jenis: 'Bulanan', periode: genMonth, tahun: genYear, status: 'Approved', createdAt: new Date().toISOString() };
-      const updated = [newLaporan, ...laporanList];
-      setLaporanList(updated);
-      localStorage.setItem('portal_laporan_db', JSON.stringify(updated));
-      logActivity('DOWNLOAD', 'Laporan', `Generate ${newLaporan.judul}`);
-      setLoading(false);
-      setShowSuccess(true);
-    }, 1500);
+    const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
+    pdf.addImage(imgData, 'PNG', 0, 0, 210, 330);
+    pdf.save(`LAPORAN_BULANAN_${selMonth.toUpperCase()}_${selYear}.pdf`);
+    saveToHistory('PDF');
+    setLoading(false);
+  };
+
+  const saveToHistory = (format: string) => {
+    const newLap: Laporan = { id: Date.now().toString(), judul: `LAPORAN KONSOLIDASI ${selMonth.toUpperCase()} ${selYear}`, jenis: format, periode: selMonth, tahun: selYear, status: 'Generated', createdAt: new Date().toISOString() };
+    const updated = [newLap, ...laporanHistory].slice(0, 20);
+    setLaporanHistory(updated);
+    localStorage.setItem('portal_laporan_history', JSON.stringify(updated));
+    setShowSuccess(true);
   };
 
   return (
-    <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
-      <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} />
+    <div className="space-y-8 animate-fadeIn pb-24">
+      <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title="Dokumen Berhasil" />
       
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
         <div>
-          <h3 className="text-2xl md:text-4xl font-black text-gray-950 uppercase tracking-tighter leading-none">Arsip & Generator</h3>
-          <p className="text-[10px] md:text-[11px] text-gray-400 font-bold uppercase tracking-[0.3em] mt-3">Personnel Data Consolidation DJKI</p>
+          <h3 className="text-2xl md:text-4xl font-black text-gray-950 uppercase tracking-tighter leading-none">Konsolidasi Bulanan</h3>
+          <p className="text-[10px] md:text-[11px] text-gray-400 font-bold uppercase tracking-[0.3em] mt-3">Personnel Service Data Orchestrator</p>
         </div>
-        <div className="flex bg-white p-2 rounded-[1.8rem] shadow-sm border border-gray-100 w-full md:w-auto">
-            <button onClick={() => setActiveTab('list')} className={`flex-1 md:flex-none h-12 px-10 text-[11px] font-black uppercase rounded-2xl transition-all ${activeTab === 'list' ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20' : 'text-gray-400'}`}>Arsip Laporan</button>
-            <button onClick={() => setActiveTab('generator')} className={`flex-1 md:flex-none h-12 px-10 text-[11px] font-black uppercase rounded-2xl transition-all ${activeTab === 'generator' ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20' : 'text-gray-400'}`}>Buat Konsolidasi</button>
+        <div className="flex bg-white p-2 rounded-[1.8rem] shadow-sm border border-gray-100">
+            <button onClick={() => setActiveTab('generator')} className={`px-10 h-12 text-[11px] font-black uppercase rounded-2xl transition-all ${activeTab === 'generator' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-400'}`}>Generator</button>
+            <button onClick={() => setActiveTab('list')} className={`px-10 h-12 text-[11px] font-black uppercase rounded-2xl transition-all ${activeTab === 'list' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-400'}`}>Riwayat</button>
         </div>
       </div>
 
-      {activeTab === 'list' ? (
-        <div className="bg-white rounded-[3rem] md:rounded-[4rem] border border-gray-100 shadow-sm overflow-hidden min-h-[400px]">
-          {/* MOBILE LIST */}
-          <div className="grid grid-cols-1 md:hidden divide-y divide-gray-50">
-             {laporanList.map(l => (
-                <div key={l.id} className="p-8 flex flex-col gap-4">
-                   <div className="flex justify-between items-start">
-                      <span className="px-3 py-1 bg-emerald-600 text-white text-[8px] font-black rounded-lg uppercase tracking-widest shadow-md shadow-emerald-600/20">{l.status}</span>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{l.periode} {l.tahun}</p>
-                   </div>
-                   <h6 className="text-sm font-black text-gray-950 uppercase leading-snug">{l.judul}</h6>
-                   <button className="mt-2 w-full py-4 bg-gray-50 border border-gray-100 rounded-2xl text-[9px] font-black uppercase tracking-widest text-blue-600 active:bg-blue-50 transition-colors"><i className="bi bi-cloud-arrow-down-fill mr-3"></i> Download Excel</button>
-                </div>
-             ))}
-             {laporanList.length === 0 && <div className="py-32 text-center text-gray-300 text-[11px] font-black uppercase tracking-widest leading-relaxed">Belum ada arsip laporan<br/>yang tersimpan di cloud</div>}
-          </div>
+      {activeTab === 'generator' ? (
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+           <div className="xl:col-span-4 space-y-6">
+              <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm space-y-8">
+                 <h5 className="text-[11px] font-black text-blue-600 uppercase tracking-widest border-b pb-4">Konfigurasi Laporan</h5>
+                 
+                 <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Bulan</label>
+                          <select className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-[11px] font-black" value={selMonth} onChange={e => setSelMonth(e.target.value)}>{BULAN.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}</select>
+                       </div>
+                       <div className="space-y-1.5">
+                          <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Tahun</label>
+                          <input type="number" className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-[11px] font-black" value={selYear} onChange={e => setSelYear(parseInt(e.target.value))} />
+                       </div>
+                    </div>
 
-          {/* DESKTOP TABLE */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 border-b tracking-[0.2em]">
-                <tr><th className="px-12 py-8">Nama Laporan Konsolidasi</th><th className="px-6 py-8 text-center">Periode</th><th className="px-6 py-8 text-center">Verifikasi</th><th className="px-12 py-8 text-right">Opsi</th></tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 bg-white">
-                {laporanList.map(l => (
-                  <tr key={l.id} className="hover:bg-blue-50/5 group transition-colors">
-                    <td className="px-12 py-8"><div className="flex items-center gap-5"><div className="h-12 w-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 group-hover:bg-blue-600 group-hover:text-white transition-all"><i className="bi bi-file-earmark-spreadsheet text-2xl"></i></div><p className="text-sm font-black text-gray-950 uppercase">{l.judul}</p></div></td>
-                    <td className="px-6 py-8 text-center text-[11px] font-black text-gray-500 uppercase tracking-widest">{l.periode} {l.tahun}</td>
-                    <td className="px-6 py-8 text-center"><span className="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-[9px] font-black rounded-xl border border-emerald-100 uppercase tracking-widest">{l.status}</span></td>
-                    <td className="px-12 py-8 text-right">
-                       <button className="h-12 w-12 bg-gray-50 text-gray-400 rounded-2xl hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm"><i className="bi bi-cloud-arrow-down-fill text-xl"></i></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 animate-fadeIn">
-           <div className="lg:col-span-5 bg-white p-10 md:p-12 rounded-[3.5rem] border border-gray-100 shadow-sm space-y-10">
-              <div className="border-b pb-8">
-                <h5 className="text-[12px] font-black text-blue-600 uppercase tracking-[0.2em] flex items-center gap-4">
-                   <i className="bi bi-magic text-xl"></i> Smart Configurator
-                </h5>
-              </div>
-              <div className="space-y-6">
-                 <div className="space-y-3">
-                    <label className="text-[10px] font-black text-gray-400 uppercase ml-3 tracking-widest">Pilih Bulan</label>
-                    <select className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-[1.5rem] text-sm font-black outline-none focus:border-blue-600 transition-all" value={genMonth} onChange={e => setGenMonth(e.target.value)}>{BULAN.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}</select>
+                    <SearchableSelect 
+                      label="Penandatangan" 
+                      options={pegawai.map(p => ({ value: p.nip, label: p.nama, subLabel: p.jabatan }))} 
+                      value={signatoryNip} 
+                      onChange={handleSignatoryChange} 
+                    />
                  </div>
-                 <div className="space-y-3">
-                    <label className="text-[10px] font-black text-gray-400 uppercase ml-3 tracking-widest">Tentukan Tahun</label>
-                    <input type="number" className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-[1.5rem] text-sm font-black outline-none focus:border-blue-600 transition-all" value={genYear} onChange={e => setGenYear(parseInt(e.target.value))} />
-                 </div>
-                 <button onClick={handleGenerate} disabled={loading} className="w-full h-16 bg-blue-600 text-white rounded-[2rem] font-black text-[12px] uppercase tracking-[0.2em] shadow-2xl shadow-blue-600/30 active:scale-95 transition-all flex items-center justify-center gap-4">
-                    {loading ? <div className="h-6 w-6 border-3 border-white/20 border-t-white rounded-full animate-spin"></div> : <><i className="bi bi-file-earmark-arrow-down-fill text-xl"></i> Generate Digital Report</>}
+                 
+                 <button onClick={handleDownloadPdf} disabled={loading} className="w-full py-5 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-3">
+                    {loading ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>} Unduh PDF Resmi (F4)
                  </button>
               </div>
            </div>
-           
-           <div className="lg:col-span-7 bg-[#111827] p-10 md:p-16 rounded-[3.5rem] md:rounded-[4.5rem] text-white relative overflow-hidden shadow-2xl">
-              <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-600/10 rounded-full -mr-32 -mt-32 blur-[120px]"></div>
-              <div className="relative z-10">
-                <h5 className="text-2xl font-black uppercase tracking-tight">Dataset Analysis Summary</h5>
-                <p className="text-[10px] text-blue-400 font-bold uppercase mt-3 tracking-[0.3em]">Current Cloud Database State</p>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-8 mt-12">
-                   <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/10 backdrop-blur-sm group hover:bg-white/10 transition-all">
-                      <p className="text-[9px] font-black text-gray-500 uppercase mb-3 tracking-widest">Tugas Rutin Tercatat</p>
-                      <h4 className="text-5xl font-black text-blue-400 tracking-tighter">{tasks.filter(t=>t.bulan===genMonth).length}</h4>
-                      <p className="text-[8px] font-bold text-gray-500 mt-4 uppercase">Data periode {genMonth}</p>
-                   </div>
-                   <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/10 backdrop-blur-sm group hover:bg-white/10 transition-all">
-                      <p className="text-[9px] font-black text-gray-500 uppercase mb-3 tracking-widest">Agenda Kegiatan Terlaksana</p>
-                      <h4 className="text-5xl font-black text-emerald-400 tracking-tighter">{kegiatan.length}</h4>
-                      <p className="text-[8px] font-bold text-gray-500 mt-4 uppercase">Cumulative Database</p>
-                   </div>
-                </div>
-                
-                <div className="mt-12 p-8 bg-blue-600/10 border border-blue-500/20 rounded-[2.5rem]">
-                   <p className="text-[11px] font-bold text-blue-100 leading-relaxed italic uppercase tracking-wider">
-                      Laporan ini mencakup: Rekapitulasi perolehan Angka Kredit, Evaluasi Bulanan SKP, Ringkasan Logistik Tugas Rutin, dan Monitoring Agenda Kerja yang bersinkronisasi langsung dengan Google Sheets.
-                   </p>
-                </div>
+
+           <div className="xl:col-span-8 overflow-hidden">
+              <div className="bg-gray-200 py-10 rounded-[3.5rem] flex flex-col items-center overflow-x-auto custom-scrollbar">
+                 {/* WARNA TEKS DIBUAT HITAM PEKAT (#000000) UNTUK STANDAR KEDINASAN */}
+                 <div ref={pdfRef} className="bg-white shadow-2xl text-[#000000] font-arial p-[1.5cm_1.8cm] leading-tight" style={{ width: '210mm', minHeight: '330mm' }}>
+                    <div className="flex items-center border-b-[3pt] border-black pb-4 mb-8">
+                       <img src={DEFAULT_LOGO} className="h-20 w-auto mr-6" crossOrigin="anonymous" />
+                       <div className="text-center flex-1">
+                          <p className="text-[13pt] font-bold uppercase text-[#000000]">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                          <p className="text-[13pt] font-bold uppercase text-[#000000]">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                          <p className="text-[9pt] text-[#000000]">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
+                       </div>
+                    </div>
+
+                    <div className="text-center mb-8">
+                       <h1 className="text-[14pt] font-bold uppercase underline text-[#000000]">LAPORAN KONSOLIDASI DATA SDM</h1>
+                       <p className="text-[11pt] font-bold mt-1 uppercase text-[#000000]">PERIODE: {selMonth} {selYear}</p>
+                    </div>
+
+                    <div className="text-[10pt] space-y-10">
+                       <section>
+                          <p className="font-bold border-b border-black mb-3 pb-1 text-[#000000]">I. STATISTIK PEGAWAI PER UNIT KERJA</p>
+                          <table className="w-full border-collapse border border-black text-[9pt] text-[#000000]">
+                             <thead className="bg-gray-100">
+                                <tr className="text-center font-bold">
+                                   <th className="border border-black p-2">NO</th>
+                                   <th className="border border-black p-2 text-left">UNIT KERJA</th>
+                                   <th className="border border-black p-2">PNS</th>
+                                   <th className="border border-black p-2">PPPK</th>
+                                   <th className="border border-black p-2">TOTAL</th>
+                                </tr>
+                             </thead>
+                             <tbody>
+                                {reportData.analytics.map((a, i) => (
+                                   <tr key={i}>
+                                      <td className="border border-black p-2 text-center">{i+1}</td>
+                                      <td className="border border-black p-2 uppercase text-[8pt]">{a.unit}</td>
+                                      <td className="border border-black p-2 text-center">{a.pns}</td>
+                                      <td className="border border-black p-2 text-center">{a.pppk}</td>
+                                      <td className="border border-black p-2 text-center font-bold">{a.total}</td>
+                                   </tr>
+                                ))}
+                             </tbody>
+                          </table>
+                       </section>
+
+                       <section>
+                          <p className="font-bold border-b border-black mb-3 pb-1 text-[#000000]">II. LOG TUGAS RUTIN TERPENUHI</p>
+                          <table className="w-full border-collapse border border-black text-[9pt] text-[#000000]">
+                             <thead className="bg-gray-100 font-bold">
+                                <tr>
+                                   <th className="border border-black p-2 w-10 text-center">NO</th>
+                                   <th className="border border-black p-2 text-left">KATEGORI TUGAS</th>
+                                   <th className="border border-black p-2 text-left">RINGKASAN AKTIVITAS</th>
+                                </tr>
+                             </thead>
+                             <tbody>
+                                {reportData.filteredTasks.length > 0 ? reportData.filteredTasks.map((t, i) => (
+                                   <tr key={t.id}>
+                                      <td className="border border-black p-2 text-center">{i+1}</td>
+                                      <td className="border border-black p-2 font-bold uppercase">{TASK_LABELS[t.jenis]}</td>
+                                      <td className="border border-black p-2 italic">{t.detail || 'Terlaksana sesuai prosedur.'}</td>
+                                   </tr>
+                                )) : (
+                                   <tr><td colSpan={3} className="border border-black p-4 text-center italic text-gray-500">Tidak ada log data.</td></tr>
+                                )}
+                             </tbody>
+                          </table>
+                       </section>
+
+                       <div className="mt-20 ml-[55%] text-center text-[#000000]">
+                          <p>Jakarta, {new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
+                          <p className="font-bold mt-2 mb-28 uppercase text-[#000000]">{signatoryData.jabatan},</p>
+                          <p className="font-bold uppercase underline text-[#000000]">{signatoryData.nama}</p>
+                          <p className="text-[#000000]">NIP {signatoryNip}</p>
+                       </div>
+                    </div>
+                 </div>
               </div>
            </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm p-10 min-h-[500px] text-center opacity-40">
+           <i className="bi bi-clock-history text-6xl block mb-4"></i>
+           <p className="text-[11px] font-black uppercase tracking-widest">Fitur Riwayat akan muncul setelah dokumen di-generate</p>
         </div>
       )}
     </div>

@@ -56,7 +56,6 @@ const Dashboard = () => {
     });
   }, [pegawai]);
 
-  // --- ANALISA SEBARAN PEGAWAI PER UNIT KERJA ---
   const unitDistribution = useMemo(() => {
     return UNIT_KERJA.map(unit => {
       const perUnit = activePegawaiList.filter(p => normalizeUnitName(p.unitKerja) === unit);
@@ -71,7 +70,6 @@ const Dashboard = () => {
     }).sort((a, b) => b.total - a.total);
   }, [activePegawaiList]);
 
-  // --- MATRIKS NOMENKLATUR JABATAN (DENGAN FILTER JENIS) ---
   const matrixJabatan = useMemo(() => {
     let list = activePegawaiList;
     if (filterJenisMatrix !== 'Semua Jenis') {
@@ -95,7 +93,6 @@ const Dashboard = () => {
       .sort((a, b) => b.total - a.total);
   }, [activePegawaiList, filterUnit, filterJenisMatrix]);
 
-  // --- STATISTIK GENDER & PENDIDIKAN (LOGIKA REAL DARI SHEET) ---
   const genderStats = useMemo(() => ({
     pria: activePegawaiList.filter(p => p.gender === 'L').length,
     wanita: activePegawaiList.filter(p => p.gender === 'P').length
@@ -105,7 +102,6 @@ const Dashboard = () => {
     const eduMap: Record<string, number> = {};
     activePegawaiList.forEach(p => {
       let edu = 'LAINNYA';
-      // Mengambil data murni dari kolom pendidikan jika tersedia
       const pStr = (p.pendidikan || '').toUpperCase().trim();
       
       if (pStr.includes('S3') || pStr.includes('DOKTOR')) edu = 'S3 (DOKTOR)';
@@ -115,7 +111,7 @@ const Dashboard = () => {
       else if (pStr.includes('DIII') || pStr.includes('D3') || pStr.includes('D-III')) edu = 'D-III';
       else if (pStr.includes('SMA') || pStr.includes('SMK') || pStr.includes('SLTA')) edu = 'SMA / SEDERAJAT';
       else if (pStr.includes('SMP') || pStr.includes('SLTP')) edu = 'SMP / SEDERAJAT';
-      else if (pStr !== '') edu = pStr; // Jika ada teks tapi tidak masuk kategori di atas
+      else if (pStr !== '') edu = pStr;
       
       eduMap[edu] = (eduMap[edu] || 0) + 1;
     });
@@ -123,11 +119,8 @@ const Dashboard = () => {
       .sort((a, b) => b.count - a.count);
   }, [activePegawaiList]);
 
-  // --- DOWNLOAD ANALYTICS ---
   const handleDownloadAnalytics = () => {
     const wb = XLSX.utils.book_new();
-    
-    // Sheet 1: Sebaran Per Unit
     const unitWs = XLSX.utils.json_to_sheet(unitDistribution.map(u => ({
       'Unit Kerja': u.unit,
       'PNS': u.pns,
@@ -137,74 +130,89 @@ const Dashboard = () => {
       'Total ASN': u.total
     })));
     XLSX.utils.book_append_sheet(wb, unitWs, "Sebaran Unit");
-
-    // Sheet 2: Matriks Jabatan
     const jabWs = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({
       'Nomenklatur Jabatan': j.jabatan,
       'Jumlah Pegawai': j.total
     })));
     XLSX.utils.book_append_sheet(wb, jabWs, "Matriks Jabatan");
-
-    // Sheet 3: Statistik Tambahan
     const extraData = [
       { Kategori: 'Gender Laki-laki', Jumlah: genderStats.pria },
       { Kategori: 'Gender Perempuan', Jumlah: genderStats.wanita },
       ...educationStats.map(e => ({ Kategori: `Pendidikan ${e.label}`, Jumlah: e.count }))
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(extraData), "Statistik Pendukung");
-
     XLSX.writeFile(wb, `Analitik_SDM_DJKI_${new Date().getTime()}.xlsx`);
   };
 
   const reminders = useMemo(() => {
     const now = new Date();
+    const currentYear = now.getFullYear();
     const listKGB: any[] = [];
     const listPangkat: any[] = [];
     const listPensiun: any[] = [];
     const listSatya: any[] = [];
 
     activePegawaiList.forEach(p => {
-      // Logic Pensiun
+      // 1. PENSIUN (BUP) - HANYA TAHUN INI
       const ret = getRetirementDetails(p.nip, p.jabatan || '');
-      if (ret) {
-        const diffMonths = (ret.tmtPensiun.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30);
-        if (diffMonths > -1 && diffMonths <= 24) {
-          listPensiun.push({ nama: p.nama, nip: p.nip, tmt: ret.tmtPensiun.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), sisa: ret.sisaMasaKerja });
-        }
+      if (ret && ret.tmtPensiun.getFullYear() === currentYear) {
+        listPensiun.push({ 
+          nama: p.nama, 
+          nip: p.nip, 
+          tmt: ret.tmtPensiun.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), 
+          sisa: ret.sisaMasaKerja 
+        });
       }
-      // Logic KGB & Pangkat (berdasarkan TMT Pangkat Terakhir)
+
+      // 2. KGB & PANGKAT (DARI TMT TERAKHIR) - HANYA TAHUN INI
       if (p.tmtPangkat) {
-        const tmtParts = p.tmtPangkat.split('-');
+        const tmtParts = p.tmtPangkat.split('-'); // Format YYYY-MM-DD
         if (tmtParts.length === 3) {
-            const tmtDate = new Date(parseInt(tmtParts[0]), parseInt(tmtParts[1])-1, parseInt(tmtParts[2]));
-            const diffMonths = (now.getFullYear() - tmtDate.getFullYear()) * 12 + (now.getMonth() - tmtDate.getMonth());
+            const lastTmtYear = parseInt(tmtParts[0]);
+            const diffYears = currentYear - lastTmtYear;
             
-            // KGB setiap 2 tahun (24 bulan), notif muncul di bulan ke-22 atau ke-23
-            if (diffMonths > 0 && (diffMonths % 24 >= 22)) {
-                listKGB.push({ nama: p.nama, nip: p.nip, tmtTerakhir: p.tmtPangkat, keterangan: `KGB Berikutnya: ${24 - (diffMonths % 24)} bulan lagi` });
+            // KGB setiap kelipatan 2 tahun
+            if (diffYears > 0 && diffYears % 2 === 0) {
+                listKGB.push({ 
+                  nama: p.nama, 
+                  nip: p.nip, 
+                  tmtTerakhir: p.tmtPangkat, 
+                  keterangan: `Jadwal KGB Tahun ${currentYear}` 
+                });
             }
-            // Pangkat setiap 4 tahun (48 bulan), notif muncul di bulan ke-46 atau ke-47
-            if (diffMonths >= 46 && (diffMonths % 48 >= 46 || diffMonths % 48 === 0)) {
-                listPangkat.push({ nama: p.nama, nip: p.nip, tmtTerakhir: p.tmtPangkat, keterangan: `KP Berikutnya: ${48 - (diffMonths % 48)} bulan lagi` });
+            // Pangkat Reguler setiap kelipatan 4 tahun
+            if (diffYears > 0 && diffYears % 4 === 0) {
+                listPangkat.push({ 
+                  nama: p.nama, 
+                  nip: p.nip, 
+                  tmtTerakhir: p.tmtPangkat, 
+                  keterangan: `Jadwal KP Reguler Tahun ${currentYear}` 
+                });
             }
         }
       }
-      // Logic Satya Lencana (Berdasarkan NIP digit 9-12)
-      const cleanNip = p.nip.replace(/\s/g, '');
-      if (cleanNip.length >= 14) {
+
+      // 3. SATYA LENCANA (DARI NIP DIGIT 9-12) - HANYA TAHUN INI
+      const cleanNip = p.nip.replace(/\D/g, '');
+      if (cleanNip.length >= 12) {
         const cpnsYear = parseInt(cleanNip.substring(8, 12));
-        const diffYears = now.getFullYear() - cpnsYear;
-        if ([10, 20, 30].includes(diffYears)) {
-           listSatya.push({ nama: p.nama, nip: p.nip, tahun: diffYears, pengabdian: `${diffYears} Tahun` });
+        const workingYears = currentYear - cpnsYear;
+        if ([10, 20, 30].includes(workingYears)) {
+           listSatya.push({ 
+             nama: p.nama, 
+             nip: p.nip, 
+             tahun: workingYears, 
+             pengabdian: `Masa Kerja ${workingYears} Tahun` 
+           });
         }
       }
     });
+
     return { kgb: listKGB, pangkat: listPangkat, pensiun: listPensiun, satya: listSatya };
   }, [activePegawaiList]);
 
   return (
     <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
-      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h3 className="text-2xl md:text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">Intelligence Hub DJKI</h3>
@@ -228,7 +236,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* QUICK ANALYTICS CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatsCard title="Total ASN Aktif" value={activePegawaiList.length} icon="bi-people-fill" color="bg-blue-600" loading={loading} />
         <StatsCard title="Total PNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'PNS').length} icon="bi-person-vcard" color="bg-indigo-600" loading={loading} />
@@ -237,7 +244,6 @@ const Dashboard = () => {
         <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
       </div>
 
-      {/* TABEL SEBARAN PER UNIT KERJA */}
       <div className="bg-white p-8 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden">
          <div className="mb-10">
             <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Sebaran Pegawai Aktif per Unit Kerja</h4>
@@ -282,7 +288,6 @@ const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* STATISTIK GENDER & PENDIDIKAN */}
         <div className="space-y-8">
            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em] mb-6">Statistik Gender</h4>
@@ -314,7 +319,6 @@ const Dashboard = () => {
            </div>
         </div>
 
-        {/* MATRIKS SEBARAN JABATAN */}
         <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-full">
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
               <div>
@@ -360,7 +364,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* NOTIFICATION MODAL (AKTIF & TERHUBUNG DATA) */}
       {isNotifOpen && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-0 md:p-4">
            <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => setIsNotifOpen(false)}></div>
@@ -369,7 +372,7 @@ const Dashboard = () => {
                  <div className="flex items-center justify-between mb-8">
                     <div>
                        <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">Personnel Monitoring</h4>
-                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Daftar ASN yang Memerlukan Tindakan Administrasi</p>
+                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Daftar ASN yang Memerlukan Tindakan Administrasi Tahun {new Date().getFullYear()}</p>
                     </div>
                     <button onClick={() => setIsNotifOpen(false)} className="h-12 w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white rounded-2xl shadow-sm transition-all"><i className="bi bi-x-lg text-xl"></i></button>
                  </div>
@@ -430,7 +433,7 @@ const Dashboard = () => {
                  {(reminders[notifTab] || []).length === 0 && (
                     <div className="py-20 text-center opacity-40">
                        <i className="bi bi-shield-check text-6xl text-gray-300 block mb-6"></i>
-                       <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Tidak ada notifikasi aktif untuk kategori ini</p>
+                       <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Tidak ada notifikasi aktif tahun ini</p>
                     </div>
                  )}
               </div>

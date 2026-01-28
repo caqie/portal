@@ -1,7 +1,11 @@
 
 /**
- * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 3.8.0 - STABLE DELETE)
+ * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 4.2.1)
  * ----------------------------------------------------------------
+ * Fitur: 
+ * - SAVE: Update berdasarkan NIP (prioritas) atau ID. Jika tidak ada, tambah baris.
+ * - DELETE: Hapus baris berdasarkan kunci unik. Untuk modul non-pegawai tanpa ID, 
+ *   akan mengembalikan sukses agar frontend bisa melanjutkan pencatatan log.
  */
 
 var FOLDER_ID_DATABASE = "PASTE_YOUR_FOLDER_ID_HERE"; 
@@ -9,19 +13,17 @@ var FOLDER_ID_DATABASE = "PASTE_YOUR_FOLDER_ID_HERE";
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents) {
-      return createResponse({ success: false, message: "Request body tidak ditemukan." });
+      return createResponse({ success: false, message: "Request body kosong." });
     }
 
     var data = JSON.parse(e.postData.contents);
     var action = data.action; 
-    var moduleName = (data.module || "data").toString().toUpperCase();
+    var moduleName = (data.module || "DATA").toString().toUpperCase().trim();
     var payload = data.payload;
     var ssId = data.spreadsheetId; 
 
     var ss = getSpreadsheet(ssId);
-    if (!ss) {
-      return createResponse({ success: false, message: "Spreadsheet tidak terdeteksi." });
-    }
+    if (!ss) return createResponse({ success: false, message: "Spreadsheet tidak ditemukan." });
 
     if (action === 'UPLOAD') {
       return handleUpload(payload);
@@ -31,73 +33,131 @@ function doPost(e) {
       return handleDelete(ss, moduleName, payload);
     }
 
-    return createResponse({ success: false, message: "Aksi '" + action + "' tidak dikenali." });
+    return createResponse({ success: false, message: "Aksi tidak dikenali." });
   } catch (err) {
-    return createResponse({ success: false, message: "Fatal Error: " + err.toString() });
+    return createResponse({ success: false, message: "Server Error: " + err.toString() });
   }
 }
 
-function doGet(e) {
+function handleSave(ss, moduleName, payload) {
   try {
-    var ssId = e && e.parameter ? e.parameter.ssId : null;
-    var ss = getSpreadsheet(ssId);
-    if (!ss) return createResponse({ success: false, message: "Spreadsheet tidak ditemukan." });
+    var sheet = getOrCreateSheet(ss, moduleName, payload);
+    var range = sheet.getDataRange();
+    var data = range.getValues();
+    var headers = data[0];
+    
+    var keyIndex = -1;
+    var targetKey = String(payload.nip || payload.id || "").trim();
+    
+    for (var h = 0; h < headers.length; h++) {
+      var hName = headers[h].toString().toLowerCase().trim();
+      if (hName === 'nip' || hName === 'id') {
+        keyIndex = h;
+        if (hName === 'nip' && payload.nip) break;
+      }
+    }
 
-    var sheets = ss.getSheets();
-    var gidMap = {};
-    sheets.forEach(function(sh) {
-      gidMap[sh.getName().toLowerCase()] = sh.getSheetId().toString();
+    var rowData = headers.map(function(h) {
+      var headerClean = h.toString().toLowerCase().replace(/[\s_]/g, '');
+      var key = Object.keys(payload).find(function(k) {
+        return k.toLowerCase().replace(/[\s_]/g, '') === headerClean;
+      });
+      var val = key ? payload[key] : "";
+      return (typeof val === 'object') ? JSON.stringify(val) : val;
     });
 
-    return createResponse({ success: true, gidMap: gidMap });
+    if (keyIndex > -1 && targetKey !== "") {
+      for (var i = 1; i < data.length; i++) {
+        if (String(data[i][keyIndex]).trim() === targetKey) {
+          sheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
+          return createResponse({ success: true, message: "Data " + targetKey + " diperbarui." });
+        }
+      }
+    }
+
+    sheet.appendRow(rowData);
+    return createResponse({ success: true, message: "Data baru ditambahkan." });
+    
   } catch (e) {
-    return createResponse({ success: false, message: e.toString() });
+    return createResponse({ success: false, message: "Save Error: " + e.toString() });
+  }
+}
+
+function handleDelete(ss, moduleName, payload) {
+  try {
+    var sheet = findSheetByName(ss, moduleName);
+    if (!sheet) return createResponse({ success: false, message: "Sheet tidak ditemukan." });
+
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0];
+    var keyIndex = -1;
+    var searchKey = String(payload.nip || payload.id || "").trim();
+
+    for (var h = 0; h < headers.length; h++) {
+      var hName = headers[h].toString().toLowerCase().trim();
+      if (hName === 'nip' || hName === 'id') {
+        keyIndex = h;
+        if (hName === 'nip' && payload.nip) break;
+        if (hName === 'id' && payload.id) break;
+      }
+    }
+
+    // Perbaikan Sesuai Permintaan: 
+    // Jika non-pegawai dan ID kosong, anggap sukses agar log riwayat di frontend tetap jalan
+    if (searchKey === "") {
+      if (moduleName !== 'PEGAWAI' && moduleName !== 'USERS') {
+        return createResponse({ success: true, message: "Aksi dihapus secara lokal dan dicatat dalam log riwayat." });
+      }
+      return createResponse({ success: false, message: "Gagal: ID atau NIP diperlukan untuk modul ini." });
+    }
+
+    if (keyIndex === -1) {
+      return createResponse({ success: false, message: "Gagal: Kolom identitas (ID/NIP) tidak ditemukan di sheet." });
+    }
+
+    var deletedCount = 0;
+    for (var i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][keyIndex]).trim() === searchKey) {
+        sheet.deleteRow(i + 1);
+        deletedCount++;
+      }
+    }
+
+    return createResponse({ 
+      success: true, 
+      message: deletedCount > 0 ? "Berhasil menghapus data." : "Data tidak ditemukan di database, aksi dicatat di log." 
+    });
+  } catch (e) {
+    return createResponse({ success: false, message: "Delete Error: " + e.toString() });
   }
 }
 
 function getSpreadsheet(ssId) {
-  var ss = null;
   if (ssId && ssId !== "") {
-    try { ss = SpreadsheetApp.openById(ssId); } catch (e) {}
+    try { return SpreadsheetApp.openById(ssId); } catch(e) {}
   }
-  if (!ss) {
-    try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {}
-  }
-  return ss;
+  return SpreadsheetApp.getActiveSpreadsheet();
 }
 
 function createResponse(output) {
-  return ContentService.createTextOutput(JSON.stringify(output))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify(output)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function findSheetByName(ss, name) {
-  if (!ss || !name) return null;
   var sheets = ss.getSheets();
-  var targetNameClean = name.toString().toLowerCase().replace(/[\s_]/g, '');
-  
+  var search = name.toLowerCase().replace(/[\s_]/g, '');
   for (var i = 0; i < sheets.length; i++) {
-    var currentNameClean = sheets[i].getName().toLowerCase().replace(/[\s_]/g, '');
-    if (currentNameClean === targetNameClean) return sheets[i];
+    var sheetName = sheets[i].getName().toLowerCase().replace(/[\s_]/g, '');
+    if (sheetName === search) return sheets[i];
   }
   return null;
 }
 
 function getOrCreateSheet(ss, moduleName, payload) {
-  if (!ss) return null;
   var sheet = findSheetByName(ss, moduleName);
-
   if (!sheet) {
-    var name = moduleName.toUpperCase().replace(/[\s]/g, '_');
-    sheet = ss.insertSheet(name);
+    sheet = ss.insertSheet(moduleName.toUpperCase());
     var headers = Object.keys(payload);
-    var idKey = headers.find(function(k) { return k.toLowerCase() === 'id'; });
-    if (!idKey) {
-      headers.unshift('id');
-    } else {
-      headers = headers.filter(function(k) { return k.toLowerCase() !== 'id'; });
-      headers.unshift(idKey);
-    }
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
   }
@@ -114,83 +174,5 @@ function handleUpload(payload) {
     return createResponse({ success: true, fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId() });
   } catch (e) {
     return createResponse({ success: false, message: e.toString() });
-  }
-}
-
-function handleSave(ss, moduleName, payload) {
-  try {
-    var sheet = getOrCreateSheet(ss, moduleName, payload);
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var idIndex = headers.indexOf('id');
-    if (idIndex === -1) idIndex = headers.indexOf('ID');
-
-    var rowData = headers.map(function(h) {
-      var hClean = h.toString().toLowerCase().replace(/[\s_]/g, '');
-      var key = Object.keys(payload).find(function(k) { return k.toLowerCase().replace(/[\s_]/g, '') === hClean; });
-      if (key && (typeof payload[key] === 'object')) {
-        return JSON.stringify(payload[key]);
-      }
-      return key ? payload[key] : "";
-    });
-
-    if (idIndex > -1 && payload.id) {
-      var data = sheet.getDataRange().getValues();
-      var targetId = String(payload.id).trim();
-      for (var i = 1; i < data.length; i++) {
-        if (String(data[i][idIndex]).trim() === targetId) {
-          sheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
-          return createResponse({ success: true, message: "Data updated." });
-        }
-      }
-    }
-    sheet.appendRow(rowData);
-    return createResponse({ success: true, message: "Data added." });
-  } catch (e) {
-    return createResponse({ success: false, message: e.toString() });
-  }
-}
-
-function handleDelete(ss, moduleName, payload) {
-  try {
-    if (!payload || (!payload.id && !payload.nip)) {
-      return createResponse({ success: false, message: "ID atau NIP diperlukan untuk penghapusan." });
-    }
-    
-    var sheet = findSheetByName(ss, moduleName);
-    if (!sheet) return createResponse({ success: false, message: "Sheet '" + moduleName + "' tidak ditemukan." });
-
-    var data = sheet.getDataRange().getValues();
-    if (data.length < 2) return createResponse({ success: false, message: "Sheet kosong." });
-
-    var headers = data[0].map(function(h) { return h.toString().toLowerCase().trim(); });
-    var idIndex = headers.indexOf('id');
-    var nipIndex = headers.indexOf('nip');
-    
-    var targetId = String(payload.id || "").trim();
-    var targetNip = String(payload.nip || "").trim();
-
-    var deletedCount = 0;
-    // Loop mundur untuk menghindari pergeseran index saat baris dihapus
-    for (var i = data.length - 1; i >= 1; i--) {
-      var rowId = (idIndex > -1) ? String(data[i][idIndex]).trim() : "";
-      var rowNip = (nipIndex > -1) ? String(data[i][nipIndex]).trim() : "";
-      
-      var isMatch = false;
-      if (targetId !== "" && rowId === targetId) isMatch = true;
-      else if (targetNip !== "" && rowNip === targetNip) isMatch = true;
-
-      if (isMatch) {
-        sheet.deleteRow(i + 1);
-        deletedCount++;
-      }
-    }
-    
-    if (deletedCount > 0) {
-      return createResponse({ success: true, message: deletedCount + " data berhasil dihapus." });
-    }
-    
-    return createResponse({ success: false, message: "Data tidak ditemukan di Spreadsheet." });
-  } catch (e) {
-    return createResponse({ success: false, message: "System Error: " + e.toString() });
   }
 }

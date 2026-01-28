@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Pegawai, Dossier } from '../types';
 import { fetchPegawaiFromSheets, syncTableRemote, uploadFileToDrive, fetchDossiersFromSheets } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
-import { normalizeUnitName, UNIT_KERJA, resolveEducationInfo } from '../constants';
+import { normalizeUnitName, UNIT_KERJA, PANGKAT_MAP, DEFAULT_LOGO } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -19,664 +19,559 @@ const PegawaiPage = () => {
   const [dossierList, setDossierList] = useState<Dossier[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<string>('');
-  
   const [searchTerm, setSearchTerm] = useState('');
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
-  const [filterStatus, setFilterStatus] = useState('Semua Status');
-  const [filterJenis, setFilterJenis] = useState('Semua Jenis');
   
+  // Modal & Tab States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState<'biodata' | 'karir' | 'arsip'>('biodata');
+  const [detailTab, setDetailTab] = useState<'DATA_DIRI' | 'E_ARSIP'>('DATA_DIRI');
+  const [isDossierModalOpen, setIsDossierModalOpen] = useState(false);
+  
   const [selectedPegawai, setSelectedPegawai] = useState<Pegawai | null>(null);
   const [formData, setFormData] = useState<Partial<Pegawai>>({});
+  const [dossierFormData, setDossierFormData] = useState<Partial<Dossier>>({});
   
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const dossierInputRef = useRef<HTMLInputElement>(null);
-  const drhTemplateRef = useRef<HTMLDivElement>(null);
-
   const [showSuccess, setShowSuccess] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('Data berhasil diperbarui.');
+  const [successMsg, setSuccessMsg] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [pegawaiToDelete, setPegawaiToDelete] = useState<Pegawai | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dossierInputRef = useRef<HTMLInputElement>(null);
+  const drhRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [pData, dData] = await Promise.all([
-        fetchPegawaiFromSheets(),
-        fetchDossiersFromSheets()
-      ]);
+      const [pData, dData] = await Promise.all([fetchPegawaiFromSheets(), fetchDossiersFromSheets()]);
       setPegawaiList(pData);
       setDossierList(dData);
-      setLastSync(new Date().toLocaleTimeString('id-ID'));
-    } catch (error) {
-      console.error("Gagal memuat data", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleManualSync = async () => {
-    setSyncing(true);
-    await loadData();
-    logActivity('UPDATE', 'Pegawai', 'Melakukan sinkronisasi manual database pegawai');
-    setSyncing(false);
-    setSuccessMsg('Database pegawai telah disinkronkan dengan Google Sheets.');
-    setShowSuccess(true);
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
   const filteredPegawai = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
     return pegawaiList.filter(p => {
-      const matchesSearch = p.nama.toLowerCase().includes(searchTerm.toLowerCase()) || p.nip.includes(searchTerm);
-      const matchesUnit = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
-      const matchesStatus = filterStatus === 'Semua Status' || (p.status || 'Aktif') === filterStatus;
-      
-      let matchesJenis = true;
-      if (filterJenis !== 'Semua Jenis') {
-        if (filterJenis === 'PARUH') {
-           matchesJenis = (p.jenisPegawai || '').toUpperCase().includes('PARUH');
-        } else {
-           matchesJenis = (p.jenisPegawai || '').toUpperCase() === filterJenis.toUpperCase();
-        }
-      }
-
-      return matchesSearch && matchesUnit && matchesStatus && matchesJenis;
+      const searchStr = `${p.nama} ${p.nip} ${p.jabatan} ${p.golRuang} ${p.pangkat} ${p.jenisPegawai} ${p.unitKerja} ${p.nik}`.toLowerCase();
+      const match = searchStr.includes(term);
+      const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
+      return match && unitMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterStatus, filterJenis]);
+  }, [pegawaiList, searchTerm, filterUnit]);
 
-  const employeeDossiers = useMemo(() => {
-    if (!selectedPegawai) return [];
-    return dossierList.filter(d => d.nip === selectedPegawai.nip);
-  }, [selectedPegawai, dossierList]);
+  // FUNGSI DOWNLOAD EXCEL (SHARE & FULL DATA)
+  const downloadExcel = (type: 'FULL' | 'SHARE') => {
+    const wb = XLSX.utils.book_new();
+    let dataToExport = [];
 
-  const handleOpenDetail = (p: Pegawai) => {
-    setSelectedPegawai(p);
-    setDetailTab('biodata');
-    setIsDetailOpen(true);
-  };
-
-  const handleEdit = (p: Pegawai) => {
-    setSelectedPegawai(p);
-    setFormData({ ...p });
-    setIsModalOpen(true);
-  };
-
-  const handleAddNew = () => {
-    setSelectedPegawai(null);
-    setFormData({ 
-      status: 'Aktif', 
-      jenisPegawai: 'PNS', 
-      gender: 'L', 
-      agama: 'Islam',
-      unitKerja: UNIT_KERJA[0]
-    });
-    setIsModalOpen(true);
-  };
-
-  const autoDetectEducation = (source: string) => {
-    const info = resolveEducationInfo(source);
-    if (info) {
-        setFormData(prev => ({
-            ...prev,
-            pendidikan: info.display
-        }));
+    if (type === 'SHARE') {
+      dataToExport = filteredPegawai.map(p => ({
+        'NIP': p.nip,
+        'Nama Lengkap': p.nama,
+        'Jenis Pegawai': p.jenisPegawai || '-',
+        'Jabatan': p.jabatan,
+        'Unit Kerja': p.unitKerja,
+        'Gol Ruang': p.golRuang || '-',
+        'Pangkat': p.pangkat || '-',
+        'Status': p.status
+      }));
+    } else {
+      dataToExport = filteredPegawai.map(p => ({
+        'NIP': p.nip,
+        'NIK': p.nik || '-',
+        'Nama Lengkap': p.nama,
+        'Gelar': p.gelar || '',
+        'Jabatan': p.jabatan,
+        'Sub Bagian': p.subBagian || '-',
+        'Bagian': p.bagian || '-',
+        'Unit Kerja': p.unitKerja,
+        'Klasifikasi Jabatan': p.klasifikasiJabatan || '-',
+        'Eselon': p.eselon || '-',
+        'Gol Ruang': p.golRuang || '-',
+        'Pangkat': p.pangkat || '-',
+        'TMT Pangkat': p.tmtPangkat || '',
+        'TMT Jabatan': p.tmtJabatan || '',
+        'TMT Status': p.tmtStatus || '',
+        'Jenis Pegawai': p.jenisPegawai || '-',
+        'Pendidikan': p.pendidikan || '',
+        'Jurusan': p.jurusan || '-',
+        'Gender': p.gender === 'L' ? 'Laki-laki' : 'Perempuan',
+        'Agama': p.agama || '',
+        'Tempat Lahir': p.tempatLahir || '',
+        'Tgl Lahir': p.tanggalLahir || '',
+        'Telepon': p.telepon || '',
+        'Alamat': p.alamat || '',
+        'Masa Kerja': p.masaKerja || '-',
+        'Status ASN': p.status
+      }));
     }
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    XLSX.utils.book_append_sheet(wb, ws, "Database Pegawai");
+    XLSX.writeFile(wb, `Data_Pegawai_${type}_${Date.now()}.xlsx`);
+    logActivity('DOWNLOAD', 'Pegawai', `Download Excel ${type}`);
+  };
+
+  const handleCetakDRH = async () => {
+    if (!drhRef.current) return;
+    setSyncing(true);
+    const canvas = await html2canvas(drhRef.current, { scale: 2.5, useCORS: true });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
+    pdf.addImage(imgData, 'PNG', 0, 0, 210, 330);
+    pdf.save(`DRH_${selectedPegawai?.nama.replace(/\s+/g, '_')}.pdf`);
+    logActivity('DOWNLOAD', 'Pegawai', `Cetak DRH: ${selectedPegawai?.nama}`);
+    setSyncing(false);
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedPegawai) return;
-
-    setUploadingFile(true);
+    if (!file) return;
+    setSyncing(true);
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
-      const res = await uploadFileToDrive(`FOTO_${selectedPegawai.nip}`, file.type, base64);
+      const res = await uploadFileToDrive(`FOTO_${formData.nip || 'NEW'}_${Date.now()}`, file.type, base64);
       if (res.success && res.fileUrl) {
-        const updatedPegawai = { ...selectedPegawai, foto: res.fileUrl };
-        await syncTableRemote('PEGAWAI', 'SAVE', updatedPegawai);
-        setSelectedPegawai(updatedPegawai);
-        loadData();
-        setSuccessMsg('Foto profil berhasil diperbarui.');
-        setShowSuccess(true);
-      }
-      setUploadingFile(false);
+        setFormData(prev => ({ ...prev, foto: res.fileUrl }));
+      } else { alert("Gagal unggah foto."); }
+      setSyncing(false);
     };
     reader.readAsDataURL(file);
   };
 
   const handleDossierUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedPegawai) return;
-
-    setUploadingFile(true);
+    if (!file || file.type !== 'application/pdf' || file.size > 1024 * 1024) {
+      alert("Hanya PDF maksimal 1MB.");
+      return;
+    }
+    setSyncing(true);
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
-      const res = await uploadFileToDrive(`ARSIP_${selectedPegawai.nip}_${Date.now()}`, file.type, base64);
+      const res = await uploadFileToDrive(`DOC_${selectedPegawai?.nip}_${Date.now()}`, file.type, base64);
       if (res.success && res.fileUrl) {
-        const newDossier: Dossier = {
+        const payload: Dossier = {
           id: Date.now().toString(),
-          nip: selectedPegawai.nip,
-          namaPegawai: selectedPegawai.nama,
+          nip: selectedPegawai?.nip || '',
+          namaPegawai: selectedPegawai?.nama || '',
           tanggal: new Date().toISOString().split('T')[0],
-          fileName: file.name,
-          fileUrl: res.fileUrl,
-          keterangan: 'Upload via Portal Profil'
+          fileName: dossierFormData.fileName || file.name,
+          keterangan: dossierFormData.keterangan || 'Diunggah via E-Arsip',
+          fileUrl: res.fileUrl
         };
-        await syncTableRemote('DOSSIER', 'SAVE', newDossier);
-        loadData();
-        setSuccessMsg('Dokumen berhasil ditambahkan ke arsip.');
-        setShowSuccess(true);
+        const ok = await syncTableRemote('DOSSIER', 'SAVE', payload);
+        if (ok) {
+          setSuccessMsg("Dokumen berhasil diarsipkan.");
+          setShowSuccess(true);
+          setIsDossierModalOpen(false);
+          loadData();
+        }
       }
-      setUploadingFile(false);
+      setSyncing(false);
     };
     reader.readAsDataURL(file);
   };
 
-  const handlePrintDRH = async () => {
-    if (!drhTemplateRef.current) return;
+  const handleDelete = async () => {
+    if (!pegawaiToDelete) return;
     setSyncing(true);
-    try {
-      const canvas = await html2canvas(drhTemplateRef.current, { scale: 2, useCORS: true });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`DRH_${selectedPegawai?.nama.replace(/\s+/g, '_')}.pdf`);
-      logActivity('DOWNLOAD', 'Pegawai', `Cetak DRH: ${selectedPegawai?.nama}`);
-    } catch (e) {
-      alert("Gagal mencetak DRH");
-    } finally {
-      setSyncing(false);
+    const ok = await syncTableRemote('PEGAWAI', 'DELETE', { nip: pegawaiToDelete.nip });
+    if (ok) {
+      setPegawaiList(prev => prev.filter(p => p.nip !== pegawaiToDelete.nip));
+      setSuccessMsg("Data dihapus.");
+      setShowSuccess(true);
     }
+    setIsConfirmOpen(false);
+    setSyncing(false);
+    setPegawaiToDelete(null);
   };
 
-  const exportToExcel = (mode: 'SHARE' | 'FULL') => {
-    let exportData: any[];
-    if (mode === 'SHARE') {
-      exportData = filteredPegawai.map(p => ({
-        'NIP': p.nip,
-        'Nama Lengkap': p.nama,
-        'Gelar': p.gelar || '',
-        'Jabatan': p.jabatan,
-        'Unit Kerja': normalizeUnitName(p.unitKerja),
-        'Jenis ASN': p.jenisPegawai,
-        'Pangkat/Gol': `${p.pangkat || '-'} (${p.golRuang || '-'})`,
-        'Status': p.status || 'Aktif'
-      }));
-    } else {
-      exportData = filteredPegawai.map(p => ({ ...p }));
-    }
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Database Pegawai");
-    XLSX.writeFile(wb, `Data_Pegawai_${mode}_${Date.now()}.xlsx`);
-  };
+  const inputClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all";
+  const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";
 
   return (
-    <div className="space-y-6 md:space-y-10 animate-fadeIn pb-24">
+    <div className="space-y-8 animate-fadeIn pb-24">
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} message={successMsg} />
       <ConfirmationModal 
         isOpen={isConfirmOpen} 
-        onClose={() => setIsConfirmOpen(false)} 
-        onConfirm={async () => {
-          if (!pegawaiToDelete) return;
-          setSyncing(true);
-          await syncTableRemote('PEGAWAI', 'DELETE', { nip: pegawaiToDelete.nip });
-          loadData();
-          setIsConfirmOpen(false);
-          setSyncing(false);
-        }} 
-        message={`Hapus data ${pegawaiToDelete?.nama}?`}
+        onClose={() => !syncing && setIsConfirmOpen(false)} 
+        onConfirm={handleDelete} 
+        loading={syncing}
+        message={`Hapus ${pegawaiToDelete?.nama} secara permanen?`}
       />
 
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
-          <h3 className="text-2xl md:text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">Database Kepegawaian</h3>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-3 flex items-center gap-3">
-            <span className="flex items-center gap-1.5"><i className="bi bi-circle-fill text-emerald-500 text-[6px]"></i> Last Sync: {lastSync || '--:--'}</span>
-            <span className="text-gray-200">|</span>
-            <span className="flex items-center gap-1.5"><i className="bi bi-people-fill text-blue-600"></i> Total {pegawaiList.length} ASN</span>
-          </p>
+          <h3 className="text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">Database Kepegawaian</h3>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-3">Smart HR Management DJKI</p>
         </div>
-        <div className="flex flex-wrap gap-3 w-full lg:w-auto">
-           <button 
-             onClick={handleManualSync} 
-             disabled={loading || syncing}
-             className="h-12 w-12 flex items-center justify-center bg-white border border-gray-100 text-blue-600 rounded-2xl shadow-sm hover:bg-blue-50 transition-all active:scale-95"
-             title="Sinkronkan Ulang Cloud"
-           >
-              <i className={`bi bi-arrow-clockwise text-xl ${(loading || syncing) ? 'animate-spin' : ''}`}></i>
+        <div className="flex flex-wrap gap-2">
+           {/* BUTTON DOWNLOAD RESTORED */}
+           <button onClick={() => downloadExcel('SHARE')} className="h-14 px-6 bg-white text-gray-600 border border-gray-200 rounded-2xl font-black text-[9px] uppercase tracking-widest hover:bg-gray-50 flex items-center gap-2 transition-all shadow-sm">
+              <i className="bi bi-share"></i> Share Excel
            </button>
-           <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm flex-1 md:flex-none">
-              <button onClick={() => exportToExcel('SHARE')} className="flex-1 px-4 py-2.5 text-[9px] font-black uppercase text-gray-500 hover:bg-gray-50 rounded-xl transition-all">Ringkas</button>
-              <button onClick={() => exportToExcel('FULL')} className="flex-1 px-4 py-2.5 text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 rounded-xl shadow-inner">Full Excel</button>
-           </div>
+           <button onClick={() => downloadExcel('FULL')} className="h-14 px-6 bg-emerald-600 text-white rounded-2xl font-black text-[9px] uppercase tracking-widest hover:bg-emerald-700 shadow-xl flex items-center gap-2 transition-all">
+              <i className="bi bi-file-earmark-spreadsheet-fill"></i> Download Full Data
+           </button>
+           
            {canEdit && (
-             <button onClick={handleAddNew} className="flex-1 lg:flex-none h-12 px-8 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-blue-600 transition-all">+ Register ASN</button>
+             <button onClick={() => { setSelectedPegawai(null); setFormData({status: 'Aktif', jenisPegawai: 'PNS', gender: 'L'}); setIsModalOpen(true); }} className="h-14 px-10 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">
+               + Registrasi Pegawai
+             </button>
            )}
         </div>
       </div>
 
-      <div className="bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm space-y-4">
-        <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-[2]">
-              <i className="bi bi-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
-              <input 
-                type="text" 
-                placeholder="Cari NIP atau Nama..." 
-                className="w-full pl-12 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-xs font-black outline-none focus:border-blue-600 focus:bg-white transition-all shadow-inner"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-2 md:flex flex-[3] gap-3">
-                <select className="px-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[10px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all flex-1" value={filterJenis} onChange={e => setFilterJenis(e.target.value)}>
-                    <option value="Semua Jenis">SEMUA JENIS ASN</option>
-                    <option value="PNS">PNS</option>
-                    <option value="CPNS">CPNS</option>
-                    <option value="PPPK">PPPK</option>
-                    <option value="PARUH">PARUH WAKTU</option>
-                </select>
-                <select className="px-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[10px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all flex-1" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
-                    <option>Semua Unit</option>
-                    {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase().substring(0, 20)}...</option>)}
-                </select>
-                <select className="px-4 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[10px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all flex-1" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                    <option>Semua Status</option>
-                    <option>Aktif</option><option>Cuti</option><option>Tugas Belajar</option><option>Pensiun</option>
-                </select>
-            </div>
+      {/* FILTER */}
+      <div className="bg-white p-6 rounded-[3rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1">
+          <i className="bi bi-search absolute left-6 top-1/2 -translate-y-1/2 text-gray-400"></i>
+          <input type="text" placeholder="Cari Nama, NIP, NIK..." className="w-full pl-14 pr-8 py-4.5 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-xs font-black uppercase outline-none focus:border-blue-600 transition-all shadow-inner" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
+        <select className="px-8 py-4.5 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
+            <option>Semua Unit</option>
+            {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase().substring(0, 30)}...</option>)}
+        </select>
       </div>
 
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 md:hidden">
-            {loading ? Array(5).fill(0).map((_,i) => <div key={i} className="h-32 bg-white rounded-[2rem] animate-pulse"></div>) : filteredPegawai.map(p => (
-                <div key={p.id} className="bg-white p-5 rounded-[2.5rem] border border-gray-100 shadow-sm flex items-center gap-4 active:scale-95 transition-all" onClick={() => handleOpenDetail(p)}>
-                    <div className="h-16 w-16 rounded-2xl bg-gray-100 overflow-hidden shadow-sm flex-shrink-0">
-                        {p.foto ? <img src={p.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center font-black text-blue-600 text-xl">{p.nama.charAt(0)}</div>}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-black text-gray-900 uppercase truncate">{p.nama}</p>
-                        <p className="text-[9px] font-mono text-blue-600 font-bold mt-1">NIP. {p.nip}</p>
-                        <p className="text-[8px] font-bold text-gray-400 uppercase mt-1 truncate">{p.jabatan}</p>
-                    </div>
-                    <i className="bi bi-chevron-right text-gray-300"></i>
-                </div>
-            ))}
-        </div>
-
-        <div className="hidden md:block bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-            <table className="w-full text-left">
-                <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-[0.2em]">
-                <tr>
-                    <th className="px-10 py-6">Identitas Pegawai</th>
-                    <th className="px-4 py-6">Jabatan & Unit</th>
-                    <th className="px-4 py-6 text-center">Jenis ASN</th>
-                    <th className="px-4 py-6 text-center">Status</th>
-                    <th className="px-10 py-6 text-right">Aksi</th>
-                </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                {loading ? (
-                    <tr><td colSpan={5} className="py-32 text-center text-gray-300 font-black uppercase text-[10px] tracking-widest animate-pulse">Menghubungkan ke Cloud...</td></tr>
-                ) : filteredPegawai.map(p => (
-                    <tr key={p.id} className="group hover:bg-blue-50/5 transition-all">
-                    <td className="px-10 py-6">
-                        <div className="flex items-center gap-5">
-                        <div className="h-14 w-14 rounded-2xl bg-gray-100 overflow-hidden shadow-sm border-2 border-white ring-1 ring-gray-100 flex-shrink-0">
-                            {p.foto ? <img src={p.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black text-xl bg-blue-50">{p.nama.charAt(0)}</div>}
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-[12px] font-black text-gray-950 uppercase truncate max-w-[200px]">{p.nama}{p.gelar ? `, ${p.gelar}` : ''}</p>
-                            <p className="text-[9px] font-mono text-blue-600 font-bold mt-1">NIP. {p.nip}</p>
-                        </div>
-                        </div>
-                    </td>
-                    <td className="px-4 py-6">
-                        <p className="text-[10px] font-black text-gray-700 uppercase line-clamp-1">{p.jabatan}</p>
-                        <p className="text-[9px] font-bold text-gray-400 uppercase mt-1 tracking-tighter">{normalizeUnitName(p.unitKerja)}</p>
-                    </td>
-                    <td className="px-4 py-6 text-center">
-                        <span className={`px-2.5 py-1 text-[8px] font-black uppercase rounded-lg border ${(p.jenisPegawai||'').toUpperCase().includes('PARUH') ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>{p.jenisPegawai}</span>
-                    </td>
-                    <td className="px-4 py-6 text-center">
-                        <span className={`px-3 py-1 text-[8px] font-black uppercase rounded-lg border ${p.status==='Aktif'?'bg-emerald-50 text-emerald-600 border-emerald-100':'bg-gray-50 text-gray-400'}`}>{p.status||'Aktif'}</span>
-                    </td>
-                    <td className="px-10 py-6 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                        <button onClick={() => handleOpenDetail(p)} className="h-10 w-10 flex items-center justify-center bg-blue-50 text-blue-600 border border-blue-100 rounded-xl shadow-sm hover:bg-blue-600 hover:text-white transition-all"><i className="bi bi-person-badge text-lg"></i></button>
-                        {canEdit && (
-                            <>
-                            <button onClick={() => handleEdit(p)} className="h-10 w-10 flex items-center justify-center bg-amber-50 text-amber-600 border border-amber-100 rounded-xl shadow-sm hover:bg-amber-600 hover:text-white transition-all"><i className="bi bi-pencil-square text-lg"></i></button>
-                            {isSuperadmin && (
-                                <button onClick={() => { setPegawaiToDelete(p); setIsConfirmOpen(true); }} className="h-10 w-10 flex items-center justify-center bg-rose-50 text-rose-600 border border-rose-100 rounded-xl shadow-sm hover:bg-rose-600 hover:text-white transition-all"><i className="bi bi-trash text-lg"></i></button>
-                            )}
-                            </>
-                        )}
-                        </div>
-                    </td>
-                    </tr>
-                ))}
-                </tbody>
-            </table>
-            </div>
-        </div>
+      {/* GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {loading ? Array(6).fill(0).map((_,i) => <div key={i} className="h-44 bg-white rounded-[3rem] animate-pulse"></div>) : 
+         filteredPegawai.map(p => (
+           <div key={p.nip} onClick={() => { setSelectedPegawai(p); setDetailTab('DATA_DIRI'); setIsDetailOpen(true); }} className="bg-white p-7 rounded-[3rem] border border-gray-100 shadow-sm group hover:shadow-2xl transition-all cursor-pointer relative overflow-hidden">
+              <div className="flex items-center gap-6">
+                 <div className="h-20 w-20 rounded-[1.8rem] bg-blue-50 overflow-hidden border-4 border-white shadow-xl group-hover:scale-105 transition-transform">
+                    {p.foto ? <img src={p.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black text-3xl">{p.nama.charAt(0)}</div>}
+                 </div>
+                 <div className="min-w-0 flex-1">
+                    <h4 className="text-[13px] font-black text-gray-950 uppercase truncate leading-tight">{p.nama}</h4>
+                    <p className="text-[9px] font-mono text-gray-400 mt-1">NIP. {p.nip}</p>
+                    <p className="text-[8px] font-bold text-blue-600 uppercase mt-2 tracking-widest truncate">{p.jabatan}</p>
+                 </div>
+              </div>
+           </div>
+         ))
+        }
       </div>
 
-      {/* DETAIL MODAL - IMPROVED DESIGN & FLEXIBLE SIZE */}
+      {/* DETAIL MODAL (TABBED) */}
       {isDetailOpen && selectedPegawai && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-0 md:p-6 lg:p-12">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-0 md:p-10">
            <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => setIsDetailOpen(false)}></div>
-           <div className="relative bg-white w-full max-w-7xl md:rounded-[4rem] shadow-2xl overflow-hidden animate-modalEnter flex flex-col h-full md:max-h-[90vh] border border-white/20">
+           <div className="relative bg-white w-full max-w-7xl md:rounded-[4rem] shadow-2xl overflow-hidden animate-modalEnter flex flex-col h-full md:max-h-[92vh]">
               
-              <div className="flex flex-col lg:flex-row h-full overflow-hidden">
-                 {/* Sidebar / Profile Panel */}
-                 <div className="lg:w-96 bg-gray-50/80 border-r border-gray-100 p-8 md:p-12 flex flex-col items-center shrink-0">
-                    <div className="relative group">
-                       <div className="h-44 w-44 rounded-[3.5rem] bg-white shadow-2xl p-2 border-4 border-white ring-1 ring-gray-200 overflow-hidden relative">
-                          {selectedPegawai.foto ? (
-                             <img src={selectedPegawai.foto} className="h-full w-full object-cover rounded-[3rem]" alt={selectedPegawai.nama} />
-                          ) : (
-                             <div className="h-full w-full flex items-center justify-center text-5xl font-black text-blue-600 bg-blue-50 rounded-[3rem]">{selectedPegawai.nama.charAt(0)}</div>
-                          )}
-                       </div>
-                       {canEdit && (
-                          <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-2 -right-2 h-14 w-14 bg-blue-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-xl border-4 border-white hover:scale-110 active:scale-95 transition-all">
-                             <i className={`bi ${uploadingFile ? 'animate-spin bi-arrow-repeat' : 'bi-camera-fill'} text-xl`}></i>
-                          </button>
-                       )}
-                       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+              {/* Top Navigation Tabs */}
+              <div className="bg-gray-50/50 border-b flex justify-between items-center px-10 md:px-14 shrink-0 overflow-x-auto no-scrollbar">
+                 <div className="flex">
+                    {[
+                      {id: 'DATA_DIRI', label: 'Profil & Data Diri', icon: 'bi-person-badge'},
+                      {id: 'E_ARSIP', label: 'E-Arsip Digital', icon: 'bi-folder2-open'}
+                    ].map(t => (
+                      <button key={t.id} onClick={() => setDetailTab(t.id as any)} className={`px-8 py-6 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all border-b-4 ${detailTab === t.id ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-gray-400'}`}>
+                         <i className={`bi ${t.icon} text-lg`}></i> {t.label}
+                      </button>
+                    ))}
+                 </div>
+                 <button onClick={() => setIsDetailOpen(false)} className="h-10 w-10 text-gray-400 hover:text-rose-500"><i className="bi bi-x-lg text-xl"></i></button>
+              </div>
+
+              <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+                 {/* Sidebar Mini */}
+                 <div className="md:w-[320px] bg-gray-50/30 border-r p-8 flex flex-col items-center shrink-0 overflow-y-auto no-scrollbar">
+                    <div className="h-40 w-40 rounded-[3rem] bg-white border-8 border-white shadow-xl overflow-hidden mb-6">
+                       {selectedPegawai.foto ? <img src={selectedPegawai.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-5xl font-black text-blue-600 bg-blue-50">{selectedPegawai.nama.charAt(0)}</div>}
                     </div>
-                    
-                    <div className="text-center mt-8 space-y-3 w-full px-4">
-                       <h4 className="text-2xl font-black text-gray-950 uppercase leading-tight tracking-tighter">
-                          {selectedPegawai.nama}{selectedPegawai.gelar ? `, ${selectedPegawai.gelar}` : ''}
-                       </h4>
-                       <div className="flex flex-col items-center gap-1.5">
-                          <p className="text-[11px] font-mono font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">NIP. {selectedPegawai.nip}</p>
-                          <span className={`mt-2 px-4 py-1 rounded-full text-[9px] font-black uppercase border ${selectedPegawai.status === 'Aktif' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-gray-100 text-gray-400'}`}>
-                            {selectedPegawai.status || 'Aktif'}
-                          </span>
-                       </div>
+                    <div className="text-center space-y-2">
+                       <h4 className="text-xl font-black uppercase text-gray-950 leading-tight">{selectedPegawai.nama}</h4>
+                       <p className="text-[10px] font-mono font-black text-blue-600 tracking-widest">NIP. {selectedPegawai.nip}</p>
                     </div>
 
-                    <div className="w-full mt-12 space-y-2 grid grid-cols-3 lg:grid-cols-1 gap-2">
-                       {[
-                         { id: 'biodata', label: 'Biodata & Kontak', icon: 'bi-person-vcard-fill' },
-                         { id: 'karir', label: 'Struktural & Karir', icon: 'bi-briefcase-fill' },
-                         { id: 'arsip', label: 'Digital Dossier', icon: 'bi-folder-fill' }
-                       ].map(tab => (
-                         <button 
-                           key={tab.id}
-                           onClick={() => setDetailTab(tab.id as any)} 
-                           className={`py-5 px-6 rounded-3xl text-[10px] font-black uppercase transition-all flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-4 ${detailTab === tab.id ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/30' : 'text-gray-400 hover:bg-white hover:text-gray-900 hover:shadow-sm'}`}
-                         >
-                            <i className={`bi ${tab.icon} text-xl`}></i> 
-                            <span className="hidden lg:inline">{tab.label}</span>
-                         </button>
-                       ))}
-                    </div>
-
-                    <div className="mt-auto pt-10 w-full space-y-3 hidden lg:block">
-                       {canEdit && (
-                         <button onClick={() => handleEdit(selectedPegawai)} className="w-full py-4.5 bg-amber-500 text-white rounded-3xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-4 active:scale-95 transition-all shadow-xl shadow-amber-500/20">
-                            <i className="bi bi-pencil-square text-lg"></i>
-                            Edit Profil ASN
+                    <div className="mt-8 w-full space-y-2">
+                       {detailTab === 'DATA_DIRI' && (
+                         <button onClick={handleCetakDRH} className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+                            <i className="bi bi-printer-fill"></i> Cetak DRH PDF
                          </button>
                        )}
-                       <button onClick={handlePrintDRH} disabled={syncing} className="w-full py-4.5 bg-gray-950 text-white rounded-3xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-4 active:scale-95 transition-all shadow-2xl">
-                          {syncing ? <div className="h-5 w-5 border-3 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill text-lg text-rose-500"></i>}
-                          Cetak DRH Resmi
-                       </button>
+                       {canEdit && (
+                         <button onClick={() => { setFormData({...selectedPegawai}); setIsModalOpen(true); setIsDetailOpen(false); }} className="w-full py-4 bg-blue-600 text-white rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Edit Profil</button>
+                       )}
                     </div>
+                    <button onClick={() => setIsDetailOpen(false)} className="mt-auto py-4 w-full bg-white text-gray-400 border border-gray-100 rounded-2xl text-[9px] font-black uppercase hover:bg-gray-50 transition-all">Tutup</button>
                  </div>
 
                  {/* Content Area */}
-                 <div className="flex-1 flex flex-col overflow-hidden bg-white">
-                    <div className="p-8 md:p-12 border-b border-gray-50 flex justify-between items-center bg-white shrink-0">
-                       <div>
-                          <h5 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.2em]">
-                             {detailTab === 'arsip' ? 'Arsip Berkas Digital' : 'Data Kepegawaian DJKI'}
-                          </h5>
-                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">Verified Personnel Cloud Database</p>
+                 <div className="flex-1 p-8 md:p-14 overflow-y-auto custom-scrollbar bg-white relative">
+                    {detailTab === 'DATA_DIRI' ? (
+                       <div className="animate-fadeIn space-y-12 max-w-4xl mx-auto">
+                          <section>
+                             <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-[0.2em] mb-8 border-b pb-4 flex items-center gap-3"><i className="bi bi-person-vcard text-blue-600"></i> Identitas & Penempatan</h5>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">NIK (No. KTP)</p><p className="text-xs font-black text-gray-950 tracking-widest">{selectedPegawai.nik || '-'}</p></div>
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Jabatan Nomenklatur</p><p className="text-xs font-black text-gray-950 uppercase">{selectedPegawai.jabatan}</p></div>
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Bagian / Sub Bagian</p><p className="text-xs font-black text-gray-950 uppercase">{selectedPegawai.bagian || '-'} / {selectedPegawai.subBagian || '-'}</p></div>
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Unit Kerja Utama</p><p className="text-xs font-black text-blue-600 uppercase">{selectedPegawai.unitKerja}</p></div>
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Klasifikasi Jabatan</p><p className="text-xs font-black text-gray-950 uppercase">{selectedPegawai.klasifikasiJabatan || '-'}</p></div>
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Eselonering</p><p className="text-xs font-black text-gray-950 uppercase">{selectedPegawai.eselon || 'NON-ESELON'}</p></div>
+                             </div>
+                          </section>
+
+                          <section>
+                             <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-[0.2em] mb-8 border-b pb-4 flex items-center gap-3"><i className="bi bi-award text-emerald-600"></i> Karir & Pendidikan</h5>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Pangkat / Golongan</p><p className="text-xs font-black text-gray-950 uppercase">{selectedPegawai.pangkat} ({selectedPegawai.golRuang})</p></div>
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">TMT Pangkat / TMT Jabatan</p><p className="text-xs font-black text-gray-950">{selectedPegawai.tmtPangkat || '-'} / {selectedPegawai.tmtJabatan || '-'}</p></div>
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Pendidikan Terakhir / Jurusan</p><p className="text-xs font-black text-gray-950 uppercase">{selectedPegawai.pendidikan || '-'} / {selectedPegawai.jurusan || '-'}</p></div>
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Masa Kerja Kumulatif</p><p className="text-xs font-black text-blue-700 uppercase">{selectedPegawai.masaKerja || '-'}</p></div>
+                             </div>
+                          </section>
+
+                          <section>
+                             <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-[0.2em] mb-8 border-b pb-4 flex items-center gap-3"><i className="bi bi-person-fill text-rose-600"></i> Personal & Kontak</h5>
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Tempat, Tanggal Lahir</p><p className="text-xs font-black text-gray-950 uppercase">{selectedPegawai.tempatLahir || '-'}, {selectedPegawai.tanggalLahir || '-'}</p></div>
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Jenis Kelamin / Agama</p><p className="text-xs font-black text-gray-950 uppercase">{selectedPegawai.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'} / {selectedPegawai.agama || '-'}</p></div>
+                                <div><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Kontak Telepon</p><p className="text-xs font-black text-gray-950">{selectedPegawai.telepon || '-'}</p></div>
+                                <div className="col-span-full"><p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Alamat Domisili</p><p className="text-xs font-bold text-gray-600 uppercase leading-relaxed">{selectedPegawai.alamat || '-'}</p></div>
+                             </div>
+                          </section>
                        </div>
-                       <button onClick={() => setIsDetailOpen(false)} className="h-12 w-12 flex items-center justify-center bg-gray-50 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><i className="bi bi-x-lg text-2xl"></i></button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-8 md:p-12">
-                       {detailTab === 'biodata' && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 animate-fadeIn">
-                             <div className="space-y-10">
-                                <h6 className="text-[11px] font-black text-blue-600 uppercase border-b-2 border-blue-100 pb-4 tracking-widest flex items-center gap-3"><i className="bi bi-card-list"></i> Identitas Personal</h6>
-                                <div className="space-y-8">
-                                   <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Nama Lengkap & Gelar</p><p className="text-base font-black text-gray-800 uppercase tracking-tight">{selectedPegawai.nama}{selectedPegawai.gelar ? `, ${selectedPegawai.gelar}` : ''}</p></div>
-                                   <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Tempat, Tanggal Lahir</p><p className="text-base font-black text-gray-800 uppercase tracking-tight">{selectedPegawai.tempatLahir || '-'}, {selectedPegawai.tanggalLahir || '-'}</p></div>
-                                   <div className="grid grid-cols-2 gap-6">
-                                      <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Gender</p><p className="text-base font-black text-gray-800 uppercase tracking-tight">{selectedPegawai.gender==='L'?'Laki-laki':'Perempuan'}</p></div>
-                                      <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Agama</p><p className="text-base font-black text-gray-800 uppercase tracking-tight">{selectedPegawai.agama || '-'}</p></div>
-                                   </div>
-                                   <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Pendidikan Terakhir</p><p className="text-base font-black text-gray-800 uppercase tracking-tight">{selectedPegawai.pendidikan || '-'}</p></div>
-                                </div>
+                    ) : (
+                       <div className="animate-fadeIn space-y-8">
+                          <div className="flex justify-between items-center mb-6">
+                             <div>
+                                <h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">E-Arsip Digital Pegawai</h5>
+                                <p className="text-[9px] text-gray-400 font-bold uppercase mt-1 tracking-tighter">Riwayat dokumen terverifikasi di Cloud</p>
                              </div>
-                             <div className="space-y-10">
-                                <h6 className="text-[11px] font-black text-rose-600 uppercase border-b-2 border-rose-100 pb-4 tracking-widest flex items-center gap-3"><i className="bi bi-geo-alt-fill"></i> Kontak & Domisili</h6>
-                                <div className="space-y-8">
-                                   <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">No. Telepon / WhatsApp</p><p className="text-base font-black text-emerald-600 uppercase tracking-tight">{selectedPegawai.telepon || '-'}</p></div>
-                                   <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Alamat Domisili (KTP)</p><p className="text-base font-black text-gray-800 uppercase leading-relaxed tracking-tight">{selectedPegawai.alamat || '-'}</p></div>
-                                </div>
-                                <div className="p-6 bg-blue-50 rounded-3xl border border-blue-100 mt-6">
-                                   <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-3">Sistem Verifikasi</p>
-                                   <p className="text-[10px] font-bold text-blue-900 uppercase leading-relaxed">Seluruh data personal ASN telah tersinkronisasi dengan Master Database Kepegawaian DJKI Kemenkumham RI.</p>
-                                </div>
-                             </div>
+                             <button onClick={() => { setIsDossierModalOpen(true); setDossierFormData({}); }} className="px-6 py-3 bg-[#111827] text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center gap-2">
+                                <i className="bi bi-cloud-arrow-up text-lg"></i> Unggah Berkas PDF
+                             </button>
                           </div>
-                       )}
 
-                       {detailTab === 'karir' && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-16 animate-fadeIn">
-                             <div className="space-y-10">
-                                <h6 className="text-[11px] font-black text-blue-600 uppercase border-b-2 border-blue-100 pb-4 tracking-widest flex items-center gap-3"><i className="bi bi-briefcase-fill"></i> Jabatan & Unit</h6>
-                                <div className="space-y-8">
-                                   <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Unit Kerja Pengampu</p><p className="text-base font-black text-indigo-600 uppercase leading-snug tracking-tight">{normalizeUnitName(selectedPegawai.unitKerja)}</p></div>
-                                   <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Nomenklatur Jabatan</p><p className="text-base font-black text-gray-800 uppercase leading-snug tracking-tight">{selectedPegawai.jabatan}</p></div>
-                                   <div className="grid grid-cols-2 gap-6">
-                                      <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Eselon</p><p className="text-base font-black text-gray-800 uppercase tracking-tight">{selectedPegawai.eselon || '-'}</p></div>
-                                      <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">TMT Jabatan</p><p className="text-base font-black text-gray-800 tracking-tight">{selectedPegawai.tmtJabatan || '-'}</p></div>
-                                   </div>
-                                </div>
-                             </div>
-                             <div className="space-y-10">
-                                <h6 className="text-[11px] font-black text-emerald-600 uppercase border-b-2 border-emerald-100 pb-4 tracking-widest flex items-center gap-3"><i className="bi bi-patch-check-fill"></i> Kepangkatan & Status</h6>
-                                <div className="space-y-8">
-                                   <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Jenis Kepegawaian</p><p className="text-base font-black text-gray-800 uppercase tracking-tight">{selectedPegawai.jenisPegawai}</p></div>
-                                   <div className="grid grid-cols-2 gap-6">
-                                      <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Pangkat</p><p className="text-base font-black text-gray-800 uppercase tracking-tight">{selectedPegawai.pangkat || '-'}</p></div>
-                                      <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Golongan</p><p className="text-base font-black text-gray-800 uppercase tracking-tight">{selectedPegawai.golRuang || '-'}</p></div>
-                                   </div>
-                                   <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">TMT Pangkat Terakhir</p><p className="text-base font-black text-gray-800 tracking-tight">{selectedPegawai.tmtPangkat || '-'}</p></div>
-                                   <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 flex items-center justify-between">
-                                      <div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Status Keaktifan</p><p className="text-sm font-black text-blue-600 uppercase">{selectedPegawai.status || 'Aktif'}</p></div>
-                                      <i className="bi bi-shield-check text-2xl text-emerald-500"></i>
-                                   </div>
-                                </div>
-                             </div>
-                          </div>
-                       )}
-
-                       {detailTab === 'arsip' && (
-                          <div className="space-y-8 animate-fadeIn">
-                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                                <div>
-                                   <h6 className="text-[11px] font-black text-blue-600 uppercase tracking-widest">Dossier Berkas Digital ({employeeDossiers.length})</h6>
-                                   <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">Penyimpanan Terenkripsi Google Drive</p>
-                                </div>
-                                {canEdit && (
-                                   <>
-                                      <button onClick={() => dossierInputRef.current?.click()} className="px-8 py-3.5 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-xl shadow-blue-600/30 active:scale-95 transition-all flex items-center gap-3">
-                                         <i className="bi bi-cloud-arrow-up-fill text-lg"></i> Upload Berkas Baru
-                                      </button>
-                                      <input type="file" ref={dossierInputRef} className="hidden" onChange={handleDossierUpload} />
-                                   </>
-                                )}
-                             </div>
-                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {employeeDossiers.length > 0 ? employeeDossiers.map(d => (
-                                   <div key={d.id} className="p-6 bg-white border-2 border-gray-50 rounded-[2.5rem] flex flex-col group hover:border-blue-200 transition-all shadow-sm hover:shadow-xl">
-                                      <div className="flex items-center gap-5 mb-6">
-                                         <div className="h-14 w-14 bg-blue-50 rounded-2xl border border-blue-100 flex items-center justify-center text-blue-600 shadow-inner group-hover:bg-blue-600 group-hover:text-white transition-all">
-                                            <i className="bi bi-file-earmark-pdf-fill text-2xl"></i>
-                                         </div>
-                                         <div className="min-w-0">
-                                            <p className="text-[11px] font-black text-gray-950 uppercase truncate">{d.fileName}</p>
-                                            <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">{d.tanggal}</p>
-                                         </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             {dossierList.filter(d => d.nip === selectedPegawai.nip).map(d => (
+                                <div key={d.id} className="p-5 bg-gray-50 border border-gray-100 rounded-3xl group hover:border-blue-200 hover:bg-white transition-all">
+                                   <div className="flex items-start gap-4">
+                                      <div className="h-12 w-12 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center shrink-0 border border-rose-100">
+                                         <i className="bi bi-file-earmark-pdf-fill text-2xl"></i>
                                       </div>
-                                      <div className="mt-auto flex gap-2">
-                                         <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className="flex-1 py-2.5 bg-gray-50 text-gray-600 hover:bg-blue-600 hover:text-white rounded-xl text-[9px] font-black uppercase text-center border transition-all">Pratinjau</a>
-                                         {canEdit && <button className="h-10 w-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-xl border border-rose-100 hover:bg-rose-600 hover:text-white transition-all"><i className="bi bi-trash"></i></button>}
+                                      <div className="min-w-0 flex-1">
+                                         <p className="text-[11px] font-black text-gray-950 uppercase truncate leading-tight">{d.fileName}</p>
+                                         <p className="text-[8px] text-gray-400 font-bold uppercase mt-1">{d.tanggal} • {d.keterangan}</p>
                                       </div>
                                    </div>
-                                )) : (
-                                   <div className="col-span-full py-24 text-center opacity-30">
-                                      <i className="bi bi-folder2-open text-7xl text-gray-200 mb-6 block"></i>
-                                      <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Belum ada berkas terunggah di cloud</p>
+                                   <div className="mt-6 flex gap-2">
+                                      <button onClick={() => window.open(d.fileUrl, '_blank')} className="flex-1 py-2 bg-white border border-gray-200 rounded-lg text-[8px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all shadow-sm">View</button>
+                                      <a href={d.fileUrl} download className="flex-1 py-2 bg-white border border-gray-200 rounded-lg text-[8px] font-black uppercase hover:bg-emerald-600 hover:text-white transition-all shadow-sm text-center">Download</a>
                                    </div>
-                                )}
-                             </div>
+                                </div>
+                             ))}
+                             {dossierList.filter(d => d.nip === selectedPegawai.nip).length === 0 && (
+                                <div className="col-span-full py-24 text-center border-2 border-dashed border-gray-100 rounded-[3rem] opacity-40">
+                                   <i className="bi bi-folder-x text-5xl text-gray-300 block mb-4"></i>
+                                   <p className="text-[10px] font-black uppercase tracking-widest">Belum ada dokumen diarsipkan</p>
+                                </div>
+                             )}
                           </div>
-                       )}
-                    </div>
+                       </div>
+                    )}
                  </div>
               </div>
            </div>
         </div>
       )}
 
-      {/* REGISTRATION / EDIT MODAL */}
+      {/* HIDDEN DRH TEMPLATE FOR EXPORT */}
+      <div className="fixed -left-[2000px] top-0 pointer-events-none">
+         <div ref={drhRef} className="bg-white text-black font-arial p-[1.5cm_1.5cm]" style={{ width: '210mm', minHeight: '330mm' }}>
+            <div className="flex items-center border-b-[2pt] border-black pb-4 mb-8">
+               <img src={DEFAULT_LOGO} className="h-16 w-auto mr-6" />
+               <div className="flex-1 text-center">
+                  <p className="text-[11pt] font-bold uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                  <p className="text-[12pt] font-bold uppercase">DAFTAR RIWAYAT HIDUP PEGAWAI</p>
+               </div>
+            </div>
+            
+            <div className="flex justify-between items-start mb-10">
+               <div className="space-y-4 text-[9.5pt] flex-1">
+                  <p className="font-bold border-b border-black pb-1 mb-2">I. DATA UTAMA</p>
+                  <div className="grid grid-cols-[140px_10px_1fr] gap-y-2">
+                     <span>1. NAMA</span><span>:</span><span className="font-bold uppercase">{selectedPegawai?.nama}</span>
+                     <span>2. NIP</span><span>:</span><span>{selectedPegawai?.nip}</span>
+                     <span>3. NIK</span><span>:</span><span>{selectedPegawai?.nik}</span>
+                     <span>4. TTL</span><span>:</span><span className="uppercase">{selectedPegawai?.tempatLahir}, {selectedPegawai?.tanggalLahir}</span>
+                     <span>5. JENIS KELAMIN</span><span>:</span><span>{selectedPegawai?.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</span>
+                     <span>6. AGAMA</span><span>:</span><span className="uppercase">{selectedPegawai?.agama}</span>
+                  </div>
+               </div>
+               <div className="h-32 w-24 border border-black bg-gray-50 flex-shrink-0 flex items-center justify-center ml-10 overflow-hidden">
+                  {selectedPegawai?.foto ? <img src={selectedPegawai.foto} className="w-full h-full object-cover" /> : <p className="text-[8pt] text-gray-400">PAS FOTO</p>}
+               </div>
+            </div>
+
+            <div className="space-y-4 text-[9.5pt] mb-10">
+               <p className="font-bold border-b border-black pb-1 mb-2">II. POSISI & JABATAN</p>
+               <div className="grid grid-cols-[140px_10px_1fr] gap-y-2">
+                  <span>1. JABATAN</span><span>:</span><span className="uppercase">{selectedPegawai?.jabatan}</span>
+                  <span>2. PENEMPATAN</span><span>:</span><span className="uppercase">{selectedPegawai?.unitKerja}</span>
+                  <span>3. BAGIAN</span><span>:</span><span className="uppercase">{selectedPegawai?.bagian}</span>
+                  <span>4. SUB BAGIAN</span><span>:</span><span className="uppercase">{selectedPegawai?.subBagian}</span>
+                  <span>5. PANGKAT/GOL</span><span>:</span><span className="uppercase">{selectedPegawai?.pangkat} ({selectedPegawai?.golRuang})</span>
+                  <span>6. TMT PANGKAT</span><span>:</span><span>{selectedPegawai?.tmtPangkat}</span>
+                  <span>7. MASA KERJA</span><span>:</span><span className="uppercase">{selectedPegawai?.masaKerja}</span>
+               </div>
+            </div>
+
+            <div className="space-y-4 text-[9.5pt] mb-10">
+               <p className="font-bold border-b border-black pb-1 mb-2">III. RIWAYAT PENDIDIKAN</p>
+               <div className="grid grid-cols-[140px_10px_1fr] gap-y-2">
+                  <span>1. PENDIDIKAN</span><span>:</span><span className="uppercase">{selectedPegawai?.pendidikan}</span>
+                  <span>2. JURUSAN</span><span>:</span><span className="uppercase">{selectedPegawai?.jurusan}</span>
+               </div>
+            </div>
+
+            <div className="mt-24 text-right pr-10 text-[10pt]">
+               <p>Jakarta, {new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
+               <p className="mb-24">Pegawai Bersangkutan,</p>
+               <p className="font-bold uppercase underline leading-none">{selectedPegawai?.nama}</p>
+               <p className="mt-1">NIP {selectedPegawai?.nip}</p>
+            </div>
+
+            <div className="absolute bottom-10 left-10 text-[7pt] text-gray-400 border-t pt-2 w-[80%]">
+               Dokumen Riwayat Hidup dihasilkan secara otomatis oleh Sistem Integrasi SDM DJKI - Kumham Pasti.
+            </div>
+         </div>
+      </div>
+
+      {/* EDITOR MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-0 md:p-4">
           <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => !syncing && setIsModalOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-5xl md:rounded-[3.5rem] shadow-2xl overflow-hidden animate-modalEnter flex flex-col h-full md:max-h-[95vh] border border-white/20">
-            <div className="p-6 md:p-8 border-b bg-gray-50/50 flex justify-between items-center shrink-0">
-               <div>
-                  <h4 className="text-xl font-black uppercase text-gray-950 tracking-tighter leading-none">{formData.id ? 'Perbarui Data ASN' : 'Registrasi ASN Baru'}</h4>
-                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-2">Sinkronisasi Cloud Real-Time</p>
-               </div>
-               <button onClick={() => !syncing && setIsModalOpen(false)} className="h-10 w-10 text-gray-400 hover:text-rose-500 transition-all"><i className="bi bi-x-lg text-xl"></i></button>
+          <div className="relative bg-white w-full max-w-7xl md:rounded-[4rem] shadow-2xl overflow-hidden animate-modalEnter flex flex-col h-full md:max-h-[96vh] border-4 border-white">
+            <div className="p-8 border-b bg-gray-50/50 flex justify-between items-center shrink-0">
+               <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">{formData.id ? 'Edit Data Pegawai' : 'Input Pegawai Baru'}</h4>
+               <button onClick={() => !syncing && setIsModalOpen(false)} className="h-10 w-10 flex items-center justify-center text-gray-400 hover:text-rose-500 transition-all"><i className="bi bi-x-lg text-xl"></i></button>
             </div>
             
             <form onSubmit={async (e) => {
                e.preventDefault();
                setSyncing(true);
-               const payload = { ...formData, id: formData.id || Date.now().toString(), nip: formData.nip?.replace(/\s/g, '') };
-               const ok = await syncTableRemote('PEGAWAI', 'SAVE', payload);
-               if(ok) { 
-                 await loadData(); 
-                 if(selectedPegawai && selectedPegawai.id === payload.id) {
-                    setSelectedPegawai(payload as Pegawai);
-                 }
-                 setIsModalOpen(false); 
-                 setSuccessMsg('Database pegawai telah diperbarui.');
-                 setShowSuccess(true); 
-               }
+               const ok = await syncTableRemote('PEGAWAI', 'SAVE', { ...formData, id: formData.id || Date.now().toString() });
+               if(ok) { await loadData(); setIsModalOpen(false); setSuccessMsg("Sinkronisasi Cloud Berhasil."); setShowSuccess(true); }
                setSyncing(false);
-            }} className="p-6 md:p-10 overflow-y-auto custom-scrollbar space-y-10">
+            }} className="p-10 md:p-14 overflow-y-auto custom-scrollbar">
                
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                  <div className="space-y-6">
-                     <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-3 tracking-widest flex items-center gap-3"><i className="bi bi-1-circle-fill"></i> Data Kepegawaian</h5>
-                     <div className="space-y-4">
-                        <div className="space-y-1.5">
-                           <label className="text-[9px] font-black text-gray-500 uppercase ml-3">Nama Lengkap (Tanpa Gelar)</label>
-                           <input type="text" className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black uppercase outline-none focus:border-blue-600 transition-all" value={formData.nama || ''} onChange={e => {
-                               setFormData({...formData, nama: e.target.value});
-                               autoDetectEducation(e.target.value);
-                           }} required />
-                        </div>
-                        <div className="space-y-1.5">
-                           <label className="text-[9px] font-black text-gray-500 uppercase ml-3">Penulisan Gelar</label>
-                           <input type="text" placeholder="Contoh: S.H. / M.Si. / S.Tr.Im." className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black uppercase outline-none focus:border-blue-600 transition-all" value={formData.gelar || ''} onChange={e => {
-                               setFormData({...formData, gelar: e.target.value});
-                               autoDetectEducation(e.target.value);
-                           }} />
-                        </div>
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-500 uppercase ml-3">NIP 18 Digit</label><input type="text" className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none focus:border-blue-600 transition-all" value={formData.nip || ''} onChange={e => setFormData({...formData, nip: e.target.value})} required /></div>
-                        <div className="grid grid-cols-2 gap-4">
-                           <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-500 uppercase ml-3">Jenis ASN</label><select className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={formData.jenisPegawai} onChange={e => setFormData({...formData, jenisPegawai: e.target.value})}><option value="PNS">PNS</option><option value="CPNS">CPNS</option><option value="PPPK">PPPK Full Time</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option></select></div>
-                           <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-500 uppercase ml-3">Status</label><select className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}><option>Aktif</option><option>Cuti</option><option>Pensiun</option></select></div>
-                        </div>
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-500 uppercase ml-3">Unit Kerja</label><select className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={formData.unitKerja} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-500 uppercase ml-3">Nomenklatur Jabatan</label><input type="text" className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black uppercase outline-none focus:border-blue-600" value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} /></div>
-                     </div>
-                  </div>
-                  
-                  <div className="space-y-6">
-                     <h5 className="text-[10px] font-black text-rose-600 uppercase border-b pb-3 tracking-widest flex items-center gap-3"><i className="bi bi-2-circle-fill"></i> Data Personal</h5>
-                     <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                           <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-500 uppercase ml-3">Tempat Lahir</label><input type="text" className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black uppercase outline-none" value={formData.tempatLahir || ''} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
-                           <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-500 uppercase ml-3">Tgl Lahir</label><input type="text" className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={formData.tanggalLahir || ''} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} placeholder="DD-MM-YYYY" /></div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                           <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Agama</label><input type="text" className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black uppercase outline-none" value={formData.agama || ''} onChange={e => setFormData({...formData, agama: e.target.value})} /></div>
-                           <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Telepon / WA</label><input type="text" className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={formData.telepon || ''} onChange={e => setFormData({...formData, telepon: e.target.value})} /></div>
-                        </div>
-                        <div className="space-y-1.5">
-                           <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Pendidikan Terakhir (Jenjang & Jurusan)</label>
-                           <div className="relative">
-                               <input type="text" className="w-full px-6 py-3.5 bg-gray-50 border-2 border-blue-100 rounded-2xl text-xs font-black uppercase outline-none focus:border-blue-600" value={formData.pendidikan || ''} onChange={e => setFormData({...formData, pendidikan: e.target.value})} />
-                               <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                  <i className="bi bi-magic text-blue-500" title="Terisi Otomatis Berdasarkan Gelar"></i>
-                               </div>
+               <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
+                  {/* LEFT COLUMN */}
+                  <div className="lg:col-span-8 space-y-12">
+                     <section className="space-y-8">
+                        <h5 className="text-[11px] font-black text-blue-600 uppercase border-b pb-3 tracking-widest flex items-center gap-2"><i className="bi bi-person-badge"></i> Identitas & Jabatan</h5>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                           <div className="md:col-span-2 flex items-center gap-6 mb-4">
+                              <div className="h-28 w-28 rounded-3xl bg-gray-50 border-4 border-white shadow-xl overflow-hidden relative group shrink-0">
+                                 {formData.foto ? <img src={formData.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-gray-300"><i className="bi bi-camera-fill text-3xl"></i></div>}
+                                 <button type="button" onClick={() => fileInputRef.current?.click()} className="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"><i className="bi bi-upload text-xl"></i></button>
+                                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+                              </div>
+                              <p className="text-[9px] text-gray-400 font-bold uppercase leading-relaxed">Klik kotak foto untuk mengunggah pas foto formal. Foto otomatis tersimpan di Cloud Server.</p>
                            </div>
+                           <div><label className={labelClass}>Nama Lengkap (Tanpa Gelar)</label><input type="text" className={inputClass} value={formData.nama || ''} onChange={e => setFormData({...formData, nama: e.target.value})} required /></div>
+                           <div><label className={labelClass}>Gelar Lengkap</label><input type="text" className={inputClass} value={formData.gelar || ''} onChange={e => setFormData({...formData, gelar: e.target.value})} /></div>
+                           <div><label className={labelClass}>NIP (18 Digit)</label><input type="text" className={inputClass} value={formData.nip || ''} onChange={e => setFormData({...formData, nip: e.target.value.replace(/\D/g, '')})} required disabled={!!formData.id} /></div>
+                           <div><label className={labelClass}>NIK (Nomor KTP)</label><input type="text" className={inputClass} value={formData.nik || ''} onChange={e => setFormData({...formData, nik: e.target.value.replace(/\D/g, '')})} /></div>
+                           <div className="col-span-full"><label className={labelClass}>Nama Nomenklatur Jabatan</label><input type="text" className={inputClass} value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} required /></div>
+                           <div><label className={labelClass}>Bagian</label><input type="text" className={inputClass} value={formData.bagian || ''} onChange={e => setFormData({...formData, bagian: e.target.value})} /></div>
+                           <div><label className={labelClass}>Sub Bagian</label><input type="text" className={inputClass} value={formData.subBagian || ''} onChange={e => setFormData({...formData, subBagian: e.target.value})} /></div>
                         </div>
-                        <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Alamat Domisili</label><textarea rows={3} className="w-full px-6 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-bold uppercase outline-none focus:border-blue-600 resize-none" value={formData.alamat || ''} onChange={e => setFormData({...formData, alamat: e.target.value})} /></div>
-                     </div>
+                     </section>
+
+                     <section className="space-y-8">
+                        <h5 className="text-[11px] font-black text-emerald-600 uppercase border-b pb-3 tracking-widest flex items-center gap-2"><i className="bi bi-award"></i> Karir & Pendidikan</h5>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                           <div><label className={labelClass}>Golongan</label><select className={inputClass} value={formData.golRuang} onChange={e => setFormData({...formData, golRuang: e.target.value, pangkat: PANGKAT_MAP[e.target.value] || ''})}><option value="">- Pilih -</option>{Object.keys(PANGKAT_MAP).map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                           <div className="md:col-span-2"><label className={labelClass}>Pangkat (Auto)</label><input type="text" className={`${inputClass} bg-gray-100 text-gray-400`} value={formData.pangkat || ''} readOnly /></div>
+                           <div><label className={labelClass}>TMT Pangkat</label><input type="text" className={inputClass} value={formData.tmtPangkat || ''} onChange={e => setFormData({...formData, tmtPangkat: e.target.value})} placeholder="DD-MM-YYYY" /></div>
+                           <div><label className={labelClass}>TMT Jabatan</label><input type="text" className={inputClass} value={formData.tmtJabatan || ''} onChange={e => setFormData({...formData, tmtJabatan: e.target.value})} /></div>
+                           <div><label className={labelClass}>Eselon</label><select className={inputClass} value={formData.eselon} onChange={e => setFormData({...formData, eselon: e.target.value})}><option value="">Non-Eselon</option><option>I.a</option><option>I.b</option><option>II.a</option><option>II.b</option><option>III.a</option><option>III.b</option><option>IV.a</option><option>IV.b</option></select></div>
+                           <div><label className={labelClass}>Pendidikan Terakhir</label><input type="text" className={inputClass} value={formData.pendidikan || ''} onChange={e => setFormData({...formData, pendidikan: e.target.value})} /></div>
+                           <div className="md:col-span-2"><label className={labelClass}>Jurusan</label><input type="text" className={inputClass} value={formData.jurusan || ''} onChange={e => setFormData({...formData, jurusan: e.target.value})} /></div>
+                        </div>
+                     </section>
+                  </div>
+
+                  {/* RIGHT COLUMN */}
+                  <div className="lg:col-span-4 space-y-12">
+                     <section className="space-y-8">
+                        <h5 className="text-[11px] font-black text-rose-600 uppercase border-b pb-3 tracking-widest">Status & Kategori</h5>
+                        <div className="space-y-6">
+                           <div><label className={labelClass}>Jenis Pegawai</label><select className={inputClass} value={formData.jenisPegawai} onChange={e => setFormData({...formData, jenisPegawai: e.target.value})}><option>PNS</option><option>CPNS</option><option>PPPK</option><option>PPPK PARUH WAKTU</option></select></div>
+                           <div><label className={labelClass}>Status Aktif</label><select className={inputClass} value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}><option>Aktif</option><option>Cuti</option><option>Tugas Belajar</option><option>Pensiun</option></select></div>
+                           <div><label className={labelClass}>Masa Kerja Kumulatif</label><input type="text" className={inputClass} value={formData.masaKerja || ''} onChange={e => setFormData({...formData, masaKerja: e.target.value})} placeholder="10 Thn 5 Bln" /></div>
+                        </div>
+                     </section>
+
+                     <section className="space-y-8">
+                        <h5 className="text-[11px] font-black text-gray-400 uppercase border-b pb-3 tracking-widest">Kontak & Alamat</h5>
+                        <div className="space-y-6">
+                           <div className="grid grid-cols-2 gap-4">
+                              <div><label className={labelClass}>Tempat Lahir</label><input type="text" className={inputClass} value={formData.tempatLahir || ''} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
+                              <div><label className={labelClass}>Tgl Lahir</label><input type="text" className={inputClass} value={formData.tanggalLahir || ''} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
+                           </div>
+                           <div><label className={labelClass}>Agama</label><select className={inputClass} value={formData.agama} onChange={e => setFormData({...formData, agama: e.target.value})}><option value="">Pilih Agama</option><option>ISLAM</option><option>KRISTEN</option><option>KATOLIK</option><option>HINDU</option><option>BUDHA</option></select></div>
+                           <div><label className={labelClass}>Nomor Telepon / WA</label><input type="text" className={inputClass} value={formData.telepon || ''} onChange={e => setFormData({...formData, telepon: e.target.value})} /></div>
+                           <div><label className={labelClass}>Alamat Lengkap</label><textarea className={`${inputClass} h-24 resize-none`} value={formData.alamat || ''} onChange={e => setFormData({...formData, alamat: e.target.value})} /></div>
+                        </div>
+                     </section>
                   </div>
                </div>
 
+               <div className="mt-16 pt-10 border-t flex justify-center gap-6">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-14 py-5 bg-white border-2 border-gray-200 text-gray-400 rounded-3xl font-black text-[10px] uppercase tracking-widest">Batal</button>
+                  <button type="submit" disabled={syncing} className="px-24 py-5 bg-blue-600 text-white rounded-3xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all flex items-center gap-4">
+                    {syncing && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                    <span>Simpan & Sinkronkan Cloud</span>
+                  </button>
+               </div>
             </form>
-
-            <div className="p-6 md:p-8 bg-gray-50 border-t flex justify-end gap-3 shrink-0">
-               <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 md:flex-none px-10 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">Batal</button>
-               <button onClick={async (e: any) => {
-                  setSyncing(true);
-                  const payload = { ...formData, id: formData.id || Date.now().toString() };
-                  const ok = await syncTableRemote('PEGAWAI', 'SAVE', payload);
-                  if(ok) { 
-                    await loadData(); 
-                    if(selectedPegawai && selectedPegawai.id === payload.id) {
-                      setSelectedPegawai(payload as Pegawai);
-                    }
-                    setIsModalOpen(false); 
-                    setSuccessMsg('Data ASN berhasil disimpan ke cloud.');
-                    setShowSuccess(true); 
-                  }
-                  setSyncing(false);
-               }} disabled={syncing} className="flex-[1.5] md:flex-none px-16 py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-600/30 active:scale-95 disabled:bg-blue-300 flex items-center justify-center gap-3 transition-all">
-                  {syncing ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-arrow-up-fill text-lg"></i>}
-                  <span>{syncing ? 'Memproses...' : 'Simpan Database'}</span>
-               </button>
-            </div>
           </div>
         </div>
       )}
+
+      {/* DOSSIER MODAL */}
+      {isDossierModalOpen && (
+        <div className="fixed inset-0 z-[2500] flex items-center justify-center p-4">
+           <div className="fixed inset-0 bg-gray-950/70 backdrop-blur-md" onClick={() => !syncing && setIsDossierModalOpen(false)}></div>
+           <div className="relative bg-white w-full max-w-lg rounded-[3.5rem] shadow-2xl p-12 animate-modalEnter space-y-8 flex flex-col border border-white/20">
+              <div>
+                <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">Arsip Dokumen PDF</h4>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Arsip Pegawai: {selectedPegawai?.nama}</p>
+              </div>
+              
+              <div className="space-y-5">
+                 <div className="space-y-1.5"><label className={labelClass}>Nama Dokumen</label><input type="text" className={inputClass} value={dossierFormData.fileName || ''} onChange={e => setDossierFormData({...dossierFormData, fileName: e.target.value})} placeholder="Contoh: SK CPNS, Ijazah S1..." /></div>
+                 <div className="space-y-1.5"><label className={labelClass}>Keterangan</label><input type="text" className={inputClass} value={dossierFormData.keterangan || ''} onChange={e => setDossierFormData({...dossierFormData, keterangan: e.target.value})} /></div>
+                 
+                 <div className="mt-8">
+                    <div onClick={() => !syncing && dossierInputRef.current?.click()} className="w-full h-40 border-2 border-dashed border-gray-200 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer transition-all hover:border-blue-600 hover:bg-blue-50 group">
+                       <i className="bi bi-file-earmark-pdf-fill text-4xl text-gray-300 group-hover:text-rose-500 transition-colors"></i>
+                       <p className="text-[10px] font-black text-gray-400 uppercase mt-4 group-hover:text-gray-900 transition-colors">Pilih File PDF (Max 1MB)</p>
+                       <input type="file" ref={dossierInputRef} className="hidden" accept="application/pdf" onChange={handleDossierUpload} />
+                    </div>
+                 </div>
+              </div>
+              <button onClick={() => setIsDossierModalOpen(false)} className="w-full py-4 text-[10px] font-black text-gray-400 uppercase border border-gray-100 rounded-2xl active:scale-95 transition-all">Batal</button>
+           </div>
+        </div>
+      )}
+
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
   );

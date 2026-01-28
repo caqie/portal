@@ -26,6 +26,23 @@ export enum TaskType {
   UANG_MAKAN = 'UANG_MAKAN'
 }
 
+export interface MagangPKL {
+  id: string;
+  nama: string;
+  nisNim: string;
+  institusi: string;
+  jurusan: string;
+  jenis: 'MAGANG' | 'PKL';
+  tanggalMulai: string;
+  tanggalSelesai: string;
+  penempatan: string;
+  status: 'Proses' | 'Selesai';
+  nomorSurat?: string;
+  pjbNip?: string;
+  pjbNama?: string;
+  pjbJabatan?: string;
+}
+
 export interface SKP {
   id: string;
   nip: string;
@@ -53,6 +70,9 @@ export interface KenaikanKarir {
   menjadi: string;
   tmtUsulan: string;
   status: 'Proses' | 'Selesai' | 'Ditolak' | string;
+  pjbNama?: string;
+  pjbNip?: string;
+  pjbJabatan?: string;
 }
 
 export interface Pengembangan {
@@ -143,8 +163,9 @@ export interface DPCPRecord {
   kecPensiun: string;
   provPensiun: string;
   kodePosPensiun: string;
-  pejabatNama?: string;
-  pejabatNip?: string;
+  pjbNama?: string;
+  pjbNip?: string;
+  pjbJabatan?: string;
   riwayatKepegawaian?: {
     tmtCpns: string;
     masaKerjaTotal: string;
@@ -162,9 +183,41 @@ export interface CloudConfig { driveFolderId: string; appsScriptUrl: string; log
 export interface HasilKerjaRow { rencanaPimpinan: string; rencanaPegawai: string; aspek: 'Kualitas' | 'Kuantitas' | 'Waktu' | 'Biaya'; indikator: string; target: string; realisasi: string; umpanBalik: string; }
 export interface PerilakuKerjaRow { poin: string; deskripsi: string; ekspektasi: string; umpanBalik: string; }
 export interface SKPRecord { id: string; nip: string; namaPegawai: string; penilaiNip: string; atasanPenilaiNip: string; tahun: number; periodeMulai: string; periodeSelesai: string; tglPenilaian: string; capaianOrganisasi: string; ratingHasilKerja: string; ratingPerilaku: string; predikatKinerja: string; catatan: string; hasilKerja: HasilKerjaRow[]; perilakuKerja: PerilakuKerjaRow[]; lampiran: any; }
-export interface Pegawai { id: string; nip: string; nama: string; gelar?: string; jabatan: string; unitKerja: string; gender: 'L' | 'P'; golRuang: string; jenisPegawai: string; status: string; pangkat?: string; foto?: string; tmtPangkat?: string; pendidikan?: string; alamat?: string; telepon?: string; tempatLahir?: string; tanggalLahir?: string; agama?: string; eselon?: string; tmtStatus?: string; tmtJabatan?: string; }
+
+export interface Pegawai { 
+  id: string; 
+  nip: string; 
+  nama: string; 
+  gelar?: string; 
+  jabatan: string; 
+  subBagian?: string;
+  bagian?: string;
+  unitKerja: string; 
+  gender: 'L' | 'P'; 
+  golRuang: string; 
+  jenisPegawai: string; 
+  status: string; 
+  pangkat?: string; 
+  foto?: string; 
+  tmtPangkat?: string; 
+  tmtJabatan?: string;
+  klasifikasiJabatan?: string;
+  eselon?: string;
+  pendidikan?: string; 
+  jurusan?: string;
+  agama?: string; 
+  telepon?: string; 
+  alamat?: string; 
+  tmtStatus?: string; 
+  nik?: string;
+  masaKerja?: string;
+  // Added missing properties to fix TypeScript errors in multiple pages
+  tempatLahir?: string;
+  tanggalLahir?: string;
+}
+
 export interface AbsensiRecord { id: string; nip: string; nama: string; waktu: string; tipe: 'MASUK' | 'PULANG'; status: string; lokasi: string; fotoAbsen: string; confidence: number; }
 export interface SpmtSppRecord { id: string; type: 'SPP' | 'SPMT'; nomor: string; pejabatNip: string; pegawaiNip: string; nomorSK: string; tentangSK: string; tanggalSK: string; jabatanBaru: string; unitKerja: string; tanggalLantikAtauSpmt: string; tanggalSppAtauSpmt: string; tempatTandaTangan: string; signatureLabel?: string; }
 export interface AuditLog { id: string; timestamp: string; userNip: string; userName: string; action: 'CREATE' | 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'LOGIN'; module: string; description: string; }
 export interface ABKAnjab { id: string; namaJabatan: string; unitKerja: string; jumlahSaatIni: number; totalMenitBebanKerja: number; kebutuhanPegawai: number; selisih: number; status: 'IDEAL' | 'KURANG' | 'LEBIH'; kualifikasiPendidikan?: string; }
-export interface KGB { id: string; nip: string; namaPegawai: string; tmtLama: string; tmtBaru: string; gajiLama: number; gajiBaru: number; nomorSk: string; tglSk: string; status: 'Proses' | 'Selesai'; }
+export interface KGB { id: string; nip: string; namaPegawai: string; tmtLama: string; tmtBaru: string; gajiLama: number; gajiBaru: number; nomorSk: string; tglSk: string; status: 'Proses' | 'Selesai'; pjbNama?: string; pjbNip?: string; pjbJabatan?: string; }
