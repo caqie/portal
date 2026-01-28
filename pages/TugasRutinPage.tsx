@@ -82,18 +82,22 @@ const TugasRutinPage = () => {
     e.preventDefault();
     setSyncing(true);
     
+    const taskId = editingTask?.id || `TR-${Date.now()}`;
     const payload = { 
       ...formData, 
-      id: editingTask?.id || `TR-${Date.now()}`, 
+      id: taskId, 
       timestamp: new Date().toISOString() 
     };
     
     const ok = await syncTableRemote('TUGAS_RUTIN', 'SAVE', payload);
     if(ok) { 
-      setSuccessMsg(editingTask ? 'Perubahan berhasil disimpan.' : 'Data baru berhasil ditambahkan.');
+      // Tampilkan pesan sukses yang lebih informatif termasuk ID Tugas
+      setSuccessMsg(`Data tugas berhasil disimpan dengan ID ${taskId}.`);
+      
       await loadData();
       setIsModalOpen(false); 
       setShowSuccess(true); 
+      logActivity(editingTask ? 'UPDATE' : 'CREATE', 'Tugas Rutin', `Simpan tugas: ${taskId}`);
     } else {
       alert("Gagal menyimpan ke cloud.");
     }
@@ -123,11 +127,9 @@ const TugasRutinPage = () => {
   const inputClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-xs font-black outline-none focus:border-blue-600 transition-all placeholder:text-gray-300";
   const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-2 tracking-widest block mb-1";
 
-  // Helper untuk menampilkan ringkasan data di tabel
   const renderDataSummary = (t: TugasRutin) => {
     if (!t.data) return <span className="text-gray-400 italic">Tidak ada detail field.</span>;
     
-    // Ambil maksimal 6 field pertama yang tidak kosong
     const entries = Object.entries(t.data)
       .filter(([k, v]) => v && !k.toLowerCase().includes('link_dokumen'))
       .slice(0, 6);
@@ -429,7 +431,6 @@ const TugasRutinPage = () => {
         </div>
       </div>
 
-      {/* FILTER BAR */}
       <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
         <div className="flex-1 w-full">
            <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-3 block mb-1">Filter Bulan</label>
@@ -450,7 +451,6 @@ const TugasRutinPage = () => {
         </div>
       </div>
 
-      {/* TABLE VIEW */}
       <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[400px]">
         <div className="overflow-x-auto">
           <table className="w-full text-left">

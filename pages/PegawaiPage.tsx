@@ -207,7 +207,7 @@ const PegawaiPage = () => {
   const handleCetakDRH = async () => {
     if (!drhRef.current) return;
     setSyncing(true);
-    const canvas = await html2canvas(drhRef.current, { scale: 2.5, useCORS: true });
+    const canvas = await html2canvas(drhRef.current, { scale: 3, useCORS: true });
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 330);
     pdf.save(`DRH_${selectedPegawai?.nama.replace(/\s+/g, '_')}.pdf`);
@@ -571,16 +571,82 @@ const PegawaiPage = () => {
       )}
 
       {/* HIDDEN DRH TEMPLATE FOR EXPORT */}
-      <div className="fixed -left-[2000px] top-0 pointer-events-none">
+      <div className="fixed -left-[3000px] top-0 pointer-events-none">
          <div ref={drhRef} className="bg-white text-black font-arial p-[1.5cm_1.5cm]" style={{ width: '210mm', minHeight: '330mm' }}>
             <div className="flex items-center border-b-[2pt] border-black pb-4 mb-8">
-               <img src={DEFAULT_LOGO} className="h-16 w-auto mr-6" />
+               <img src={DEFAULT_LOGO} className="h-20 w-auto mr-6" crossOrigin="anonymous" style={{ filter: 'grayscale(100%)' }} />
                <div className="flex-1 text-center">
-                  <p className="text-[11pt] font-bold uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                  <p className="text-[12pt] font-bold uppercase">DAFTAR RIWAYAT HIDUP PEGAWAI</p>
+                  <p className="text-[11pt] font-bold uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                  <p className="text-[13pt] font-bold uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                  <p className="text-[14pt] font-bold uppercase mt-4 underline">DAFTAR RIWAYAT HIDUP PEGAWAI</p>
                </div>
             </div>
-            {/* ... detail DRH template content ... */}
+            
+            <div className="flex justify-between items-start mb-8 relative">
+               <div className="space-y-4 text-[10.5pt] flex-1 text-black">
+                  <p className="font-bold border-b border-black pb-1 mb-2">I. KETERANGAN PERORANGAN</p>
+                  <div className="grid grid-cols-[160px_10px_1fr] gap-y-3">
+                     <span>1. Nama Lengkap</span><span>:</span><span className="font-bold uppercase">{selectedPegawai?.nama}</span>
+                     <span>2. NIP</span><span>:</span><span>{selectedPegawai?.nip}</span>
+                     <span>3. NIK</span><span>:</span><span>{selectedPegawai?.nik || '-'}</span>
+                     <span>4. Tempat, Tgl Lahir</span><span>:</span><span className="uppercase">{selectedPegawai?.tempatLahir || '-'}, {selectedPegawai?.tanggalLahir || '-'}</span>
+                     <span>5. Jenis Kelamin</span><span>:</span><span>{selectedPegawai?.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</span>
+                     <span>6. Agama</span><span>:</span><span className="uppercase">{selectedPegawai?.agama || '-'}</span>
+                     <span>7. Status Kepegawaian</span><span>:</span><span className="uppercase">{selectedPegawai?.status} ({selectedPegawai?.jenisPegawai})</span>
+                  </div>
+               </div>
+               <div className="h-44 w-32 border-4 border-black bg-gray-50 flex-shrink-0 flex items-center justify-center ml-10 overflow-hidden shadow-md">
+                  {selectedPegawai?.foto ? (
+                    <img src={selectedPegawai.foto} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                  ) : (
+                    <p className="text-[8pt] text-gray-400 font-bold text-center p-2">PAS FOTO 3x4</p>
+                  )}
+               </div>
+            </div>
+
+            <div className="space-y-4 text-[10.5pt] mb-8 text-black">
+               <p className="font-bold border-b border-black pb-1 mb-2">II. RIWAYAT JABATAN DAN KEPANGKATAN</p>
+               <div className="grid grid-cols-[160px_10px_1fr] gap-y-3">
+                  <span>1. Jabatan Terakhir</span><span>:</span><span className="uppercase font-bold">{selectedPegawai?.jabatan}</span>
+                  <span>2. Unit Kerja</span><span>:</span><span className="uppercase font-bold text-blue-800">{selectedPegawai?.unitKerja}</span>
+                  <span>3. Bagian</span><span>:</span><span className="uppercase">{selectedPegawai?.bagian || '-'}</span>
+                  <span>4. Sub Bagian</span><span>:</span><span className="uppercase">{selectedPegawai?.subBagian || '-'}</span>
+                  <span>5. Pangkat / Golongan</span><span>:</span><span className="uppercase">{selectedPegawai?.pangkat} ({selectedPegawai?.golRuang})</span>
+                  <span>6. TMT Pangkat</span><span>:</span><span>{selectedPegawai?.tmtPangkat || '-'}</span>
+                  <span>7. Masa Kerja</span><span>:</span><span className="uppercase">{selectedPegawai?.masaKerja || '-'}</span>
+               </div>
+            </div>
+
+            <div className="space-y-4 text-[10.5pt] mb-8 text-black">
+               <p className="font-bold border-b border-black pb-1 mb-2">III. RIWAYAT PENDIDIKAN</p>
+               <div className="grid grid-cols-[160px_10px_1fr] gap-y-3">
+                  <span>1. Pendidikan Terakhir</span><span>:</span><span className="uppercase font-bold">{selectedPegawai?.pendidikan || '-'}</span>
+                  <span>2. Jurusan</span><span>:</span><span className="uppercase">{selectedPegawai?.jurusan || '-'}</span>
+               </div>
+            </div>
+
+            <div className="space-y-4 text-[10.5pt] mb-8 text-black">
+               <p className="font-bold border-b border-black pb-1 mb-2">IV. INFORMASI KONTAK & ALAMAT</p>
+               <div className="grid grid-cols-[160px_10px_1fr] gap-y-3">
+                  <span>1. Nomor Telepon / WA</span><span>:</span><span>{selectedPegawai?.telepon || '-'}</span>
+                  <span>2. Alamat Domisili</span><span>:</span><span className="uppercase leading-normal">{selectedPegawai?.alamat || '-'}</span>
+               </div>
+            </div>
+
+            <div className="mt-16 text-[10.5pt] text-justify text-black">
+               <p>Demikian daftar riwayat hidup ini saya buat dengan sesungguhnya dan apabila dikemudian hari terdapat keterangan yang tidak benar, saya bersedia dituntut di muka pengadilan serta bersedia menerima segala tindakan yang diambil oleh Pemerintah.</p>
+            </div>
+
+            <div className="mt-12 ml-[55%] text-center text-[11pt] text-black">
+               <p>Jakarta, {new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
+               <p className="mb-28 mt-2">Pegawai Bersangkutan,</p>
+               <p className="font-bold uppercase underline leading-none">{selectedPegawai?.nama}</p>
+               <p className="mt-2 font-bold">NIP {selectedPegawai?.nip}</p>
+            </div>
+            
+            <div className="absolute bottom-10 left-10 text-[7pt] text-gray-400 font-bold uppercase tracking-widest italic">
+               Dicetak otomatis melalui Smart HR Portal DJKI pada {new Date().toLocaleString('id-ID')}
+            </div>
          </div>
       </div>
 
