@@ -173,10 +173,10 @@ const MagangPKLPage = () => {
 
     const tableRows = selectedPeserta.map((p, i) => new TableRow({
       children: [
-        new TableCell({ children: [new Paragraph({ text: (i + 1).toString(), alignment: AlignmentType.CENTER })], width: { size: 5, type: WidthType.PERCENTAGE } }),
-        new TableCell({ children: [new Paragraph({ text: p.nama.toUpperCase(), bold: true })], width: { size: 40, type: WidthType.PERCENTAGE } }),
-        new TableCell({ children: [new Paragraph({ text: p.nisNim, alignment: AlignmentType.CENTER })], width: { size: 20, type: WidthType.PERCENTAGE } }),
-        new TableCell({ children: [new Paragraph({ text: (p.jurusan || '').toUpperCase() })], width: { size: 35, type: WidthType.PERCENTAGE } }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: (i + 1).toString() })], alignment: AlignmentType.CENTER })], width: { size: 5, type: WidthType.PERCENTAGE } }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.nama.toUpperCase(), bold: true })] })], width: { size: 40, type: WidthType.PERCENTAGE } }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: p.nisNim })], alignment: AlignmentType.CENTER })], width: { size: 20, type: WidthType.PERCENTAGE } }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: (p.jurusan || '').toUpperCase() })] })], width: { size: 35, type: WidthType.PERCENTAGE } }),
       ]
     }));
 
@@ -192,10 +192,10 @@ const MagangPKLPage = () => {
             rows: [
               new TableRow({
                 children: [
-                  new TableCell({ children: [new Paragraph({ text: "NO", alignment: AlignmentType.CENTER, bold: true })] }),
-                  new TableCell({ children: [new Paragraph({ text: "NAMA", alignment: AlignmentType.CENTER, bold: true })] }),
-                  new TableCell({ children: [new Paragraph({ text: "NIM/NIS", alignment: AlignmentType.CENTER, bold: true })] }),
-                  new TableCell({ children: [new Paragraph({ text: "JURUSAN", alignment: AlignmentType.CENTER, bold: true })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "NO", bold: true })], alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "NAMA", bold: true })], alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "NIM/NIS", bold: true })], alignment: AlignmentType.CENTER })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "JURUSAN", bold: true })], alignment: AlignmentType.CENTER })] }),
                 ]
               }),
               ...tableRows
