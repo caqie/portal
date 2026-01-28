@@ -1,5 +1,5 @@
 
-import { Pegawai, AdminUser, Laporan, Dossier, SKP, PAK, KenaikanKarir, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord } from './types';
+import { Pegawai, AdminUser, Laporan, Dossier, SKP, PAK, KenaikanKarir, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, DPCPRecord } from './types';
 import { getPangkatFromGol, getGajiEstimasi, resolveEducationInfo } from './constants';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
@@ -230,7 +230,24 @@ export const getRetirementDetails = (nip: string, jabatan: string) => {
   if (cleanNip.length < 8) return null;
   const birthYear = parseInt(cleanNip.substring(0, 4));
   const birthMonth = parseInt(cleanNip.substring(4, 6)) - 1;
-  let usiaPensiun = (jabatan || '').toUpperCase().includes('UTAMA') ? 65 : (jabatan || '').toUpperCase().includes('MADYA') ? 60 : 58;
+  
+  const jabUpper = (jabatan || '').toUpperCase();
+  
+  // LOGIKA BUP:
+  // 1. Utama -> 65 Tahun
+  // 2. Madya, Direktur, Sekretaris Direktorat -> 60 Tahun
+  // 3. Lainnya -> 58 Tahun
+  let usiaPensiun = 58;
+  if (jabUpper.includes('UTAMA')) {
+    usiaPensiun = 65;
+  } else if (
+    jabUpper.includes('MADYA') || 
+    jabUpper.includes('DIREKTUR') || 
+    jabUpper.includes('SEKRETARIS DIREKTORAT')
+  ) {
+    usiaPensiun = 60;
+  }
+
   const tmtPensiun = new Date(birthYear + usiaPensiun, birthMonth + 1, 1);
   const now = new Date();
   const diffDays = Math.ceil((tmtPensiun.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30));
@@ -268,23 +285,73 @@ export const fetchKGBFromSheets = () => fetchTableData<KGB>('KGB', 'portal_kgb_d
 });
 
 export const fetchTugasRutinFromSheets = () => fetchTableData<TugasRutin>('TUGAS_RUTIN', 'tugas_rutin_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
-  return { id: get('ID'), timestamp: get('TIMESTAMP'), bulan: get('BULAN'), tahun: parseInt(get('TAHUN')) || 0, jenis: get('JENIS') as any, detail: get('DETAIL') };
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); 
+    return i !== -1 ? cols[i] : ''; 
+  };
+  let dynamicData = {};
+  try {
+    const dataStr = get('DATA');
+    if (dataStr) dynamicData = JSON.parse(dataStr);
+  } catch (e) { }
+
+  return { 
+    id: get('ID'), 
+    timestamp: get('TIMESTAMP'), 
+    bulan: get('BULAN'), 
+    tahun: parseInt(get('TAHUN')) || 0, 
+    jenis: get('JENIS') as any, 
+    detail: get('DETAIL'),
+    data: dynamicData
+  };
 });
 
 export const fetchSKPFromSheets = () => fetchTableData<SKPRecord>('SKP', 'skp_db', (cols, headers) => {
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
-  return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), tahun: parseInt(get('TAHUN')) || 0, predikatKinerja: get('PREDIKATKINERJA') } as any;
+  const getJson = (k: string) => {
+    const val = get(k);
+    try { return val ? JSON.parse(val) : []; } catch(e) { return []; }
+  };
+  return { 
+    id: get('ID'), 
+    nip: get('NIP'), 
+    namaPegawai: get('NAMAPEGAWAI'), 
+    penilaiNip: get('PENILAINIP'),
+    atasanPenilaiNip: get('ATASANPENILAINIP'),
+    tahun: parseInt(get('TAHUN')) || 0, 
+    periodeMulai: get('PERIODEMULAI'),
+    periodeSelesai: get('PERIODESELESAI'),
+    tglPenilaian: get('TGLPENILAIAN'),
+    capaianOrganisasi: get('CAPAIANORGANISASI'),
+    ratingHasilKerja: get('RATINGHASILKERJA'),
+    ratingPerilaku: get('RATINGPERILAKU'),
+    predikatKinerja: get('PREDIKATKINERJA'),
+    hasilKerja: getJson('HASILKERJA'),
+    perilakuKerja: getJson('PERILAKUKERJA'),
+    lampiran: getJson('LAMPIRAN')
+  } as SKPRecord;
 });
 
 export const fetchPAKFromSheets = () => fetchTableData<PAKRecord>('PAK', 'pak_db', (cols, headers) => {
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
-  return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), jumlahKredit: parseFloat(get('JUMLAHKREDIT')) || 0 } as any;
+  const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
+  return { 
+    id: get('ID'), 
+    nip: get('NIP'), 
+    namaPegawai: get('NAMAPEGAWAI'), 
+    nomor: get('NOMOR'),
+    periode: get('PERIODE'),
+    tglDibuat: get('TGLDIBUAT'),
+    penilaiNip: get('PENILAINIP'),
+    akKonversi: parseFloat(get('AKKONVERSI')) || 0,
+    jumlahKredit: parseFloat(get('JUMLAHKREDIT')) || 0,
+    akumulasi: getJson('AKUMULASI')
+  } as any;
 });
 
 export const fetchKenaikanFromSheets = () => fetchTableData<KenaikanKarir>('KENAIKAN', 'kenaikan_db', (cols, headers) => {
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
-  return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), tmtUsulan: get('TMTUSULAN') } as any;
+  return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), jenisUsulan: get('JENISUSULAN'), dari: get('DARI'), menjadi: get('MENJADI'), tmtUsulan: get('TMTUSULAN'), status: get('STATUS') } as KenaikanKarir;
 });
 
 export const fetchKegiatanFromSheets = () => fetchTableData<Kegiatan>('KEGIATAN', 'kegiatan_db', (cols, headers) => {
@@ -304,10 +371,10 @@ export const fetchKegiatanFromSheets = () => fetchTableData<Kegiatan>('KEGIATAN'
 
 export const fetchSPMTSPPFromSheets = () => fetchTableData<SpmtSppRecord>('SPMT_SPP', 'spmt_spp_db', (cols, headers) => {
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
-  return { id: get('ID'), type: get('TYPE') as any, nomor: get('NOMOR'), pegawaiNip: get('PEWAINIP') } as any;
+  return { id: get('ID'), type: get('TYPE') as any, nomor: get('NOMOR'), pejabatNip: get('PEJABATNIP'), pegawaiNip: get('PEGAWAINIP'), nomorSK: get('NOMORSK'), tentangSK: get('TENTANGSK'), tanggalSK: get('TANGGALSK'), jabatanBaru: get('JABATANBARU'), unitKerja: get('UNITKERJA'), tanggalLantikAtauSpmt: get('TANGGALLANTIKATAUSPMT'), tanggalSppAtauSpmt: get('TANGGALSPPATAUSPMT'), tempatTandaTangan: get('TEMPATANDATANGAN'), signatureLabel: get('SIGNATURELABEL') } as SpmtSppRecord;
 });
 
 export const fetchABKAnjabFromSheets = () => fetchTableData<ABKAnjab>('ABK_ANJAB', 'abk_db', (cols, headers) => {
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
-  return { id: get('ID'), namaJabatan: get('NAMAJABATAN'), kebutuhanPegawai: parseFloat(get('KEBUTUHANPEGAWAI')) || 0 } as any;
+  return { id: get('ID'), namaJabatan: get('NAMAJABATAN'), unitKerja: get('UNITKERJA'), jumlahSaatIni: parseInt(get('JUMLAHSAATINI')) || 0, totalMenitBebanKerja: parseFloat(get('TOTALMENITBEBANKERJA')) || 0, kebutuhanPegawai: parseFloat(get('KEBUTUHANPEGAWAI')) || 0, selisih: parseFloat(get('SELISIH')) || 0, status: get('STATUS') as any, kualifikasiPendidikan: get('KUALIFIKASIPENDIDIKAN') };
 });

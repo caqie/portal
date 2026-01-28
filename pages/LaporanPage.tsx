@@ -6,6 +6,7 @@ import { fetchPegawaiFromSheets, fetchTugasRutinFromSheets, fetchKegiatanFromShe
 import { useAuth } from '../AuthContext';
 import SuccessModal from '../components/SuccessModal';
 import SearchableSelect from '../components/SearchableSelect';
+// @ts-ignore
 import * as XLSX from 'xlsx';
 // @ts-ignore
 import html2canvas from 'html2canvas';
@@ -29,7 +30,7 @@ const LaporanPage = () => {
   const [selMonth, setSelMonth] = useState(BULAN[new Date().getMonth()]);
   const [selYear, setSelYear] = useState(new Date().getFullYear());
   
-  // Signatory State - Default ke Sekretaris
+  // Signatory State - Default ke Sekretaris (ID NIP Contoh)
   const [signatoryNip, setSignatoryNip] = useState('197410061998031002'); 
   const [signatoryData, setSignatoryData] = useState({
     nama: 'Andrieansjah',
@@ -67,13 +68,42 @@ const LaporanPage = () => {
   };
 
   const reportData = useMemo(() => {
-    const analytics = UNIT_KERJA.map(unit => ({
-      unit,
-      total: pegawai.filter(p => normalizeUnitName(p.unitKerja) === unit).length,
-      pns: pegawai.filter(p => normalizeUnitName(p.unitKerja) === unit && p.jenisPegawai === 'PNS').length,
-      pppk: pegawai.filter(p => normalizeUnitName(p.unitKerja) === unit && p.jenisPegawai === 'PPPK').length
-    }));
+    // 1. Hitung Statistik Pegawai (Analitik)
+    const analytics = UNIT_KERJA.map(unit => {
+      const perUnit = pegawai.filter(p => normalizeUnitName(p.unitKerja) === unit && p.status === 'Aktif');
+      return {
+        unit,
+        pns: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase() === 'PNS').length,
+        pppk: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase() === 'PPPK').length,
+        pppkParuh: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PARUH')).length,
+        total: perUnit.length
+      };
+    });
 
+    // 2. Global Gender Stats
+    const activePegawai = pegawai.filter(p => p.status === 'Aktif');
+    const gender = {
+      pria: activePegawai.filter(p => p.gender === 'L').length,
+      wanita: activePegawai.filter(p => p.gender === 'P').length
+    };
+
+    // 3. Global Education Stats
+    const educationMap: Record<string, number> = {};
+    activePegawai.forEach(p => {
+      let edu = 'LAINNYA';
+      const pStr = (p.pendidikan || '').toUpperCase().trim();
+      if (pStr.includes('S3')) edu = 'S3';
+      else if (pStr.includes('S2')) edu = 'S2';
+      else if (pStr.includes('S1')) edu = 'S1';
+      else if (pStr.includes('DIV')) edu = 'D-IV';
+      else if (pStr.includes('DIII') || pStr.includes('D3')) edu = 'D-III';
+      else if (pStr.includes('SMA') || pStr.includes('SMK')) edu = 'SMA/SMK';
+      else if (pStr !== '') edu = pStr;
+      educationMap[edu] = (educationMap[edu] || 0) + 1;
+    });
+    const education = Object.entries(educationMap).map(([label, count]) => ({ label, count })).sort((a,b) => b.count - a.count);
+
+    // 4. Filter Tugas Rutin & Kegiatan
     const filteredTasks = tasks.filter(t => t.bulan === selMonth && Number(t.tahun) === selYear);
     const filteredKegiatan = kegiatan.filter(k => {
       if (!k.tanggal) return false;
@@ -81,23 +111,77 @@ const LaporanPage = () => {
       return BULAN[d.getMonth()] === selMonth && d.getFullYear() === selYear;
     });
 
-    return { analytics, filteredTasks, filteredKegiatan };
+    return { analytics, gender, education, filteredTasks, filteredKegiatan };
   }, [pegawai, tasks, kegiatan, selMonth, selYear]);
 
   const handleDownloadPdf = async () => {
     if (!pdfRef.current) return;
     setLoading(true);
-    const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
-    pdf.addImage(imgData, 'PNG', 0, 0, 210, 330);
-    pdf.save(`LAPORAN_BULANAN_${selMonth.toUpperCase()}_${selYear}.pdf`);
-    saveToHistory('PDF');
-    setLoading(false);
+    try {
+      const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
+      pdf.addImage(imgData, 'PNG', 0, 0, 210, 330);
+      pdf.save(`LAPORAN_BULANAN_${selMonth.toUpperCase()}_${selYear}.pdf`);
+      saveToHistory('PDF');
+      logActivity('DOWNLOAD', 'Laporan', `Download PDF Laporan ${selMonth} ${selYear}`);
+    } catch (e) {
+      alert("Gagal mengunduh PDF.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadExcel = () => {
+    try {
+        const wb = XLSX.utils.book_new();
+        
+        // Sheet 1: Statistik Pegawai
+        const statsData = reportData.analytics.map(a => ({
+          'Unit Kerja': a.unit,
+          'PNS': a.pns,
+          'PPPK (Penuh Waktu)': a.pppk,
+          'PPPK (Paruh Waktu)': a.pppkParuh,
+          'Total ASN Aktif': a.total
+        }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(statsData), "Statistik Unit Kerja");
+
+        // Sheet 2: Distribusi Gender & Pendidikan
+        const genderData = [
+          { Kategori: 'Laki-laki', Jumlah: reportData.gender.pria },
+          { Kategori: 'Perempuan', Jumlah: reportData.gender.wanita }
+        ];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(genderData), "Distribusi Gender");
+        
+        const eduData = reportData.education.map(e => ({ 'Jenjang Pendidikan': e.label, 'Jumlah ASN': e.count }));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(eduData), "Sebaran Pendidikan");
+
+        // Sheet 3: Tugas Rutin
+        const tasksData = reportData.filteredTasks.map(t => {
+          const base = { 'Kategori': TASK_LABELS[t.jenis] || t.jenis, 'Periode': `${t.bulan} ${t.tahun}`, 'Narasi': t.detail || '-' };
+          const extra = (t.data && typeof t.data === 'object') ? t.data : {};
+          return { ...base, ...extra };
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(tasksData), "Tugas Rutin");
+
+        XLSX.writeFile(wb, `LAPORAN_SDM_KONSOLIDASI_${selMonth.toUpperCase()}_${selYear}.xlsx`);
+        saveToHistory('EXCEL');
+        logActivity('DOWNLOAD', 'Laporan', `Download Excel Laporan ${selMonth} ${selYear}`);
+    } catch(err) {
+        alert("Gagal mengekspor Excel.");
+    }
   };
 
   const saveToHistory = (format: string) => {
-    const newLap: Laporan = { id: Date.now().toString(), judul: `LAPORAN KONSOLIDASI ${selMonth.toUpperCase()} ${selYear}`, jenis: format, periode: selMonth, tahun: selYear, status: 'Generated', createdAt: new Date().toISOString() };
+    const newLap: Laporan = { 
+      id: Date.now().toString(), 
+      judul: `LAPORAN KONSOLIDASI ${selMonth.toUpperCase()} ${selYear}`, 
+      jenis: format, 
+      periode: selMonth, 
+      tahun: selYear, 
+      status: 'Generated', 
+      createdAt: new Date().toISOString() 
+    };
     const updated = [newLap, ...laporanHistory].slice(0, 20);
     setLaporanHistory(updated);
     localStorage.setItem('portal_laporan_history', JSON.stringify(updated));
@@ -106,7 +190,7 @@ const LaporanPage = () => {
 
   return (
     <div className="space-y-8 animate-fadeIn pb-24">
-      <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title="Dokumen Berhasil" />
+      <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title="Dokumen Berhasil" message="Laporan telah berhasil di-generate dan diunduh." />
       
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
         <div>
@@ -124,7 +208,6 @@ const LaporanPage = () => {
            <div className="xl:col-span-4 space-y-6">
               <div className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-sm space-y-8">
                  <h5 className="text-[11px] font-black text-blue-600 uppercase tracking-widest border-b pb-4">Konfigurasi Laporan</h5>
-                 
                  <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                        <div className="space-y-1.5">
@@ -136,59 +219,58 @@ const LaporanPage = () => {
                           <input type="number" className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-[11px] font-black" value={selYear} onChange={e => setSelYear(parseInt(e.target.value))} />
                        </div>
                     </div>
-
-                    <SearchableSelect 
-                      label="Penandatangan" 
-                      options={pegawai.map(p => ({ value: p.nip, label: p.nama, subLabel: p.jabatan }))} 
-                      value={signatoryNip} 
-                      onChange={handleSignatoryChange} 
-                    />
+                    <SearchableSelect label="Penandatangan" options={pegawai.map(p => ({ value: p.nip, label: p.nama, subLabel: p.jabatan }))} value={signatoryNip} onChange={handleSignatoryChange} />
                  </div>
-                 
-                 <button onClick={handleDownloadPdf} disabled={loading} className="w-full py-5 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-3">
-                    {loading ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>} Unduh PDF Resmi (F4)
-                 </button>
+                 <div className="space-y-3 pt-4">
+                    <button onClick={handleDownloadPdf} disabled={loading} className="w-full py-5 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
+                        {loading ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>} Unduh PDF Resmi
+                    </button>
+                    <button onClick={handleDownloadExcel} className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
+                        <i className="bi bi-file-earmark-spreadsheet-fill"></i> Unduh Excel Terpadu
+                    </button>
+                 </div>
               </div>
            </div>
 
            <div className="xl:col-span-8 overflow-hidden">
               <div className="bg-gray-200 py-10 rounded-[3.5rem] flex flex-col items-center overflow-x-auto custom-scrollbar">
-                 {/* WARNA TEKS DIBUAT HITAM PEKAT (#000000) UNTUK STANDAR KEDINASAN */}
                  <div ref={pdfRef} className="bg-white shadow-2xl text-[#000000] font-arial p-[1.5cm_1.8cm] leading-tight" style={{ width: '210mm', minHeight: '330mm' }}>
                     <div className="flex items-center border-b-[3pt] border-black pb-4 mb-8">
                        <img src={DEFAULT_LOGO} className="h-20 w-auto mr-6" crossOrigin="anonymous" />
                        <div className="text-center flex-1">
-                          <p className="text-[13pt] font-bold uppercase text-[#000000]">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                          <p className="text-[13pt] font-bold uppercase text-[#000000]">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                          <p className="text-[9pt] text-[#000000]">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
+                          <p className="text-[13pt] font-bold uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                          <p className="text-[13pt] font-bold uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                          <p className="text-[9pt]">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
                        </div>
                     </div>
 
                     <div className="text-center mb-8">
-                       <h1 className="text-[14pt] font-bold uppercase underline text-[#000000]">LAPORAN KONSOLIDASI DATA SDM</h1>
-                       <p className="text-[11pt] font-bold mt-1 uppercase text-[#000000]">PERIODE: {selMonth} {selYear}</p>
+                       <h1 className="text-[14pt] font-bold uppercase underline">LAPORAN KONSOLIDASI DATA SDM</h1>
+                       <p className="text-[11pt] font-bold mt-1 uppercase">PERIODE: {selMonth} {selYear}</p>
                     </div>
 
                     <div className="text-[10pt] space-y-10">
                        <section>
-                          <p className="font-bold border-b border-black mb-3 pb-1 text-[#000000]">I. STATISTIK PEGAWAI PER UNIT KERJA</p>
-                          <table className="w-full border-collapse border border-black text-[9pt] text-[#000000]">
-                             <thead className="bg-gray-100">
-                                <tr className="text-center font-bold">
-                                   <th className="border border-black p-2">NO</th>
+                          <p className="font-bold border-b border-black mb-3 pb-1">I. STATISTIK ASN PER UNIT KERJA</p>
+                          <table className="w-full border-collapse border border-black text-[8.5pt]">
+                             <thead className="bg-gray-100 font-bold">
+                                <tr className="text-center">
+                                   <th className="border border-black p-2 w-8">NO</th>
                                    <th className="border border-black p-2 text-left">UNIT KERJA</th>
-                                   <th className="border border-black p-2">PNS</th>
-                                   <th className="border border-black p-2">PPPK</th>
-                                   <th className="border border-black p-2">TOTAL</th>
+                                   <th className="border border-black p-2 w-16">PNS</th>
+                                   <th className="border border-black p-2 w-20">PPPK (PW)</th>
+                                   <th className="border border-black p-2 w-20">PPPK (PARUH)</th>
+                                   <th className="border border-black p-2 w-16">TOTAL</th>
                                 </tr>
                              </thead>
                              <tbody>
                                 {reportData.analytics.map((a, i) => (
                                    <tr key={i}>
                                       <td className="border border-black p-2 text-center">{i+1}</td>
-                                      <td className="border border-black p-2 uppercase text-[8pt]">{a.unit}</td>
+                                      <td className="border border-black p-2 uppercase text-[7.5pt]">{a.unit}</td>
                                       <td className="border border-black p-2 text-center">{a.pns}</td>
                                       <td className="border border-black p-2 text-center">{a.pppk}</td>
+                                      <td className="border border-black p-2 text-center font-bold text-rose-700">{a.pppkParuh}</td>
                                       <td className="border border-black p-2 text-center font-bold">{a.total}</td>
                                    </tr>
                                 ))}
@@ -196,9 +278,41 @@ const LaporanPage = () => {
                           </table>
                        </section>
 
+                       <section className="grid grid-cols-2 gap-8">
+                          <div>
+                            <p className="font-bold border-b border-black mb-3 pb-1 uppercase">II. Distribusi Gender</p>
+                            <table className="w-full border-collapse border border-black text-[9pt]">
+                                <tbody className="font-bold">
+                                    <tr><td className="border border-black p-2 bg-gray-50">LAKI-LAKI</td><td className="border border-black p-2 text-center">{reportData.gender.pria}</td></tr>
+                                    <tr><td className="border border-black p-2 bg-gray-50">PEREMPUAN</td><td className="border border-black p-2 text-center">{reportData.gender.wanita}</td></tr>
+                                    <tr className="bg-gray-200">
+                                        <td className="border border-black p-2 uppercase">TOTAL ASN AKTIF</td>
+                                        <td className="border border-black p-2 text-center">{reportData.gender.pria + reportData.gender.wanita}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                          </div>
+                          <div>
+                            <p className="font-bold border-b border-black mb-3 pb-1 uppercase">III. Sebaran Pendidikan</p>
+                            <table className="w-full border-collapse border border-black text-[8.5pt]">
+                                <thead>
+                                    <tr className="bg-gray-100 font-bold">
+                                        <th className="border border-black p-1 text-left">JENJANG</th>
+                                        <th className="border border-black p-1 w-16">JML</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {reportData.education.slice(0, 6).map((e, idx) => (
+                                        <tr key={idx}><td className="border border-black p-1 px-2">{e.label}</td><td className="border border-black p-1 text-center font-bold">{e.count}</td></tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                          </div>
+                       </section>
+
                        <section>
-                          <p className="font-bold border-b border-black mb-3 pb-1 text-[#000000]">II. LOG TUGAS RUTIN TERPENUHI</p>
-                          <table className="w-full border-collapse border border-black text-[9pt] text-[#000000]">
+                          <p className="font-bold border-b border-black mb-3 pb-1">IV. CAPAIAN TUGAS RUTIN BULANAN</p>
+                          <table className="w-full border-collapse border border-black text-[9pt]">
                              <thead className="bg-gray-100 font-bold">
                                 <tr>
                                    <th className="border border-black p-2 w-10 text-center">NO</th>
@@ -209,22 +323,31 @@ const LaporanPage = () => {
                              <tbody>
                                 {reportData.filteredTasks.length > 0 ? reportData.filteredTasks.map((t, i) => (
                                    <tr key={t.id}>
-                                      <td className="border border-black p-2 text-center">{i+1}</td>
-                                      <td className="border border-black p-2 font-bold uppercase">{TASK_LABELS[t.jenis]}</td>
-                                      <td className="border border-black p-2 italic">{t.detail || 'Terlaksana sesuai prosedur.'}</td>
+                                      <td className="border border-black p-2 text-center align-top">{i+1}</td>
+                                      <td className="border border-black p-2 font-bold uppercase w-1/3">{TASK_LABELS[t.jenis] || t.jenis}</td>
+                                      <td className="border border-black p-2 italic leading-normal">
+                                        {t.detail || 'Terlaksana sesuai prosedur.'}
+                                        <div className="mt-1 text-[7pt] font-normal not-italic opacity-70">
+                                            {t.data && typeof t.data === 'object' && Object.entries(t.data)
+                                                .filter(([k,v]) => v && !k.toLowerCase().includes('link'))
+                                                .map(([k,v]) => `${k.replace(/_/g,' ')}: ${v}`)
+                                                .join(' | ')
+                                            }
+                                        </div>
+                                      </td>
                                    </tr>
                                 )) : (
-                                   <tr><td colSpan={3} className="border border-black p-4 text-center italic text-gray-500">Tidak ada log data.</td></tr>
+                                   <tr><td colSpan={3} className="border border-black p-4 text-center italic text-gray-500">Tidak ada log tugas rutin yang tercatat.</td></tr>
                                 )}
                              </tbody>
                           </table>
                        </section>
 
-                       <div className="mt-20 ml-[55%] text-center text-[#000000]">
+                       <div className="mt-14 ml-[55%] text-center leading-normal">
                           <p>Jakarta, {new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
-                          <p className="font-bold mt-2 mb-28 uppercase text-[#000000]">{signatoryData.jabatan},</p>
-                          <p className="font-bold uppercase underline text-[#000000]">{signatoryData.nama}</p>
-                          <p className="text-[#000000]">NIP {signatoryNip}</p>
+                          <p className="font-bold mt-2 mb-24 uppercase">{signatoryData.jabatan},</p>
+                          <p className="font-bold uppercase underline">{signatoryData.nama}</p>
+                          <p>NIP {signatoryNip}</p>
                        </div>
                     </div>
                  </div>
@@ -232,9 +355,31 @@ const LaporanPage = () => {
            </div>
         </div>
       ) : (
-        <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm p-10 min-h-[500px] text-center opacity-40">
-           <i className="bi bi-clock-history text-6xl block mb-4"></i>
-           <p className="text-[11px] font-black uppercase tracking-widest">Fitur Riwayat akan muncul setelah dokumen di-generate</p>
+        <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
+            <table className="w-full text-left">
+                <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
+                    <tr>
+                        <th className="px-10 py-5">Judul Laporan</th>
+                        <th className="px-4 py-5 text-center">Format</th>
+                        <th className="px-4 py-5 text-center">Periode</th>
+                        <th className="px-10 py-5 text-right">Tanggal Generate</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                    {laporanHistory.length > 0 ? laporanHistory.map(h => (
+                        <tr key={h.id} className="hover:bg-blue-50/5 transition-colors">
+                            <td className="px-10 py-6"><p className="text-[11px] font-black text-gray-950 uppercase">{h.judul}</p></td>
+                            <td className="px-4 py-6 text-center">
+                                <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${h.jenis==='PDF' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>{h.jenis}</span>
+                            </td>
+                            <td className="px-4 py-6 text-center"><p className="text-[10px] font-bold text-gray-500 uppercase">{h.periode} {h.tahun}</p></td>
+                            <td className="px-10 py-6 text-right"><p className="text-[10px] font-black text-gray-400">{new Date(h.createdAt).toLocaleString('id-ID')}</p></td>
+                        </tr>
+                    )) : (
+                        <tr><td colSpan={4} className="py-20 text-center text-gray-300 font-black uppercase text-[10px] tracking-widest">Belum ada riwayat generate laporan</td></tr>
+                    )}
+                </tbody>
+            </table>
         </div>
       )}
     </div>

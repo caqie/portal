@@ -4,7 +4,7 @@ export enum TaskType {
   APEL = 'APEL',
   LHKPN = 'LHKPN',
   LHKASN = 'LHKASN',
-  TUGAS_BELAJAR = 'TUGAS_BELBELAJAR',
+  TUGAS_BELAJAR = 'TUGAS_BELAJAR',
   MAGANG = 'MAGANG',
   PENELITIAN = 'PENELITIAN',
   SATYA_LENCANA = 'SATYA_LENCANA',
@@ -95,29 +95,22 @@ export interface PAKRecord {
   tglDibuat: string;
   penilaiNip: string;
   status?: string;
-  nomorKarpeg: string;
-  tmtGolongan: string;
-  tmtJabatan: string;
-  predikat: string;
-  prosentase: number;
-  koefisien: number;
-  akDiperoleh: number;
-  akumulasi: Array<{
-    tahun: number;
-    periodik: string;
-    predikat: string;
-    prosentase: number;
-    koefisien: number;
-    ak: number;
-  }>;
-  akIntegrasi: number;
-  akDasar: number;
-  akJFLama: number;
-  akPenyesuaian: number;
-  akKonversi: number;
-  akPendidikan: number;
-  akMinPangkat: number;
-  akMinJenjang: number;
+  nomorKarpeg?: string;
+  tmtGolongan?: string;
+  tmtJabatan?: string;
+  predikat?: string;
+  prosentase?: number;
+  koefisien?: number;
+  akDiperoleh?: number;
+  akumulasi?: any[];
+  akIntegrasi?: number;
+  akDasar?: number;
+  akJFLama?: number;
+  akPenyesuaian?: number;
+  akKonversi?: number;
+  akPendidikan?: number;
+  akMinPangkat?: number;
+  akMinJenjang?: number;
   jumlahKredit?: number;
 }
 
@@ -144,18 +137,8 @@ export interface DPCPRecord {
   pendidikanDasar: string;
   pendidikanDasarTahun: string;
   mulaiMasukPns: string;
-  istriSuami: Array<{
-    nama: string;
-    tglLahir: string;
-    tglKawin: string;
-    istriKe: string;
-  }>;
-  anak: Array<{
-    nama: string;
-    tglLahir: string;
-    status: 'KANDUNG' | 'TIRI' | 'ANGKAT';
-    ayahIbu: string;
-  }>;
+  istriSuami?: any[];
+  anak?: any[];
   alamatSekarang: string;
   kecSekarang: string;
   provSekarang: string;
@@ -166,11 +149,7 @@ export interface DPCPRecord {
   pjbNama?: string;
   pjbNip?: string;
   pjbJabatan?: string;
-  riwayatKepegawaian?: {
-    tmtCpns: string;
-    masaKerjaTotal: string;
-    pendidikanAwal: string;
-  };
+  riwayatKepegawaian?: any;
 }
 
 export interface MaintenanceConfig { all: boolean; pages: string[]; }
@@ -182,7 +161,25 @@ export interface AdminUser { id: string; nip: string; name: string; password?: s
 export interface CloudConfig { driveFolderId: string; appsScriptUrl: string; logoUrl?: string; }
 export interface HasilKerjaRow { rencanaPimpinan: string; rencanaPegawai: string; aspek: 'Kualitas' | 'Kuantitas' | 'Waktu' | 'Biaya'; indikator: string; target: string; realisasi: string; umpanBalik: string; }
 export interface PerilakuKerjaRow { poin: string; deskripsi: string; ekspektasi: string; umpanBalik: string; }
-export interface SKPRecord { id: string; nip: string; namaPegawai: string; penilaiNip: string; atasanPenilaiNip: string; tahun: number; periodeMulai: string; periodeSelesai: string; tglPenilaian: string; capaianOrganisasi: string; ratingHasilKerja: string; ratingPerilaku: string; predikatKinerja: string; catatan: string; hasilKerja: HasilKerjaRow[]; perilakuKerja: PerilakuKerjaRow[]; lampiran: any; }
+export interface SKPRecord { 
+  id: string; 
+  nip: string; 
+  namaPegawai: string; 
+  penilaiNip: string; 
+  atasanPenilaiNip?: string; 
+  tahun: number; 
+  periodeMulai: string; 
+  periodeSelesai: string; 
+  tglPenilaian: string; 
+  capaianOrganisasi: string; 
+  ratingHasilKerja: string; 
+  ratingPerilaku: string; 
+  predikatKinerja: string; 
+  catatan?: string; 
+  hasilKerja: HasilKerjaRow[]; 
+  perilakuKerja: PerilakuKerjaRow[]; 
+  lampiran?: any; 
+}
 
 export interface Pegawai { 
   id: string; 
@@ -211,7 +208,6 @@ export interface Pegawai {
   tmtStatus?: string; 
   nik?: string;
   masaKerja?: string;
-  // Added missing properties to fix TypeScript errors in multiple pages
   tempatLahir?: string;
   tanggalLahir?: string;
 }

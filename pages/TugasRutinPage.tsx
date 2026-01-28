@@ -6,6 +6,7 @@ import { useAuth } from '../AuthContext';
 import { BULAN, TASK_LABELS } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
+// @ts-ignore
 import * as XLSX from 'xlsx';
 
 const TugasRutinPage = () => {
@@ -126,21 +127,23 @@ const TugasRutinPage = () => {
   const renderDataSummary = (t: TugasRutin) => {
     if (!t.data) return <span className="text-gray-400 italic">Tidak ada detail field.</span>;
     
-    // Ambil maksimal 4 field pertama yang tidak kosong
+    // Ambil maksimal 6 field pertama yang tidak kosong
     const entries = Object.entries(t.data)
-      .filter(([k, v]) => v && !k.includes('link_dokumen'))
-      .slice(0, 4);
+      .filter(([k, v]) => v && !k.toLowerCase().includes('link_dokumen'))
+      .slice(0, 6);
+
+    if (entries.length === 0) return <span className="text-gray-400 italic">Data pelengkap kosong.</span>;
 
     return (
       <div className="flex flex-wrap gap-2 mt-2">
         {entries.map(([key, val]) => (
           <span key={key} className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[7px] font-bold uppercase rounded border border-gray-200">
-            {key.replace(/_/g, ' ')}: <span className="text-gray-900">{val as string}</span>
+            {key.replace(/_/g, ' ')}: <span className="text-gray-900">{String(val)}</span>
           </span>
         ))}
-        {Object.keys(t.data).some(k => k.includes('link_dokumen') && t.data[k]) && (
+        {Object.keys(t.data).some(k => k.toLowerCase().includes('link_dokumen') && t.data[k]) && (
           <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[7px] font-black uppercase rounded border border-blue-100">
-            <i className="bi bi-link-45deg"></i> Berkas
+            <i className="bi bi-link-45deg"></i> Berkas Terlampir
           </span>
         )}
       </div>
