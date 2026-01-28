@@ -16,7 +16,7 @@ const ABKAnjabPage = () => {
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [activeView, setActiveView] = useState<'list' | 'editor'>('list');
+  const [activeView, setActiveView] = useState<'list' | 'editor' | 'preview'>('list');
   const [modalTab, setModalTab] = useState<'profil' | 'anjab' | 'abk'>('profil');
   const [showSuccess, setShowSuccess] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -269,22 +269,22 @@ const ABKAnjabPage = () => {
            {modalTab === 'profil' && (
               <div className="grid grid-cols-2 gap-8 animate-fadeIn">
                  <div className="space-y-4">
-                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Nomenklatur Jabatan</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border-2 rounded-2xl text-[12px] font-black uppercase" value={formData.namaJabatan} onChange={e => setFormData({...formData, namaJabatan: e.target.value})} /></div>
-                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Unit Kerja</label><select className="w-full px-5 py-3.5 bg-gray-50 border-2 rounded-2xl text-[12px] font-black uppercase" value={formData.unitKerja} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
+                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Nomenklatur Jabatan</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border-2 rounded-2xl text-[12px] font-black uppercase" value={formData.namaJabatan} onChange={e => setFormData({...formData, namaJabatan: e.target.value})} /></div>
+                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Unit Kerja</label><select className="w-full px-5 py-3 bg-gray-50 border-2 rounded-2xl text-[12px] font-black uppercase" value={formData.unitKerja} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
                  </div>
                  <div className="space-y-4">
-                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Jumlah ASN Eksisting</label><input type="number" className="w-full px-5 py-3.5 bg-gray-50 border-2 rounded-2xl text-[12px] font-black" value={formData.jumlahSaatIni} onChange={e => setFormData({...formData, jumlahSaatIni: parseInt(e.target.value) || 0})} /></div>
-                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Jam Kerja Efektif (Thn)</label><input type="number" className="w-full px-5 py-3.5 bg-gray-50 border-2 rounded-2xl text-[12px] font-black" value={formData.jamKerjaEfektif} onChange={e => setFormData({...formData, jamKerjaEfektif: parseInt(e.target.value) || 75000})} /></div>
+                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Jumlah ASN Eksisting</label><input type="number" className="w-full px-5 py-3 bg-gray-50 border-2 rounded-2xl text-[12px] font-black" value={formData.jumlahSaatIni} onChange={e => setFormData({...formData, jumlahSaatIni: parseInt(e.target.value) || 0})} /></div>
+                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Jam Kerja Efektif (Thn)</label><input type="number" className="w-full px-5 py-3 bg-gray-50 border-2 rounded-2xl text-[12px] font-black" value={formData.jamKerjaEfektif} onChange={e => setFormData({...formData, jamKerjaEfektif: parseInt(e.target.value) || 75000})} /></div>
                  </div>
               </div>
            )}
 
            {modalTab === 'anjab' && (
               <div className="space-y-6 animate-fadeIn">
-                 <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Ikhtisar Jabatan</label><textarea className="w-full px-5 py-3.5 bg-gray-50 border-2 rounded-2xl text-[12px] font-bold" rows={3} value={formData.ikhtisarJabatan} onChange={e => setFormData({...formData, ikhtisarJabatan: e.target.value})} /></div>
+                 <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Ikhtisar Jabatan</label><textarea className="w-full px-5 py-3 bg-gray-50 border-2 rounded-2xl text-[12px] font-bold" rows={3} value={formData.ikhtisarJabatan} onChange={e => setFormData({...formData, ikhtisarJabatan: e.target.value})} /></div>
                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Kualifikasi Pendidikan</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border-2 rounded-2xl text-[12px] font-black" value={formData.kualifikasiPendidikan} onChange={e => setFormData({...formData, kualifikasiPendidikan: e.target.value})} /></div>
-                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Risiko Bahaya</label><input type="text" className="w-full px-5 py-3.5 bg-gray-50 border-2 rounded-2xl text-[12px] font-black" value={formData.risikoBahaya} onChange={e => setFormData({...formData, risikoBahaya: e.target.value})} /></div>
+                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Kualifikasi Pendidikan</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border-2 rounded-2xl text-[12px] font-black" value={formData.kualifikasiPendidikan} onChange={e => setFormData({...formData, kualifikasiPendidikan: e.target.value})} /></div>
+                    <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase">Risiko Bahaya</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border-2 rounded-2xl text-[12px] font-black" value={formData.risikoBahaya} onChange={e => setFormData({...formData, risikoBahaya: e.target.value})} /></div>
                  </div>
               </div>
            )}
@@ -319,9 +319,6 @@ const ABKAnjabPage = () => {
            </div>
         </div>
       )}
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-      `}</style>
     </div>
   );
 };

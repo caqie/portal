@@ -256,7 +256,7 @@ export const getRetirementDetails = (nip: string, jabatan: string) => {
 };
 
 export const fetchUsersFromSheets = () => fetchTableData<AdminUser>('USERS', 'portal_users_db', (cols, headers) => {
-    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_|]/g, '')); return i !== -1 ? cols[i] : ''; };
     return { id: get('ID'), nip: get('NIP'), name: get('NAME'), role: get('ROLE') as any, foto: get('FOTO'), password: get('PASSWORD') };
 });
 

@@ -234,9 +234,9 @@ const LaporanPage = () => {
 
            <div className="xl:col-span-8 overflow-hidden">
               <div className="bg-gray-200 py-10 rounded-[3.5rem] flex flex-col items-center overflow-x-auto custom-scrollbar">
-                 <div ref={pdfRef} className="bg-white shadow-2xl text-[#000000] font-arial p-[1.5cm_1.8cm] leading-tight" style={{ width: '210mm', minHeight: '330mm' }}>
+                 <div ref={pdfRef} className="bg-white shadow-2xl text-black font-arial p-[1.5cm_1.8cm] leading-tight" style={{ width: '210mm', minHeight: '330mm' }}>
                     <div className="flex items-center border-b-[3pt] border-black pb-4 mb-8">
-                       <img src={DEFAULT_LOGO} className="h-20 w-auto mr-6" crossOrigin="anonymous" />
+                       <img src={DEFAULT_LOGO} className="h-20 w-auto mr-6" crossOrigin="anonymous" style={{ filter: 'grayscale(100%)' }} />
                        <div className="text-center flex-1">
                           <p className="text-[13pt] font-bold uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
                           <p className="text-[13pt] font-bold uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
@@ -253,7 +253,7 @@ const LaporanPage = () => {
                        <section>
                           <p className="font-bold border-b border-black mb-3 pb-1">I. STATISTIK ASN PER UNIT KERJA</p>
                           <table className="w-full border-collapse border border-black text-[8pt]">
-                             <thead className="bg-gray-100 font-bold">
+                             <thead className="bg-gray-50 font-bold text-black">
                                 <tr className="text-center">
                                    <th className="border border-black p-2 w-8">NO</th>
                                    <th className="border border-black p-2 text-left">UNIT KERJA</th>
@@ -263,7 +263,7 @@ const LaporanPage = () => {
                                    <th className="border border-black p-2 w-16">TOTAL</th>
                                 </tr>
                              </thead>
-                             <tbody>
+                             <tbody className="text-black">
                                 {reportData.analytics.map((a, i) => (
                                    <tr key={i}>
                                       <td className="border border-black p-2 text-center">{i+1}</td>
@@ -278,13 +278,13 @@ const LaporanPage = () => {
                           </table>
                        </section>
 
-                       <section className="grid grid-cols-2 gap-8">
+                       <section className="grid grid-cols-2 gap-8 text-black">
                           <div>
                             <p className="font-bold border-b border-black mb-3 pb-1 uppercase">II. Distribusi Gender</p>
                             <table className="w-full border-collapse border border-black text-[9pt]">
                                 <tbody className="font-bold">
-                                    <tr><td className="border border-black p-2 bg-gray-50">LAKI-LAKI</td><td className="border border-black p-2 text-center">{reportData.gender.pria}</td></tr>
-                                    <tr><td className="border border-black p-2 bg-gray-50">PEREMPUAN</td><td className="border border-black p-2 text-center">{reportData.gender.wanita}</td></tr>
+                                    <tr><td className="border border-black p-2 bg-gray-50 uppercase">Laki-Laki</td><td className="border border-black p-2 text-center">{reportData.gender.pria}</td></tr>
+                                    <tr><td className="border border-black p-2 bg-gray-50 uppercase">Perempuan</td><td className="border border-black p-2 text-center">{reportData.gender.wanita}</td></tr>
                                     <tr className="bg-gray-200">
                                         <td className="border border-black p-2 uppercase">TOTAL ASN AKTIF</td>
                                         <td className="border border-black p-2 text-center">{reportData.gender.pria + reportData.gender.wanita}</td>
@@ -310,7 +310,7 @@ const LaporanPage = () => {
                           </div>
                        </section>
 
-                       <section>
+                       <section className="text-black">
                           <p className="font-bold border-b border-black mb-3 pb-1">IV. CAPAIAN TUGAS RUTIN BULANAN</p>
                           <table className="w-full border-collapse border border-black text-[9pt]">
                              <thead className="bg-gray-100 font-bold">
@@ -343,7 +343,7 @@ const LaporanPage = () => {
                           </table>
                        </section>
 
-                       <div className="mt-14 ml-[55%] text-center leading-normal">
+                       <div className="mt-14 ml-[55%] text-center leading-normal text-black">
                           <p>Jakarta, {new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
                           <p className="font-bold mt-2 mb-24 uppercase">{signatoryData.jabatan},</p>
                           <p className="font-bold uppercase underline">{signatoryData.nama}</p>

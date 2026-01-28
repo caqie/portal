@@ -80,7 +80,7 @@ const PAKPage = () => {
   };
 
   const currentTotalKonversi = useMemo(() => {
-    const fromAkumulasi = (formData.akumulasi || []).reduce((acc, curr) => acc + (curr.ak || 0), 0);
+    const fromAkumulasi = (formData.akumulasi || []).reduce((acc: number, curr: any) => acc + (curr.ak || 0), 0);
     return fromAkumulasi + (formData.akDiperoleh || 0);
   }, [formData.akumulasi, formData.akDiperoleh]);
 
@@ -160,7 +160,7 @@ const PAKPage = () => {
   const DocHeader = ({ title }: { title: string }) => (
     <div className="flex flex-col items-center mb-6 text-black border-b-[2pt] border-black pb-2 font-arial text-center">
        <div className="flex items-center w-full px-4">
-        <img src={DEFAULT_LOGO} className="h-16 w-auto mr-4 object-contain" alt="Logo" crossOrigin="anonymous" />
+        <img src={DEFAULT_LOGO} className="h-16 w-auto mr-4 object-contain" alt="Logo" crossOrigin="anonymous" style={{ filter: 'grayscale(100%)' }} />
         <div className="flex-1">
           <p className="text-[11pt] font-bold leading-tight">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
           <p className="text-[11pt] font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
@@ -186,7 +186,7 @@ const PAKPage = () => {
                {id: 7, k: 'Jabatan/TMT', v: `${targetPeg?.jabatan} / ${record.tmtJabatan}`},
                {id: 8, k: 'Unit Kerja', v: targetPeg?.unitKerja}
              ].map(i => (
-               <tr key={i.id} className="border-b border-black last:border-0">
+               <tr key={i.id} className="border-b border-black last:border-0 text-black">
                   <td className="w-8 text-center p-1 border-r border-black">{i.id}</td>
                   <td className="w-48 p-1 border-r border-black">{i.k}</td>
                   <td className="p-1 px-2 font-bold uppercase">: {i.v || '-'}</td>
@@ -335,7 +335,7 @@ const PAKPage = () => {
                             <FormItem label="AK Penyesuaian"><input type="number" className="w-full px-5 py-3.5 bg-gray-50 border-2 rounded-xl text-xs font-black" value={formData.akPenyesuaian} onChange={e => setFormData({...formData, akPenyesuaian: parseFloat(e.target.value)})} /></FormItem>
                             <FormItem label="AK Peningkatan Pendidikan"><input type="number" className="w-full px-5 py-3.5 bg-gray-50 border-2 rounded-xl text-xs font-black" value={formData.akPendidikan} onChange={e => setFormData({...formData, akPendidikan: parseFloat(e.target.value)})} /></FormItem>
                          </div>
-                         <FormItem label="Hasil Konversi Saat Ini"><input type="text" className="w-full px-5 py-3.5 bg-blue-50 text-blue-700 border-2 rounded-xl text-xs font-black" value={currentTotalKonversi.toFixed(3)} readOnly /></FormItem>
+                         <FormItem label="Hasil Konversi Saat Ini"><input type="text" className="w-full px-5 py-3 bg-blue-50 text-blue-700 border-2 rounded-xl text-xs font-black" value={currentTotalKonversi.toFixed(3)} readOnly /></FormItem>
                       </div>
                       <div className="space-y-6">
                          <h5 className="text-[10px] font-black text-gray-900 uppercase border-b pb-3 tracking-widest">Kebutuhan Syarat Kenaikan</h5>
@@ -374,7 +374,7 @@ const PAKPage = () => {
            
            <div className="bg-gray-200/50 py-20 flex flex-col items-center gap-10 overflow-x-auto no-scrollbar">
               <div ref={pdfRef} className="bg-white shadow-2xl overflow-hidden text-black font-arial p-[1.5cm_2cm]" style={{ width: '210mm', minHeight: '330mm' }}>
-                <div className="mb-[3cm]">
+                <div className="mb-[2cm]">
                    <DocHeader title="KONVERSI PREDIKAT KINERJA KE ANGKA KREDIT" />
                    <div className="text-center mb-8">
                       <p className="text-[11pt] font-bold uppercase leading-tight">KONVERSI PREDIKAT KINERJA KE ANGKA KREDIT</p>
@@ -397,7 +397,7 @@ const PAKPage = () => {
                             <td className="p-2 border-r-2 border-black">{record.predikat}</td>
                             <td className="p-2 border-r-2 border-black">{(Number(record.prosentase) * 100).toFixed(0)}%</td>
                             <td className="p-2 border-r-2 border-black">{record.koefisien}</td>
-                            <td className="p-2 font-black text-blue-700">{Number(record.akDiperoleh).toFixed(3)}</td>
+                            <td className="p-2 font-black">{Number(record.akDiperoleh).toFixed(3)}</td>
                          </tr>
                       </tbody>
                    </table>
@@ -412,7 +412,7 @@ const PAKPage = () => {
                    </div>
                 </div>
 
-                <div className="mb-[3cm] pt-[1cm] border-t-2 border-dashed border-gray-300">
+                <div className="mb-[2cm] pt-[1cm] border-t-2 border-dashed border-gray-300">
                    <DocHeader title="AKUMULASI ANGKA KREDIT" />
                    <div className="text-center mb-8">
                       <p className="text-[11pt] font-bold uppercase leading-tight">AKUMULASI ANGKA KREDIT</p>
@@ -423,12 +423,12 @@ const PAKPage = () => {
                    <table className="w-full text-center text-[8pt] border-collapse border-2 border-black">
                       <thead className="bg-gray-200 font-bold border-b-2 border-black uppercase">
                          <tr><th colSpan={4} className="p-2 border-r-2 border-black">Hasil Penilaian Kinerja</th><th rowSpan={2} className="p-2 border-r-2 border-black">Koefisien Pertahun</th><th rowSpan={2} className="p-2">Angka Kredit yang Didapat</th></tr>
-                         <tr><th className="p-2 border-r border-black">Tahun</th><th className="p-2 border-r border-black">Periodik</th><th className="p-2 border-r border-black">Predikat</th><th className="p-2 border-r-2 border-black">Prosentase</th></tr>
+                         <tr><th className="p-2 border-r border-black">Tahun</th><th className="p-2 border-r border-black">Periodik</th><th className="p-2 border-r border-black">Predikat</th><th className="p-2 border-r border-black">Prosentase</th></tr>
                       </thead>
                       <tbody>
-                         <tr className="bg-gray-50 border-b border-black italic"><td className="p-1 border-r border-black">1</td><td className="p-1 border-r border-black">2</td><td className="p-1 border-r border-black">3</td><td className="p-1 border-r-2 border-black">4</td><td className="p-1 border-r-2 border-black">5</td><td className="p-1">6</td></tr>
+                         <tr className="bg-gray-50 border-b border-black italic text-black"><td className="p-1 border-r border-black">1</td><td className="p-1 border-r border-black">2</td><td className="p-1 border-r border-black">3</td><td className="p-1 border-r-2 border-black">4</td><td className="p-1 border-r-2 border-black">5</td><td className="p-1">6</td></tr>
                          {(record.akumulasi || []).map((a: any, idx: number) => (
-                           <tr key={idx} className="border-b border-black uppercase">
+                           <tr key={idx} className="border-b border-black uppercase text-black">
                               <td className="p-2 border-r border-black">{a.tahun}</td>
                               <td className="p-2 border-r border-black">{a.periodik}</td>
                               <td className="p-2 border-r border-black">{a.predikat}</td>
@@ -437,7 +437,7 @@ const PAKPage = () => {
                               <td className="p-2 font-bold">{Number(a.ak).toFixed(3)}</td>
                            </tr>
                          ))}
-                         <tr className="font-bold border-b border-black uppercase">
+                         <tr className="font-bold border-b border-black uppercase text-black">
                             <td className="p-2 border-r border-black">2024</td>
                             <td className="p-2 border-r border-black">{record.periode}</td>
                             <td className="p-2 border-r border-black">{record.predikat}</td>
@@ -445,11 +445,11 @@ const PAKPage = () => {
                             <td className="p-2 border-r-2 border-black">{record.koefisien}</td>
                             <td className="p-2">{Number(record.akDiperoleh).toFixed(3)}</td>
                          </tr>
-                         <tr className="bg-gray-100 font-bold border-b-2 border-black">
+                         <tr className="bg-gray-100 font-bold border-b-2 border-black text-black">
                             <td className="p-2 border-r border-black"></td><td colSpan={4} className="p-2 border-r-2 border-black text-left uppercase">AK Integrasi / Dasar</td><td className="p-2">{Number(record.akIntegrasi).toFixed(3)}</td>
                          </tr>
-                         <tr className="bg-gray-200 font-black text-[9pt]">
-                            <td className="p-3 border-r-2 border-black"></td><td colSpan={4} className="p-3 border-r-2 border-black text-left uppercase">JUMLAH ANGKA KREDIT YANG DIPEROLEH</td><td className="p-3 text-blue-700">{displayTotalAKHalaman2.toFixed(3)}</td>
+                         <tr className="bg-gray-200 font-black text-[9pt] text-black">
+                            <td className="p-3 border-r-2 border-black"></td><td colSpan={4} className="p-3 border-r-2 border-black text-left uppercase">JUMLAH ANGKA KREDIT YANG DIPEROLEH</td><td className="p-3">{displayTotalAKHalaman2.toFixed(3)}</td>
                          </tr>
                       </tbody>
                    </table>
@@ -467,7 +467,7 @@ const PAKPage = () => {
                    </div>
                    <PersonalInfoTable />
                    <div className="text-[9pt] font-bold mb-2 uppercase">HASIL PENILAIAN ANGKA KREDIT</div>
-                   <table className="w-full text-[8.5pt] border-collapse border-2 border-black mb-8">
+                   <table className="w-full text-[8.5pt] border-collapse border-2 border-black mb-8 text-black">
                       <thead className="bg-gray-200 font-bold text-center border-b-2 border-black uppercase">
                          <tr><th className="p-2 border-r-2 border-black w-8">II</th><th className="p-2 border-r-2 border-black">PENETAPAN ANGKA KREDIT</th><th className="p-2 border-r-2 border-black w-24">LAMA</th><th className="p-2 border-r-2 border-black w-24">BARU</th><th className="p-2 border-r-2 border-black w-24">JUMLAH</th><th className="p-2">KETERANGAN</th></tr>
                       </thead>
@@ -492,12 +492,12 @@ const PAKPage = () => {
                          <tr className="bg-gray-200 font-black">
                             <td colSpan={2} className="p-2 border-r-2 border-black uppercase text-right">JUMLAH ANGKA KREDIT KUMULATIF</td>
                             <td className="p-2 border-r-2 border-black"></td><td className="p-2 border-r-2 border-black"></td>
-                            <td className="p-2 text-center text-blue-700">{Number(record.jumlahKredit || 0).toFixed(3)}</td><td className="p-2"></td>
+                            <td className="p-2 text-center">{Number(record.jumlahKredit || 0).toFixed(3)}</td><td className="p-2"></td>
                          </tr>
                       </tbody>
                    </table>
 
-                   <table className="w-full text-[8pt] border-collapse border-2 border-black mb-8 leading-tight">
+                   <table className="w-full text-[8pt] border-collapse border-2 border-black mb-8 leading-tight text-black">
                       <thead className="bg-gray-100 font-bold text-center border-b border-black uppercase">
                          <tr><th className="p-2 border-r-2 border-black">Keterangan</th><th className="p-2 border-r-2 border-black w-48">Pangkat</th><th className="p-2 w-48">Jenjang Jabatan</th></tr>
                       </thead>
@@ -509,17 +509,17 @@ const PAKPage = () => {
                          </tr>
                          <tr className="bg-blue-50 font-bold">
                             <td className="p-2 border-r-2 border-black">Kelebihan / Kekurangan AK</td>
-                            <td className={`p-2 border-r-2 border-black text-center ${selisihPangkat >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{selisihPangkat.toFixed(3)}</td>
-                            <td className={`p-2 text-center ${selisihJenjang >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{selisihJenjang.toFixed(3)}</td>
+                            <td className="p-2 border-r-2 border-black text-center">{selisihPangkat.toFixed(3)}</td>
+                            <td className="p-2 text-center">{selisihJenjang.toFixed(3)}</td>
                          </tr>
                       </tbody>
                    </table>
 
-                   <div className="p-4 border-2 border-black bg-emerald-50 text-center font-black text-[10pt] uppercase mb-10">
+                   <div className="p-4 border-2 border-black bg-gray-50 text-center font-black text-[10pt] uppercase mb-10 text-black">
                       DAPAT DIPERTIMBANGKAN UNTUK KENAIKAN PANGKAT/JENJANG SETINGKAT LEBIH TINGGI
                    </div>
 
-                   <div className="flex justify-end text-[10pt] leading-tight text-right mr-10">
+                   <div className="flex justify-end text-[10pt] leading-tight text-right mr-10 text-black">
                       <div>
                         <p>Ditetapkan di Jakarta</p>
                         <p>Pada tanggal {record.tglDibuat}</p>
@@ -527,15 +527,6 @@ const PAKPage = () => {
                         <p className="font-bold uppercase underline leading-none">{targetPjb?.nama}</p>
                         <p className="mt-1">NIP {targetPjb?.nip}</p>
                       </div>
-                   </div>
-
-                   <div className="mt-20 text-[8pt]">
-                      <p className="font-bold">Tembusan disampaikan kepada:</p>
-                      <ol className="list-decimal ml-4">
-                         <li>Sekretaris Jenderal Kementerian Hukum;</li>
-                         <li>Direktur Jenderal Kekayaan Intelektual;</li>
-                         <li>Kepala Biro Sumber Daya Manusia.</li>
-                      </ol>
                    </div>
                 </div>
               </div>

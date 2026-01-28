@@ -82,7 +82,7 @@ const SKPPage = () => {
   const handleRemoveHasilKerja = (index: number) => {
     setFormData({
       ...formData,
-      hasilKerja: (formData.hasilKerja || []).filter((_, i) => i !== index)
+      hasilKerja: (formData.hasilKerja || []).filter((_: HasilKerjaRow, i: number) => i !== index)
     });
   };
 
@@ -371,7 +371,7 @@ const SKPPage = () => {
               </div>
 
               <div className="px-10 py-10 bg-gray-50/50 border-t flex justify-center gap-6">
-                 <button onClick={() => setActiveView('table')} className="px-10 py-5 bg-white border-2 border-gray-200 text-gray-400 rounded-3xl font-black text-[10px] uppercase tracking-widest shadow-sm active:scale-95 transition-all">Batalkan</button>
+                 <button onClick={() => setActiveView('table')} className="px-10 py-5 bg-white border-2 border-gray-200 text-gray-400 rounded-3xl font-black text-[10px] uppercase shadow-sm active:scale-95 transition-all">Batalkan</button>
                  <button onClick={handleSaveSKP} disabled={syncing} className="px-20 py-5 bg-[#111827] text-white rounded-3xl font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl active:scale-95 disabled:bg-gray-300 transition-all flex items-center gap-3">
                     {syncing ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-upload-fill"></i>}
                     <span>{syncing ? 'Memproses Cloud...' : 'Simpan & Finalisasi Dokumen'}</span>
@@ -391,24 +391,24 @@ const SKPPage = () => {
            <div className="bg-gray-200/50 py-20 flex flex-col items-center overflow-x-auto no-scrollbar">
               <div ref={pdfRef} className="bg-white shadow-2xl overflow-hidden text-black font-arial" style={{ width: '210mm', height: '330mm', padding: '1.2cm 1.5cm' }}>
                 <div className="text-center mb-8">
-                   <p className="text-[11pt] font-bold uppercase leading-tight">REKAMAN INFORMASI UMPAN BALIK BERKELANJUTAN</p>
-                   <p className="text-[11pt] font-bold uppercase leading-tight">PENDEKATAN HASIL KERJA KUANTITATIF</p>
-                   <p className="text-[10pt] font-bold uppercase mt-1">BAGI JABATAN FUNGSIONAL UMUM</p>
-                   <p className="text-[10pt] font-bold uppercase">PERIODE : AKHIR</p>
+                   <p className="text-[11pt] font-bold uppercase text-black leading-tight">REKAMAN INFORMASI UMPAN BALIK BERKELANJUTAN</p>
+                   <p className="text-[11pt] font-bold uppercase text-black leading-tight">PENDEKATAN HASIL KERJA KUANTITATIF</p>
+                   <p className="text-[10pt] font-bold uppercase text-black mt-1">BAGI JABATAN FUNGSIONAL UMUM</p>
+                   <p className="text-[10pt] font-bold uppercase text-black">PERIODE : AKHIR</p>
                 </div>
                 
                 <div className="text-[8.5pt] mb-4 border-2 border-black">
                    <div className="grid grid-cols-2">
-                      <div className="border-r-2 border-black p-3 space-y-1.5">
-                         <div className="bg-gray-100 p-1 text-center font-bold border-b-2 border-black -m-3 mb-2 uppercase">PEGAWAI YANG DINILAI</div>
+                      <div className="border-r-2 border-black p-3 space-y-1.5 text-black">
+                         <div className="bg-gray-100 p-1 text-center font-bold border-b-2 border-black -m-3 mb-2 uppercase text-black">PEGAWAI YANG DINILAI</div>
                          <div className="grid grid-cols-[100px_5px_1fr] gap-x-2"><span>NAMA</span><span>:</span><span className="font-bold uppercase">{peg?.nama}</span></div>
                          <div className="grid grid-cols-[100px_5px_1fr] gap-x-2"><span>NIP</span><span>:</span><span>{peg?.nip}</span></div>
                          <div className="grid grid-cols-[100px_5px_1fr] gap-x-2"><span>PANGKAT/GOL</span><span>:</span><span className="uppercase">{peg?.pangkat} / ({peg?.golRuang})</span></div>
                          <div className="grid grid-cols-[100px_5px_1fr] gap-x-2"><span>JABATAN</span><span>:</span><span className="uppercase">{peg?.jabatan}</span></div>
                          <div className="grid grid-cols-[100px_5px_1fr] gap-x-2"><span>UNIT KERJA</span><span>:</span><span className="uppercase">{peg?.unitKerja}</span></div>
                       </div>
-                      <div className="p-3 space-y-1.5">
-                         <div className="bg-gray-100 p-1 text-center font-bold border-b-2 border-black -m-3 mb-2 uppercase">PEJABAT PENILAI KINERJA</div>
+                      <div className="p-3 space-y-1.5 text-black">
+                         <div className="bg-gray-100 p-1 text-center font-bold border-b-2 border-black -m-3 mb-2 uppercase text-black">PEJABAT PENILAI KINERJA</div>
                          <div className="grid grid-cols-[100px_5px_1fr] gap-x-2"><span>NAMA</span><span>:</span><span className="font-bold uppercase">{pjb?.nama}</span></div>
                          <div className="grid grid-cols-[100px_5px_1fr] gap-x-2"><span>NIP</span><span>:</span><span>{pjb?.nip}</span></div>
                          <div className="grid grid-cols-[100px_5px_1fr] gap-x-2"><span>PANGKAT/GOL</span><span>:</span><span className="uppercase">{pjb?.pangkat} / ({pjb?.golRuang})</span></div>
@@ -419,10 +419,10 @@ const SKPPage = () => {
                 </div>
 
                 <div className="mb-4">
-                  <p className="text-[9pt] font-bold mb-1 uppercase">HASIL KERJA</p>
-                  <table className="w-full text-[7.5pt] border-collapse border-2 border-black leading-tight">
+                  <p className="text-[9pt] font-bold mb-1 uppercase text-black">HASIL KERJA</p>
+                  <table className="w-full text-[7.5pt] border-collapse border-2 border-black leading-tight text-black">
                     <thead>
-                      <tr className="bg-gray-200/80 text-center font-bold uppercase">
+                      <tr className="bg-gray-200/80 text-center font-bold uppercase text-black">
                         <th className="border-2 border-black p-2 w-8">NO</th>
                         <th className="border-2 border-black p-2 w-44">RENCANA HASIL KERJA PIMPINAN YANG DIINTERVENSI</th>
                         <th className="border-2 border-black p-2 w-44">RENCANA HASIL KERJA</th>
@@ -447,7 +447,7 @@ const SKPPage = () => {
                         </tr>
                       ))}
                       <tr className="bg-gray-50">
-                        <td className="border-2 border-black p-2 font-bold uppercase" colSpan={8}>B. KINERJA TAMBAHAN</td>
+                        <td className="border-2 border-black p-2 font-bold uppercase text-black" colSpan={8}>B. KINERJA TAMBAHAN</td>
                       </tr>
                       <tr>
                         <td className="border-2 border-black p-2 text-center">-</td>
@@ -464,14 +464,14 @@ const SKPPage = () => {
                 </div>
 
                 <div className="mb-4">
-                  <div className="border-2 border-black bg-blue-50/50 p-2 font-bold text-[9pt] flex justify-between items-center uppercase border-b-0">
+                  <div className="border-2 border-black bg-gray-50 p-2 font-bold text-[9pt] flex justify-between items-center uppercase border-b-0 text-black">
                     <span>RATING HASIL KERJA*</span>
-                    <span className="text-blue-700 tracking-widest">{selectedSKP.ratingHasilKerja}</span>
+                    <span className="tracking-widest">{selectedSKP.ratingHasilKerja}</span>
                   </div>
-                  <p className="text-[9pt] font-bold mb-1 uppercase">PERILAKU KERJA</p>
-                  <table className="w-full text-[7pt] border-collapse border-2 border-black leading-tight">
+                  <p className="text-[9pt] font-bold mb-1 uppercase text-black">PERILAKU KERJA</p>
+                  <table className="w-full text-[7pt] border-collapse border-2 border-black leading-tight text-black">
                     <thead>
-                      <tr className="bg-gray-200/80 font-bold text-center uppercase">
+                      <tr className="bg-gray-200/80 font-bold text-center uppercase text-black">
                         <th className="border-2 border-black p-2 w-10">NO</th>
                         <th className="border-2 border-black p-2">POIN PERILAKU KERJA (BERAKHLAK)</th>
                         <th className="border-2 border-black p-2 w-64">EKSPEKTASI KHUSUS PIMPINAN</th>
@@ -487,25 +487,25 @@ const SKPPage = () => {
                              <p className="text-[6.5pt] text-gray-600 italic leading-none">{p.deskripsi}</p>
                           </td>
                           <td className="border-2 border-black p-2 align-top italic">{p.ekspektasi}</td>
-                          <td className="border-2 border-black p-2 font-bold italic text-blue-800 align-top">{p.umpanBalik}</td>
+                          <td className="border-2 border-black p-2 font-bold italic text-black align-top">{p.umpanBalik}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
 
-                <div className="grid grid-cols-2 gap-x-4 mb-4">
-                   <div className="border-2 border-black bg-rose-50/50 p-2 font-bold text-[9pt] flex justify-between items-center uppercase">
+                <div className="grid grid-cols-2 gap-x-4 mb-4 text-black">
+                   <div className="border-2 border-black bg-gray-50 p-2 font-bold text-[9pt] flex justify-between items-center uppercase text-black">
                       <span>RATING PERILAKU*</span>
-                      <span className="text-rose-700 tracking-widest">{selectedSKP.ratingPerilaku}</span>
+                      <span className="tracking-widest">{selectedSKP.ratingPerilaku}</span>
                    </div>
-                   <div className="border-2 border-black bg-emerald-50/50 p-2 font-bold text-[9pt] flex justify-between items-center uppercase">
+                   <div className="border-2 border-black bg-gray-100 p-2 font-bold text-[9pt] flex justify-between items-center uppercase text-black">
                       <span>PREDIKAT KINERJA*</span>
-                      <span className="text-emerald-700 tracking-widest">{selectedSKP.predikatKinerja}</span>
+                      <span className="tracking-widest">{selectedSKP.predikatKinerja}</span>
                    </div>
                 </div>
 
-                <div className="mt-8 grid grid-cols-2 text-center text-[9.5pt] leading-tight">
+                <div className="mt-8 grid grid-cols-2 text-center text-[9.5pt] leading-tight text-black">
                    <div></div>
                    <div className="flex flex-col items-center">
                       <p>Jakarta, {selectedSKP.tglPenilaian}</p>
