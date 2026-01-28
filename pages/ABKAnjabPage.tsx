@@ -58,7 +58,7 @@ const ABKAnjabPage = () => {
   };
 
   const handleExportExcel = () => {
-    const data = abkList.map(a => ({
+    const data = abkList.map((a: ABKAnjab) => ({
       'Nama Jabatan': a.namaJabatan,
       'Unit Kerja': a.unitKerja,
       'Jumlah Eksisting': a.jumlahSaatIni,
@@ -217,7 +217,7 @@ const ABKAnjabPage = () => {
               <tbody className="divide-y divide-gray-50">
                 {loading ? (
                    <tr><td colSpan={6} className="px-8 py-20 text-center text-[10px] font-black text-gray-300 uppercase animate-pulse">Sinkronisasi Database Cloud...</td></tr>
-                ) : abkList.map(a => (
+                ) : abkList.map((a: ABKAnjab) => (
                   <tr key={a.id} className="hover:bg-blue-50/5 group transition-all duration-300">
                     <td className="px-8 py-6">
                       <p className="text-[11px] font-black text-gray-950 uppercase leading-none mb-1.5">{a.namaJabatan}</p>
