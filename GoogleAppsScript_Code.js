@@ -1,53 +1,73 @@
 
 /**
- * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 4.2.1)
+ * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 4.2.5)
  * ----------------------------------------------------------------
  * Fitur: 
- * - SAVE: Update berdasarkan NIP (prioritas) atau ID. Jika tidak ada, tambah baris.
- * - DELETE: Hapus baris berdasarkan kunci unik. Untuk modul non-pegawai tanpa ID, 
- *   akan mengembalikan sukses agar frontend bisa melanjutkan pencatatan log.
+ * - GET: Sinkronisasi GID Map otomatis.
+ * - SAVE: Update cerdas + Auto-Create Column jika header tidak lengkap.
+ * - DELETE: Hapus baris berdasarkan kunci unik.
+ * - UPLOAD: Simpan file ke Google Drive.
  */
 
 var FOLDER_ID_DATABASE = "PASTE_YOUR_FOLDER_ID_HERE"; 
 
+function doGet(e) {
+  try {
+    var ssId = e && e.parameter ? e.parameter.ssId : null;
+    var ss = getSpreadsheet(ssId);
+    if (!ss) return createResponse({ success: false, message: "Spreadsheet tidak ditemukan." });
+    var sheets = ss.getSheets();
+    var gidMap = {};
+    sheets.forEach(function(sh) { gidMap[sh.getName()] = sh.getSheetId().toString(); });
+    return createResponse({ success: true, gidMap: gidMap });
+  } catch (err) { return createResponse({ success: false, message: "GET Error: " + err.toString() }); }
+}
+
 function doPost(e) {
   try {
-    if (!e || !e.postData || !e.postData.contents) {
-      return createResponse({ success: false, message: "Request body kosong." });
-    }
-
+    if (!e || !e.postData || !e.postData.contents) return createResponse({ success: false, message: "Request body kosong." });
     var data = JSON.parse(e.postData.contents);
     var action = data.action; 
     var moduleName = (data.module || "DATA").toString().toUpperCase().trim();
     var payload = data.payload;
     var ssId = data.spreadsheetId; 
-
     var ss = getSpreadsheet(ssId);
-    if (!ss) return createResponse({ success: false, message: "Spreadsheet tidak ditemukan." });
+    if (!ss) return createResponse({ success: false, message: "Spreadsheet ID tidak valid." });
 
-    if (action === 'UPLOAD') {
-      return handleUpload(payload);
-    } else if (action === 'SAVE') {
-      return handleSave(ss, moduleName, payload);
-    } else if (action === 'DELETE') {
-      return handleDelete(ss, moduleName, payload);
-    }
+    if (action === 'UPLOAD') return handleUpload(payload);
+    if (action === 'SAVE') return handleSave(ss, moduleName, payload);
+    if (action === 'DELETE') return handleDelete(ss, moduleName, payload);
 
     return createResponse({ success: false, message: "Aksi tidak dikenali." });
-  } catch (err) {
-    return createResponse({ success: false, message: "Server Error: " + err.toString() });
-  }
+  } catch (err) { return createResponse({ success: false, message: "POST Error: " + err.toString() }); }
 }
 
 function handleSave(ss, moduleName, payload) {
   try {
     var sheet = getOrCreateSheet(ss, moduleName, payload);
-    var range = sheet.getDataRange();
-    var data = range.getValues();
-    var headers = data[0];
     
+    // --- FITUR AUTO-CREATE COLUMN (SELF-HEALING) ---
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var payloadKeys = Object.keys(payload);
+    var headersChanged = false;
+
+    payloadKeys.forEach(function(key) {
+      var keyLower = key.toLowerCase().replace(/[\s_]/g, '');
+      var found = headers.some(function(h) {
+        return h.toString().toLowerCase().replace(/[\s_]/g, '') === keyLower;
+      });
+      if (!found) {
+        sheet.getRange(1, headers.length + 1).setValue(key.toUpperCase());
+        headers.push(key.toUpperCase());
+        headersChanged = true;
+      }
+    });
+    // -----------------------------------------------
+
+    var lastRow = sheet.getLastRow();
     var keyIndex = -1;
-    var targetKey = String(payload.nip || payload.id || "").trim();
+    var rawKey = (payload.nip || payload.id || "").toString();
+    var targetKey = payload.nip ? rawKey.replace(/\D/g, '').trim() : rawKey.trim();
     
     for (var h = 0; h < headers.length; h++) {
       var hName = headers[h].toString().toLowerCase().trim();
@@ -66,9 +86,12 @@ function handleSave(ss, moduleName, payload) {
       return (typeof val === 'object') ? JSON.stringify(val) : val;
     });
 
-    if (keyIndex > -1 && targetKey !== "") {
-      for (var i = 1; i < data.length; i++) {
-        if (String(data[i][keyIndex]).trim() === targetKey) {
+    if (keyIndex > -1 && targetKey !== "" && lastRow > 1) {
+      var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getDisplayValues();
+      for (var i = 1; i < displayValues.length; i++) {
+        var sheetValRaw = displayValues[i][0].toString();
+        var sheetValueClean = payload.nip ? sheetValRaw.replace(/\D/g, '').trim() : sheetValRaw.trim();
+        if (sheetValueClean === targetKey && targetKey !== "") {
           sheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
           return createResponse({ success: true, message: "Data " + targetKey + " diperbarui." });
         }
@@ -77,66 +100,40 @@ function handleSave(ss, moduleName, payload) {
 
     sheet.appendRow(rowData);
     return createResponse({ success: true, message: "Data baru ditambahkan." });
-    
-  } catch (e) {
-    return createResponse({ success: false, message: "Save Error: " + e.toString() });
-  }
+  } catch (e) { return createResponse({ success: false, message: "Save Error: " + e.toString() }); }
 }
 
 function handleDelete(ss, moduleName, payload) {
   try {
     var sheet = findSheetByName(ss, moduleName);
     if (!sheet) return createResponse({ success: false, message: "Sheet tidak ditemukan." });
-
-    var data = sheet.getDataRange().getValues();
-    var headers = data[0];
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return createResponse({ success: true, message: "Sheet kosong." });
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     var keyIndex = -1;
-    var searchKey = String(payload.nip || payload.id || "").trim();
-
+    var searchKey = String(payload.nip || payload.id || "").replace(/\D/g, '').trim();
     for (var h = 0; h < headers.length; h++) {
-      var hName = headers[h].toString().toLowerCase().trim();
-      if (hName === 'nip' || hName === 'id') {
-        keyIndex = h;
-        if (hName === 'nip' && payload.nip) break;
-        if (hName === 'id' && payload.id) break;
-      }
+      if (headers[h].toString().toLowerCase().trim() === 'nip') { keyIndex = h; break; }
+      if (headers[h].toString().toLowerCase().trim() === 'id') { keyIndex = h; }
     }
-
-    // Perbaikan Sesuai Permintaan: 
-    // Jika non-pegawai dan ID kosong, anggap sukses agar log riwayat di frontend tetap jalan
-    if (searchKey === "") {
-      if (moduleName !== 'PEGAWAI' && moduleName !== 'USERS') {
-        return createResponse({ success: true, message: "Aksi dihapus secara lokal dan dicatat dalam log riwayat." });
-      }
-      return createResponse({ success: false, message: "Gagal: ID atau NIP diperlukan untuk modul ini." });
-    }
-
-    if (keyIndex === -1) {
-      return createResponse({ success: false, message: "Gagal: Kolom identitas (ID/NIP) tidak ditemukan di sheet." });
-    }
-
+    if (keyIndex === -1 || searchKey === "") return createResponse({ success: false, message: "ID tidak valid." });
+    var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getDisplayValues();
     var deletedCount = 0;
-    for (var i = data.length - 1; i >= 1; i--) {
-      if (String(data[i][keyIndex]).trim() === searchKey) {
+    for (var i = displayValues.length - 1; i >= 1; i--) {
+      if (String(displayValues[i][0]).replace(/\D/g, '').trim() === searchKey) {
         sheet.deleteRow(i + 1);
         deletedCount++;
       }
     }
-
-    return createResponse({ 
-      success: true, 
-      message: deletedCount > 0 ? "Berhasil menghapus data." : "Data tidak ditemukan di database, aksi dicatat di log." 
-    });
-  } catch (e) {
-    return createResponse({ success: false, message: "Delete Error: " + e.toString() });
-  }
+    return createResponse({ success: true, message: "Dihapus: " + deletedCount });
+  } catch (e) { return createResponse({ success: false, message: "Delete Error: " + e.toString() }); }
 }
 
 function getSpreadsheet(ssId) {
-  if (ssId && ssId !== "") {
-    try { return SpreadsheetApp.openById(ssId); } catch(e) {}
-  }
-  return SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    if (ssId && ssId.toString().trim() !== "" && ssId.toString() !== "undefined") return SpreadsheetApp.openById(ssId);
+    return SpreadsheetApp.getActiveSpreadsheet();
+  } catch(e) { return null; }
 }
 
 function createResponse(output) {
@@ -144,11 +141,11 @@ function createResponse(output) {
 }
 
 function findSheetByName(ss, name) {
+  if (!ss) return null;
   var sheets = ss.getSheets();
-  var search = name.toLowerCase().replace(/[\s_]/g, '');
+  var search = name.toString().toLowerCase().replace(/[\s_]/g, '');
   for (var i = 0; i < sheets.length; i++) {
-    var sheetName = sheets[i].getName().toLowerCase().replace(/[\s_]/g, '');
-    if (sheetName === search) return sheets[i];
+    if (sheets[i].getName().toLowerCase().replace(/[\s_]/g, '') === search) return sheets[i];
   }
   return null;
 }
@@ -158,8 +155,10 @@ function getOrCreateSheet(ss, moduleName, payload) {
   if (!sheet) {
     sheet = ss.insertSheet(moduleName.toUpperCase());
     var headers = Object.keys(payload);
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.setFrozenRows(1);
+    if (headers.length > 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sheet.setFrozenRows(1);
+    }
   }
   return sheet;
 }
@@ -171,8 +170,7 @@ function handleUpload(payload) {
     var blob = Utilities.newBlob(bytes, payload.mimeType, payload.fileName);
     var file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    // URL ini bypass virus scan dialog dan CORS friendly
     return createResponse({ success: true, fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId() });
-  } catch (e) {
-    return createResponse({ success: false, message: e.toString() });
-  }
+  } catch (e) { return createResponse({ success: false, message: "Upload Error: " + e.toString() }); }
 }

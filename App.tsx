@@ -131,7 +131,11 @@ const AppContent = () => {
                 <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Agenda Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />
                 <SidebarItem to="/laporan" icon="bi-file-earmark-bar-graph-fill" label="Laporan Bulanan" active={location.pathname === '/laporan'} collapsed={isCollapsed} />
                 <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />
-                
+              </>
+            )}
+
+            {isSuperadmin && (
+              <>
                 <div className={`px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ${isCollapsed ? 'hidden' : 'block'}`}>Sistem</div>
                 <SidebarItem to="/logs" icon="bi-clock-history" label="Audit Activity Log" active={location.pathname === '/logs'} collapsed={isCollapsed} />
                 <SidebarItem to="/settings" icon="bi-gear-fill" label="Pengaturan Sistem" active={location.pathname === '/settings'} collapsed={isCollapsed} />

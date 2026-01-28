@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, fetchMagangPKLFromSheets, syncTableRemote } from '../spreadsheetService';
 import { Pegawai, MagangPKL } from '../types';
 import { useAuth } from '../AuthContext';
-import { UNIT_KERJA, DEFAULT_LOGO } from '../constants';
+import { UNIT_KERJA } from '../constants';
+import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -420,7 +421,7 @@ const MagangPKLPage = () => {
                <div className="bg-gray-300/50 py-10 w-full flex flex-col items-center overflow-x-auto no-scrollbar">
                   <div ref={pdfRef} className="bg-white text-black font-arial p-[1.5cm_2cm] border shadow-2xl relative" style={{ width: '210mm', minHeight: '330mm' }}>
                      <div className="flex flex-col items-center text-center mb-8 border-b-[3pt] border-black pb-4 text-black">
-                        <img src={DEFAULT_LOGO} className="h-16 w-auto mb-2 object-contain" alt="Logo" crossOrigin="anonymous" />
+                        <img src={LOGO_PENGAYOMAN_URL} className="h-20 w-auto mb-2 object-contain" alt="Logo" crossOrigin="anonymous" />
                         <p className="text-[12pt] font-bold leading-tight uppercase text-black">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
                         <p className="text-[12pt] font-bold uppercase leading-tight text-black">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
                         <p className="text-[8.5pt] mt-1 text-black font-normal">Jalan H.R. Rasuna Said Kav 8-9, Kuningan Jakarta Selatan 12940</p>

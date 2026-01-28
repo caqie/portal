@@ -123,28 +123,6 @@ export const uploadFileToDrive = async (fileName: string, mimeType: string, base
   }
 };
 
-export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, storageKey: string, mapper: (cols: string[], headers: string[]) => T | null): Promise<T[]> => {
-  const { spreadsheetId } = getDbConfig();
-  const gid = getGid(gidKey);
-  try {
-    const response = await fetch(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`);
-    const csvText = await response.text();
-    if (csvText.includes('<!DOCTYPE html>') || csvText.includes('<html')) throw new Error("Spreadsheet access denied.");
-    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(',').map(h => h.trim().toUpperCase().replace(/[\s_]/g, ''));
-    const result = lines.slice(1).map(line => {
-        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
-        return mapper(cols, headers);
-    }).filter((item): item is T => item !== null);
-    if (result.length > 0) localStorage.setItem(storageKey, JSON.stringify(result));
-    return result;
-  } catch (error) {
-    const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : [];
-  }
-};
-
 export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
   const { spreadsheetId } = getDbConfig();
   const gid = getGid('PEGAWAI');
@@ -155,11 +133,12 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
     if (lines.length < 2) return [];
     const headers = lines[0].split(',').map(h => h.trim().toUpperCase().replace(/[\s_]/g, ''));
     
-    const data = lines.slice(1).map((line, index) => {
+    const dataRaw = lines.slice(1).map((line, index) => {
       const columns = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
       const getVal = (keys: string[]) => {
         for (const key of keys) {
-          const idx = headers.indexOf(key.toUpperCase().replace(/[\s_]/g, ''));
+          const target = key.toUpperCase().replace(/[\s_]/g, '');
+          const idx = headers.indexOf(target);
           if (idx !== -1) return columns[idx] || '';
         }
         return '';
@@ -178,7 +157,7 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
         gender: (getVal(['JENISKELAMIN', 'JENIS_KELAMIN']).toUpperCase().startsWith('P')) ? 'P' : 'L',
         golRuang: getVal(['GOLRUANG', 'GOL_RUANG']),
         jenisPegawai: getVal(['JENISPEGAWAI', 'JENIS_PEGAWAI']),
-        foto: getVal(['FOTO', 'FOTOURL', 'FOTO_URL']),
+        foto: getVal(['FOTO', 'FOTOURL', 'FOTO_URL', 'URL_FOTO', 'PAS_FOTO']),
         status: (getVal(['STATUS', 'STATUS_PEGAWAI']) || 'Aktif'),
         pangkat: getVal(['PANGKAT']),
         tmtPangkat: getVal(['TMTPANGKAT', 'TMT_PANGKAT']),
@@ -191,12 +170,17 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
         telepon: getVal(['TELEPON', 'NOTELEPON', 'NO_TELEPON']),
         alamat: getVal(['ALAMAT']),
         tmtStatus: getVal(['TMTSTATUS', 'TMT_STATUS']),
-        tempatLahir: getVal(['TEMPATLAHIR', 'TEMPAT_LAHIR']),
+        tempatLahir: getVal(['TEMPATLAHIR', 'TEMPAT_LAH_IR']),
         tanggalLahir: getVal(['TANGGALLAHIR', 'TANGGAL_LAHIR']),
         nik: getVal(['NIK', 'NOMORINDUKKEPENDUDUKAN', 'NOMOR_INDUK_KEPENDUDUKAN']),
         masaKerja: getVal(['MASAKERJA', 'MASA_KERJA'])
       } as Pegawai;
     }).filter(p => p.nama && p.nip);
+
+    const dedupMap = new Map();
+    dataRaw.forEach(p => dedupMap.set(p.nip, p));
+    const data = Array.from(dedupMap.values());
+
     localStorage.setItem('portal_pegawai_db', JSON.stringify(data));
     return data;
   } catch (error) {
@@ -225,29 +209,37 @@ export const fetchMagangPKLFromSheets = () => fetchTableData<MagangPKL>('MAGANG_
   };
 });
 
+export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, storageKey: string, mapper: (cols: string[], headers: string[]) => T | null): Promise<T[]> => {
+  const { spreadsheetId } = getDbConfig();
+  const gid = getGid(gidKey);
+  try {
+    const response = await fetch(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`);
+    const csvText = await response.text();
+    if (csvText.includes('<!DOCTYPE html>') || csvText.includes('<html')) throw new Error("Access denied.");
+    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(',').map(h => h.trim().toUpperCase().replace(/[\s_]/g, ''));
+    const result = lines.slice(1).map(line => {
+        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+        return mapper(cols, headers);
+    }).filter((item): item is T => item !== null);
+    if (result.length > 0) localStorage.setItem(storageKey, JSON.stringify(result));
+    return result;
+  } catch (error) {
+    const saved = localStorage.getItem(storageKey);
+    return saved ? JSON.parse(saved) : [];
+  }
+};
+
 export const getRetirementDetails = (nip: string, jabatan: string) => {
   const cleanNip = (nip || '').replace(/\D/g, '');
   if (cleanNip.length < 8) return null;
   const birthYear = parseInt(cleanNip.substring(0, 4));
   const birthMonth = parseInt(cleanNip.substring(4, 6)) - 1;
-  
   const jabUpper = (jabatan || '').toUpperCase();
-  
-  // LOGIKA BUP:
-  // 1. Utama -> 65 Tahun
-  // 2. Madya, Direktur, Sekretaris Direktorat -> 60 Tahun
-  // 3. Lainnya -> 58 Tahun
   let usiaPensiun = 58;
-  if (jabUpper.includes('UTAMA')) {
-    usiaPensiun = 65;
-  } else if (
-    jabUpper.includes('MADYA') || 
-    jabUpper.includes('DIREKTUR') || 
-    jabUpper.includes('SEKRETARIS DIREKTORAT')
-  ) {
-    usiaPensiun = 60;
-  }
-
+  if (jabUpper.includes('UTAMA')) usiaPensiun = 65;
+  else if (jabUpper.includes('MADYA') || jabUpper.includes('DIREKTUR') || jabUpper.includes('SEKRETARIS DIREKTORAT')) usiaPensiun = 60;
   const tmtPensiun = new Date(birthYear + usiaPensiun, birthMonth + 1, 1);
   const now = new Date();
   const diffDays = Math.ceil((tmtPensiun.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30));
@@ -285,50 +277,20 @@ export const fetchKGBFromSheets = () => fetchTableData<KGB>('KGB', 'portal_kgb_d
 });
 
 export const fetchTugasRutinFromSheets = () => fetchTableData<TugasRutin>('TUGAS_RUTIN', 'tugas_rutin_db', (cols, headers) => {
-  const get = (k: string) => { 
-    const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); 
-    return i !== -1 ? cols[i] : ''; 
-  };
+  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
   let dynamicData = {};
-  try {
-    const dataStr = get('DATA');
-    if (dataStr) dynamicData = JSON.parse(dataStr);
-  } catch (e) { }
-
-  return { 
-    id: get('ID'), 
-    timestamp: get('TIMESTAMP'), 
-    bulan: get('BULAN'), 
-    tahun: parseInt(get('TAHUN')) || 0, 
-    jenis: get('JENIS') as any, 
-    detail: get('DETAIL'),
-    data: dynamicData
-  };
+  try { const dataStr = get('DATA'); if (dataStr) dynamicData = JSON.parse(dataStr); } catch (e) { }
+  return { id: get('ID'), timestamp: get('TIMESTAMP'), bulan: get('BULAN'), tahun: parseInt(get('TAHUN')) || 0, jenis: get('JENIS') as any, detail: get('DETAIL'), data: dynamicData };
 });
 
 export const fetchSKPFromSheets = () => fetchTableData<SKPRecord>('SKP', 'skp_db', (cols, headers) => {
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
-  const getJson = (k: string) => {
-    const val = get(k);
-    try { return val ? JSON.parse(val) : []; } catch(e) { return []; }
-  };
+  const getJson = (k: string) => { const val = get(k); try { return val ? JSON.parse(val) : []; } catch(e) { return []; } };
   return { 
-    id: get('ID'), 
-    nip: get('NIP'), 
-    namaPegawai: get('NAMAPEGAWAI'), 
-    penilaiNip: get('PENILAINIP'),
-    atasanPenilaiNip: get('ATASANPENILAINIP'),
-    tahun: parseInt(get('TAHUN')) || 0, 
-    periodeMulai: get('PERIODEMULAI'),
-    periodeSelesai: get('PERIODESELESAI'),
-    tglPenilaian: get('TGLPENILAIAN'),
-    capaianOrganisasi: get('CAPAIANORGANISASI'),
-    ratingHasilKerja: get('RATINGHASILKERJA'),
-    ratingPerilaku: get('RATINGPERILAKU'),
-    predikatKinerja: get('PREDIKATKINERJA'),
-    hasilKerja: getJson('HASILKERJA'),
-    perilakuKerja: getJson('PERILAKUKERJA'),
-    lampiran: getJson('LAMPIRAN')
+    id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), penilaiNip: get('PENILAINIP'), atasanPenilaiNip: get('ATASANPENILAINIP'),
+    tahun: parseInt(get('TAHUN')) || 0, periodeMulai: get('PERIODEMULAI'), periodeSelesai: get('PERIODESELESAI'), tglPenilaian: get('TGLPENILAIAN'),
+    capaianOrganisasi: get('CAPAIANORGANISASI'), ratingHasilKerja: get('RATINGHASILKERJA'), ratingPerilaku: get('RATINGPERILAKU'),
+    predikatKinerja: get('PREDIKATKINERJA'), hasilKerja: getJson('HASILKERJA'), perilakuKerja: getJson('PERILAKUKERJA'), lampiran: getJson('LAMPIRAN')
   } as SKPRecord;
 });
 
@@ -336,16 +298,8 @@ export const fetchPAKFromSheets = () => fetchTableData<PAKRecord>('PAK', 'pak_db
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
   const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
   return { 
-    id: get('ID'), 
-    nip: get('NIP'), 
-    namaPegawai: get('NAMAPEGAWAI'), 
-    nomor: get('NOMOR'),
-    periode: get('PERIODE'),
-    tglDibuat: get('TGLDIBUAT'),
-    penilaiNip: get('PENILAINIP'),
-    akKonversi: parseFloat(get('AKKONVERSI')) || 0,
-    jumlahKredit: parseFloat(get('JUMLAHKREDIT')) || 0,
-    akumulasi: getJson('AKUMULASI')
+    id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), nomor: get('NOMOR'), periode: get('PERIODE'), tglDibuat: get('TGLDIBUAT'),
+    penilaiNip: get('PENILAINIP'), akKonversi: parseFloat(get('AKKONVERSI')) || 0, jumlahKredit: parseFloat(get('JUMLAHKREDIT')) || 0, akumulasi: getJson('AKUMULASI')
   } as any;
 });
 
@@ -356,17 +310,7 @@ export const fetchKenaikanFromSheets = () => fetchTableData<KenaikanKarir>('KENA
 
 export const fetchKegiatanFromSheets = () => fetchTableData<Kegiatan>('KEGIATAN', 'kegiatan_db', (cols, headers) => {
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
-  return { 
-    id: get('ID'), 
-    tanggal: get('TANGGAL'), 
-    judulKegiatan: get('JUDULKEGIATAN'),
-    tempat: get('TEMPAT'),
-    jumlahPeserta: parseInt(get('JUMLAHPESERTA')) || 0,
-    asalPeserta: get('ASALPESERTA'),
-    laporanSingkat: get('LAPORANSINGKAT'),
-    linkDriveFoto: get('LINKDRIVEFOTO'),
-    status: get('STATUS') as any 
-  };
+  return { id: get('ID'), tanggal: get('TANGGAL'), judulKegiatan: get('JUDULKEGIATAN'), tempat: get('TEMPAT'), jumlahPeserta: parseInt(get('JUMLAHPESERTA')) || 0, asalPeserta: get('ASALPESERTA'), laporanSingkat: get('LAPORANSINGKAT'), linkDriveFoto: get('LINKDRIVEFOTO'), status: get('STATUS') as any };
 });
 
 export const fetchSPMTSPPFromSheets = () => fetchTableData<SpmtSppRecord>('SPMT_SPP', 'spmt_spp_db', (cols, headers) => {
