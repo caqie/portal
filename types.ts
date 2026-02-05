@@ -26,6 +26,56 @@ export enum TaskType {
   UANG_MAKAN = 'UANG_MAKAN'
 }
 
+export interface PersuratanRecord {
+  id: string;
+  jenisSurat: 'MASUK' | 'KELUAR' | 'LAPORAN' | string;
+  nomorSurat: string;
+  tanggalSurat: string;
+  perihal: string;
+  lampiran: string;
+  tujuan: string; // NIP Penerima jika internal
+  dari?: string;   // Nama Instansi/Orang pengirim
+  isiRingkas: string;
+  tembusan?: string;
+  pjbNama: string;
+  pjbNip: string;
+  pjbJabatan: string;
+  status: 'DRAFT' | 'TERBIT';
+  fileUrl?: string;
+  sifatSurat?: string;
+  prioritas?: 'SANGAT_SEGERA' | 'SEGERA' | 'BIASA';
+  tanggalMulai?: string;
+  tanggalAkhir?: string;
+  lokasi?: string;
+  fileSuratUrl?: string;
+  fileLampiranUrl?: string;
+  isParaf?: boolean;
+  ttdNip?: string;
+  pemeriksaNip?: string;
+  pengirimNip?: string;
+  statusBaca?: 'BELUM' | 'SUDAH';
+  statusProses?: 'BELUM' | 'SUDAH';
+  kategoriAsal?: 'SETJEN' | 'DITJEN' | 'KANWIL' | 'UPT';
+  riwayatDisposisi?: string;
+  catatanDisposisi?: string;
+}
+
+export interface Pengembangan {
+  id: string;
+  nip: string;
+  namaPegawai: string;
+  namaKegiatan: string;
+  jenisPengembangan: 'Klasikal' | 'Non-Klasikal' | string;
+  kategori: 'Pelatihan' | 'Seminar' | 'Kursus' | 'E-learning' | 'Coaching' | 'Mentoring' | 'Lainnya';
+  tanggalMulai: string;
+  tanggalSelesai: string;
+  jumlahJpl: number;
+  penyelenggara: string;
+  nomorSertifikat: string;
+  fileSertifikatUrl?: string;
+  tahun: number;
+}
+
 export interface MagangPKL {
   id: string;
   nama: string;
@@ -73,17 +123,6 @@ export interface KenaikanKarir {
   pjbNama?: string;
   pjbNip?: string;
   pjbJabatan?: string;
-}
-
-export interface Pengembangan {
-  id: string;
-  nip: string;
-  namaPegawai: string;
-  namaKegiatan: string;
-  tanggalMulai: string;
-  tanggalSelesai: string;
-  jumlahJpl: number;
-  penyelenggara: string;
 }
 
 export interface PAKRecord {

@@ -1,12 +1,9 @@
 
 /**
- * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 4.2.5)
+ * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 4.3.1)
  * ----------------------------------------------------------------
- * Fitur: 
- * - GET: Sinkronisasi GID Map otomatis.
- * - SAVE: Update cerdas + Auto-Create Column jika header tidak lengkap.
- * - DELETE: Hapus baris berdasarkan kunci unik.
- * - UPLOAD: Simpan file ke Google Drive.
+ * Perbaikan:
+ * - Update handleSave: Prioritaskan 'ID' sebagai key primer untuk tabel non-pegawai.
  */
 
 var FOLDER_ID_DATABASE = "PASTE_YOUR_FOLDER_ID_HERE"; 
@@ -32,25 +29,41 @@ function doPost(e) {
     var payload = data.payload;
     var ssId = data.spreadsheetId; 
     var ss = getSpreadsheet(ssId);
-    if (!ss) return createResponse({ success: false, message: "Spreadsheet ID tidak valid." });
 
     if (action === 'UPLOAD') return handleUpload(payload);
     if (action === 'SAVE') return handleSave(ss, moduleName, payload);
     if (action === 'DELETE') return handleDelete(ss, moduleName, payload);
+    if (action === 'GENERATE_DOC') return handleGenerateFromTemplate(payload);
 
     return createResponse({ success: false, message: "Aksi tidak dikenali." });
   } catch (err) { return createResponse({ success: false, message: "POST Error: " + err.toString() }); }
 }
 
+function handleGenerateFromTemplate(payload) {
+  try {
+    var templateId = payload.templateId;
+    var fileName = payload.fileName || "Surat_Baru_" + Date.now();
+    var replacements = payload.data; 
+    var templateFile = DriveApp.getFileById(templateId);
+    var folder = DriveApp.getFolderById(FOLDER_ID_DATABASE);
+    var newFile = templateFile.makeCopy(fileName, folder);
+    var doc = DocumentApp.openById(newFile.getId());
+    var body = doc.getBody();
+    for (var key in replacements) {
+      body.replaceText("{{" + key.toUpperCase() + "}}", replacements[key] || "-");
+    }
+    doc.saveAndClose();
+    newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return createResponse({ success: true, fileUrl: newFile.getUrl(), fileId: newFile.getId() });
+  } catch (e) { return createResponse({ success: false, message: e.toString() }); }
+}
+
 function handleSave(ss, moduleName, payload) {
   try {
     var sheet = getOrCreateSheet(ss, moduleName, payload);
-    
-    // --- FITUR AUTO-CREATE COLUMN (SELF-HEALING) ---
     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     var payloadKeys = Object.keys(payload);
-    var headersChanged = false;
-
+    
     payloadKeys.forEach(function(key) {
       var keyLower = key.toLowerCase().replace(/[\s_]/g, '');
       var found = headers.some(function(h) {
@@ -59,22 +72,26 @@ function handleSave(ss, moduleName, payload) {
       if (!found) {
         sheet.getRange(1, headers.length + 1).setValue(key.toUpperCase());
         headers.push(key.toUpperCase());
-        headersChanged = true;
       }
     });
-    // -----------------------------------------------
 
     var lastRow = sheet.getLastRow();
     var keyIndex = -1;
-    var rawKey = (payload.nip || payload.id || "").toString();
-    var targetKey = payload.nip ? rawKey.replace(/\D/g, '').trim() : rawKey.trim();
+    
+    // PERBAIKAN: Prioritaskan ID sebagai key untuk Dossier agar tidak tertumpuk di NIP yang sama
+    var targetKey = "";
+    if (payload.id) {
+       targetKey = payload.id.toString().trim();
+    } else if (payload.nip) {
+       targetKey = payload.nip.toString().replace(/\D/g, '').trim();
+    }
     
     for (var h = 0; h < headers.length; h++) {
       var hName = headers[h].toString().toLowerCase().trim();
-      if (hName === 'nip' || hName === 'id') {
-        keyIndex = h;
-        if (hName === 'nip' && payload.nip) break;
-      }
+      // Jika payload punya ID, gunakan kolom ID sebagai acuan update
+      if (payload.id && hName === 'id') { keyIndex = h; break; }
+      // Jika tidak punya ID (hanya NIP), gunakan NIP (misal modul Pegawai)
+      if (!payload.id && hName === 'nip') { keyIndex = h; break; }
     }
 
     var rowData = headers.map(function(h) {
@@ -89,49 +106,43 @@ function handleSave(ss, moduleName, payload) {
     if (keyIndex > -1 && targetKey !== "" && lastRow > 1) {
       var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getDisplayValues();
       for (var i = 1; i < displayValues.length; i++) {
-        var sheetValRaw = displayValues[i][0].toString();
-        var sheetValueClean = payload.nip ? sheetValRaw.replace(/\D/g, '').trim() : sheetValRaw.trim();
-        if (sheetValueClean === targetKey && targetKey !== "") {
+        if (displayValues[i][0].toString().trim() === targetKey) {
           sheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
-          return createResponse({ success: true, message: "Data " + targetKey + " diperbarui." });
+          return createResponse({ success: true, message: "Updated." });
         }
       }
     }
 
     sheet.appendRow(rowData);
-    return createResponse({ success: true, message: "Data baru ditambahkan." });
-  } catch (e) { return createResponse({ success: false, message: "Save Error: " + e.toString() }); }
+    return createResponse({ success: true, message: "Added." });
+  } catch (e) { return createResponse({ success: false, message: e.toString() }); }
 }
 
 function handleDelete(ss, moduleName, payload) {
   try {
     var sheet = findSheetByName(ss, moduleName);
-    if (!sheet) return createResponse({ success: false, message: "Sheet tidak ditemukan." });
+    if (!sheet) return createResponse({ success: false });
     var lastRow = sheet.getLastRow();
-    if (lastRow < 2) return createResponse({ success: true, message: "Sheet kosong." });
     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     var keyIndex = -1;
-    var searchKey = String(payload.nip || payload.id || "").replace(/\D/g, '').trim();
+    var searchKey = String(payload.id || payload.nip || "").trim();
     for (var h = 0; h < headers.length; h++) {
-      if (headers[h].toString().toLowerCase().trim() === 'nip') { keyIndex = h; break; }
-      if (headers[h].toString().toLowerCase().trim() === 'id') { keyIndex = h; }
+      var n = headers[h].toString().toLowerCase().trim();
+      if (n === 'id' || n === 'nip') { keyIndex = h; break; }
     }
-    if (keyIndex === -1 || searchKey === "") return createResponse({ success: false, message: "ID tidak valid." });
     var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getDisplayValues();
-    var deletedCount = 0;
     for (var i = displayValues.length - 1; i >= 1; i--) {
-      if (String(displayValues[i][0]).replace(/\D/g, '').trim() === searchKey) {
+      if (String(displayValues[i][0]).trim() === searchKey) {
         sheet.deleteRow(i + 1);
-        deletedCount++;
       }
     }
-    return createResponse({ success: true, message: "Dihapus: " + deletedCount });
-  } catch (e) { return createResponse({ success: false, message: "Delete Error: " + e.toString() }); }
+    return createResponse({ success: true });
+  } catch (e) { return createResponse({ success: false }); }
 }
 
 function getSpreadsheet(ssId) {
   try {
-    if (ssId && ssId.toString().trim() !== "" && ssId.toString() !== "undefined") return SpreadsheetApp.openById(ssId);
+    if (ssId && ssId.toString() !== "undefined") return SpreadsheetApp.openById(ssId);
     return SpreadsheetApp.getActiveSpreadsheet();
   } catch(e) { return null; }
 }
@@ -170,7 +181,6 @@ function handleUpload(payload) {
     var blob = Utilities.newBlob(bytes, payload.mimeType, payload.fileName);
     var file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    // URL ini bypass virus scan dialog dan CORS friendly
     return createResponse({ success: true, fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId() });
-  } catch (e) { return createResponse({ success: false, message: "Upload Error: " + e.toString() }); }
+  } catch (e) { return createResponse({ success: false, message: e.toString() }); }
 }

@@ -1,5 +1,6 @@
 
 import React from 'react';
+// @ts-ignore
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 
@@ -52,17 +53,20 @@ const LayananKepegawaianPage = () => {
   const { user } = useAuth();
 
   const services = [
+    { id: 'bangkom', icon: 'bi-mortarboard-fill', label: 'Bangkom & Pelatihan', description: 'Monitoring Kewajiban Minimal 20 JP PNS & 24 JP PPPK / Tahun', color: 'indigo', route: '/pengembangan' },
     { id: 'pangkat', icon: 'bi-award-fill', label: 'Kenaikan Pangkat', description: 'Usulan Kenaikan Pangkat Reguler & Istimewa (Prestasi Luar Biasa)', color: 'blue', route: '/kenaikan-pangkat' },
     { id: 'skp', icon: 'bi-graph-up-arrow', label: 'E-Kinerja (SKP)', description: 'Evaluasi & Penilaian Kinerja Pegawai (Permenpan 6/2022)', color: 'blue', route: '/skp' },
     { id: 'pak', icon: 'bi-patch-check-fill', label: 'Angka Kredit (PAK)', description: 'Penetapan Angka Kredit Fungsional & TND Konversi', color: 'indigo', route: '/pak' },
     { id: 'magang', icon: 'bi-mortarboard-fill', label: 'Magang & PKL', description: 'Manajemen Peserta Magang, Penempatan Unit, & Sertifikat Suker', color: 'teal', route: '/magang-pkl' },
     { id: 'satya', icon: 'bi-star-fill', label: 'Satyalencana', description: 'Monitoring Pengabdian 10, 20, 30 Tahun & Usulan Penghargaan', color: 'amber', route: '/satya-lencana' },
-    { id: 'kgb', icon: 'bi-cash-stack', label: 'Gaji Berkala', description: 'Generator Surat Kenaikan Gaji Berkala Sesuai Template TND', color: 'emerald', route: '/kgb-gen', adminOnly: true, badge: 'Admin' },
+    { id: 'kgb', icon: 'bi-cash-stack', label: 'KGB', description: 'Generator Surat Kenaikan Gaji Berkala Sesuai Template TND', color: 'emerald', route: '/kgb-gen', adminOnly: true, badge: 'Admin' },
     { id: 'anjab', icon: 'bi-calculator-fill', label: 'ANJAB & ABK', description: 'Analisis Jabatan & Perhitungan Beban Kerja Organisasi', color: 'cyan', route: '/anjab-abk' },
     { id: 'pensiun', icon: 'bi-door-open-fill', label: 'DPCP Generator', description: 'Monitoring Batas Usia Pensiun & Generator Dokumen DPCP', color: 'rose', route: '/pensiun' },
     { id: 'spmt', icon: 'bi-file-earmark-text-fill', label: 'Generator TND', description: 'Pembuatan Dokumen SPMT & SPP Sesuai Naskah Dinas', color: 'slate', route: '/spmt-spp', adminOnly: true, badge: 'Admin' },
     { id: 'ba', icon: 'bi-patch-check-fill', label: 'Berita Acara', description: 'Generator BA Pelantikan & Pakta Integritas Terpadu', color: 'blue', route: '/pelantikan-gen', adminOnly: true, badge: 'Admin' },
   ];
+
+  const firstName = (user?.name || 'Administrator').split(' ')[0];
 
   return (
     <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
@@ -82,7 +86,7 @@ const LayananKepegawaianPage = () => {
         <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
           <div>
             <span className="px-3 py-1 bg-blue-600 text-white text-[8px] font-black rounded uppercase tracking-widest">Informasi Karir</span>
-            <h4 className="text-xl md:text-2xl font-black uppercase mt-4 tracking-tight">Halo, {user?.name.split(' ')[0]}!</h4>
+            <h4 className="text-xl md:text-2xl font-black uppercase mt-4 tracking-tight">Halo, {firstName}!</h4>
             <p className="text-[9px] md:text-[11px] text-gray-400 font-bold uppercase mt-3 leading-relaxed">
               Semua layanan administrasi karir Anda terpusat di sini. Pastikan data di E-Dossier selalu diperbarui.
             </p>
@@ -90,7 +94,7 @@ const LayananKepegawaianPage = () => {
           <div className="grid grid-cols-2 gap-3 md:gap-4">
              <div className="p-4 md:p-6 bg-white/5 border border-white/10 rounded-3xl">
                 <p className="text-[7px] md:text-[8px] font-black text-blue-400 uppercase mb-2">Role Anda</p>
-                <h5 className="text-xs md:sm font-black uppercase truncate">{user?.role}</h5>
+                <h5 className="text-xs md:sm font-black uppercase truncate">{user?.role || 'Guest'}</h5>
              </div>
              <div className="p-4 md:p-6 bg-white/5 border border-white/10 rounded-3xl">
                 <p className="text-[7px] md:text-[8px] font-black text-emerald-400 uppercase mb-2">Status Server</p>

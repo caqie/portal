@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+// @ts-ignore
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -24,6 +25,8 @@ import PensiunPage from './pages/PensiunPage';
 import KenaikanPangkatPage from './pages/KenaikanPangkatPage';
 import SatyaLencanaPage from './pages/SatyaLencanaPage';
 import MagangPKLPage from './pages/MagangPKLPage';
+import PersuratanPage from './pages/PersuratanPage';
+import PengembanganPage from './pages/PengembanganPage';
 import { MaintenanceConfig } from './types';
 import { DEFAULT_LOGO } from './constants';
 import { syncGidMap } from './spreadsheetService';
@@ -59,11 +62,17 @@ const AppContent = () => {
   const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < 1440);
   const [systemName, setSystemName] = useState('Portal SDM');
   const [systemLogo, setSystemLogo] = useState<string | null>(DEFAULT_LOGO);
+  const [currentTime, setCurrentTime] = useState(new Date());
   
   const location = useLocation();
   const { user, logout, isSuperadmin, canEdit, isAuthenticated } = useAuth();
 
   useEffect(() => { syncGidMap(); }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -89,6 +98,9 @@ const AppContent = () => {
 
   if (!isAuthenticated && location.pathname !== '/login') return <Navigate to="/login" />;
   if (location.pathname === '/login') return isAuthenticated ? <Navigate to="/" /> : <LoginPage />;
+
+  const formattedDate = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-[#F8F9FC] text-gray-900 font-['Inter']">
@@ -122,11 +134,12 @@ const AppContent = () => {
           <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar space-y-0.5 pb-20">
             <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard" active={location.pathname === '/'} collapsed={isCollapsed} />
             <SidebarItem to="/pegawai" icon="bi-person-vcard-fill" label="Database Pegawai" active={location.pathname === '/pegawai'} collapsed={isCollapsed} />
-            <SidebarItem to="/layanan" icon="bi-briefcase-fill" label="Layanan Karir" active={['/layanan', '/kenaikan-pangkat', '/skp', '/pak', '/anjab-abk', '/pensiun', '/kgb-gen', '/spmt-spp', '/pelantikan-gen', '/satya-lencana', '/magang-pkl'].some(p => location.pathname.startsWith(p))} collapsed={isCollapsed} />
+            <SidebarItem to="/layanan" icon="bi-briefcase-fill" label="Layanan Karir" active={['/layanan', '/kenaikan-pangkat', '/skp', '/pak', '/anjab-abk', '/pensiun', '/kgb-gen', '/spmt-spp', '/pelantikan-gen', '/satya-lencana', '/magang-pkl', '/pengembangan'].some(p => location.pathname.startsWith(p))} collapsed={isCollapsed} />
             
             {(canEdit || isSuperadmin) && (
               <>
                 <div className={`px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ${isCollapsed ? 'hidden' : 'block'}`}>Administrasi</div>
+                <SidebarItem to="/persuratan" icon="bi-envelope-paper-fill" label="Persuratan Digital" active={location.pathname === '/persuratan'} collapsed={isCollapsed} />
                 <SidebarItem to="/tugas-rutin" icon="bi-clipboard2-check-fill" label="Tugas Rutin" active={location.pathname === '/tugas-rutin'} collapsed={isCollapsed} />
                 <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Agenda Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />
                 <SidebarItem to="/laporan" icon="bi-file-earmark-bar-graph-fill" label="Laporan Bulanan" active={location.pathname === '/laporan'} collapsed={isCollapsed} />
@@ -134,46 +147,62 @@ const AppContent = () => {
               </>
             )}
 
+            <div className={`px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ${isCollapsed ? 'hidden' : 'block'}`}>Kehadiran</div>
+            <SidebarItem to="/absensi-online" icon="bi-camera-fill" label="Absensi Wajah" active={location.pathname === '/absensi-online'} collapsed={isCollapsed} />
+            <SidebarItem to="/rekap-absensi" icon="bi-clipboard-data-fill" label="Rekapitulasi" active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />
+
             {isSuperadmin && (
               <>
                 <div className={`px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ${isCollapsed ? 'hidden' : 'block'}`}>Sistem</div>
-                <SidebarItem to="/logs" icon="bi-clock-history" label="Audit Activity Log" active={location.pathname === '/logs'} collapsed={isCollapsed} />
-                <SidebarItem to="/settings" icon="bi-gear-fill" label="Pengaturan Sistem" active={location.pathname === '/settings'} collapsed={isCollapsed} />
+                <SidebarItem to="/settings" icon="bi-gear-wide-connected" label="Pengaturan" active={location.pathname === '/settings'} collapsed={isCollapsed} />
+                <SidebarItem to="/logs" icon="bi-clock-history" label="Audit Logs" active={location.pathname === '/logs'} collapsed={isCollapsed} />
               </>
             )}
           </nav>
-          <div className="p-4 mt-auto hidden lg:block border-t border-white/5">
-            <button onClick={logout} className={`flex items-center px-4 py-3.5 w-full text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition-all rounded-xl ${isCollapsed ? 'justify-center' : ''}`}>
-              <i className="bi bi-power text-xl"></i>
-              {!isCollapsed && <span className="ml-4 font-bold text-[11px] uppercase tracking-widest">Keluar</span>}
-            </button>
+
+          <div className="p-6 border-t border-white/5 shrink-0">
+             <button onClick={logout} className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-rose-600/10 text-rose-500 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all">
+                <i className="bi bi-power"></i>
+                <span className={isCollapsed ? 'hidden' : 'block'}>Logout Sistem</span>
+             </button>
           </div>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 bg-[#F8F9FC] relative overflow-hidden">
-        <header className="sticky top-0 z-[100] bg-white/80 backdrop-blur-2xl border-b border-gray-100 px-6 md:px-10 py-4 flex items-center justify-between">
-           <div className="flex items-center gap-6">
-              <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden h-10 w-10 flex items-center justify-center bg-gray-100 rounded-xl"><i className="bi bi-list text-xl"></i></button>
-              <h2 className="text-lg font-black uppercase tracking-tighter text-gray-950">Portal SDM <span className="text-blue-600">Integrasi</span></h2>
-           </div>
-           <div className="flex items-center gap-4">
-              <div className="text-right hidden sm:block">
-                 <p className="text-[10px] font-black uppercase text-gray-900 leading-none">{user?.name}</p>
-                 <p className="text-[7px] font-bold text-blue-600 uppercase mt-1 tracking-widest">{user?.role}</p>
-              </div>
-              <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black overflow-hidden shadow-lg border-2 border-white">
-                 {user?.foto ? <img src={user.foto} className="h-full w-full object-cover" /> : user?.name.charAt(0)}
-              </div>
-           </div>
-        </header>
-        <div className="bg-slate-900 text-white py-1.5 overflow-hidden shrink-0 border-b border-white/5">
-          <div className="whitespace-nowrap animate-marquee inline-block">
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] px-16 opacity-70">SISTEM INTEGRASI KEPEGAWAIAN DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL • KEMENTERIAN HUKUM RI</span>
+      <main className="flex-1 flex flex-col min-0 relative overflow-hidden">
+        <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 shrink-0 z-[100]">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden h-10 w-10 flex items-center justify-center text-gray-400 bg-gray-50 rounded-xl"><i className="bi bi-list text-2xl"></i></button>
+            <div className="hidden sm:block">
+              <h2 className="text-sm font-black text-gray-950 uppercase tracking-tight">Portal SDM DJKI</h2>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">DJKI Smart Hub 2025</p>
+            </div>
           </div>
-        </div>
-        <div className="flex-1 overflow-y-auto p-6 md:p-10 relative custom-scrollbar">
-          <Routes>
+          
+          <div className="hidden lg:flex flex-col items-center bg-gray-50 px-8 py-2 rounded-2xl border border-gray-100 shadow-sm animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <i className="bi bi-clock-fill text-blue-600 text-xs"></i>
+              <span className="text-[14px] font-black text-gray-950 tracking-tighter tabular-nums">{formattedTime}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+               <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{formattedDate}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-6">
+            <div className="hidden md:flex flex-col items-end">
+              <span className="text-[11px] font-black text-gray-950 uppercase">{user?.name}</span>
+              <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tighter">{user?.role} • NIP. {user?.nip}</span>
+            </div>
+            <div className="h-12 w-12 rounded-2xl bg-gray-50 border-4 border-white shadow-xl overflow-hidden shimmer-effect">
+               {user?.foto ? <img src={user.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black">?</div>}
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-8 lg:p-12 custom-scrollbar relative flex flex-col">
+          <div className="flex-1">
+            <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/pegawai" element={<PegawaiPage />} />
               <Route path="/layanan" element={<LayananKepegawaianPage />} />
@@ -181,31 +210,58 @@ const AppContent = () => {
               <Route path="/kegiatan" element={<KegiatanPage />} />
               <Route path="/laporan" element={<LaporanPage />} />
               <Route path="/dossiers" element={<DossiersPage />} />
-              <Route path="/logs" element={<ActivityLogPage />} />
               <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/kenaikan-pangkat" element={<KenaikanPangkatPage />} />
+              <Route path="/logs" element={<ActivityLogPage />} />
+              <Route path="/absensi-online" element={<AbsensiOnlinePage />} />
+              <Route path="/rekap-absensi" element={<RekapAbsensiPage />} />
               <Route path="/skp" element={<SKPPage />} />
               <Route path="/pak" element={<PAKPage />} />
               <Route path="/anjab-abk" element={<ABKAnjabPage />} />
-              <Route path="/pensiun" element={<PensiunPage />} />
-              <Route path="/kgb-gen" element={<KGBGeneratorPage />} />
-              <Route path="/spmt-spp" element={<SpmtSppPage />} />
               <Route path="/pelantikan-gen" element={<PelantikanGeneratorPage />} />
+              <Route path="/spmt-spp" element={<SpmtSppPage />} />
+              <Route path="/kgb-gen" element={<KGBGeneratorPage />} />
+              <Route path="/pensiun" element={<PensiunPage />} />
+              <Route path="/kenaikan-pangkat" element={<KenaikanPangkatPage />} />
               <Route path="/satya-lencana" element={<SatyaLencanaPage />} />
               <Route path="/magang-pkl" element={<MagangPKLPage />} />
-          </Routes>
+              <Route path="/persuratan" element={<PersuratanPage />} />
+              <Route path="/pengembangan" element={<PengembanganPage />} />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </div>
+
+          <footer className="mt-16 pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left shrink-0 pb-4">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-gray-900 uppercase tracking-widest">{systemName}</p>
+              <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Sistem Manajemen SDM DJKI Kemenkumham RI © 2025</p>
+            </div>
+            <div className="flex flex-col items-center md:items-end">
+              <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Dikembangkan Oleh:</p>
+              <a 
+                href="https://caqiestudioproduction.com" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-[9px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-colors flex items-center gap-2 group"
+              >
+                caqiestudioproduction.com
+                <i className="bi bi-box-arrow-up-right group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
+              </a>
+            </div>
+          </footer>
         </div>
       </main>
     </div>
   );
 };
 
-const App = () => (
-  <AuthProvider>
+const App = () => {
+  return (
     <HashRouter>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </HashRouter>
-  </AuthProvider>
-);
+  );
+};
 
 export default App;

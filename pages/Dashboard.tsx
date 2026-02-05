@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchPegawaiFromSheets, getRetirementDetails } from '../spreadsheetService';
-import { Pegawai } from '../types';
+import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets } from '../spreadsheetService';
+import { Pegawai, Pengembangan } from '../types';
 import { useAuth } from '../AuthContext';
 import { UNIT_KERJA, normalizeUnitName } from '../constants';
 import * as XLSX from 'xlsx';
@@ -26,22 +26,28 @@ const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: str
 );
 
 const Dashboard = () => {
+  const { logActivity } = useAuth();
   const [pegawai, setPegawai] = useState<Pegawai[]>([]);
+  const [riwayatBangkom, setRiwayatBangkom] = useState<Pengembangan[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [notifTab, setNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat' | 'satya'>('pensiun');
+  const [notifTab, setNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat' | 'satya' | 'bangkom'>('pensiun');
 
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
-  const [filterJenis, setFilterJenis] = useState('Semua Jenis');
   const [filterJenisMatrix, setFilterJenisMatrix] = useState('Semua Jenis');
+  const [searchJabatan, setSearchJabatan] = useState('');
 
   useEffect(() => { loadDashboardData(); }, []);
 
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const pegData = await fetchPegawaiFromSheets();
-      setPegawai(pegData);
+      const [pegData, bangkomData] = await Promise.all([
+        fetchPegawaiFromSheets(),
+        fetchPengembanganFromSheets()
+      ]);
+      setPegawai(Array.isArray(pegData) ? pegData : []);
+      setRiwayatBangkom(Array.isArray(bangkomData) ? bangkomData : []);
     } catch (error) {
       console.error("Dashboard Load Error:", error);
     } finally {
@@ -89,9 +95,12 @@ const Dashboard = () => {
       groups[jab] = (groups[jab] || 0) + 1;
     });
 
-    return Object.entries(groups).map(([jabatan, total]) => ({ jabatan, total }))
+    const term = searchJabatan.toUpperCase().trim();
+    return Object.entries(groups)
+      .map(([jabatan, total]) => ({ jabatan, total }))
+      .filter(item => item.jabatan.includes(term))
       .sort((a, b) => b.total - a.total);
-  }, [activePegawaiList, filterUnit, filterJenisMatrix]);
+  }, [activePegawaiList, filterUnit, filterJenisMatrix, searchJabatan]);
 
   const genderStats = useMemo(() => ({
     pria: activePegawaiList.filter(p => p.gender === 'L').length,
@@ -119,6 +128,16 @@ const Dashboard = () => {
       .sort((a, b) => b.count - a.count);
   }, [activePegawaiList]);
 
+  const gradeStats = useMemo(() => {
+    const gradeMap: Record<string, number> = {};
+    activePegawaiList.forEach(p => {
+      const g = (p.golRuang || 'LAINNYA').trim().toUpperCase();
+      gradeMap[g] = (gradeMap[g] || 0) + 1;
+    });
+    return Object.entries(gradeMap).map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.label.localeCompare(a.label));
+  }, [activePegawaiList]);
+
   const handleDownloadAnalytics = () => {
     const wb = XLSX.utils.book_new();
     const unitWs = XLSX.utils.json_to_sheet(unitDistribution.map(u => ({
@@ -138,10 +157,27 @@ const Dashboard = () => {
     const extraData = [
       { Kategori: 'Gender Laki-laki', Jumlah: genderStats.pria },
       { Kategori: 'Gender Perempuan', Jumlah: genderStats.wanita },
-      ...educationStats.map(e => ({ Kategori: `Pendidikan ${e.label}`, Jumlah: e.count }))
+      ...educationStats.map(e => ({ Kategori: `Pendidikan ${e.label}`, Jumlah: e.count })),
+      ...gradeStats.map(g => ({ Kategori: `Golongan ${g.label}`, Jumlah: g.count }))
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(extraData), "Statistik Pendukung");
     XLSX.writeFile(wb, `Analitik_SDM_DJKI_${new Date().getTime()}.xlsx`);
+    logActivity('DOWNLOAD', 'Analytics', 'Download Full Analytics Dashboard');
+  };
+
+  const handleDownloadJabatanExcel = () => {
+    if (matrixJabatan.length === 0) return alert("Tidak ada data untuk diunduh.");
+    const data = matrixJabatan.map(j => ({
+      'Nomenklatur Jabatan': j.jabatan,
+      'Total ASN': j.total,
+      'Unit Filter': filterUnit,
+      'Jenis ASN Filter': filterJenisMatrix
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Matriks Jabatan");
+    XLSX.writeFile(wb, `Matriks_Jabatan_DJKI_${new Date().getTime()}.xlsx`);
+    logActivity('DOWNLOAD', 'Analytics', `Download Matriks Jabatan (Filter: ${filterUnit})`);
   };
 
   const reminders = useMemo(() => {
@@ -151,11 +187,12 @@ const Dashboard = () => {
     const listPangkat: any[] = [];
     const listPensiun: any[] = [];
     const listSatya: any[] = [];
+    const listBangkom: any[] = [];
 
     activePegawaiList.forEach(p => {
-      // 1. PENSIUN (BUP) - HANYA TAHUN INI
-      const ret = getRetirementDetails(p.nip, p.jabatan || '');
-      if (ret && ret.tmtPensiun.getFullYear() === currentYear) {
+      // 1. Pensiun
+      const ret = getRetirementDetails(p.nip || '', p.jabatan || '');
+      if (ret && ret.tmtPensiun && ret.tmtPensiun.getFullYear() === currentYear) {
         listPensiun.push({ 
           nama: p.nama, 
           nip: p.nip, 
@@ -164,14 +201,12 @@ const Dashboard = () => {
         });
       }
 
-      // 2. KGB & PANGKAT (DARI TMT TERAKHIR) - HANYA TAHUN INI
+      // 2. KGB & Pangkat
       if (p.tmtPangkat) {
-        const tmtParts = p.tmtPangkat.split('-'); // Format YYYY-MM-DD
+        const tmtParts = String(p.tmtPangkat).split('-');
         if (tmtParts.length === 3) {
             const lastTmtYear = parseInt(tmtParts[0]);
             const diffYears = currentYear - lastTmtYear;
-            
-            // KGB setiap kelipatan 2 tahun
             if (diffYears > 0 && diffYears % 2 === 0) {
                 listKGB.push({ 
                   nama: p.nama, 
@@ -180,7 +215,6 @@ const Dashboard = () => {
                   keterangan: `Jadwal KGB Tahun ${currentYear}` 
                 });
             }
-            // Pangkat Reguler setiap kelipatan 4 tahun
             if (diffYears > 0 && diffYears % 4 === 0) {
                 listPangkat.push({ 
                   nama: p.nama, 
@@ -192,8 +226,8 @@ const Dashboard = () => {
         }
       }
 
-      // 3. SATYA LENCANA (DARI NIP DIGIT 9-12) - HANYA TAHUN INI
-      const cleanNip = p.nip.replace(/\D/g, '');
+      // 3. Satyalencana
+      const cleanNip = String(p.nip || '').replace(/\D/g, '');
       if (cleanNip.length >= 12) {
         const cpnsYear = parseInt(cleanNip.substring(8, 12));
         const workingYears = currentYear - cpnsYear;
@@ -206,10 +240,35 @@ const Dashboard = () => {
            });
         }
       }
+
+      // 4. Pengembangan & Pelatihan (Bangkom) - Filter Tahun Berjalan
+      const perUserBangkom = riwayatBangkom.filter(r => r.nip === p.nip && Number(r.tahun) === currentYear);
+      const totalJp = perUserBangkom.reduce((acc, curr) => acc + (Number(curr.jumlahJpl) || 0), 0);
+      const isPPPK = (p.jenisPegawai || '').toUpperCase().includes('PPPK');
+      const targetJp = isPPPK ? 24 : 20;
+
+      if (totalJp < targetJp) {
+        listBangkom.push({
+          nama: p.nama,
+          nip: p.nip,
+          currentJp: totalJp,
+          targetJp: targetJp,
+          keterangan: `Kurang ${targetJp - totalJp} JP`,
+          status: isPPPK ? 'PPPK (Target 24 JP)' : 'PNS (Min 20 JP)'
+        });
+      }
     });
 
-    return { kgb: listKGB, pangkat: listPangkat, pensiun: listPensiun, satya: listSatya };
-  }, [activePegawaiList]);
+    return { 
+      kgb: listKGB, 
+      pangkat: listPangkat, 
+      pensiun: listPensiun, 
+      satya: listSatya, 
+      bangkom: listBangkom 
+    };
+  }, [activePegawaiList, riwayatBangkom]);
+
+  const totalNotifCount = reminders.kgb.length + reminders.pangkat.length + reminders.pensiun.length + reminders.satya.length + reminders.bangkom.length;
 
   return (
     <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
@@ -227,9 +286,9 @@ const Dashboard = () => {
           </button>
           <button onClick={() => setIsNotifOpen(true)} className="relative flex items-center gap-4 bg-white p-4 px-8 rounded-2xl border border-gray-100 shadow-sm active:scale-95 transition-all group">
              <i className="bi bi-bell-fill text-xl text-blue-600 group-hover:animate-swing"></i>
-             {reminders.kgb.length + reminders.pangkat.length + reminders.pensiun.length + reminders.satya.length > 0 && (
+             {totalNotifCount > 0 && (
                <span className="absolute -top-2 -right-2 h-6 w-6 bg-rose-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-4 border-[#F8F9FC] animate-bounce">
-                  {reminders.kgb.length + reminders.pangkat.length + reminders.pensiun.length + reminders.satya.length}
+                  {totalNotifCount}
                </span>
              )}
           </button>
@@ -312,9 +371,18 @@ const Dashboard = () => {
                        <span className="text-[12px] font-black text-gray-950">{edu.count} ASN</span>
                     </div>
                  ))}
-                 {educationStats.length === 0 && (
-                    <div className="py-10 text-center text-gray-300 uppercase text-[10px] font-black">Data tidak terdeteksi</div>
-                 )}
+              </div>
+           </div>
+
+           <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+              <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em] mb-6">Distribusi Golongan Pegawai</h4>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                 {gradeStats.map((grade, i) => (
+                    <div key={i} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl hover:bg-emerald-50 transition-colors group">
+                       <span className="text-[10px] font-black text-gray-600 uppercase group-hover:text-emerald-600 transition-colors">Golongan {grade.label}</span>
+                       <span className="text-[12px] font-black text-gray-950">{grade.count} ASN</span>
+                    </div>
+                 ))}
               </div>
            </div>
         </div>
@@ -326,27 +394,20 @@ const Dashboard = () => {
                  <p className="text-[8px] text-gray-400 font-bold uppercase mt-1 tracking-widest text-blue-600">Total Sebaran Nomenklatur Jabatan Terpusat</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                 <select className="px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-[8px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
-                    <option value="Semua Unit">Unit Kerja</option>
-                    {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase().substring(0, 20)}...</option>)}
-                 </select>
-                 <select className="px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-[8px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterJenisMatrix} onChange={e => setFilterJenisMatrix(e.target.value)}>
-                    <option value="Semua Jenis">Jenis ASN</option>
-                    <option value="PNS">PNS</option>
-                    <option value="CPNS">CPNS</option>
-                    <option value="PPPK">PPPK</option>
-                    <option value="PARUH">Paruh Waktu</option>
-                 </select>
+                 <button onClick={handleDownloadJabatanExcel} className="h-8 px-4 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg text-[8px] font-black uppercase flex items-center gap-2 hover:bg-emerald-600 hover:text-white transition-all shadow-sm">
+                   <i className="bi bi-file-earmark-spreadsheet-fill"></i> XLSX
+                 </button>
+                 <div className="relative">
+                    <i className="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]"></i>
+                    <input type="text" placeholder="Cari Jabatan..." className="pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-[8px] font-black uppercase outline-none focus:border-blue-600 transition-all w-32 md:w-40" value={searchJabatan} onChange={e => setSearchJabatan(e.target.value)} />
+                 </div>
               </div>
            </div>
            
-           <div className="overflow-x-auto max-h-[480px] flex-1 custom-scrollbar border border-gray-50 rounded-3xl">
+           <div className="overflow-x-auto max-h-[820px] flex-1 custom-scrollbar border border-gray-50 rounded-3xl">
               <table className="w-full text-left border-collapse">
                  <thead className="sticky top-0 bg-white z-20 shadow-sm text-[8px] font-black uppercase text-gray-400">
-                    <tr>
-                       <th className="px-10 py-6 border-b">Nama Nomenklatur Jabatan</th>
-                       <th className="px-6 py-6 text-right border-b text-blue-600">Total ASN</th>
-                    </tr>
+                    <tr><th className="px-10 py-6 border-b">Nama Nomenklatur Jabatan</th><th className="px-6 py-6 text-right border-b text-blue-600">Total ASN</th></tr>
                  </thead>
                  <tbody className="divide-y divide-gray-50">
                     {matrixJabatan.map((row, i) => (
@@ -355,9 +416,6 @@ const Dashboard = () => {
                          <td className="px-6 py-4 text-right font-black text-[12px] text-gray-950">{row.total}</td>
                       </tr>
                     ))}
-                    {matrixJabatan.length === 0 && (
-                      <tr><td colSpan={2} className="py-20 text-center text-gray-300 font-black uppercase text-[10px]">Data tidak tersedia</td></tr>
-                    )}
                  </tbody>
               </table>
            </div>
@@ -370,10 +428,7 @@ const Dashboard = () => {
            <div className="relative bg-white w-full max-w-2xl md:rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col animate-modalEnter h-full md:h-auto md:max-h-[85vh]">
               <div className="p-8 md:p-10 shrink-0 bg-gray-50/50 border-b">
                  <div className="flex items-center justify-between mb-8">
-                    <div>
-                       <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">Personnel Monitoring</h4>
-                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Daftar ASN yang Memerlukan Tindakan Administrasi Tahun {new Date().getFullYear()}</p>
-                    </div>
+                    <div><h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">Personnel Monitoring</h4><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Daftar ASN yang Memerlukan Tindakan Administrasi Tahun {new Date().getFullYear()}</p></div>
                     <button onClick={() => setIsNotifOpen(false)} className="h-12 w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white rounded-2xl shadow-sm transition-all"><i className="bi bi-x-lg text-xl"></i></button>
                  </div>
                  <div className="flex bg-gray-200 p-1.5 rounded-[1.5rem] overflow-x-auto no-scrollbar gap-1">
@@ -381,79 +436,41 @@ const Dashboard = () => {
                     <button onClick={() => setNotifTab('kgb')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-2xl transition-all ${notifTab==='kgb' ? 'bg-white text-emerald-600 shadow-md' : 'text-gray-500'}`}>KGB ({reminders.kgb.length})</button>
                     <button onClick={() => setNotifTab('pangkat')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-2xl transition-all ${notifTab==='pangkat' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500'}`}>Pangkat ({reminders.pangkat.length})</button>
                     <button onClick={() => setNotifTab('satya')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-2xl transition-all ${notifTab==='satya' ? 'bg-white text-amber-600 shadow-md' : 'text-gray-500'}`}>Satya ({reminders.satya.length})</button>
+                    <button onClick={() => setNotifTab('bangkom')} className={`flex-1 min-w-[120px] py-3.5 text-[9px] font-black uppercase rounded-2xl transition-all ${notifTab==='bangkom' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-500'}`}>Pelatihan ({reminders.bangkom.length})</button>
                  </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar space-y-4 min-h-[300px]">
-                 {notifTab === 'pensiun' && reminders.pensiun.map((item, i) => (
-                    <div key={i} className="p-5 bg-rose-50/30 border border-rose-100 rounded-3xl flex justify-between items-center group hover:bg-rose-50 transition-all">
-                       <div>
-                          <p className="text-[11px] font-black text-gray-950 uppercase">{item.nama}</p>
-                          <p className="text-[9px] font-bold text-rose-600 uppercase mt-1">TMT Pensiun: {item.tmt}</p>
+              <div className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar space-y-4">
+                 {(reminders[notifTab] || []).map((item, i) => (
+                    <div key={i} className="p-5 bg-gray-50/50 border border-gray-100 rounded-3xl flex justify-between items-center group hover:bg-blue-50 transition-all">
+                       <div className="min-w-0">
+                          <p className="text-[11px] font-black text-gray-950 uppercase truncate">{item.nama || 'Tanpa Nama'}</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">
+                             {notifTab === 'bangkom' ? item.status : `TMT: ${item.tmt || item.tmtTerakhir || '-'}`}
+                          </p>
+                          {notifTab === 'bangkom' && (
+                             <div className="mt-2 flex items-center gap-2">
+                                <div className="h-1.5 w-24 bg-gray-200 rounded-full overflow-hidden">
+                                   <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, (item.currentJp / (item.targetJp || 1)) * 100)}%` }}></div>
+                                </div>
+                                <span className="text-[8px] font-black text-indigo-600">{item.currentJp} / {item.targetJp} JP</span>
+                             </div>
+                          )}
                        </div>
-                       <span className="px-3 py-1 bg-white border border-rose-100 rounded-lg text-[9px] font-black text-rose-600 shadow-sm">{item.sisa}</span>
+                       <span className={`shrink-0 px-3 py-1 bg-white border rounded-lg text-[9px] font-black uppercase ${notifTab === 'bangkom' ? 'text-indigo-600 border-indigo-100' : 'text-gray-500'}`}>
+                          {item.sisa || item.keterangan || item.pengabdian || '-'}
+                       </span>
                     </div>
                  ))}
-                 
-                 {notifTab === 'kgb' && reminders.kgb.map((item, i) => (
-                    <div key={i} className="p-5 bg-emerald-50/30 border border-emerald-100 rounded-3xl flex justify-between items-center group hover:bg-emerald-50 transition-all">
-                       <div>
-                          <p className="text-[11px] font-black text-gray-950 uppercase">{item.nama}</p>
-                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">NIP. {item.nip}</p>
-                       </div>
-                       <div className="text-right">
-                          <p className="text-[9px] font-black text-emerald-600 uppercase">{item.keterangan}</p>
-                          <p className="text-[7px] text-gray-400 uppercase mt-1">TMT Terakhir: {item.tmtTerakhir}</p>
-                       </div>
-                    </div>
-                 ))}
-
-                 {notifTab === 'pangkat' && reminders.pangkat.map((item, i) => (
-                    <div key={i} className="p-5 bg-blue-50/30 border border-blue-100 rounded-3xl flex justify-between items-center group hover:bg-blue-50 transition-all">
-                       <div>
-                          <p className="text-[11px] font-black text-gray-950 uppercase">{item.nama}</p>
-                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">NIP. {item.nip}</p>
-                       </div>
-                       <div className="text-right">
-                          <p className="text-[9px] font-black text-blue-600 uppercase">{item.keterangan}</p>
-                          <p className="text-[7px] text-gray-400 uppercase mt-1">TMT Terakhir: {item.tmtTerakhir}</p>
-                       </div>
-                    </div>
-                 ))}
-
-                 {notifTab === 'satya' && reminders.satya.map((item, i) => (
-                    <div key={i} className="p-5 bg-amber-50/30 border border-amber-100 rounded-3xl flex justify-between items-center group hover:bg-amber-50 transition-all">
-                       <div>
-                          <p className="text-[11px] font-black text-gray-950 uppercase">{item.nama}</p>
-                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">NIP. {item.nip}</p>
-                       </div>
-                       <span className="px-4 py-1.5 bg-amber-500 text-white rounded-xl text-[10px] font-black shadow-lg shadow-amber-500/20 uppercase tracking-widest">{item.pengabdian}</span>
-                    </div>
-                 ))}
-
                  {(reminders[notifTab] || []).length === 0 && (
-                    <div className="py-20 text-center opacity-40">
-                       <i className="bi bi-shield-check text-6xl text-gray-300 block mb-6"></i>
-                       <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Tidak ada notifikasi aktif tahun ini</p>
+                    <div className="py-20 text-center opacity-30">
+                       <i className="bi bi-check2-circle text-5xl mb-4"></i>
+                       <p className="text-[10px] font-black uppercase tracking-widest">Semua data terpantau aman</p>
                     </div>
                  )}
               </div>
            </div>
         </div>
       )}
-
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        @keyframes swing {
-           0% { transform: rotate(0deg); }
-           20% { transform: rotate(15deg); }
-           40% { transform: rotate(-10deg); }
-           60% { transform: rotate(5deg); }
-           80% { transform: rotate(-5deg); }
-           100% { transform: rotate(0deg); }
-        }
-        .group:hover .group-hover\\:animate-swing { animation: swing 0.8s ease-in-out; }
-      `}</style>
     </div>
   );
 };

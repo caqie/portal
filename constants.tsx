@@ -3,7 +3,8 @@ import { TaskType } from './types';
 import { LOGO_DJKI_URL } from './assets/branding';
 
 export const DEFAULT_LOGO = LOGO_DJKI_URL;
-export const DEFAULT_TEMPLATE_LOGO = LOGO_DJKI_URL;
+// Logo Pengayoman dari Drive User (Direct Link format)
+export const DEFAULT_TEMPLATE_LOGO = "https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR";
 
 export const BULAN = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -35,14 +36,10 @@ export const normalizeUnitName = (rawUnit: string): string => {
 
 /**
  * KOMPREHENSIF GELAR MAP
- * Berdasarkan permintaan user untuk pemetaan otomatis Pendidikan & Jurusan
  */
 export const GELAR_MAP: Record<string, { bidang: string, jenjang: string }> = {
-  // --- DOKTOR (S3) ---
   'Dr.Tr.': { bidang: 'Doktor Terapan', jenjang: 'S3' },
   'Dr.': { bidang: 'Doktor', jenjang: 'S3' },
-
-  // --- MAGISTER (S2) ---
   'M.Tr.A.P.': { bidang: 'Terapan Administrasi Publik', jenjang: 'S2' },
   'M.Kom.': { bidang: 'Ilmu Komputer', jenjang: 'S2' },
   'MMSI': { bidang: 'Manajemen Sistem Informasi', jenjang: 'S2' },
@@ -66,8 +63,6 @@ export const GELAR_MAP: Record<string, { bidang: string, jenjang: string }> = {
   'M.Kn.': { bidang: 'Kenotariatan', jenjang: 'S2' },
   'M.Farm.': { bidang: 'Farmasi', jenjang: 'S2' },
   'M.Ds.': { bidang: 'Desain', jenjang: 'S2' },
-
-  // --- SARJANA TERAPAN (D4) ---
   'S.Tr.Im': { bidang: 'Keimigrasian', jenjang: 'DIV' },
   'S.Tr.Pas': { bidang: 'Pemasyarakatan', jenjang: 'DIV' },
   'S.Tr.Keb': { bidang: 'Kebidanan', jenjang: 'DIV' },
@@ -75,8 +70,6 @@ export const GELAR_MAP: Record<string, { bidang: string, jenjang: string }> = {
   'S.ST.': { bidang: 'Sains Terapan', jenjang: 'DIV' },
   'S.Tr.T': { bidang: 'Teknik Terapan', jenjang: 'DIV' },
   'S.Tr.RMIK': { bidang: 'Rekam Medis & Info Kesehatan', jenjang: 'DIV' },
-
-  // --- SARJANA (S1) ---
   'S.H.': { bidang: 'Hukum', jenjang: 'S1' },
   'SH': { bidang: 'Hukum', jenjang: 'S1' },
   'S.T.': { bidang: 'Teknik', jenjang: 'S1' },
@@ -110,8 +103,6 @@ export const GELAR_MAP: Record<string, { bidang: string, jenjang: string }> = {
   'S.Ars.': { bidang: 'Arsitektur', jenjang: 'S1' },
   'Drs.': { bidang: 'Doktorandus (Sosial/Sains)', jenjang: 'S1' },
   'Dra.': { bidang: 'Doktoranda (Sosial/Sains)', jenjang: 'S1' },
-
-  // --- DIPLOMA (D3) ---
   'A.Md.Kom.': { bidang: 'Komputer', jenjang: 'DIII' },
   'A.Md.Keb': { bidang: 'Kebidanan', jenjang: 'DIII' },
   'Am.Keb': { bidang: 'Kebidanan', jenjang: 'DIII' },
@@ -121,8 +112,6 @@ export const GELAR_MAP: Record<string, { bidang: string, jenjang: string }> = {
   'PK': { bidang: 'Rekam Medis', jenjang: 'DIII' },
   'A.Md.': { bidang: 'Ahli Madya', jenjang: 'DIII' },
   'Amd.': { bidang: 'Ahli Madya', jenjang: 'DIII' },
-
-  // --- PROFESI & LAINNYA ---
   'Ir.': { bidang: 'Insinyur', jenjang: 'PROFESI' },
   'Apt.': { bidang: 'Apoteker', jenjang: 'PROFESI' },
   'dr.': { bidang: 'Dokter', jenjang: 'PROFESI' },
@@ -135,12 +124,8 @@ export const GELAR_MAP: Record<string, { bidang: string, jenjang: string }> = {
  */
 export const resolveEducationInfo = (input: string): { bidang: string, jenjang: string, display: string } | null => {
   if (!input) return null;
-  
-  // Mencari match terpanjang terlebih dahulu (misal M.Kom lebih spesifik dari M.)
   const sortedKeys = Object.keys(GELAR_MAP).sort((a, b) => b.length - a.length);
-  
   for (const key of sortedKeys) {
-    // Check dengan case insensitive dan handle variant penulisan
     if (input.includes(key)) {
       const data = GELAR_MAP[key];
       return { 
@@ -177,7 +162,7 @@ export const TASK_LABELS: Record<string, string> = {
   [TaskType.JENJANG]: 'Kenaikan Jenjang', [TaskType.GAJI]: 'Pengelolaan Gaji', [TaskType.MUTASI]: 'Mutasi Pegawai',
   [TaskType.KARTU_SUAMI_ISTRI]: 'Kartu Suami/Istri', [TaskType.KARTU_BPJS]: 'Kartu BPJS', [TaskType.CUTI]: 'Cuti Pegawai',
   [TaskType.SPMT_SPP]: 'SPMT / SPP', [TaskType.ABSENSI]: 'Absensi Pegawai', [TaskType.PERKAWINAN]: 'Perkawinan/Perceraian',
-  [TaskType.HUKUMAN]: 'Hukuman Disiplin', [TaskType.PENSIUN]: 'Usulan Pensiun', [TaskType.GRATIFIKASI]: 'Gratifikasi', [TaskType.KGB]: 'Kenaikan Gaji Berkala',
+  [TaskType.HUKUMAN]: 'Hukuman Disiplin', [TaskType.PENSIUN]: 'Usulan Pensiun', [TaskType.GRATIFIKASI]: 'Gratifikasi', [TaskType.KGB]: 'KGB',
   [TaskType.UANG_MAKAN]: 'Uang Makan'
 };
 

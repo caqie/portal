@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
-import { fetchUsersFromSheets } from '../spreadsheetService';
-import { Pegawai } from '../types';
+import { fetchUsersFromSheets, fetchPegawaiFromSheets } from '../spreadsheetService';
+import { Pegawai, AdminUser } from '../types';
 import { DEFAULT_LOGO } from '../constants';
 
 const LoginPage = () => {
@@ -30,17 +30,24 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
+      // 1. Ambil data user untuk verifikasi password
       const users = await fetchUsersFromSheets();
       let foundUser = users.find(u => u.nip === nip && u.password === password);
 
       if (foundUser) {
-        const savedLocalPegawai = localStorage.getItem('portal_pegawai_db');
-        if (savedLocalPegawai) {
-          const pegawaiList: Pegawai[] = JSON.parse(savedLocalPegawai);
-          const localMatch = pegawaiList.find(p => p.nip === foundUser!.nip);
-          if (localMatch && localMatch.foto) {
-            foundUser = { ...foundUser, foto: localMatch.foto };
-          }
+        // 2. KONEKSI KE SHEET PEGAWAI: Ambil detail profil lengkap berdasarkan NIP
+        const pegawaiList = await fetchPegawaiFromSheets();
+        const profileMatch = pegawaiList.find(p => p.nip === foundUser!.nip);
+        
+        if (profileMatch) {
+          // Jika NIP ditemukan di database pegawai, gabungkan datanya
+          // Ini memungkinkan nama di sidebar/header selalu sinkron dengan database HR
+          foundUser = { 
+            ...foundUser, 
+            name: profileMatch.nama, // Gunakan nama resmi dari database pegawai
+            foto: profileMatch.foto,
+            // Anda bisa menambahkan field lain jika perlu di interface AdminUser
+          };
         }
         
         login(foundUser);

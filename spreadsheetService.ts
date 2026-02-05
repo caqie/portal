@@ -1,6 +1,4 @@
-
-import { Pegawai, AdminUser, Laporan, Dossier, SKP, PAK, KenaikanKarir, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, DPCPRecord } from './types';
-import { getPangkatFromGol, getGajiEstimasi, resolveEducationInfo } from './constants';
+import { Pegawai, AdminUser, Laporan, Dossier, SKP, PAK, KenaikanKarir, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, DPCPRecord, PersuratanRecord } from './types';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9zyZrLGmDBRlUOdR1pgftxDfcElY_Fd4BfsCR4Fmd7Qb58MJKAllRkUloFQrbs8lY/exec';
@@ -19,10 +17,11 @@ export const DEFAULT_GIDS = {
   LAPORAN: '555034467',
   KEGIATAN: '456342206',
   ABK_ANJAB: '11',
-  PELANTIKAN: '12',
+  PELANTIKAN: '0', 
   SPMT_SPP: '13',
   PENSIUN: '985690424',
-  MAGANG_PKL: '123456789'
+  MAGANG_PKL: '123456789',
+  PERSURATAN: '2025010101'
 };
 
 const getDbConfig = () => {
@@ -39,6 +38,68 @@ const getDbConfig = () => {
     appsScriptUrl: (cloud.appsScriptUrl && cloud.appsScriptUrl.trim() !== '') ? cloud.appsScriptUrl : DEFAULT_APPS_SCRIPT_URL
   };
 };
+
+export const fetchPersuratanFromSheets = () => fetchTableData<PersuratanRecord>('PERSURATAN', 'portal_persuratan_db', (cols, headers) => {
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
+  return { 
+    id: get('ID'), 
+    jenisSurat: get('JENISSURAT') as any, 
+    nomorSurat: get('NOMORSURAT'), 
+    tanggalSurat: get('TANGGALSURAT'), 
+    perihal: get('PERIHAL'), 
+    lampiran: get('LAMPIRAN'), 
+    tujuan: get('TUJUAN'), 
+    dari: get('DARI'), 
+    isiRingkas: get('ISIRINGKAS'), 
+    tembusan: get('TEMBUSAN'), 
+    pjbNama: get('PJBNAMA'), 
+    pjbNip: get('PJBNIP'), 
+    pjbJabatan: get('PJBJABATAN'), 
+    status: get('STATUS') as any,
+    fileUrl: get('FILEURL'),
+    sifatSurat: get('SIFATSURAT'),
+    prioritas: get('PRIORITAS') as any,
+    tanggalMulai: get('TANGGALMULAI'),
+    tanggalAkhir: get('TANGGALAKHIR'),
+    lokasi: get('LOKASI'),
+    fileSuratUrl: get('FILESURATURL'),
+    fileLampiranUrl: get('FILELAMPIRANURL'),
+    isParaf: get('ISPARAF') === 'true',
+    ttdNip: get('TTDNIP'),
+    pemeriksaNip: get('PEMERIKSANIP'),
+    pengirimNip: get('PENGIRIMNIP'),
+    statusBaca: get('STATUSBACA') as any,
+    statusProses: get('STATUSPROSES') as any,
+    kategoriAsal: get('KATEGORIASAL') as any,
+    riwayatDisposisi: get('RIWAYATDISPOSISI'),
+    catatanDisposisi: get('CATATANDISPOSISI')
+  };
+});
+
+export const fetchPengembanganFromSheets = () => fetchTableData<Pengembangan>('PENGEMBANGAN', 'portal_pengembangan_db', (cols, headers) => {
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
+  return {
+    id: get('ID'),
+    nip: get('NIP'),
+    namaPegawai: get('NAMAPEGAWAI'),
+    namaKegiatan: get('NAMAKEGIATAN'),
+    jenisPengembangan: get('JENISPENGEMBANGAN'),
+    kategori: get('KATEGORI') as any,
+    tanggalMulai: get('TANGGALMULAI'),
+    tanggalSelesai: get('TANGGALSELESAI'),
+    jumlahJpl: parseFloat(get('JUMLAHJPL')) || 0,
+    penyelenggara: get('PENYELENGGARA'),
+    nomorSertifikat: get('NOMORSERTIFIKAT'),
+    fileSertifikatUrl: get('FILESERTIFIKATURL'),
+    tahun: parseInt(get('TAHUN')) || new Date().getFullYear()
+  };
+});
 
 export const syncGidMap = async (): Promise<boolean> => {
   const { appsScriptUrl, spreadsheetId } = getDbConfig();
@@ -75,7 +136,6 @@ export const getGid = (moduleKey: keyof typeof DEFAULT_GIDS): string => {
 export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELETE', data: any): Promise<boolean> => {
   const { appsScriptUrl, spreadsheetId } = getDbConfig();
   if (!appsScriptUrl) return false;
-
   try {
     const response = await fetch(appsScriptUrl, {
       method: 'POST',
@@ -88,15 +148,11 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
         payload: data 
       })
     });
-    
     if (!response.ok) throw new Error("Network error");
     const result = await response.json();
     return result.success === true;
   } catch (error) { 
     console.error("Remote Sync Error:", error);
-    if (action === 'DELETE' && moduleName !== 'PEGAWAI' && moduleName !== 'USERS') {
-        return true; 
-    }
     return false; 
   }
 };
@@ -104,7 +160,6 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
 export const uploadFileToDrive = async (fileName: string, mimeType: string, base64: string): Promise<{ success: boolean; fileUrl?: string; message?: string }> => {
   const { appsScriptUrl, spreadsheetId } = getDbConfig();
   if (!appsScriptUrl) return { success: false, message: "Apps Script URL not configured." };
-
   try {
     const response = await fetch(appsScriptUrl, {
       method: 'POST',
@@ -115,7 +170,6 @@ export const uploadFileToDrive = async (fileName: string, mimeType: string, base
         payload: { fileName, mimeType, base64 } 
       })
     });
-    
     if (!response.ok) throw new Error("Network error");
     return await response.json();
   } catch (error: any) { 
@@ -131,19 +185,17 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
     const csvText = await response.text();
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
     if (lines.length < 2) return [];
-    const headers = lines[0].split(',').map(h => h.trim().toUpperCase().replace(/[\s_]/g, ''));
-    
+    const headers = lines[0].split(',').map(h => h.trim().toUpperCase().replace(/[\s_.]/g, ''));
     const dataRaw = lines.slice(1).map((line, index) => {
       const columns = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
       const getVal = (keys: string[]) => {
         for (const key of keys) {
-          const target = key.toUpperCase().replace(/[\s_]/g, '');
+          const target = key.toUpperCase().replace(/[\s_.]/g, '');
           const idx = headers.indexOf(target);
-          if (idx !== -1) return columns[idx] || '';
+          if (idx !== -1 && columns[idx]) return columns[idx];
         }
         return '';
       };
-
       const nip = getVal(['NIP']).replace(/\D/g, '');
       return {
         id: getVal(['ID']) || (index + 1).toString(),
@@ -151,36 +203,30 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
         nama: getVal(['NAMA']),
         gelar: getVal(['GELAR']), 
         jabatan: getVal(['JABATAN']),
-        subBagian: getVal(['SUBBAGIAN', 'SUB_BAGIAN']),
-        bagian: getVal(['BAGIAN']),
-        unitKerja: getVal(['UNITKERJA', 'UNIT_KERJA']) || 'DJKI',
-        gender: (getVal(['JENISKELAMIN', 'JENIS_KELAMIN']).toUpperCase().startsWith('P')) ? 'P' : 'L',
-        golRuang: getVal(['GOLRUANG', 'GOL_RUANG']),
-        jenisPegawai: getVal(['JENISPEGAWAI', 'JENIS_PEGAWAI']),
-        foto: getVal(['FOTO', 'FOTOURL', 'FOTO_URL', 'URL_FOTO', 'PAS_FOTO']),
-        status: (getVal(['STATUS', 'STATUS_PEGAWAI']) || 'Aktif'),
+        unitKerja: getVal(['UNITKERJA']) || 'DJKI',
+        gender: (getVal(['JENISKELAMIN']).toUpperCase().startsWith('P')) ? 'P' : 'L',
+        golRuang: getVal(['GOLRUANG']),
+        jenisPegawai: getVal(['JENISPEGAWAI']),
+        foto: getVal(['FOTO', 'FOTOURL']),
+        status: (getVal(['STATUS']) || 'Aktif'),
         pangkat: getVal(['PANGKAT']),
-        tmtPangkat: getVal(['TMTPANGKAT', 'TMT_PANGKAT']),
-        tmtJabatan: getVal(['TMTJABATAN', 'TMT_JABATAN']),
-        klasifikasiJabatan: getVal(['KLASIFIKASIJABATAN', 'KLASIFIKASI_JABATAN']),
+        tmtPangkat: getVal(['TMTPANGKAT']),
+        tmtJabatan: getVal(['TMTJABATAN']),
+        klasifikasiJabatan: getVal(['KLASIFIKASIJABATAN']),
         eselon: getVal(['ESELON']),
         pendidikan: getVal(['PENDIDIKAN']),
-        jurusan: getVal(['JURUSAN']),
+        jurusan: getVal(['JURURUSAN', 'JURUSAN']),
         agama: getVal(['AGAMA']),
-        telepon: getVal(['TELEPON', 'NOTELEPON', 'NO_TELEPON']),
+        telepon: getVal(['TELEPON']),
         alamat: getVal(['ALAMAT']),
-        tmtStatus: getVal(['TMTSTATUS', 'TMT_STATUS']),
-        tempatLahir: getVal(['TEMPATLAHIR', 'TEMPAT_LAH_IR']),
-        tanggalLahir: getVal(['TANGGALLAHIR', 'TANGGAL_LAHIR']),
-        nik: getVal(['NIK', 'NOMORINDUKKEPENDUDUKAN', 'NOMOR_INDUK_KEPENDUDUKAN']),
-        masaKerja: getVal(['MASAKERJA', 'MASA_KERJA'])
+        tmtStatus: getVal(['TMTSTATUS']),
+        tempatLahir: getVal(['TEMPATLAHIR']),
+        tanggalLahir: getVal(['TANGGALLAHIR']),
+        nik: getVal(['NIK']),
+        masaKerja: getVal(['MASAKERJA'])
       } as Pegawai;
     }).filter(p => p.nama && p.nip);
-
-    const dedupMap = new Map();
-    dataRaw.forEach(p => dedupMap.set(p.nip, p));
-    const data = Array.from(dedupMap.values());
-
+    const data = Array.from(new Map(dataRaw.map(p => [p.nip, p])).values());
     localStorage.setItem('portal_pegawai_db', JSON.stringify(data));
     return data;
   } catch (error) {
@@ -189,25 +235,42 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
   }
 };
 
-export const fetchMagangPKLFromSheets = () => fetchTableData<MagangPKL>('MAGANG_PKL', 'portal_magang_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
-  return { 
-    id: get('ID'), 
-    nama: get('NAMA'), 
-    nisNim: get('NISNIM'),
-    institusi: get('INSTITUSI'), 
-    jurusan: get('JURUSAN'), 
-    jenis: get('JENIS') as any, 
-    tanggalMulai: get('TANGGALMULAI'), 
-    tanggalSelesai: get('TANGGALSELESAI'), 
-    penempatan: get('PENEMPATAN'), 
-    status: get('STATUS') as any,
-    nomorSurat: get('NOMORSURAT'),
-    pjbNip: get('PJBNIP'),
-    pjbNama: get('PJBNAMA'),
-    pjbJabatan: get('PJBJABATAN')
-  };
-});
+export const fetchDossiersFromSheets = async (): Promise<Dossier[]> => {
+  const { spreadsheetId } = getDbConfig();
+  const gid = getGid('DOSSIER');
+  try {
+    const response = await fetch(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`);
+    const csvText = await response.text();
+    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(',').map(h => h.trim().toUpperCase().replace(/[\s_.]/g, ''));
+    const data = lines.slice(1).map((line, index) => {
+      const columns = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+      const getVal = (keys: string[]) => {
+        for (const key of keys) {
+          const target = key.toUpperCase().replace(/[\s_.]/g, '');
+          const idx = headers.indexOf(target);
+          if (idx !== -1 && columns[idx]) return columns[idx];
+        }
+        return '';
+      };
+      return {
+        id: getVal(['ID']) || (index + 1).toString(),
+        nip: getVal(['NIP']),
+        namaPegawai: getVal(['NAMAPEGAWAI', 'NAMA']),
+        tanggal: getVal(['TANGGAL']),
+        keterangan: getVal(['KETERANGAN']),
+        fileName: getVal(['FILENAME', 'NAMABERKAS']),
+        fileUrl: getVal(['FILEURL', 'LINK'])
+      } as Dossier;
+    }).filter(d => d.nip && d.fileUrl);
+    localStorage.setItem('portal_dossiers_db', JSON.stringify(data));
+    return data;
+  } catch (error) {
+    const saved = localStorage.getItem('portal_dossiers_db');
+    return saved ? JSON.parse(saved) : [];
+  }
+};
 
 export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, storageKey: string, mapper: (cols: string[], headers: string[]) => T | null): Promise<T[]> => {
   const { spreadsheetId } = getDbConfig();
@@ -217,8 +280,8 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     const csvText = await response.text();
     if (csvText.includes('<!DOCTYPE html>') || csvText.includes('<html')) throw new Error("Access denied.");
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(',').map(h => h.trim().toUpperCase().replace(/[\s_]/g, ''));
+    if (lines.length < 1) return [];
+    const headers = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').trim().toUpperCase().replace(/[\s_.]/g, ''));
     const result = lines.slice(1).map(line => {
         const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
         return mapper(cols, headers);
@@ -244,47 +307,44 @@ export const getRetirementDetails = (nip: string, jabatan: string) => {
   const now = new Date();
   const diffDays = Math.ceil((tmtPensiun.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30));
   let sisaMasaKerja = diffDays <= 0 ? "Pensiun" : `${Math.floor(diffDays / 12)} thn ${diffDays % 12} bln`;
-  return { tmtPensiun, sisaMasaKerja };
+  return { tmtPensiun, sisaMasaKerja, bup: usiaPensiun };
 };
 
 export const fetchUsersFromSheets = () => fetchTableData<AdminUser>('USERS', 'portal_users_db', (cols, headers) => {
-    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_|]/g, '')); return i !== -1 ? cols[i] : ''; };
+    const get = (k: string) => { 
+      const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+      return (i !== -1 && cols[i]) ? cols[i] : ''; 
+    };
     return { id: get('ID'), nip: get('NIP'), name: get('NAME'), role: get('ROLE') as any, foto: get('FOTO'), password: get('PASSWORD') };
 });
 
-export const fetchDossiersFromSheets = () => fetchTableData<Dossier>('DOSSIER', 'portal_dossiers_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
-  return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), tanggal: get('TANGGAL'), keterangan: get('KETERANGAN'), fileName: get('FILENAME'), fileUrl: get('FILEURL') };
-});
-
 export const fetchKGBFromSheets = () => fetchTableData<KGB>('KGB', 'portal_kgb_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
   return { 
-    id: get('ID'), 
-    nip: get('NIP'), 
-    namaPegawai: get('NAMAPEGAWAI'), 
-    tmtLama: get('TMTLAMA'), 
-    tmtBaru: get('TMTBARU'), 
-    gajiLama: parseFloat(get('GAJILAMA')) || 0, 
-    gajiBaru: parseFloat(get('GAJIBARU')) || 0, 
-    nomorSk: get('NOMORSK'), 
-    tglSk: get('TGLSK'), 
-    status: get('STATUS') as any,
-    pjbNama: get('PJBNAMA'),
-    pjbNip: get('PJBNIP'),
-    pjbJabatan: get('PJBJABATAN')
+    id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), tmtLama: get('TMTLAMA'), tmtBaru: get('TMTBARU'), 
+    gajiLama: parseFloat(get('GAJILAMA')) || 0, gajiBaru: parseFloat(get('GAJIBARU')) || 0, nomorSk: get('NOMORSK'), 
+    tglSk: get('TGLSK'), status: get('STATUS') as any, pjbNama: get('PJBNAMA'), pjbNip: get('PJBNIP'), pjbJabatan: get('PJBJABATAN')
   };
 });
 
 export const fetchTugasRutinFromSheets = () => fetchTableData<TugasRutin>('TUGAS_RUTIN', 'tugas_rutin_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
   let dynamicData = {};
   try { const dataStr = get('DATA'); if (dataStr) dynamicData = JSON.parse(dataStr); } catch (e) { }
   return { id: get('ID'), timestamp: get('TIMESTAMP'), bulan: get('BULAN'), tahun: parseInt(get('TAHUN')) || 0, jenis: get('JENIS') as any, detail: get('DETAIL'), data: dynamicData };
 });
 
 export const fetchSKPFromSheets = () => fetchTableData<SKPRecord>('SKP', 'skp_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
   const getJson = (k: string) => { const val = get(k); try { return val ? JSON.parse(val) : []; } catch(e) { return []; } };
   return { 
     id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), penilaiNip: get('PENILAINIP'), atasanPenilaiNip: get('ATASANPENILAINIP'),
@@ -295,7 +355,10 @@ export const fetchSKPFromSheets = () => fetchTableData<SKPRecord>('SKP', 'skp_db
 });
 
 export const fetchPAKFromSheets = () => fetchTableData<PAKRecord>('PAK', 'pak_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
   const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
   return { 
     id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), nomor: get('NOMOR'), periode: get('PERIODE'), tglDibuat: get('TGLDIBUAT'),
@@ -304,21 +367,54 @@ export const fetchPAKFromSheets = () => fetchTableData<PAKRecord>('PAK', 'pak_db
 });
 
 export const fetchKenaikanFromSheets = () => fetchTableData<KenaikanKarir>('KENAIKAN', 'kenaikan_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
   return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), jenisUsulan: get('JENISUSULAN'), dari: get('DARI'), menjadi: get('MENJADI'), tmtUsulan: get('TMTUSULAN'), status: get('STATUS') } as KenaikanKarir;
 });
 
 export const fetchKegiatanFromSheets = () => fetchTableData<Kegiatan>('KEGIATAN', 'kegiatan_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
   return { id: get('ID'), tanggal: get('TANGGAL'), judulKegiatan: get('JUDULKEGIATAN'), tempat: get('TEMPAT'), jumlahPeserta: parseInt(get('JUMLAHPESERTA')) || 0, asalPeserta: get('ASALPESERTA'), laporanSingkat: get('LAPORANSINGKAT'), linkDriveFoto: get('LINKDRIVEFOTO'), status: get('STATUS') as any };
 });
 
 export const fetchSPMTSPPFromSheets = () => fetchTableData<SpmtSppRecord>('SPMT_SPP', 'spmt_spp_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
   return { id: get('ID'), type: get('TYPE') as any, nomor: get('NOMOR'), pejabatNip: get('PEJABATNIP'), pegawaiNip: get('PEGAWAINIP'), nomorSK: get('NOMORSK'), tentangSK: get('TENTANGSK'), tanggalSK: get('TANGGALSK'), jabatanBaru: get('JABATANBARU'), unitKerja: get('UNITKERJA'), tanggalLantikAtauSpmt: get('TANGGALLANTIKATAUSPMT'), tanggalSppAtauSpmt: get('TANGGALSPPATAUSPMT'), tempatTandaTangan: get('TEMPATANDATANGAN'), signatureLabel: get('SIGNATURELABEL') } as SpmtSppRecord;
 });
 
 export const fetchABKAnjabFromSheets = () => fetchTableData<ABKAnjab>('ABK_ANJAB', 'abk_db', (cols, headers) => {
-  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_]/g, '')); return i !== -1 ? cols[i] : ''; };
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
   return { id: get('ID'), namaJabatan: get('NAMAJABATAN'), unitKerja: get('UNITKERJA'), jumlahSaatIni: parseInt(get('JUMLAHSAATINI')) || 0, totalMenitBebanKerja: parseFloat(get('TOTALMENITBEBANKERJA')) || 0, kebutuhanPegawai: parseFloat(get('KEBUTUHANPEGAWAI')) || 0, selisih: parseFloat(get('SELISIH')) || 0, status: get('STATUS') as any, kualifikasiPendidikan: get('KUALIFIKASIPENDIDIKAN') };
+});
+
+export const fetchMagangPKLFromSheets = () => fetchTableData<MagangPKL>('MAGANG_PKL', 'portal_magang_db', (cols, headers) => {
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
+  return { 
+    id: get('ID'), nama: get('NAMA'), nisNim: get('NISNIM'), institusi: get('INSTITUSI'), jurusan: get('JURURUSAN'), 
+    jenis: get('JENIS') as any, tanggalMulai: get('TANGGALMULAI'), tanggalSelesai: get('TANGGALSELESAI'), 
+    penempatan: get('PENEMPATAN'), status: get('STATUS') as any, nomorSurat: get('NOMORSURAT'),
+    pjbNip: get('PJBNIP'), pjbNama: get('PJBNAMA'), pjbJabatan: get('PJBJABATAN')
+  };
+});
+
+export const fetchPelantikanFromSheets = () => fetchTableData<any>('PELANTIKAN', 'portal_pelantikan_db', (cols, headers) => {
+  const get = (k: string) => { 
+    const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+    return (i !== -1 && cols[i]) ? cols[i] : ''; 
+  };
+  return { id: get('ID'), nomorBA: get('NOMORBA'), hari: get('HARI'), tanggalLantik: get('TANGGALLANTIK'), tempat: get('TEMPAT'), pjbNama: get('PJBNAMA'), pjbNip: get('PJBNIP'), pjbJabatan: get('PJBJABATAN'), asnNip: get('ASNNIP'), asnNama: get('ASNNAMA'), asnPangkat: get('ASNPANGKAT'), asnGolRuang: get('ASNGOLRUANG'), asnJabatan: get('ASNJABATAN') };
 });
