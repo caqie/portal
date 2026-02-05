@@ -33,6 +33,7 @@ const Dashboard = () => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifTab, setNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat' | 'satya' | 'bangkom'>('pensiun');
 
+  // Filter States untuk Matriks Jabatan
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
   const [filterJenisMatrix, setFilterJenisMatrix] = useState('Semua Jenis');
   const [searchJabatan, setSearchJabatan] = useState('');
@@ -76,25 +77,32 @@ const Dashboard = () => {
     }).sort((a, b) => b.total - a.total);
   }, [activePegawaiList]);
 
+  // LOGIKA FILTER MATRIKS JABATAN YANG DISEMPURNAKAN
   const matrixJabatan = useMemo(() => {
     let list = activePegawaiList;
+    
+    // 1. Filter Jenis Pegawai
     if (filterJenisMatrix !== 'Semua Jenis') {
-        if (filterJenisMatrix === 'PARUH') {
+        if (filterJenisMatrix === 'PPPK_PARUH') {
             list = list.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PARUH'));
         } else {
             list = list.filter(p => (p.jenisPegawai || '').toUpperCase() === filterJenisMatrix.toUpperCase());
         }
     }
+    
+    // 2. Filter Unit Kerja
     if (filterUnit !== 'Semua Unit') {
       list = list.filter(p => normalizeUnitName(p.unitKerja) === filterUnit);
     }
 
+    // 3. Grouping by Jabatan
     const groups: Record<string, number> = {};
     list.forEach(p => {
       const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
       groups[jab] = (groups[jab] || 0) + 1;
     });
 
+    // 4. Search Filter
     const term = searchJabatan.toUpperCase().trim();
     return Object.entries(groups)
       .map(([jabatan, total]) => ({ jabatan, total }))
@@ -190,7 +198,6 @@ const Dashboard = () => {
     const listBangkom: any[] = [];
 
     activePegawaiList.forEach(p => {
-      // 1. Pensiun
       const ret = getRetirementDetails(p.nip || '', p.jabatan || '');
       if (ret && ret.tmtPensiun && ret.tmtPensiun.getFullYear() === currentYear) {
         listPensiun.push({ 
@@ -201,7 +208,6 @@ const Dashboard = () => {
         });
       }
 
-      // 2. KGB & Pangkat
       if (p.tmtPangkat) {
         const tmtParts = String(p.tmtPangkat).split('-');
         if (tmtParts.length === 3) {
@@ -226,7 +232,6 @@ const Dashboard = () => {
         }
       }
 
-      // 3. Satyalencana
       const cleanNip = String(p.nip || '').replace(/\D/g, '');
       if (cleanNip.length >= 12) {
         const cpnsYear = parseInt(cleanNip.substring(8, 12));
@@ -241,7 +246,6 @@ const Dashboard = () => {
         }
       }
 
-      // 4. Pengembangan & Pelatihan (Bangkom) - Filter Tahun Berjalan
       const perUserBangkom = riwayatBangkom.filter(r => r.nip === p.nip && Number(r.tahun) === currentYear);
       const totalJp = perUserBangkom.reduce((acc, curr) => acc + (Number(curr.jumlahJpl) || 0), 0);
       const isPPPK = (p.jenisPegawai || '').toUpperCase().includes('PPPK');
@@ -259,13 +263,7 @@ const Dashboard = () => {
       }
     });
 
-    return { 
-      kgb: listKGB, 
-      pangkat: listPangkat, 
-      pensiun: listPensiun, 
-      satya: listSatya, 
-      bangkom: listBangkom 
-    };
+    return { kgb: listKGB, pangkat: listPangkat, pensiun: listPensiun, satya: listSatya, bangkom: listBangkom };
   }, [activePegawaiList, riwayatBangkom]);
 
   const totalNotifCount = reminders.kgb.length + reminders.pangkat.length + reminders.pensiun.length + reminders.satya.length + reminders.bangkom.length;
@@ -387,19 +385,58 @@ const Dashboard = () => {
            </div>
         </div>
 
+        {/* MATRIKS NOMENKLATUR JABATAN DENGAN FILTER TAMBAHAN */}
         <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-full">
-           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
-              <div>
-                 <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Matriks Nomenklatur Jabatan</h4>
-                 <p className="text-[8px] text-gray-400 font-bold uppercase mt-1 tracking-widest text-blue-600">Total Sebaran Nomenklatur Jabatan Terpusat</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
+           <div className="flex flex-col mb-10 gap-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                 <div>
+                    <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Matriks Nomenklatur Jabatan</h4>
+                    <p className="text-[8px] text-gray-400 font-bold uppercase mt-1 tracking-widest text-blue-600">Total Sebaran Nomenklatur Jabatan Terpusat</p>
+                 </div>
                  <button onClick={handleDownloadJabatanExcel} className="h-8 px-4 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg text-[8px] font-black uppercase flex items-center gap-2 hover:bg-emerald-600 hover:text-white transition-all shadow-sm">
                    <i className="bi bi-file-earmark-spreadsheet-fill"></i> XLSX
                  </button>
-                 <div className="relative">
-                    <i className="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]"></i>
-                    <input type="text" placeholder="Cari Jabatan..." className="pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-[8px] font-black uppercase outline-none focus:border-blue-600 transition-all w-32 md:w-40" value={searchJabatan} onChange={e => setSearchJabatan(e.target.value)} />
+              </div>
+              
+              {/* FILTER BAR UNTUK MATRIKS JABATAN */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                 <div className="space-y-1.5">
+                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Unit Kerja</label>
+                    <select 
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all"
+                      value={filterUnit}
+                      onChange={e => setFilterUnit(e.target.value)}
+                    >
+                       <option>Semua Unit</option>
+                       {UNIT_KERJA.map(u => <option key={u} value={u}>{u.replace('Direktorat Jenderal Kekayaan Intelektual', 'DJKI').toUpperCase()}</option>)}
+                    </select>
+                 </div>
+                 <div className="space-y-1.5">
+                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Jenis Pegawai</label>
+                    <select 
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all"
+                      value={filterJenisMatrix}
+                      onChange={e => setFilterJenisMatrix(e.target.value)}
+                    >
+                       <option value="Semua Jenis">Semua Jenis</option>
+                       <option value="PNS">PNS (Pegawai Negeri Sipil)</option>
+                       <option value="CPNS">CPNS (Calon PNS)</option>
+                       <option value="PPPK">PPPK (P3K Full Time)</option>
+                       <option value="PPPK_PARUH">PPPK Paruh Waktu</option>
+                    </select>
+                 </div>
+                 <div className="space-y-1.5">
+                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Cari Jabatan</label>
+                    <div className="relative">
+                       <i className="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]"></i>
+                       <input 
+                         type="text" 
+                         placeholder="NAMA JABATAN..." 
+                         className="w-full pl-8 pr-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all" 
+                         value={searchJabatan} 
+                         onChange={e => setSearchJabatan(e.target.value)} 
+                       />
+                    </div>
                  </div>
               </div>
            </div>
@@ -416,6 +453,9 @@ const Dashboard = () => {
                          <td className="px-6 py-4 text-right font-black text-[12px] text-gray-950">{row.total}</td>
                       </tr>
                     ))}
+                    {matrixJabatan.length === 0 && (
+                      <tr><td colSpan={2} className="py-20 text-center text-[10px] font-black text-gray-300 uppercase italic">Data tidak ditemukan dengan filter ini</td></tr>
+                    )}
                  </tbody>
               </table>
            </div>
