@@ -273,7 +273,7 @@ const PegawaiPage = () => {
                     {p.foto ? <img src={p.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black text-3xl">{p.nama.charAt(0)}</div>}
                  </div>
                  <div className="min-w-0 flex-1">
-                    <h4 className="text-[13px] font-black text-gray-950 uppercase truncate leading-tight">{p.nama}</h4>
+                    <h4 className="text-[13px] font-black text-gray-950 truncate leading-tight">{p.nama}</h4>
                     <p className="text-[9px] font-mono text-gray-400 mt-1">NIP. {p.nip}</p>
                     <div className="flex flex-wrap items-center gap-2 mt-2">
                        <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[7px] font-black rounded border border-blue-100 uppercase">{p.golRuang}</span>
@@ -307,7 +307,7 @@ const PegawaiPage = () => {
                        {selectedPegawai.foto ? <img src={selectedPegawai.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-6xl font-black text-blue-600 bg-blue-50">{selectedPegawai.nama.charAt(0)}</div>}
                     </div>
                     <div className="text-center space-y-2 mb-10 w-full">
-                       <h4 className="text-xl font-black uppercase text-gray-950 leading-tight px-4">{selectedPegawai.nama}</h4>
+                       <h4 className="text-xl font-black text-gray-950 leading-tight px-4">{selectedPegawai.nama}</h4>
                        <p className="text-[10px] font-mono font-black text-blue-600 tracking-widest">NIP. {selectedPegawai.nip}</p>
                        <div className="flex justify-center gap-2 mt-4">
                           <span className="px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black border border-emerald-100 uppercase">{selectedPegawai.status}</span>
@@ -376,6 +376,7 @@ const PegawaiPage = () => {
                                 <div><p className={detailLabel}>Pendidikan</p><p className={detailValue}>{selectedPegawai.pendidikan || '-'}</p></div>
                                 <div><p className={detailLabel}>Jurusan</p><p className={detailValue}>{selectedPegawai.jurusan || '-'}</p></div>
                                 <div className="col-span-full"><p className={detailLabel}>Gelar Akademik</p><p className={detailValueNoCaps}>{selectedPegawai.gelar || '-'}</p></div>
+                                <div className="col-span-full"><p className={detailLabel}>Nama Lengkap (Database)</p><p className={detailValueNoCaps}>{selectedPegawai.nama || '-'}</p></div>
                                 <div className="col-span-full"><p className={detailLabel}>Nomor Telepon / WhatsApp</p><p className={detailValue}>{selectedPegawai.telepon || '-'}</p></div>
                                 <div className="col-span-full"><p className={detailLabel}>Alamat Lengkap Sesuai KTP</p><p className="text-[12px] font-bold text-gray-700 normal-case leading-relaxed">{selectedPegawai.alamat || '-'}</p></div>
                              </div>
@@ -437,7 +438,7 @@ const PegawaiPage = () => {
                        <div className="md:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div><label className={labelClass}>NIP (18 Digit)</label><input type="text" maxLength={18} className={inputClass} value={formData.nip || ''} onChange={e => setFormData({...formData, nip: e.target.value.replace(/\D/g, '')})} required /></div>
                           <div><label className={labelClass}>Nomor NIK KTP</label><input type="text" className={inputClass} value={formData.nik || ''} onChange={e => setFormData({...formData, nik: e.target.value})} /></div>
-                          <div className="col-span-full"><label className={labelClass}>Nama Lengkap (Tanpa Gelar)</label><input type="text" className={inputClass} value={formData.nama || ''} onChange={e => setFormData({...formData, nama: e.target.value})} required /></div>
+                          <div className="col-span-full"><label className={labelClass}>Nama Lengkap (Tanpa Gelar)</label><input type="text" className={inputNoCapsClass} value={formData.nama || ''} onChange={e => setFormData({...formData, nama: e.target.value})} required /></div>
                           <div><label className={labelClass}>Gelar Akademik Lengkap</label><input type="text" className={inputNoCapsClass} value={formData.gelar || ''} onChange={e => setFormData({...formData, gelar: e.target.value})} /></div>
                           <div className="grid grid-cols-2 gap-4">
                              <div><label className={labelClass}>Jenis Kelamin</label><select className={inputClass} value={formData.gender || 'L'} onChange={e => setFormData({...formData, gender: e.target.value as any})}><option value="L">LAKI-LAKI</option><option value="P">PEREMPUAN</option></select></div>
@@ -561,7 +562,7 @@ const PegawaiPage = () => {
                <div className="space-y-4 text-[10.5pt] flex-1 text-black">
                   <p className="font-bold border-b border-black pb-1 mb-2 uppercase">I. DATA PERORANGAN</p>
                   <div className="grid grid-cols-[160px_10px_1fr] gap-y-3">
-                     <span>NAMA LENGKAP</span><span>:</span><span className="font-bold uppercase">{selectedPegawai?.nama}</span>
+                     <span>NAMA LENGKAP</span><span>:</span><span className="font-bold">{selectedPegawai?.nama}</span>
                      <span>NIP</span><span>:</span><span>{selectedPegawai?.nip}</span>
                      <span>NIK</span><span>:</span><span>{selectedPegawai?.nik}</span>
                      <span>TEMPAT/TGL LAHIR</span><span>:</span><span>{selectedPegawai?.tempatLahir}, {selectedPegawai?.tanggalLahir}</span>
@@ -582,7 +583,7 @@ const PegawaiPage = () => {
             <div className="mt-12 ml-[55%] text-center text-[11pt] text-black">
                <p>Jakarta, {new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
                <p className="mb-24 mt-2">Pegawai Bersangkutan,</p>
-               <p className="font-bold uppercase underline leading-none">{selectedPegawai?.nama}</p>
+               <p className="font-bold underline leading-none">{selectedPegawai?.nama}</p>
                <p className="mt-2 font-bold">NIP {selectedPegawai?.nip}</p>
             </div>
          </div>
