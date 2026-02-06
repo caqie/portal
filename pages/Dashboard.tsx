@@ -38,6 +38,9 @@ const Dashboard = () => {
   const [filterJenisMatrix, setFilterJenisMatrix] = useState('Semua Jenis');
   const [searchJabatan, setSearchJabatan] = useState('');
 
+  // Filter khusus untuk Statistik Pendidikan
+  const [filterJenisEdu, setFilterJenisEdu] = useState('Semua Jenis');
+
   useEffect(() => { loadDashboardData(); }, []);
 
   const loadDashboardData = async () => {
@@ -116,8 +119,14 @@ const Dashboard = () => {
   }), [activePegawaiList]);
 
   const educationStats = useMemo(() => {
+    // Terapkan filter jenis pegawai khusus pendidikan
+    const filteredList = activePegawaiList.filter(p => {
+        if (filterJenisEdu === 'Semua Jenis') return true;
+        return (p.jenisPegawai || '').toUpperCase() === filterJenisEdu.toUpperCase();
+    });
+
     const eduMap: Record<string, number> = {};
-    activePegawaiList.forEach(p => {
+    filteredList.forEach(p => {
       let edu = 'LAINNYA';
       const pStr = (p.pendidikan || '').toUpperCase().trim();
       
@@ -134,7 +143,7 @@ const Dashboard = () => {
     });
     return Object.entries(eduMap).map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count);
-  }, [activePegawaiList]);
+  }, [activePegawaiList, filterJenisEdu]);
 
   const gradeStats = useMemo(() => {
     const gradeMap: Record<string, number> = {};
@@ -361,7 +370,20 @@ const Dashboard = () => {
            </div>
 
            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
-              <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em] mb-6">Statistik Tingkat Pendidikan</h4>
+              <div className="flex justify-between items-center mb-6">
+                 <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Statistik Tingkat Pendidikan</h4>
+                 <select 
+                    className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all"
+                    value={filterJenisEdu}
+                    onChange={e => setFilterJenisEdu(e.target.value)}
+                 >
+                    <option value="Semua Jenis">Semua Jenis</option>
+                    <option value="PNS">PNS</option>
+                    <option value="CPNS">CPNS</option>
+                    <option value="PPPK">PPPK</option>
+                    <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
+                 </select>
+              </div>
               <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                  {educationStats.map((edu, i) => (
                     <div key={i} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors group">
@@ -369,6 +391,9 @@ const Dashboard = () => {
                        <span className="text-[12px] font-black text-gray-950">{edu.count} ASN</span>
                     </div>
                  ))}
+                 {educationStats.length === 0 && (
+                   <p className="text-center py-10 text-[10px] font-bold text-gray-300 uppercase italic">Tidak ada data untuk kategori ini</p>
+                 )}
               </div>
            </div>
 

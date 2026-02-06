@@ -27,11 +27,10 @@ import SatyaLencanaPage from './pages/SatyaLencanaPage';
 import MagangPKLPage from './pages/MagangPKLPage';
 import PersuratanPage from './pages/PersuratanPage';
 import PengembanganPage from './pages/PengembanganPage';
-import { MaintenanceConfig } from './types';
 import { DEFAULT_LOGO } from './constants';
 import { syncGidMap } from './spreadsheetService';
 
-const SidebarItem = ({ to, icon, label, active, collapsed, onClick }: { to: string, icon: string, label: string, active: boolean, collapsed: boolean, onClick?: () => void }) => (
+const SidebarItem = ({ to, icon, label, active, collapsed, onClick }: any) => (
   <Link 
     to={to} 
     onClick={onClick}
@@ -45,14 +44,10 @@ const SidebarItem = ({ to, icon, label, active, collapsed, onClick }: { to: stri
       <i className={`bi ${icon} ${active ? 'text-blue-500' : 'text-inherit'} ${collapsed ? 'text-2xl' : 'text-lg'} transition-transform group-hover:scale-110`}></i>
     </div>
     
-    <span className={`ml-4 font-bold text-[11px] uppercase tracking-[0.1em] whitespace-nowrap overflow-hidden transition-all duration-500 ${collapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
-      {label}
-    </span>
-    
-    {collapsed && (
-      <div className="absolute left-16 bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity border border-white/10 z-[200] whitespace-nowrap uppercase tracking-widest shadow-2xl">
+    {!collapsed && (
+      <span className="ml-4 font-bold text-[11px] uppercase tracking-[0.1em] whitespace-nowrap overflow-hidden">
         {label}
-      </div>
+      </span>
     )}
   </Link>
 );
@@ -67,9 +62,8 @@ const AppContent = () => {
   const location = useLocation();
   const { user, logout, isSuperadmin, canEdit, isAuthenticated } = useAuth();
 
-  useEffect(() => { syncGidMap(); }, []);
-
-  useEffect(() => {
+  useEffect(() => { 
+    syncGidMap(); 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -77,7 +71,6 @@ const AppContent = () => {
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1024) setIsSidebarOpen(true);
-      else setIsSidebarOpen(false);
       if (window.innerWidth < 1440) setIsCollapsed(true);
       else setIsCollapsed(false);
     };
@@ -93,11 +86,12 @@ const AppContent = () => {
     };
     sync();
     window.addEventListener('storage_updated', sync);
-    return () => { window.removeEventListener('storage_updated', sync); };
+    return () => window.removeEventListener('storage_updated', sync);
   }, []);
 
-  if (!isAuthenticated && location.pathname !== '/login') return <Navigate to="/login" />;
-  if (location.pathname === '/login') return isAuthenticated ? <Navigate to="/" /> : <LoginPage />;
+  if (!isAuthenticated && location.pathname !== '/login') return <Navigate to="/login" replace />;
+  if (location.pathname === '/login' && isAuthenticated) return <Navigate to="/" replace />;
+  if (location.pathname === '/login') return <LoginPage />;
 
   const formattedDate = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -123,12 +117,12 @@ const AppContent = () => {
                    <img src={systemLogo || DEFAULT_LOGO} className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-110" />
                 </div>
             </Link>
-            <div className={`text-center transition-all duration-500 whitespace-nowrap overflow-hidden ${isCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100'}`}>
-              <h1 className="text-[11px] font-black text-white tracking-tighter uppercase leading-none">
-                {systemName}
-              </h1>
-              <p className="text-[7px] text-slate-500 mt-2 font-black uppercase tracking-[0.3em]">SDM HUB DJKI</p>
-            </div>
+            {!isCollapsed && (
+              <div className="text-center transition-all duration-500 whitespace-nowrap overflow-hidden">
+                <h1 className="text-[11px] font-black text-white tracking-tighter uppercase leading-none">{systemName}</h1>
+                <p className="text-[7px] text-slate-500 mt-2 font-black uppercase tracking-[0.3em]">SDM HUB DJKI</p>
+              </div>
+            )}
           </div>
           
           <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar space-y-0.5 pb-20">
@@ -138,7 +132,7 @@ const AppContent = () => {
             
             {(canEdit || isSuperadmin) && (
               <>
-                <div className={`px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ${isCollapsed ? 'hidden' : 'block'}`}>Administrasi</div>
+                {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Administrasi</div>}
                 <SidebarItem to="/persuratan" icon="bi-envelope-paper-fill" label="Persuratan Digital" active={location.pathname === '/persuratan'} collapsed={isCollapsed} />
                 <SidebarItem to="/tugas-rutin" icon="bi-clipboard2-check-fill" label="Tugas Rutin" active={location.pathname === '/tugas-rutin'} collapsed={isCollapsed} />
                 <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Agenda Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />
@@ -147,13 +141,13 @@ const AppContent = () => {
               </>
             )}
 
-            <div className={`px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ${isCollapsed ? 'hidden' : 'block'}`}>Kehadiran</div>
+            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Kehadiran</div>}
             <SidebarItem to="/absensi-online" icon="bi-camera-fill" label="Absensi Wajah" active={location.pathname === '/absensi-online'} collapsed={isCollapsed} />
             <SidebarItem to="/rekap-absensi" icon="bi-clipboard-data-fill" label="Rekapitulasi" active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />
 
             {isSuperadmin && (
               <>
-                <div className={`px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ${isCollapsed ? 'hidden' : 'block'}`}>Sistem</div>
+                {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Sistem</div>}
                 <SidebarItem to="/settings" icon="bi-gear-wide-connected" label="Pengaturan" active={location.pathname === '/settings'} collapsed={isCollapsed} />
                 <SidebarItem to="/logs" icon="bi-clock-history" label="Audit Logs" active={location.pathname === '/logs'} collapsed={isCollapsed} />
               </>
@@ -163,13 +157,13 @@ const AppContent = () => {
           <div className="p-6 border-t border-white/5 shrink-0">
              <button onClick={logout} className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-rose-600/10 text-rose-500 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all">
                 <i className="bi bi-power"></i>
-                <span className={isCollapsed ? 'hidden' : 'block'}>Logout Sistem</span>
+                {!isCollapsed && <span>Logout Sistem</span>}
              </button>
           </div>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-0 relative overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
         <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 shrink-0 z-[100]">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden h-10 w-10 flex items-center justify-center text-gray-400 bg-gray-50 rounded-xl"><i className="bi bi-list text-2xl"></i></button>
@@ -179,14 +173,12 @@ const AppContent = () => {
             </div>
           </div>
           
-          <div className="hidden lg:flex flex-col items-center bg-gray-50 px-8 py-2 rounded-2xl border border-gray-100 shadow-sm animate-fadeIn">
+          <div className="hidden lg:flex flex-col items-center bg-gray-50 px-8 py-2 rounded-2xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3">
               <i className="bi bi-clock-fill text-blue-600 text-xs"></i>
               <span className="text-[14px] font-black text-gray-950 tracking-tighter tabular-nums">{formattedTime}</span>
             </div>
-            <div className="flex items-center gap-2 mt-0.5">
-               <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{formattedDate}</span>
-            </div>
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{formattedDate}</span>
           </div>
           
           <div className="flex items-center gap-6">
@@ -226,7 +218,7 @@ const AppContent = () => {
               <Route path="/magang-pkl" element={<MagangPKLPage />} />
               <Route path="/persuratan" element={<PersuratanPage />} />
               <Route path="/pengembangan" element={<PengembanganPage />} />
-              <Route path="*" element={<Navigate to="/" />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
 
@@ -237,12 +229,7 @@ const AppContent = () => {
             </div>
             <div className="flex flex-col items-center md:items-end">
               <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Dikembangkan Oleh:</p>
-              <a 
-                href="https://caqiestudioproduction.com" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-[9px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-colors flex items-center gap-2 group"
-              >
+              <a href="https://caqiestudioproduction.com" target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-colors flex items-center gap-2 group">
                 caqiestudioproduction.com
                 <i className="bi bi-box-arrow-up-right group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
               </a>

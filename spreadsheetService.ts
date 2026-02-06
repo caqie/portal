@@ -1,3 +1,4 @@
+
 import { Pegawai, AdminUser, Laporan, Dossier, SKP, PAK, KenaikanKarir, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, DPCPRecord, PersuratanRecord } from './types';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
@@ -203,6 +204,8 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
         nama: getVal(['NAMA']),
         gelar: getVal(['GELAR']), 
         jabatan: getVal(['JABATAN']),
+        bagian: getVal(['BAGIAN']),
+        subBagian: getVal(['SUBBAGIAN']),
         unitKerja: getVal(['UNITKERJA']) || 'DJKI',
         gender: (getVal(['JENISKELAMIN']).toUpperCase().startsWith('P')) ? 'P' : 'L',
         golRuang: getVal(['GOLRUANG']),

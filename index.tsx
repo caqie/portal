@@ -1,15 +1,35 @@
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
-}
+const mountNode = () => {
+  const rootElement = document.getElementById('root');
+  if (!rootElement) {
+    console.error("Root element not found");
+    return;
+  }
 
-const root = ReactDOM.createRoot(rootElement as HTMLElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+  try {
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    );
+  } catch (error) {
+    console.error("Failed to render React application:", error);
+    rootElement.innerHTML = `
+      <div style="padding: 20px; text-align: center; font-family: sans-serif;">
+        <h2 style="color: #e11d48;">Terjadi Kesalahan Render</h2>
+        <p>Gagal memuat aplikasi. Periksa koneksi internet atau konsol browser untuk detail teknis.</p>
+      </div>
+    `;
+  }
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', mountNode);
+} else {
+  mountNode();
+}
