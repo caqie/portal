@@ -28,7 +28,6 @@ const PegawaiPage = () => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<'DATA_DIRI' | 'E_ARSIP'>('DATA_DIRI');
   
-  // State untuk Tambah Dossier dari Profil
   const [isAddDossierOpen, setIsAddDossierOpen] = useState(false);
   const [dossierFormData, setDossierFormData] = useState<Partial<Dossier>>({});
   
@@ -53,6 +52,51 @@ const PegawaiPage = () => {
       setPegawaiList(pData);
       setDossierList(dData);
     } catch (e) { console.error(e); } finally { setLoading(false); }
+  };
+
+  // Fungsi Helper: Normalisasi tanggal ke format ISO (YYYY-MM-DD) agar terbaca oleh input date
+  const formatDateForInput = (dateStr: string | undefined): string => {
+    if (!dateStr) return '';
+    // Hapus whitespace
+    const cleanDate = dateStr.trim();
+    
+    // Cek jika sudah format YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) return cleanDate;
+    
+    // Cek format DD-MM-YYYY atau DD/MM/YYYY
+    const parts = cleanDate.split(/[-/]/);
+    if (parts.length === 3) {
+      // Jika bagian pertama adalah hari (DD)
+      if (parts[0].length <= 2 && parts[2].length === 4) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+      // Jika bagian pertama adalah tahun (YYYY) namun pemisah salah
+      if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+    }
+    
+    // Fallback menggunakan objek Date
+    try {
+      const d = new Date(cleanDate);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    } catch (e) {}
+    
+    return '';
+  };
+
+  const handleEditPegawai = (p: Pegawai) => {
+    setSelectedPegawai(p);
+    // Masukkan data ke formData dengan normalisasi tanggal
+    setFormData({
+      ...p,
+      tmtPangkat: formatDateForInput(p.tmtPangkat),
+      tmtJabatan: formatDateForInput(p.tmtJabatan),
+      tmtStatus: formatDateForInput(p.tmtStatus),
+      tanggalLahir: formatDateForInput(p.tanggalLahir)
+    });
+    setIsModalOpen(true);
+    setIsDetailOpen(false);
   };
 
   const filteredPegawai = useMemo(() => {
@@ -92,7 +136,6 @@ const PegawaiPage = () => {
         'STATUS': p.status
       }));
     } else {
-      // FULL DATA EXPORT
       data = filteredPegawai.map(p => ({ ...p }));
     }
     const ws = XLSX.utils.json_to_sheet(data);
@@ -134,7 +177,6 @@ const PegawaiPage = () => {
     setSyncing(false);
   };
 
-  // Handler Tambah Dossier dari Profil
   const handleUploadDossierFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -287,7 +329,7 @@ const PegawaiPage = () => {
         }
       </div>
 
-      {/* MODAL DETAIL PEGAWAI - SUPER LENGKAP + FITUR ARSIP */}
+      {/* MODAL DETAIL PEGAWAI */}
       {isDetailOpen && selectedPegawai && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-0 md:p-10">
            <div className="fixed inset-0 bg-gray-950/90 backdrop-blur-md" onClick={() => setIsDetailOpen(false)}></div>
@@ -319,7 +361,7 @@ const PegawaiPage = () => {
                           <i className="bi bi-file-earmark-pdf-fill"></i> Cetak DRH Lengkap
                        </button>
                        {canEdit && (
-                         <button onClick={() => { setFormData({...selectedPegawai}); setIsModalOpen(true); setIsDetailOpen(false); }} className="w-full py-4 bg-white border-2 border-gray-100 text-gray-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 hover:text-blue-600 transition-all flex items-center justify-center gap-3">
+                         <button onClick={() => handleEditPegawai(selectedPegawai)} className="w-full py-4 bg-white border-2 border-gray-100 text-gray-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 hover:text-blue-600 transition-all flex items-center justify-center gap-3">
                             <i className="bi bi-pencil-square"></i> Edit Data Pegawai
                          </button>
                        )}
@@ -369,7 +411,7 @@ const PegawaiPage = () => {
                                 <h5 className="text-[11px] font-black text-amber-600 uppercase tracking-[0.2em]">Pendidikan & Biodata Personal</h5>
                              </div>
                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-10 gap-y-8 bg-amber-50/10 p-10 rounded-[3rem] border border-amber-50">
-                                <div className="col-span-2"><p className={detailLabel}>NIK (Nomor Induk Kependudukan)</p><p className={detailValue}>{selectedPegawai.nik || '-'}</p></div>
+                                <div className="col-span-2"><p className={detailLabel}>NIK</p><p className={detailValue}>{selectedPegawai.nik || '-'}</p></div>
                                 <div><p className={detailLabel}>Jenis Kelamin</p><p className={detailValue}>{selectedPegawai.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</p></div>
                                 <div><p className={detailLabel}>Agama</p><p className={detailValue}>{selectedPegawai.agama || '-'}</p></div>
                                 <div className="col-span-2"><p className={detailLabel}>Tempat, Tanggal Lahir</p><p className={detailValue}>{selectedPegawai.tempatLahir || '-'}, {selectedPegawai.tanggalLahir || '-'}</p></div>
@@ -420,7 +462,7 @@ const PegawaiPage = () => {
         </div>
       )}
 
-      {/* FORM REGISTRASI / EDIT PEGAWAI - FULL SYNC COLUMN */}
+      {/* FORM REGISTRASI / EDIT PEGAWAI */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
            <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => !syncing && !uploading && setIsModalOpen(false)}></div>
@@ -463,10 +505,10 @@ const PegawaiPage = () => {
                     <div className="flex items-center gap-4"><div className="h-10 w-2 bg-indigo-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">B. Jabatan & Struktur Penempatan</h5></div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                        <div className="md:col-span-2"><label className={labelClass}>Nomenklatur Jabatan Saat Ini</label><input type="text" className={inputClass} value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} /></div>
-                       <div><label className={labelClass}>TMT Jabatan</label><input type="date" className={inputClass} value={formData.tmtJabatan || ''} onChange={e => setFormData({...formData, tmtJabatan: e.target.value})} /></div>
+                       <div><label className={labelClass}>TMT Jabatan</label><input type="date" className={inputNoCapsClass} value={formData.tmtJabatan || ''} onChange={e => setFormData({...formData, tmtJabatan: e.target.value})} /></div>
                        <div className="md:col-span-3"><label className={labelClass}>Unit Kerja Pengampu</label><select className={inputClass} value={formData.unitKerja || UNIT_KERJA[0]} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
                        <div><label className={labelClass}>Eselon / Level</label><input type="text" className={inputClass} value={formData.eselon || ''} onChange={e => setFormData({...formData, eselon: e.target.value})} /></div>
-                       <div className="md:col-span-2"><label className={labelClass}>Klasifikasi Jabatan (Fungsional/Pelaksana/Struktural)</label><input type="text" className={inputClass} value={formData.klasifikasiJabatan || ''} onChange={e => setFormData({...formData, klasifikasiJabatan: e.target.value})} /></div>
+                       <div className="md:col-span-2"><label className={labelClass}>Klasifikasi Jabatan</label><input type="text" className={inputClass} value={formData.klasifikasiJabatan || ''} onChange={e => setFormData({...formData, klasifikasiJabatan: e.target.value})} /></div>
                        <div><label className={labelClass}>Bagian / Tim</label><input type="text" className={inputClass} value={formData.bagian || ''} onChange={e => setFormData({...formData, bagian: e.target.value})} /></div>
                        <div><label className={labelClass}>Sub Bagian / Sub Tim</label><input type="text" className={inputClass} value={formData.subBagian || ''} onChange={e => setFormData({...formData, subBagian: e.target.value})} /></div>
                     </div>
@@ -478,11 +520,11 @@ const PegawaiPage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                        <div><label className={labelClass}>Golongan Ruang</label><select className={inputClass} value={formData.golRuang || 'III/a'} onChange={e => setFormData({...formData, golRuang: e.target.value, pangkat: PANGKAT_MAP[e.target.value] || ''})}>{Object.keys(PANGKAT_MAP).map(g => <option key={g} value={g}>{g}</option>)}</select></div>
                        <div><label className={labelClass}>Pangkat Terhitung</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.pangkat || '-'} /></div>
-                       <div><label className={labelClass}>TMT Pangkat</label><input type="date" className={inputClass} value={formData.tmtPangkat || ''} onChange={e => setFormData({...formData, tmtPangkat: e.target.value})} /></div>
-                       <div><label className={labelClass}>Jenis Pegawai (PNS/PPPK/CPNS)</label><input type="text" className={inputClass} value={formData.jenisPegawai || ''} onChange={e => setFormData({...formData, jenisPegawai: e.target.value})} /></div>
-                       <div><label className={labelClass}>TMT Status</label><input type="date" className={inputClass} value={formData.tmtStatus || ''} onChange={e => setFormData({...formData, tmtStatus: e.target.value})} /></div>
+                       <div><label className={labelClass}>TMT Pangkat</label><input type="date" className={inputNoCapsClass} value={formData.tmtPangkat || ''} onChange={e => setFormData({...formData, tmtPangkat: e.target.value})} /></div>
+                       <div><label className={labelClass}>Jenis Pegawai</label><input type="text" className={inputClass} value={formData.jenisPegawai || ''} onChange={e => setFormData({...formData, jenisPegawai: e.target.value})} /></div>
+                       <div><label className={labelClass}>TMT Status</label><input type="date" className={inputNoCapsClass} value={formData.tmtStatus || ''} onChange={e => setFormData({...formData, tmtStatus: e.target.value})} /></div>
                        <div><label className={labelClass}>Masa Kerja (Thn Bln)</label><input type="text" className={inputClass} value={formData.masaKerja || ''} onChange={e => setFormData({...formData, masaKerja: e.target.value})} placeholder="Contoh: 10 Tahun 2 Bulan" /></div>
-                       <div className="md:col-span-3"><label className={labelClass}>Status Keaktifan Saat Ini</label><select className={inputClass} value={formData.status || 'Aktif'} onChange={e => setFormData({...formData, status: e.target.value})}><option>Aktif</option><option>Pensiun</option><option>Tidak Aktif</option><option>Tugas Belajar</option></select></div>
+                       <div className="md:col-span-3"><label className={labelClass}>Status Keaktifan</label><select className={inputClass} value={formData.status || 'Aktif'} onChange={e => setFormData({...formData, status: e.target.value})}><option>Aktif</option><option>Pensiun</option><option>Tidak Aktif</option><option>Tugas Belajar</option></select></div>
                     </div>
                  </section>
 
@@ -493,9 +535,9 @@ const PegawaiPage = () => {
                        <div><label className={labelClass}>Pendidikan Terakhir</label><input type="text" className={inputClass} value={formData.pendidikan || ''} onChange={e => setFormData({...formData, pendidikan: e.target.value})} /></div>
                        <div className="md:col-span-2"><label className={labelClass}>Jurusan / Program Studi</label><input type="text" className={inputClass} value={formData.jurusan || ''} onChange={e => setFormData({...formData, jurusan: e.target.value})} /></div>
                        <div><label className={labelClass}>Tempat Lahir</label><input type="text" className={inputClass} value={formData.tempatLahir || ''} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
-                       <div><label className={labelClass}>Tanggal Lahir</label><input type="date" className={inputClass} value={formData.tanggalLahir || ''} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
+                       <div><label className={labelClass}>Tanggal Lahir</label><input type="date" className={inputNoCapsClass} value={formData.tanggalLahir || ''} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
                        <div><label className={labelClass}>Nomor Telepon / HP</label><input type="text" className={inputClass} value={formData.telepon || ''} onChange={e => setFormData({...formData, telepon: e.target.value})} /></div>
-                       <div className="md:col-span-3"><label className={labelClass}>Alamat Domisili Sesuai KTP</label><textarea rows={3} className={`${inputClass} normal-case h-28 resize-none font-bold`} value={formData.alamat || ''} onChange={e => setFormData({...formData, alamat: e.target.value})} /></div>
+                       <div className="md:col-span-3"><label className={labelClass}>Alamat Sesuai KTP</label><textarea rows={3} className={`${inputClass} normal-case h-28 resize-none font-bold`} value={formData.alamat || ''} onChange={e => setFormData({...formData, alamat: e.target.value})} /></div>
                     </div>
                  </section>
               </form>
@@ -521,7 +563,7 @@ const PegawaiPage = () => {
               </div>
               <div className="space-y-4">
                  <div><label className={labelClass}>Nama / Judul Berkas</label><input type="text" className={inputClass} value={dossierFormData.fileName || ''} onChange={e => setDossierFormData({...dossierFormData, fileName: e.target.value})} placeholder="Misal: SK Jabatan 2025" /></div>
-                 <div><label className={labelClass}>Tanggal Terbit</label><input type="date" className={inputClass} value={dossierFormData.tanggal || ''} onChange={e => setDossierFormData({...dossierFormData, tanggal: e.target.value})} /></div>
+                 <div><label className={labelClass}>Tanggal Terbit</label><input type="date" className={inputNoCapsClass} value={dossierFormData.tanggal || ''} onChange={e => setDossierFormData({...dossierFormData, tanggal: e.target.value})} /></div>
                  
                  {/* Upload Area */}
                  <div className={`p-6 rounded-[2rem] border-2 border-dashed flex flex-col items-center gap-3 transition-all ${dossierFormData.fileUrl ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50/50 border-blue-200'}`}>
