@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets } from '../spreadsheetService';
-import { Pegawai, Pengembangan } from '../types';
+import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets, fetchKGBFromSheets } from '../spreadsheetService';
+import { Pegawai, Pengembangan, KGB } from '../types';
 import { useAuth } from '../AuthContext';
 import { UNIT_KERJA, normalizeUnitName } from '../constants';
 import * as XLSX from 'xlsx';
@@ -29,16 +29,15 @@ const Dashboard = () => {
   const { logActivity } = useAuth();
   const [pegawai, setPegawai] = useState<Pegawai[]>([]);
   const [riwayatBangkom, setRiwayatBangkom] = useState<Pengembangan[]>([]);
+  const [riwayatKgb, setRiwayatKgb] = useState<KGB[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifTab, setNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat' | 'satya' | 'bangkom'>('pensiun');
 
-  // Filter States untuk Matriks Jabatan
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
   const [filterJenisMatrix, setFilterJenisMatrix] = useState('Semua Jenis');
   const [searchJabatan, setSearchJabatan] = useState('');
 
-  // Filter khusus untuk Statistik 
   const [filterJenisEdu, setFilterJenisEdu] = useState('Semua Jenis');
   const [filterJenisGender, setFilterJenisGender] = useState('Semua Jenis');
   const [filterJenisGrade, setFilterJenisGrade] = useState('Semua Jenis');
@@ -48,12 +47,14 @@ const Dashboard = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [pegData, bangkomData] = await Promise.all([
+      const [pegData, bangkomData, kgbData] = await Promise.all([
         fetchPegawaiFromSheets(),
-        fetchPengembanganFromSheets()
+        fetchPengembanganFromSheets(),
+        fetchKGBFromSheets()
       ]);
       setPegawai(Array.isArray(pegData) ? pegData : []);
       setRiwayatBangkom(Array.isArray(bangkomData) ? bangkomData : []);
+      setRiwayatKgb(Array.isArray(kgbData) ? kgbData : []);
     } catch (error) {
       console.error("Dashboard Load Error:", error);
     } finally {
@@ -82,11 +83,8 @@ const Dashboard = () => {
     }).sort((a, b) => b.total - a.total);
   }, [activePegawaiList]);
 
-  // LOGIKA FILTER MATRIKS JABATAN YANG DISEMPURNAKAN
   const matrixJabatan = useMemo(() => {
     let list = activePegawaiList;
-    
-    // 1. Filter Jenis Pegawai
     if (filterJenisMatrix !== 'Semua Jenis') {
         if (filterJenisMatrix === 'PPPK_PARUH') {
             list = list.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PARUH'));
@@ -94,20 +92,14 @@ const Dashboard = () => {
             list = list.filter(p => (p.jenisPegawai || '').toUpperCase() === filterJenisMatrix.toUpperCase());
         }
     }
-    
-    // 2. Filter Unit Kerja
     if (filterUnit !== 'Semua Unit') {
       list = list.filter(p => normalizeUnitName(p.unitKerja) === filterUnit);
     }
-
-    // 3. Grouping by Jabatan
     const groups: Record<string, number> = {};
     list.forEach(p => {
       const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
       groups[jab] = (groups[jab] || 0) + 1;
     });
-
-    // 4. Search Filter
     const term = searchJabatan.toUpperCase().trim();
     return Object.entries(groups)
       .map(([jabatan, total]) => ({ jabatan, total }))
@@ -120,24 +112,18 @@ const Dashboard = () => {
         if (filterJenisGender === 'Semua Jenis') return true;
         return (p.jenisPegawai || '').toUpperCase() === filterJenisGender.toUpperCase();
     });
-    return {
-      pria: filteredList.filter(p => p.gender === 'L').length,
-      wanita: filteredList.filter(p => p.gender === 'P').length
-    }
+    return { pria: filteredList.filter(p => p.gender === 'L').length, wanita: filteredList.filter(p => p.gender === 'P').length };
   }, [activePegawaiList, filterJenisGender]);
 
   const educationStats = useMemo(() => {
-    // Terapkan filter jenis pegawai khusus pendidikan
     const filteredList = activePegawaiList.filter(p => {
         if (filterJenisEdu === 'Semua Jenis') return true;
         return (p.jenisPegawai || '').toUpperCase() === filterJenisEdu.toUpperCase();
     });
-
     const eduMap: Record<string, number> = {};
     filteredList.forEach(p => {
       let edu = 'LAINNYA';
       const pStr = (p.pendidikan || '').toUpperCase().trim();
-      
       if (pStr.includes('S3') || pStr.includes('DOKTOR')) edu = 'S3 (DOKTOR)';
       else if (pStr.includes('S2') || pStr.includes('MAGISTER')) edu = 'S2 (MAGISTER)';
       else if (pStr.includes('S1') || pStr.includes('SARJANA')) edu = 'S1 (SARJANA)';
@@ -146,11 +132,9 @@ const Dashboard = () => {
       else if (pStr.includes('SMA') || pStr.includes('SMK') || pStr.includes('SLTA')) edu = 'SMA / SEDERAJAT';
       else if (pStr.includes('SMP') || pStr.includes('SLTP')) edu = 'SMP / SEDERAJAT';
       else if (pStr !== '') edu = pStr;
-      
       eduMap[edu] = (eduMap[edu] || 0) + 1;
     });
-    return Object.entries(eduMap).map(([label, count]) => ({ label, count }))
-      .sort((a, b) => b.count - a.count);
+    return Object.entries(eduMap).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
   }, [activePegawaiList, filterJenisEdu]);
 
   const gradeStats = useMemo(() => {
@@ -163,51 +147,8 @@ const Dashboard = () => {
       const g = (p.golRuang || 'LAINNYA').trim().toUpperCase();
       gradeMap[g] = (gradeMap[g] || 0) + 1;
     });
-    return Object.entries(gradeMap).map(([label, count]) => ({ label, count }))
-      .sort((a, b) => b.label.localeCompare(a.label));
+    return Object.entries(gradeMap).map(([label, count]) => ({ label, count })).sort((a, b) => b.label.localeCompare(a.label));
   }, [activePegawaiList, filterJenisGrade]);
-
-  const handleDownloadAnalytics = () => {
-    const wb = XLSX.utils.book_new();
-    const unitWs = XLSX.utils.json_to_sheet(unitDistribution.map(u => ({
-      'Unit Kerja': u.unit,
-      'PNS': u.pns,
-      'CPNS': u.cpns,
-      'PPPK': u.pppk,
-      'PPPK Paruh Waktu': u.pppkParuh,
-      'Total ASN': u.total
-    })));
-    XLSX.utils.book_append_sheet(wb, unitWs, "Sebaran Unit");
-    const jabWs = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({
-      'Nomenklatur Jabatan': j.jabatan,
-      'Jumlah Pegawai': j.total
-    })));
-    XLSX.utils.book_append_sheet(wb, jabWs, "Matriks Jabatan");
-    const extraData = [
-      { Kategori: 'Gender Laki-laki', Jumlah: genderStats.pria },
-      { Kategori: 'Gender Perempuan', Jumlah: genderStats.wanita },
-      ...educationStats.map(e => ({ Kategori: `Pendidikan ${e.label}`, Jumlah: e.count })),
-      ...gradeStats.map(g => ({ Kategori: `Golongan ${g.label}`, Jumlah: g.count }))
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(extraData), "Statistik Pendukung");
-    XLSX.writeFile(wb, `Analitik_SDM_DJKI_${new Date().getTime()}.xlsx`);
-    logActivity('DOWNLOAD', 'Analytics', 'Download Full Analytics Dashboard');
-  };
-
-  const handleDownloadJabatanExcel = () => {
-    if (matrixJabatan.length === 0) return alert("Tidak ada data untuk diunduh.");
-    const data = matrixJabatan.map(j => ({
-      'Nomenklatur Jabatan': j.jabatan,
-      'Total ASN': j.total,
-      'Unit Filter': filterUnit,
-      'Jenis ASN Filter': filterJenisMatrix
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Matriks Jabatan");
-    XLSX.writeFile(wb, `Matriks_Jabatan_DJKI_${new Date().getTime()}.xlsx`);
-    logActivity('DOWNLOAD', 'Analytics', `Download Matriks Jabatan (Filter: ${filterUnit})`);
-  };
 
   const reminders = useMemo(() => {
     const now = new Date();
@@ -219,73 +160,65 @@ const Dashboard = () => {
     const listBangkom: any[] = [];
 
     activePegawaiList.forEach(p => {
+      // 1. Pensiun
       const ret = getRetirementDetails(p.nip || '', p.jabatan || '');
       if (ret && ret.tmtPensiun && ret.tmtPensiun.getFullYear() === currentYear) {
-        listPensiun.push({ 
-          nama: p.nama, 
-          nip: p.nip, 
-          tmt: ret.tmtPensiun.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), 
-          sisa: ret.sisaMasaKerja 
-        });
+        listPensiun.push({ nama: p.nama, nip: p.nip, tmt: ret.tmtPensiun.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), sisa: ret.sisaMasaKerja });
       }
 
-      if (p.tmtPangkat) {
-        const tmtParts = String(p.tmtPangkat).split('-');
+      // 2. KGB Reguler (2 Tahunan) - Untuk Semua Jenis Pegawai
+      // Menggunakan TMT Pangkat (PNS) atau TMT Status (PPPK/CPNS) sebagai anchor awal
+      const anchorDate = p.tmtPangkat || p.tmtStatus;
+      if (anchorDate) {
+        const tmtParts = String(anchorDate).split(/[-/]/);
         if (tmtParts.length === 3) {
-            const lastTmtYear = parseInt(tmtParts[0]);
-            const diffYears = currentYear - lastTmtYear;
+            const tmtYear = tmtParts[0].length === 4 ? parseInt(tmtParts[0]) : parseInt(tmtParts[2]);
+            const diffYears = currentYear - tmtYear;
+            // Jika selisih tahun genap dan sudah lewat dari tahun TMT
             if (diffYears > 0 && diffYears % 2 === 0) {
-                listKGB.push({ 
-                  nama: p.nama, 
-                  nip: p.nip, 
-                  tmtTerakhir: p.tmtPangkat, 
-                  keterangan: `Jadwal KGB Tahun ${currentYear}` 
-                });
-            }
-            if (diffYears > 0 && diffYears % 4 === 0) {
-                listPangkat.push({ 
-                  nama: p.nama, 
-                  nip: p.nip, 
-                  tmtTerakhir: p.tmtPangkat, 
-                  keterangan: `Jadwal KP Reguler Tahun ${currentYear}` 
-                });
+                // Cek apakah tahun ini sudah diproses di riwayat KGB
+                const sudahDiproses = riwayatKgb.some(k => k.nip === p.nip && k.tmtBaru && k.tmtBaru.includes(currentYear.toString()));
+                if (!sudahDiproses) {
+                    listKGB.push({ nama: p.nama, nip: p.nip, tmtTerakhir: anchorDate, keterangan: `Jadwal KGB Tahun ${currentYear} (${p.jenisPegawai})` });
+                }
             }
         }
       }
 
+      // 3. Pangkat (4 Tahunan) - Biasanya untuk PNS
+      if (p.tmtPangkat && (p.jenisPegawai||'').toUpperCase() === 'PNS') {
+        const tmtParts = String(p.tmtPangkat).split(/[-/]/);
+        if (tmtParts.length === 3) {
+            const tmtYear = tmtParts[0].length === 4 ? parseInt(tmtParts[0]) : parseInt(tmtParts[2]);
+            const diffYears = currentYear - tmtYear;
+            if (diffYears > 0 && diffYears % 4 === 0) {
+                listPangkat.push({ nama: p.nama, nip: p.nip, tmtTerakhir: p.tmtPangkat, keterangan: `Jadwal KP Reguler Tahun ${currentYear}` });
+            }
+        }
+      }
+
+      // 4. Satya Lencana
       const cleanNip = String(p.nip || '').replace(/\D/g, '');
       if (cleanNip.length >= 12) {
         const cpnsYear = parseInt(cleanNip.substring(8, 12));
         const workingYears = currentYear - cpnsYear;
         if ([10, 20, 30].includes(workingYears)) {
-           listSatya.push({ 
-             nama: p.nama, 
-             nip: p.nip, 
-             tahun: workingYears, 
-             pengabdian: `Masa Kerja ${workingYears} Tahun` 
-           });
+           listSatya.push({ nama: p.nama, nip: p.nip, tahun: workingYears, pengabdian: `Masa Kerja ${workingYears} Tahun` });
         }
       }
 
+      // 5. Bangkom
       const perUserBangkom = riwayatBangkom.filter(r => r.nip === p.nip && Number(r.tahun) === currentYear);
       const totalJp = perUserBangkom.reduce((acc, curr) => acc + (Number(curr.jumlahJpl) || 0), 0);
       const isPPPK = (p.jenisPegawai || '').toUpperCase().includes('PPPK');
       const targetJp = isPPPK ? 24 : 20;
-
       if (totalJp < targetJp) {
-        listBangkom.push({
-          nama: p.nama,
-          nip: p.nip,
-          currentJp: totalJp,
-          targetJp: targetJp,
-          keterangan: `Kurang ${targetJp - totalJp} JP`,
-          status: isPPPK ? 'PPPK (Target 24 JP)' : 'PNS (Min 20 JP)'
-        });
+        listBangkom.push({ nama: p.nama, nip: p.nip, currentJp: totalJp, targetJp: targetJp, keterangan: `Kurang ${targetJp - totalJp} JP`, status: isPPPK ? 'PPPK (Target 24 JP)' : 'PNS (Min 20 JP)' });
       }
     });
 
     return { kgb: listKGB, pangkat: listPangkat, pensiun: listPensiun, satya: listSatya, bangkom: listBangkom };
-  }, [activePegawaiList, riwayatBangkom]);
+  }, [activePegawaiList, riwayatBangkom, riwayatKgb]);
 
   const totalNotifCount = reminders.kgb.length + reminders.pangkat.length + reminders.pensiun.length + reminders.satya.length + reminders.bangkom.length;
 
@@ -299,9 +232,14 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
-          <button onClick={handleDownloadAnalytics} className="flex items-center gap-3 bg-emerald-600 p-4 px-8 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
-             <i className="bi bi-file-earmark-spreadsheet-fill text-lg"></i>
-             Download Analytics
+          <button onClick={() => {
+            const wb = XLSX.utils.book_new();
+            const unitWs = XLSX.utils.json_to_sheet(unitDistribution.map(u => ({ 'Unit Kerja': u.unit, 'PNS': u.pns, 'CPNS': u.cpns, 'PPPK': u.pppk, 'PPPK Paruh Waktu': u.pppkParuh, 'Total ASN': u.total })));
+            XLSX.utils.book_append_sheet(wb, unitWs, "Sebaran Unit");
+            XLSX.writeFile(wb, `Analitik_SDM_DJKI_${new Date().getTime()}.xlsx`);
+            logActivity('DOWNLOAD', 'Analytics', 'Download Full Analytics Dashboard');
+          }} className="flex items-center gap-3 bg-emerald-600 p-4 px-8 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
+             <i className="bi bi-file-earmark-spreadsheet-fill text-lg"></i> Download Analytics
           </button>
           <button onClick={() => setIsNotifOpen(true)} className="relative flex items-center gap-4 bg-white p-4 px-8 rounded-2xl border border-gray-100 shadow-sm active:scale-95 transition-all group">
              <i className="bi bi-bell-fill text-xl text-blue-600 group-hover:animate-swing"></i>
@@ -370,44 +308,17 @@ const Dashboard = () => {
            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <div className="flex justify-between items-center mb-6">
                  <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Statistik Gender</h4>
-                 <select 
-                    className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all"
-                    value={filterJenisGender}
-                    onChange={e => setFilterJenisGender(e.target.value)}
-                 >
-                    <option value="Semua Jenis">Semua Jenis</option>
-                    <option value="PNS">PNS</option>
-                    <option value="CPNS">CPNS</option>
-                    <option value="PPPK">PPPK</option>
-                    <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
-                 </select>
+                 <select className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterJenisGender} onChange={e => setFilterJenisGender(e.target.value)}><option value="Semua Jenis">Semua Jenis</option><option value="PNS">PNS</option><option value="CPNS">CPNS</option><option value="PPPK">PPPK</option></select>
               </div>
               <div className="grid grid-cols-2 gap-6">
-                 <div className="p-6 bg-sky-50 rounded-3xl border border-sky-100">
-                    <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Laki-laki</p>
-                    <h5 className="text-3xl font-black text-sky-900">{genderStats.pria}</h5>
-                 </div>
-                 <div className="p-6 bg-pink-50 rounded-3xl border border-pink-100">
-                    <p className="text-[9px] font-black text-pink-600 uppercase tracking-widest mb-1">Perempuan</p>
-                    <h5 className="text-3xl font-black text-pink-900">{genderStats.wanita}</h5>
-                 </div>
+                 <div className="p-6 bg-sky-50 rounded-3xl border border-sky-100"><p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Laki-laki</p><h5 className="text-3xl font-black text-sky-900">{genderStats.pria}</h5></div>
+                 <div className="p-6 bg-pink-50 rounded-3xl border border-pink-100"><p className="text-[9px] font-black text-pink-600 uppercase tracking-widest mb-1">Perempuan</p><h5 className="text-3xl font-black text-pink-900">{genderStats.wanita}</h5></div>
               </div>
            </div>
-
            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <div className="flex justify-between items-center mb-6">
                  <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Statistik Tingkat Pendidikan</h4>
-                 <select 
-                    className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all"
-                    value={filterJenisEdu}
-                    onChange={e => setFilterJenisEdu(e.target.value)}
-                 >
-                    <option value="Semua Jenis">Semua Jenis</option>
-                    <option value="PNS">PNS</option>
-                    <option value="CPNS">CPNS</option>
-                    <option value="PPPK">PPPK</option>
-                    <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
-                 </select>
+                 <select className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterJenisEdu} onChange={e => setFilterJenisEdu(e.target.value)}><option value="Semua Jenis">Semua Jenis</option><option value="PNS">PNS</option><option value="CPNS">CPNS</option><option value="PPPK">PPPK</option></select>
               </div>
               <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                  {educationStats.map((edu, i) => (
@@ -416,97 +327,21 @@ const Dashboard = () => {
                        <span className="text-[12px] font-black text-gray-950">{edu.count} ASN</span>
                     </div>
                  ))}
-                 {educationStats.length === 0 && (
-                   <p className="text-center py-10 text-[10px] font-bold text-gray-300 uppercase italic">Tidak ada data untuk kategori ini</p>
-                 )}
-              </div>
-           </div>
-
-           <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                 <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Distribusi Golongan Pegawai</h4>
-                 <select 
-                    className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all"
-                    value={filterJenisGrade}
-                    onChange={e => setFilterJenisGrade(e.target.value)}
-                 >
-                    <option value="Semua Jenis">Semua Jenis</option>
-                    <option value="PNS">PNS</option>
-                    <option value="CPNS">CPNS</option>
-                    <option value="PPPK">PPPK</option>
-                    <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
-                 </select>
-              </div>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                 {gradeStats.map((grade, i) => (
-                    <div key={i} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl hover:bg-emerald-50 transition-colors group">
-                       <span className="text-[10px] font-black text-gray-600 uppercase group-hover:text-emerald-600 transition-colors">Golongan {grade.label}</span>
-                       <span className="text-[12px] font-black text-gray-950">{grade.count} ASN</span>
-                    </div>
-                 ))}
-                 {gradeStats.length === 0 && (
-                   <p className="text-center py-10 text-[10px] font-bold text-gray-300 uppercase italic">Tidak ada data untuk kategori ini</p>
-                 )}
               </div>
            </div>
         </div>
 
-        {/* MATRIKS NOMENKLATUR JABATAN DENGAN FILTER TAMBAHAN */}
         <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-full">
            <div className="flex flex-col mb-10 gap-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                 <div>
-                    <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Matriks Nomenklatur Jabatan</h4>
-                    <p className="text-[8px] text-gray-400 font-bold uppercase mt-1 tracking-widest text-blue-600">Total Sebaran Nomenklatur Jabatan Terpusat</p>
-                 </div>
-                 <button onClick={handleDownloadJabatanExcel} className="h-8 px-4 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg text-[8px] font-black uppercase flex items-center gap-2 hover:bg-emerald-600 hover:text-white transition-all shadow-sm">
-                   <i className="bi bi-file-earmark-spreadsheet-fill"></i> XLSX
-                 </button>
+                 <div><h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Matriks Nomenklatur Jabatan</h4><p className="text-[8px] text-gray-400 font-bold uppercase mt-1 tracking-widest text-blue-600">Total Sebaran Nomenklatur Jabatan Terpusat</p></div>
               </div>
-              
-              {/* FILTER BAR UNTUK MATRIKS JABATAN */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                 <div className="space-y-1.5">
-                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Unit Kerja</label>
-                    <select 
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all"
-                      value={filterUnit}
-                      onChange={e => setFilterUnit(e.target.value)}
-                    >
-                       <option>Semua Unit</option>
-                       {UNIT_KERJA.map(u => <option key={u} value={u}>{u.replace('Direktorat Jenderal Kekayaan Intelektual', 'DJKI').toUpperCase()}</option>)}
-                    </select>
-                 </div>
-                 <div className="space-y-1.5">
-                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Jenis Pegawai</label>
-                    <select 
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all"
-                      value={filterJenisMatrix}
-                      onChange={e => setFilterJenisMatrix(e.target.value)}
-                    >
-                       <option value="Semua Jenis">Semua Jenis</option>
-                       <option value="PNS">PNS (Pegawai Negeri Sipil)</option>
-                       <option value="CPNS">CPNS (Calon PNS)</option>
-                       <option value="PPPK">PPPK (P3K Full Time)</option>
-                       <option value="PPPK_PARUH">PPPK Paruh Waktu</option>
-                    </select>
-                 </div>
-                 <div className="space-y-1.5">
-                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Cari Jabatan</label>
-                    <div className="relative">
-                       <i className="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px]"></i>
-                       <input 
-                         type="text" 
-                         placeholder="NAMA JABATAN..." 
-                         className="w-full pl-8 pr-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all" 
-                         value={searchJabatan} 
-                         onChange={e => setSearchJabatan(e.target.value)} 
-                       />
-                    </div>
-                 </div>
+                 <div className="space-y-1.5"><label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Unit Kerja</label><select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}><option>Semua Unit</option>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
+                 <div className="space-y-1.5"><label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Jenis Pegawai</label><select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600" value={filterJenisMatrix} onChange={e => setFilterJenisMatrix(e.target.value)}><option value="Semua Jenis">Semua Jenis</option><option value="PNS">PNS</option><option value="CPNS">CPNS</option><option value="PPPK">PPPK</option><option value="PPPK_PARUH">PPPK Paruh Waktu</option></select></div>
+                 <div className="space-y-1.5"><label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Cari Jabatan</label><input type="text" placeholder="NAMA JABATAN..." className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600" value={searchJabatan} onChange={e => setSearchJabatan(e.target.value)} /></div>
               </div>
            </div>
-           
            <div className="overflow-x-auto max-h-[820px] flex-1 custom-scrollbar border border-gray-50 rounded-3xl">
               <table className="w-full text-left border-collapse">
                  <thead className="sticky top-0 bg-white z-20 shadow-sm text-[8px] font-black uppercase text-gray-400">
@@ -514,14 +349,8 @@ const Dashboard = () => {
                  </thead>
                  <tbody className="divide-y divide-gray-50">
                     {matrixJabatan.map((row, i) => (
-                      <tr key={i} className="hover:bg-gray-50 transition-colors">
-                         <td className="px-10 py-4 font-bold text-[10px] text-gray-800 uppercase leading-tight">{row.jabatan}</td>
-                         <td className="px-6 py-4 text-right font-black text-[12px] text-gray-950">{row.total}</td>
-                      </tr>
+                      <tr key={i} className="hover:bg-gray-50 transition-colors"><td className="px-10 py-4 font-bold text-[10px] text-gray-800 uppercase leading-tight">{row.jabatan}</td><td className="px-6 py-4 text-right font-black text-[12px] text-gray-950">{row.total}</td></tr>
                     ))}
-                    {matrixJabatan.length === 0 && (
-                      <tr><td colSpan={2} className="py-20 text-center text-[10px] font-black text-gray-300 uppercase italic">Data tidak ditemukan dengan filter ini</td></tr>
-                    )}
                  </tbody>
               </table>
            </div>
@@ -550,29 +379,12 @@ const Dashboard = () => {
                     <div key={i} className="p-5 bg-gray-50/50 border border-gray-100 rounded-3xl flex justify-between items-center group hover:bg-blue-50 transition-all">
                        <div className="min-w-0">
                           <p className="text-[11px] font-black text-gray-950 uppercase truncate">{item.nama || 'Tanpa Nama'}</p>
-                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">
-                             {notifTab === 'bangkom' ? item.status : `TMT: ${item.tmt || item.tmtTerakhir || '-'}`}
-                          </p>
-                          {notifTab === 'bangkom' && (
-                             <div className="mt-2 flex items-center gap-2">
-                                <div className="h-1.5 w-24 bg-gray-200 rounded-full overflow-hidden">
-                                   <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, (item.currentJp / (item.targetJp || 1)) * 100)}%` }}></div>
-                                </div>
-                                <span className="text-[8px] font-black text-indigo-600">{item.currentJp} / {item.targetJp} JP</span>
-                             </div>
-                          )}
+                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">{notifTab === 'bangkom' ? item.status : `TMT: ${item.tmt || item.tmtTerakhir || '-'}`}</p>
                        </div>
-                       <span className={`shrink-0 px-3 py-1 bg-white border rounded-lg text-[9px] font-black uppercase ${notifTab === 'bangkom' ? 'text-indigo-600 border-indigo-100' : 'text-gray-500'}`}>
-                          {item.sisa || item.keterangan || item.pengabdian || '-'}
-                       </span>
+                       <span className={`shrink-0 px-3 py-1 bg-white border rounded-lg text-[9px] font-black uppercase ${notifTab === 'bangkom' ? 'text-indigo-600 border-indigo-100' : 'text-gray-500'}`}>{item.sisa || item.keterangan || item.pengabdian || '-'}</span>
                     </div>
                  ))}
-                 {(reminders[notifTab] || []).length === 0 && (
-                    <div className="py-20 text-center opacity-30">
-                       <i className="bi bi-check2-circle text-5xl mb-4"></i>
-                       <p className="text-[10px] font-black uppercase tracking-widest">Semua data terpantau aman</p>
-                    </div>
-                 )}
+                 {(reminders[notifTab] || []).length === 0 && <div className="py-20 text-center opacity-30"><i className="bi bi-check2-circle text-5xl mb-4"></i><p className="text-[10px] font-black uppercase tracking-widest">Semua data terpantau aman</p></div>}
               </div>
            </div>
         </div>

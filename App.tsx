@@ -57,6 +57,7 @@ const AppContent = () => {
   const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < 1440);
   const [systemName, setSystemName] = useState('Portal SDM');
   const [systemLogo, setSystemLogo] = useState<string | null>(DEFAULT_LOGO);
+  const [runningText, setRunningText] = useState(localStorage.getItem('portal_running_text') || 'Selamat Datang di Portal SDM DJKI.');
   const [currentTime, setCurrentTime] = useState(new Date());
   
   const location = useLocation();
@@ -83,6 +84,7 @@ const AppContent = () => {
       const name = localStorage.getItem('portal_system_name');
       if (name) { setSystemName(name); document.title = name; }
       setSystemLogo(localStorage.getItem('portal_system_logo') || DEFAULT_LOGO);
+      setRunningText(localStorage.getItem('portal_running_text') || 'Selamat Datang di Portal SDM DJKI.');
     };
     sync();
     window.addEventListener('storage_updated', sync);
@@ -106,7 +108,7 @@ const AppContent = () => {
         <div className="flex flex-col h-full relative">
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)} 
-            className="absolute -right-3.5 top-10 bg-blue-600 text-white rounded-full h-7 w-7 border-4 border-[#0f172a] hover:bg-blue-500 transition-all hidden lg:flex items-center justify-center z-[130] shadow-xl"
+            className="absolute -right-3.5 top-10 bg-blue-600 text-white rounded-full h-7 w-7 border-4 border-[#0f172a] hover:bg-blue-50 transition-all hidden lg:flex items-center justify-center z-[130] shadow-xl"
           >
             <i className={`bi ${isCollapsed ? 'bi-chevron-right' : 'bi-chevron-left'} text-[10px]`}></i>
           </button>
@@ -164,31 +166,54 @@ const AppContent = () => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
-        <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 shrink-0 z-[100]">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden h-10 w-10 flex items-center justify-center text-gray-400 bg-gray-50 rounded-xl"><i className="bi bi-list text-2xl"></i></button>
-            <div className="hidden sm:block">
-              <h2 className="text-sm font-black text-gray-950 uppercase tracking-tight">Portal SDM DJKI</h2>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">DJKI Smart Hub 2025</p>
+        <header className="bg-white border-b border-gray-100 shrink-0 z-[100]">
+          <div className="h-20 flex items-center justify-between px-8">
+            <div className="flex items-center gap-4">
+              <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden h-10 w-10 flex items-center justify-center text-gray-400 bg-gray-50 rounded-xl"><i className="bi bi-list text-2xl"></i></button>
+              <div className="hidden sm:block">
+                <h2 className="text-sm font-black text-gray-950 uppercase tracking-tight">Portal SDM DJKI</h2>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">DJKI Smart Hub 2025</p>
+              </div>
+            </div>
+            
+            <div className="hidden lg:flex flex-col items-center bg-gray-50 px-8 py-2 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-3">
+                <i className="bi bi-clock-fill text-blue-600 text-xs"></i>
+                <span className="text-[14px] font-black text-gray-950 tracking-tighter tabular-nums">{formattedTime}</span>
+              </div>
+              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{formattedDate}</span>
+            </div>
+            
+            <div className="flex items-center gap-6">
+              <div className="hidden md:flex flex-col items-end">
+                <span className="text-[11px] font-black text-gray-950 uppercase">{user?.name}</span>
+                <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tighter">{user?.role} • NIP. {user?.nip}</span>
+              </div>
+              <div className="h-12 w-12 rounded-2xl bg-gray-50 border-4 border-white shadow-xl overflow-hidden shimmer-effect">
+                 {user?.foto ? <img src={user.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black">?</div>}
+              </div>
             </div>
           </div>
           
-          <div className="hidden lg:flex flex-col items-center bg-gray-50 px-8 py-2 rounded-2xl border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-3">
-              <i className="bi bi-clock-fill text-blue-600 text-xs"></i>
-              <span className="text-[14px] font-black text-gray-950 tracking-tighter tabular-nums">{formattedTime}</span>
-            </div>
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{formattedDate}</span>
-          </div>
-          
-          <div className="flex items-center gap-6">
-            <div className="hidden md:flex flex-col items-end">
-              <span className="text-[11px] font-black text-gray-950 uppercase">{user?.name}</span>
-              <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tighter">{user?.role} • NIP. {user?.nip}</span>
-            </div>
-            <div className="h-12 w-12 rounded-2xl bg-gray-50 border-4 border-white shadow-xl overflow-hidden shimmer-effect">
-               {user?.foto ? <img src={user.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black">?</div>}
-            </div>
+          {/* RUNNING TEXT TICKER */}
+          <div className="h-10 bg-[#111827] border-y border-white/5 flex items-center overflow-hidden relative">
+             <div className="bg-blue-600 h-full px-4 flex items-center gap-2 shrink-0 z-10 shadow-[5px_0_15px_rgba(0,0,0,0.3)]">
+                <i className="bi bi-megaphone-fill text-white text-xs animate-pulse"></i>
+                <span className="text-[9px] font-black text-white uppercase tracking-widest">Update</span>
+             </div>
+             <div className="flex-1 overflow-hidden relative h-full flex items-center">
+                <div className="animate-marquee whitespace-nowrap">
+                   <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mx-10">
+                      {runningText}
+                   </span>
+                   <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mx-10">
+                      {runningText}
+                   </span>
+                </div>
+             </div>
+             <div className="bg-[#111827] h-full px-4 flex items-center gap-2 shrink-0 z-10 shadow-[-5px_0_15px_rgba(0,0,0,0.3)]">
+                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest italic">{new Date().getFullYear()} © DJKI HUB</span>
+             </div>
           </div>
         </header>
 

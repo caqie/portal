@@ -41,6 +41,11 @@
             100% { transform: translateX(150%) skewX(-25deg); }
         }
 
+        @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
         .animate-modalEnter {
             animation: modalEnter 0.3s ease-out forwards;
         }
@@ -51,6 +56,12 @@
 
         .animate-scan {
             animation: scan 3s linear infinite;
+        }
+
+        .animate-marquee {
+            display: inline-block;
+            white-space: nowrap;
+            animation: marquee 30s linear infinite;
         }
 
         .shimmer-effect {
