@@ -38,8 +38,10 @@ const Dashboard = () => {
   const [filterJenisMatrix, setFilterJenisMatrix] = useState('Semua Jenis');
   const [searchJabatan, setSearchJabatan] = useState('');
 
-  // Filter khusus untuk Statistik Pendidikan
+  // Filter khusus untuk Statistik 
   const [filterJenisEdu, setFilterJenisEdu] = useState('Semua Jenis');
+  const [filterJenisGender, setFilterJenisGender] = useState('Semua Jenis');
+  const [filterJenisGrade, setFilterJenisGrade] = useState('Semua Jenis');
 
   useEffect(() => { loadDashboardData(); }, []);
 
@@ -113,10 +115,16 @@ const Dashboard = () => {
       .sort((a, b) => b.total - a.total);
   }, [activePegawaiList, filterUnit, filterJenisMatrix, searchJabatan]);
 
-  const genderStats = useMemo(() => ({
-    pria: activePegawaiList.filter(p => p.gender === 'L').length,
-    wanita: activePegawaiList.filter(p => p.gender === 'P').length
-  }), [activePegawaiList]);
+  const genderStats = useMemo(() => {
+    const filteredList = activePegawaiList.filter(p => {
+        if (filterJenisGender === 'Semua Jenis') return true;
+        return (p.jenisPegawai || '').toUpperCase() === filterJenisGender.toUpperCase();
+    });
+    return {
+      pria: filteredList.filter(p => p.gender === 'L').length,
+      wanita: filteredList.filter(p => p.gender === 'P').length
+    }
+  }, [activePegawaiList, filterJenisGender]);
 
   const educationStats = useMemo(() => {
     // Terapkan filter jenis pegawai khusus pendidikan
@@ -146,14 +154,18 @@ const Dashboard = () => {
   }, [activePegawaiList, filterJenisEdu]);
 
   const gradeStats = useMemo(() => {
+    const filteredList = activePegawaiList.filter(p => {
+        if (filterJenisGrade === 'Semua Jenis') return true;
+        return (p.jenisPegawai || '').toUpperCase() === filterJenisGrade.toUpperCase();
+    });
     const gradeMap: Record<string, number> = {};
-    activePegawaiList.forEach(p => {
+    filteredList.forEach(p => {
       const g = (p.golRuang || 'LAINNYA').trim().toUpperCase();
       gradeMap[g] = (gradeMap[g] || 0) + 1;
     });
     return Object.entries(gradeMap).map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.label.localeCompare(a.label));
-  }, [activePegawaiList]);
+  }, [activePegawaiList, filterJenisGrade]);
 
   const handleDownloadAnalytics = () => {
     const wb = XLSX.utils.book_new();
@@ -356,7 +368,20 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-8">
            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
-              <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em] mb-6">Statistik Gender</h4>
+              <div className="flex justify-between items-center mb-6">
+                 <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Statistik Gender</h4>
+                 <select 
+                    className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all"
+                    value={filterJenisGender}
+                    onChange={e => setFilterJenisGender(e.target.value)}
+                 >
+                    <option value="Semua Jenis">Semua Jenis</option>
+                    <option value="PNS">PNS</option>
+                    <option value="CPNS">CPNS</option>
+                    <option value="PPPK">PPPK</option>
+                    <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
+                 </select>
+              </div>
               <div className="grid grid-cols-2 gap-6">
                  <div className="p-6 bg-sky-50 rounded-3xl border border-sky-100">
                     <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Laki-laki</p>
@@ -398,7 +423,20 @@ const Dashboard = () => {
            </div>
 
            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
-              <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em] mb-6">Distribusi Golongan Pegawai</h4>
+              <div className="flex justify-between items-center mb-6">
+                 <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Distribusi Golongan Pegawai</h4>
+                 <select 
+                    className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all"
+                    value={filterJenisGrade}
+                    onChange={e => setFilterJenisGrade(e.target.value)}
+                 >
+                    <option value="Semua Jenis">Semua Jenis</option>
+                    <option value="PNS">PNS</option>
+                    <option value="CPNS">CPNS</option>
+                    <option value="PPPK">PPPK</option>
+                    <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
+                 </select>
+              </div>
               <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                  {gradeStats.map((grade, i) => (
                     <div key={i} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl hover:bg-emerald-50 transition-colors group">
@@ -406,6 +444,9 @@ const Dashboard = () => {
                        <span className="text-[12px] font-black text-gray-950">{grade.count} ASN</span>
                     </div>
                  ))}
+                 {gradeStats.length === 0 && (
+                   <p className="text-center py-10 text-[10px] font-bold text-gray-300 uppercase italic">Tidak ada data untuk kategori ini</p>
+                 )}
               </div>
            </div>
         </div>
