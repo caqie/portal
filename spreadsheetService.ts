@@ -103,7 +103,9 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return {
       id: get('ID'), nip: get('NIP').replace(/\D/g, ''), nama: get('NAMA'), gelar: get('GELAR'), 
-      jabatan: get('JABATAN'), subBagian: get('SUBBAGIAN'), bagian: get('BAGIAN'),
+      jabatan: get('JABATAN'), 
+      klasifikasiJabatan: get('KLASIFIKASI') || get('KLASIFIKASIJABATAN'),
+      subBagian: get('SUBBAGIAN'), bagian: get('BAGIAN'),
       unitKerja: get('UNITKERJA') || 'DJKI', gender: get('JENISKELAMIN').startsWith('P') ? 'P' : 'L',
       golRuang: get('GOLRUANG'), jenisPegawai: get('JENISPEGAWAI'), status: get('STATUS') || 'Aktif',
       pangkat: get('PANGKAT'), foto: get('FOTO') || get('FOTOURL'),

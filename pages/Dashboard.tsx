@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets, fetchKGBFromSheets } from '../spreadsheetService';
 import { Pegawai, Pengembangan, KGB } from '../types';
@@ -35,7 +34,7 @@ const Dashboard = () => {
   const [notifTab, setNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat' | 'satya' | 'bangkom'>('pensiun');
 
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
-  const [filterJenisMatrix, setFilterJenisMatrix] = useState('Semua Jenis');
+  const [filterJenisMatrix, setFilterJenisMatrix] = useState<string[]>([]); // Ubah ke Array untuk Multi-select
   const [searchJabatan, setSearchJabatan] = useState('');
 
   const [filterJenisEdu, setFilterJenisEdu] = useState('Semua Jenis');
@@ -85,27 +84,51 @@ const Dashboard = () => {
 
   const matrixJabatan = useMemo(() => {
     let list = activePegawaiList;
-    if (filterJenisMatrix !== 'Semua Jenis') {
-        if (filterJenisMatrix === 'PPPK_PARUH') {
-            list = list.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PARUH'));
-        } else {
-            list = list.filter(p => (p.jenisPegawai || '').toUpperCase() === filterJenisMatrix.toUpperCase());
-        }
+    
+    // Filter Multi-select Jenis Pegawai
+    if (filterJenisMatrix.length > 0) {
+        list = list.filter(p => {
+            const jen = (p.jenisPegawai || '').toUpperCase();
+            return filterJenisMatrix.some(f => {
+                if (f === 'PPPK_PARUH') return jen.includes('PARUH');
+                return jen === f;
+            });
+        });
     }
+
     if (filterUnit !== 'Semua Unit') {
       list = list.filter(p => normalizeUnitName(p.unitKerja) === filterUnit);
     }
-    const groups: Record<string, number> = {};
+    
+    const groups: Record<string, { total: number, klasifikasi: string, jabatan: string, jenis: string }> = {};
+    
     list.forEach(p => {
       const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
-      groups[jab] = (groups[jab] || 0) + 1;
+      const jen = (p.jenisPegawai || 'ASN').trim().toUpperCase();
+      const klas = (p.klasifikasiJabatan || 'LAINNYA').trim().toUpperCase();
+      
+      const key = `${jab}|${jen}|${klas}`;
+
+      if (!groups[key]) {
+        groups[key] = { total: 0, klasifikasi: klas, jabatan: jab, jenis: jen };
+      }
+      groups[key].total += 1;
     });
+
     const term = searchJabatan.toUpperCase().trim();
-    return Object.entries(groups)
-      .map(([jabatan, total]) => ({ jabatan, total }))
-      .filter(item => item.jabatan.includes(term))
+    return Object.values(groups)
+      .filter(item => 
+        item.jabatan.includes(term) || 
+        item.klasifikasi.includes(term) // Sekarang bisa cari berdasarkan klasifikasi
+      )
       .sort((a, b) => b.total - a.total);
   }, [activePegawaiList, filterUnit, filterJenisMatrix, searchJabatan]);
+
+  const toggleFilterJenis = (val: string) => {
+    setFilterJenisMatrix(prev => 
+      prev.includes(val) ? prev.filter(i => i !== val) : [...prev, val]
+    );
+  };
 
   const genderStats = useMemo(() => {
     const filteredList = activePegawaiList.filter(p => {
@@ -220,7 +243,12 @@ const Dashboard = () => {
   };
 
   const handleExportJabatan = () => {
-    const ws = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({ 'Nama Jabatan': j.jabatan, 'Jumlah Pegawai': j.total })));
+    const ws = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({ 
+      'Nama Jabatan': j.jabatan, 
+      'Klasifikasi': j.klasifikasi,
+      'Jenis Pegawai': j.jenis,
+      'Jumlah Pegawai': j.total 
+    })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Matriks Jabatan");
     XLSX.writeFile(wb, `Matriks_Jabatan_DJKI_${new Date().getTime()}.xlsx`);
@@ -389,7 +417,7 @@ const Dashboard = () => {
                     Export Excel
                  </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-1.5">
                     <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Unit Kerja</label>
                     <select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
@@ -398,18 +426,40 @@ const Dashboard = () => {
                     </select>
                  </div>
                  <div className="space-y-1.5">
-                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Jenis Pegawai</label>
-                    <select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600" value={filterJenisMatrix} onChange={e => setFilterJenisMatrix(e.target.value)}>
-                       <option value="Semua Jenis">Semua Jenis</option>
-                       <option value="PNS">PNS</option>
-                       <option value="CPNS">CPNS</option>
-                       <option value="PPPK">PPPK</option>
-                       <option value="PPPK_PARUH">PPPK Paruh Waktu</option>
-                    </select>
+                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Cari Jabatan / Klasifikasi</label>
+                    <div className="relative">
+                       <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                       <input type="text" placeholder="MISAL: FUNGSIONAL, PELAKSANA, PENYELIA..." className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600" value={searchJabatan} onChange={e => setSearchJabatan(e.target.value)} />
+                    </div>
                  </div>
-                 <div className="space-y-1.5">
-                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Cari Jabatan</label>
-                    <input type="text" placeholder="NAMA JABATAN..." className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600" value={searchJabatan} onChange={e => setSearchJabatan(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                 <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest block">Filter Multi-Jenis Pegawai (Pilih beberapa sekaligus)</label>
+                 <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: 'PNS', label: 'PNS' },
+                      { id: 'CPNS', label: 'CPNS' },
+                      { id: 'PPPK', label: 'PPPK' },
+                      { id: 'PPPK_PARUH', label: 'PPPK Paruh Waktu' }
+                    ].map(btn => (
+                      <button 
+                        key={btn.id} 
+                        onClick={() => toggleFilterJenis(btn.id)}
+                        className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase transition-all border flex items-center gap-2 ${
+                          filterJenisMatrix.includes(btn.id) 
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
+                          : 'bg-white text-gray-400 border-gray-100 hover:border-blue-200'
+                        }`}
+                      >
+                        {filterJenisMatrix.includes(btn.id) && <i className="bi bi-check-circle-fill"></i>}
+                        {btn.label}
+                      </button>
+                    ))}
+                    {filterJenisMatrix.length > 0 && (
+                      <button onClick={() => setFilterJenisMatrix([])} className="px-4 py-2 text-[8px] font-black text-rose-500 uppercase hover:underline flex items-center gap-1">
+                        <i className="bi bi-x-circle"></i> Reset Filter
+                      </button>
+                    )}
                  </div>
               </div>
            </div>
@@ -418,6 +468,8 @@ const Dashboard = () => {
                  <thead className="sticky top-0 bg-white z-20 shadow-sm text-[8px] font-black uppercase text-gray-400">
                     <tr>
                        <th className="px-10 py-6 border-b">Nama Nomenklatur Jabatan</th>
+                       <th className="px-4 py-6 border-b text-center">Klasifikasi</th>
+                       <th className="px-4 py-6 border-b text-center">Jenis Pegawai</th>
                        <th className="px-6 py-6 text-right border-b text-blue-600">Total ASN</th>
                     </tr>
                  </thead>
@@ -425,9 +477,39 @@ const Dashboard = () => {
                     {matrixJabatan.map((row, i) => (
                       <tr key={i} className="hover:bg-gray-50 transition-colors">
                          <td className="px-10 py-4 font-bold text-[10px] text-gray-800 uppercase leading-tight">{row.jabatan}</td>
+                         <td className="px-4 py-4 text-center">
+                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase border ${
+                              row.klasifikasi === 'FUNGSIONAL' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                              row.klasifikasi === 'PELAKSANA' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                              row.klasifikasi === 'JPT / ADM' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                              row.klasifikasi === 'JPT' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                              row.klasifikasi === 'ADM' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                              'bg-gray-50 text-gray-400 border-gray-100'
+                            }`}>
+                              {row.klasifikasi}
+                            </span>
+                         </td>
+                         <td className="px-4 py-4 text-center">
+                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase border ${
+                              row.jenis === 'PNS' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                              row.jenis === 'PPPK' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                              row.jenis === 'CPNS' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' :
+                              'bg-gray-50 text-gray-600 border-gray-200'
+                            }`}>
+                               {row.jenis}
+                            </span>
+                         </td>
                          <td className="px-6 py-4 text-right font-black text-[12px] text-gray-950">{row.total}</td>
                       </tr>
                     ))}
+                    {matrixJabatan.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="py-20 text-center opacity-30">
+                          <i className="bi bi-search text-5xl mb-4 block"></i>
+                          <p className="text-[10px] font-black uppercase tracking-widest">Data tidak ditemukan dengan filter saat ini</p>
+                        </td>
+                      </tr>
+                    )}
                  </tbody>
               </table>
            </div>
@@ -461,7 +543,7 @@ const Dashboard = () => {
 
               <div className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar space-y-4 bg-white">
                  {(reminders[notifTab] || []).map((item, i) => (
-                    <div key={i} className="p-5 bg-gray-50/50 border border-gray-100 rounded-3xl flex justify-between items-center group hover:bg-blue-50 transition-all">
+                    <div key={i} className="p-5 bg-gray-50/50 border border-gray-100 rounded-[2rem] flex items-center gap-5 hover:bg-blue-50 transition-all shadow-sm group">
                        <div className="min-w-0">
                           <p className="text-[11px] font-black text-gray-950 uppercase truncate">{item.nama || 'Tanpa Nama'}</p>
                           <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">{item.tmt || item.tmtTerakhir || '-'}</p>

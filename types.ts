@@ -119,6 +119,7 @@ export interface Pegawai {
   nama: string; 
   gelar?: string; 
   jabatan: string; 
+  klasifikasiJabatan?: string;
   subBagian?: string;
   bagian?: string;
   unitKerja: string; 
@@ -140,7 +141,6 @@ export interface Pegawai {
   alamat?: string;
   eselon?: string;
   agama?: string;
-  // Field Tambahan Baru
   noHp?: string;
   email?: string;
   npwp?: string;
