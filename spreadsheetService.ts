@@ -1,3 +1,4 @@
+
 import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir } from './types';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
@@ -97,7 +98,6 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
   }
 };
 
-// Fix: Updated Pegawai mapper with missing properties
 export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
   return fetchTableData<Pegawai>('PEGAWAI', 'portal_pegawai_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
@@ -110,7 +110,8 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
       tmtPangkat: get('TMTPANGKAT'), tmtJabatan: get('TMTJABATAN'), tmtStatus: get('TMTSTATUS'),
       pendidikan: get('PENDIDIKAN'), jurusan: get('JURUSAN'), nik: get('NIK'),
       masaKerja: get('MASAKERJA'), tempatLahir: get('TEMPATLAHIR'), tanggalLahir: get('TANGGALLAHIR'),
-      alamat: get('ALAMAT'), eselon: get('ESELON'), agama: get('AGAMA')
+      alamat: get('ALAMAT'), eselon: get('ESELON'), agama: get('AGAMA'),
+      noHp: get('NOHP'), email: get('EMAIL'), npwp: get('NPWP'), noBpjs: get('NOBPJS'), noKarisKarsu: get('NOKARISKARSU')
     } as Pegawai;
   });
 };
@@ -158,9 +159,20 @@ export const fetchMagangPKLFromSheets = () => fetchTableData<any>('MAGANG_PKL', 
     return { id: get('ID'), nama: get('NAMA'), institusi: get('INSTITUSI'), status: get('STATUS') };
 });
 
-export const fetchTugasRutinFromSheets = () => fetchTableData<any>('TUGAS_RUTIN', 'tugas_rutin_db', (cols, headers) => {
+export const fetchTugasRutinFromSheets = () => fetchTableData<TugasRutin>('TUGAS_RUTIN', 'tugas_rutin_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
-    return { id: get('ID'), bulan: get('BULAN'), tahun: get('TAHUN'), jenis: get('JENIS'), detail: get('DETAIL') };
+    const dataStr = get('DATA');
+    let parsedData = {};
+    try { parsedData = dataStr ? JSON.parse(dataStr) : {}; } catch(e) {}
+    return { 
+      id: get('ID'), 
+      timestamp: get('TIMESTAMP'), 
+      bulan: get('BULAN'), 
+      tahun: parseInt(get('TAHUN')) || new Date().getFullYear(), 
+      jenis: get('JENIS') as any, 
+      detail: get('DETAIL'),
+      data: parsedData
+    };
 });
 
 export const fetchKegiatanFromSheets = () => fetchTableData<any>('KEGIATAN', 'kegiatan_db', (cols, headers) => {
@@ -173,7 +185,6 @@ export const fetchDossiersFromSheets = () => fetchTableData<any>('DOSSIER', 'por
     return { id: get('ID'), nip: get('NIP'), fileName: get('FILENAME'), fileUrl: get('FILEURL') };
 });
 
-// Fix: Added missing fetch functions
 export const fetchUsersFromSheets = () => fetchTableData<AdminUser>('USERS', 'portal_users_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), nip: get('NIP'), name: get('NAME'), password: get('PASSWORD'), role: get('ROLE') as any, foto: get('FOTO') };
@@ -207,8 +218,6 @@ export const uploadFileToDrive = async (fileName: string, mimeType: string, base
     } catch (e) { return { success: false }; }
 };
 
-// Fix: Updated syncGidMap to return Promise<boolean> instead of Promise<void> 
-// to fix "An expression of type 'void' cannot be tested for truthiness" in SettingsPage.tsx
 export const syncGidMap = async (): Promise<boolean> => {
     const { appsScriptUrl, spreadsheetId } = getDbConfig();
     try {

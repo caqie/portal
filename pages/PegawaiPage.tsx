@@ -129,7 +129,6 @@ const PegawaiPage = () => {
     reader.readAsDataURL(file);
   };
 
-  // HANDLER UNTUK UPLOAD BERKAS DOSSIER
   const handleSaveDossier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPegawai || !dossierFormData.fileName) return;
@@ -141,11 +140,9 @@ const PegawaiPage = () => {
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
-      // 1. Upload ke Drive
       const res = await uploadFileToDrive(`DOSSIER_${selectedPegawai.nip}_${Date.now()}`, file.type, base64);
       
       if (res.success && res.fileUrl) {
-        // 2. Simpan Metadata ke Sheets
         const payload: Dossier = {
           id: `DOS-${Date.now()}`,
           nip: selectedPegawai.nip,
@@ -227,7 +224,7 @@ const PegawaiPage = () => {
         </div>
         <div className="flex flex-wrap gap-2">
            <button onClick={() => handleExportExcel('SHARE')} className="h-14 px-6 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-2xl font-black text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2"><i className="bi bi-file-earmark-spreadsheet-fill text-lg"></i> Excel Share</button>
-           {isSuperadmin && (<button onClick={() => handleExportExcel('FULL')} className="h-14 px-6 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all flex items-center gap-2"><i className="bi bi-database-fill-down text-lg"></i> Excel Full (Raw)</button>)}
+           {canEdit && (<button onClick={() => handleExportExcel('FULL')} className="h-14 px-6 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all flex items-center gap-2"><i className="bi bi-database-fill-down text-lg"></i> Excel Full (Raw)</button>)}
            {canEdit && (<button onClick={() => { setSelectedPegawai(null); setFormData({status: 'Aktif', jenisPegawai: 'PNS', gender: 'L', unitKerja: UNIT_KERJA[0]}); setIsModalOpen(true); }} className="h-14 px-10 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">+ Registrasi Pegawai</button>)}
         </div>
       </div>
@@ -273,7 +270,6 @@ const PegawaiPage = () => {
          ))}
       </div>
 
-      {/* MODAL DETAIL PEGAWAI */}
       {isDetailOpen && selectedPegawai && (
         <div className="fixed inset-0 z-[2000] flex items-start justify-center p-4 pt-[140px] pb-10">
            <div className="fixed inset-0 bg-gray-950/90 backdrop-blur-md" onClick={() => setIsDetailOpen(false)}></div>
@@ -295,7 +291,7 @@ const PegawaiPage = () => {
                        {selectedPegawai.foto ? <img src={selectedPegawai.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-6xl font-black text-blue-600 bg-blue-50">{selectedPegawai.nama.charAt(0)}</div>}
                     </div>
                     <div className="text-center space-y-2 mb-8 w-full">
-                       <h4 className="text-lg font-black text-gray-950 leading-tight px-4">{selectedPegawai.nama}</h4>
+                       <h4 className="text-lg font-black text-gray-950 leading-tight px-4">{selectedPegawai.nama}{selectedPegawai.gelar ? `, ${selectedPegawai.gelar}` : ''}</h4>
                        <p className="text-[10px] font-mono font-black text-blue-600 tracking-widest">NIP. {selectedPegawai.nip}</p>
                        <div className="flex justify-center gap-2 mt-4">
                           <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[8px] font-black border border-emerald-100 uppercase">{selectedPegawai.status}</span>
@@ -356,13 +352,27 @@ const PegawaiPage = () => {
                                 <div><p className={detailLabel}>Gender</p><p className={detailValue}>{selectedPegawai.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</p></div>
                                 <div className="col-span-2"><p className={detailLabel}>Tgl Lahir</p><p className={detailValue}>{selectedPegawai.tempatLahir || '-'}, {selectedPegawai.tanggalLahir || '-'}</p></div>
                                 <div className="col-span-2"><p className={detailLabel}>Pendidikan / Jurusan</p><p className={detailValue}>{selectedPegawai.pendidikan} - {selectedPegawai.jurusan}</p></div>
-                                <div className="col-span-full"><p className={detailLabel}>Alamat Domisili</p><p className="text-[11px] font-bold text-gray-700 leading-relaxed uppercase">{selectedPegawai.alamat || '-'}</p></div>
+                                <div><p className={detailLabel}>Nomor HP</p><p className={detailValue}>{selectedPegawai.noHp || '-'}</p></div>
+                                <div className="col-span-full"><p className={detailLabel}>Alamat Domisili</p><p className={detailValueNoCaps}>{selectedPegawai.alamat || '-'}</p></div>
+                             </div>
+                          </div>
+
+                          <div className="space-y-6">
+                             <div className="flex items-center gap-4">
+                                <div className="h-8 w-8 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center text-lg"><i className="bi bi-credit-card-2-front-fill"></i></div>
+                                <h5 className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Atribut Administrasi Lainnya</h5>
+                             </div>
+                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 bg-rose-50/5 p-8 rounded-[2.5rem] border border-rose-50">
+                                <div className="col-span-2"><p className={detailLabel}>Email Resmi / Personal</p><p className={detailValueNoCaps}>{selectedPegawai.email || '-'}</p></div>
+                                <div><p className={detailLabel}>Nomor NPWP</p><p className={detailValue}>{selectedPegawai.npwp || '-'}</p></div>
+                                <div><p className={detailLabel}>Nomor BPJS</p><p className={detailValue}>{selectedPegawai.noBpjs || '-'}</p></div>
+                                <div><p className={detailLabel}>No. Karis/Karsu</p><p className={detailValue}>{selectedPegawai.noKarisKarsu || '-'}</p></div>
+                                <div><p className={detailLabel}>TMT Status Aktif</p><p className={detailValue}>{selectedPegawai.tmtStatus || '-'}</p></div>
                              </div>
                           </div>
                        </div>
                     ) : (
                        <div className="animate-fadeIn space-y-8">
-                          {/* BUTTON TAMBAH DOSSIER */}
                           {canEdit && (
                             <div className="flex justify-end">
                                <button 
@@ -400,7 +410,6 @@ const PegawaiPage = () => {
         </div>
       )}
 
-      {/* MODAL UPLOAD DOSSIER */}
       {isAddDossierOpen && selectedPegawai && (
         <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
            <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-sm" onClick={() => !uploading && setIsAddDossierOpen(false)}></div>
@@ -458,7 +467,6 @@ const PegawaiPage = () => {
         </div>
       )}
 
-      {/* FORM REGISTRASI / EDIT */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[2000] flex items-start justify-center p-4 pt-[140px] pb-10">
            <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => !syncing && !uploading && setIsModalOpen(false)}></div>
@@ -474,43 +482,67 @@ const PegawaiPage = () => {
                  </button>
               </div>
 
-              <form onSubmit={handleSave} className="flex-1 p-8 md:p-12 overflow-y-auto custom-scrollbar space-y-16 bg-white">
-                 <section className="space-y-8">
-                    <div className="flex items-center gap-4"><div className="h-10 w-2 bg-blue-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">A. Identitas Pokok</h5></div>
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
+              <form onSubmit={handleSave} className="flex-1 p-8 md:p-12 overflow-y-auto custom-scrollbar space-y-12 bg-white">
+                 <section className="space-y-6">
+                    <div className="flex items-center gap-4"><div className="h-8 w-2 bg-blue-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">A. Identitas Pokok</h5></div>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
                        <div className="md:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div><label className={labelClass}>NIP (18 Digit)</label><input type="text" maxLength={18} className={inputClass} value={formData.nip || ''} onChange={e => setFormData({...formData, nip: e.target.value.replace(/\D/g, '')})} required /></div>
                           <div><label className={labelClass}>Nomor NIK KTP</label><input type="text" className={inputClass} value={formData.nik || ''} onChange={e => setFormData({...formData, nik: e.target.value})} /></div>
                           <div className="col-span-full"><label className={labelClass}>Nama Lengkap (Tanpa Gelar)</label><input type="text" className={inputNoCapsClass} value={formData.nama || ''} onChange={e => setFormData({...formData, nama: e.target.value})} required /></div>
-                          <div><label className={labelClass}>Jenis Kelamin</label><select className={inputClass} value={formData.gender || 'L'} onChange={e => setFormData({...formData, gender: e.target.value as any})}><option value="L">LAKI-LAKI</option><option value="P">PEREMPUAN</option></select></div>
+                          <div><label className={labelClass}>Gelar (Opsional)</label><input type="text" className={inputNoCapsClass} value={formData.gelar || ''} onChange={e => setFormData({...formData, gelar: e.target.value})} /></div>
                           <div><label className={labelClass}>Agama</label><input type="text" className={inputClass} value={formData.agama || ''} onChange={e => setFormData({...formData, agama: e.target.value})} /></div>
+                          <div><label className={labelClass}>Jenis Kelamin</label><select className={inputClass} value={formData.gender || 'L'} onChange={e => setFormData({...formData, gender: e.target.value as any})}><option value="L">LAKI-LAKI</option><option value="P">PEREMPUAN</option></select></div>
+                          <div><label className={labelClass}>Tempat Lahir</label><input type="text" className={inputClass} value={formData.tempatLahir || ''} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
+                          <div><label className={labelClass}>Tanggal Lahir</label><input type="date" className={inputNoCapsClass} value={formData.tanggalLahir || ''} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
                        </div>
                        <div className="md:col-span-4 bg-gray-50 p-8 rounded-[3rem] border border-gray-100 flex flex-col items-center text-center">
-                          <div className="h-40 w-40 bg-white rounded-[3rem] border-4 border-white shadow-xl overflow-hidden mb-6 relative group">
+                          <div className="h-44 w-44 bg-white rounded-[3rem] border-4 border-white shadow-xl overflow-hidden mb-6 relative group">
                              {formData.foto ? <img src={formData.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 text-4xl font-black bg-blue-50/50">?</div>}
                              {uploading && <div className="absolute inset-0 bg-blue-600/80 flex items-center justify-center text-white"><div className="h-6 w-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div></div>}
                           </div>
-                          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="px-8 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg">Pilih Foto</button>
+                          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="px-8 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg">Ganti Foto Profil</button>
                           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleUploadPhoto} />
                        </div>
                     </div>
                  </section>
 
-                 <section className="space-y-8">
-                    <div className="flex items-center gap-4"><div className="h-10 w-2 bg-indigo-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">B. Jabatan & Penempatan</h5></div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                       <div className="md:col-span-2"><label className={labelClass}>Jabatan Saat Ini</label><input type="text" className={inputClass} value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} /></div>
+                 <section className="space-y-6">
+                    <div className="flex items-center gap-4"><div className="h-8 w-2 bg-indigo-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">B. Jabatan & Penempatan</h5></div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                       <div className="md:col-span-3"><label className={labelClass}>Nama Jabatan</label><input type="text" className={inputClass} value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} /></div>
                        <div><label className={labelClass}>TMT Jabatan</label><input type="date" className={inputNoCapsClass} value={formData.tmtJabatan || ''} onChange={e => setFormData({...formData, tmtJabatan: e.target.value})} /></div>
-                       <div className="md:col-span-3"><label className={labelClass}>Unit Kerja</label><select className={inputClass} value={formData.unitKerja || UNIT_KERJA[0]} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
+                       <div><label className={labelClass}>Eselon (Jika Ada)</label><select className={inputClass} value={formData.eselon || '-'} onChange={e => setFormData({...formData, eselon: e.target.value})}><option value="-">-</option><option value="I.a">I.a</option><option value="I.b">I.b</option><option value="II.a">II.a</option><option value="II.b">II.b</option><option value="III.a">III.a</option><option value="IV.a">IV.a</option></select></div>
+                       <div className="md:col-span-3"><label className={labelClass}>Unit Kerja Utama</label><select className={inputClass} value={formData.unitKerja || UNIT_KERJA[0]} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
+                       <div className="md:col-span-2"><label className={labelClass}>Nama Bagian</label><input type="text" className={inputClass} value={formData.bagian || ''} onChange={e => setFormData({...formData, bagian: e.target.value})} /></div>
+                       <div className="md:col-span-2"><label className={labelClass}>Nama Sub Bagian / Tim</label><input type="text" className={inputClass} value={formData.subBagian || ''} onChange={e => setFormData({...formData, subBagian: e.target.value})} /></div>
                     </div>
                  </section>
 
-                 <section className="space-y-8 pb-10">
-                    <div className="flex items-center gap-4"><div className="h-10 w-2 bg-emerald-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">C. Pangkat & Status</h5></div>
+                 <section className="space-y-6">
+                    <div className="flex items-center gap-4"><div className="h-8 w-2 bg-emerald-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">C. Pangkat & Masa Kerja</h5></div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                       <div><label className={labelClass}>Golongan / Ruang</label><select className={inputClass} value={formData.golRuang || 'III/a'} onChange={e => setFormData({...formData, golRuang: e.target.value, pangkat: PANGKAT_MAP[e.target.value] || ''})}>{Object.keys(PANGKAT_MAP).map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                       <div className="md:col-span-2"><label className={labelClass}>Pangkat</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.pangkat || '-'} /></div>
+                       <div><label className={labelClass}>TMT Pangkat</label><input type="date" className={inputNoCapsClass} value={formData.tmtPangkat || ''} onChange={e => setFormData({...formData, tmtPangkat: e.target.value})} /></div>
+                       <div><label className={labelClass}>Jenis Pegawai</label><select className={inputClass} value={formData.jenisPegawai || 'PNS'} onChange={e => setFormData({...formData, jenisPegawai: e.target.value})}><option value="PNS">PNS</option><option value="CPNS">CPNS</option><option value="PPPK">PPPK</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option></select></div>
+                       <div><label className={labelClass}>Status Aktif</label><select className={inputClass} value={formData.status || 'Aktif'} onChange={e => setFormData({...formData, status: e.target.value})}><option value="Aktif">AKTIF</option><option value="Tidak Aktif">TIDAK AKTIF</option><option value="Pensiun">PENSIUN</option><option value="Tugas Belajar">TUGAS BELAJAR</option></select></div>
+                       <div><label className={labelClass}>TMT Status</label><input type="date" className={inputNoCapsClass} value={formData.tmtStatus || ''} onChange={e => setFormData({...formData, tmtStatus: e.target.value})} /></div>
+                       <div><label className={labelClass}>Masa Kerja (Thn Bln)</label><input type="text" className={inputClass} value={formData.masaKerja || ''} onChange={e => setFormData({...formData, masaKerja: e.target.value})} placeholder="exp: 10 THN 2 BLN" /></div>
+                    </div>
+                 </section>
+
+                 <section className="space-y-6 pb-10">
+                    <div className="flex items-center gap-4"><div className="h-8 w-2 bg-amber-500 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">D. Kontak & Dokumen Identitas</h5></div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                       <div><label className={labelClass}>Golongan</label><select className={inputClass} value={formData.golRuang || 'III/a'} onChange={e => setFormData({...formData, golRuang: e.target.value, pangkat: PANGKAT_MAP[e.target.value] || ''})}>{Object.keys(PANGKAT_MAP).map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-                       <div><label className={labelClass}>Pangkat</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.pangkat || '-'} /></div>
-                       <div><label className={labelClass}>Jenis Pegawai</label><input type="text" className={inputClass} value={formData.jenisPegawai || ''} onChange={e => setFormData({...formData, jenisPegawai: e.target.value})} /></div>
+                       <div><label className={labelClass}>Nomor HP / WhatsApp</label><input type="text" className={inputClass} value={formData.noHp || ''} onChange={e => setFormData({...formData, noHp: e.target.value})} /></div>
+                       <div className="md:col-span-2"><label className={labelClass}>Email Personal / Dinas</label><input type="email" className={inputNoCapsClass} value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} /></div>
+                       <div><label className={labelClass}>Nomor NPWP</label><input type="text" className={inputClass} value={formData.npwp || ''} onChange={e => setFormData({...formData, npwp: e.target.value})} /></div>
+                       <div><label className={labelClass}>Nomor BPJS Kesehatan</label><input type="text" className={inputClass} value={formData.noBpjs || ''} onChange={e => setFormData({...formData, noBpjs: e.target.value})} /></div>
+                       <div><label className={labelClass}>No. Karis / Karsu</label><input type="text" className={inputClass} value={formData.noKarisKarsu || ''} onChange={e => setFormData({...formData, noKarisKarsu: e.target.value})} /></div>
+                       <div className="md:col-span-3"><label className={labelClass}>Alamat Lengkap Domisili</label><textarea rows={3} className={`${inputNoCapsClass} h-24 resize-none`} value={formData.alamat || ''} onChange={e => setFormData({...formData, alamat: e.target.value})} placeholder="Masukkan alamat lengkap sesuai KTP/Domisili saat ini..." /></div>
+                       <div><label className={labelClass}>Jenjang Pendidikan Terakhir</label><input type="text" className={inputClass} value={formData.pendidikan || ''} onChange={e => setFormData({...formData, pendidikan: e.target.value})} placeholder="exp: S1 / S2 / D3" /></div>
+                       <div className="md:col-span-2"><label className={labelClass}>Program Studi / Jurusan</label><input type="text" className={inputClass} value={formData.jurusan || ''} onChange={e => setFormData({...formData, jurusan: e.target.value})} /></div>
                     </div>
                  </section>
               </form>
@@ -519,15 +551,75 @@ const PegawaiPage = () => {
                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-12 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black text-[10px] uppercase shadow-sm">Batalkan</button>
                  <button onClick={handleSave} disabled={syncing || uploading} className="px-20 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all flex items-center gap-4">
                     {(syncing || uploading) && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
-                    <span>Simpan Seluruh Data</span>
+                    <span>Simpan Perubahan Database</span>
                  </button>
               </div>
            </div>
         </div>
       )}
 
+      {/* TEMPLATE DAFTAR RIWAYAT HIDUP (HIDDEN UNTUK PDF) */}
       <div className="fixed -left-[4000px] top-0 pointer-events-none">
-         <div ref={drhRef} className="bg-white text-black font-arial p-[1.5cm_1.5cm]" style={{ width: '210mm', minHeight: '297mm' }}>
+         <div ref={drhRef} className="bg-white text-black font-arial p-[1.5cm_1.5cm] leading-tight" style={{ width: '210mm', minHeight: '297mm' }}>
+            <div className="text-center mb-8">
+               <h1 className="text-[14pt] font-bold uppercase underline">DAFTAR RIWAYAT HIDUP</h1>
+               <p className="text-[10pt] font-bold mt-1">PEGAWAI DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+            </div>
+
+            <div className="space-y-6 text-[10pt]">
+               <section>
+                  <p className="font-bold border-b border-black mb-2 uppercase">I. DATA PRIBADI</p>
+                  <div className="grid grid-cols-[180px_10px_1fr] gap-y-1.5">
+                     <span>1. Nama Lengkap</span><span>:</span><span className="font-bold uppercase underline">{selectedPegawai?.nama}{selectedPegawai?.gelar ? `, ${selectedPegawai?.gelar}` : ''}</span>
+                     <span>2. NIP</span><span>:</span><span className="font-bold">{selectedPegawai?.nip}</span>
+                     <span>3. NIK</span><span>:</span><span>{selectedPegawai?.nik || '-'}</span>
+                     <span>4. Tempat, Tgl Lahir</span><span>:</span><span className="uppercase">{selectedPegawai?.tempatLahir || '-'}, {selectedPegawai?.tanggalLahir || '-'}</span>
+                     <span>5. Jenis Kelamin</span><span>:</span><span>{selectedPegawai?.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</span>
+                     <span>6. Agama</span><span>:</span><span className="uppercase">{selectedPegawai?.agama || '-'}</span>
+                     <span>7. Alamat</span><span>:</span><span className="uppercase">{selectedPegawai?.alamat || '-'}</span>
+                     <span>8. No. HP / Email</span><span>:</span><span>{selectedPegawai?.noHp || '-'} / {selectedPegawai?.email || '-'}</span>
+                  </div>
+               </section>
+
+               <section>
+                  <p className="font-bold border-b border-black mb-2 uppercase">II. POSISI DAN KEPANGKATAN</p>
+                  <div className="grid grid-cols-[180px_10px_1fr] gap-y-1.5">
+                     <span>1. Jabatan</span><span>:</span><span className="font-bold uppercase">{selectedPegawai?.jabatan || '-'}</span>
+                     <span>2. TMT Jabatan</span><span>:</span><span>{selectedPegawai?.tmtJabatan || '-'}</span>
+                     <span>3. Eselon</span><span>:</span><span>{selectedPegawai?.eselon || '-'}</span>
+                     <span>4. Pangkat / Golongan</span><span>:</span><span className="uppercase">{selectedPegawai?.pangkat} ({selectedPegawai?.golRuang})</span>
+                     <span>5. TMT Pangkat</span><span>:</span><span>{selectedPegawai?.tmtPangkat || '-'}</span>
+                     <span>6. Unit Kerja</span><span>:</span><span className="uppercase">{selectedPegawai?.unitKerja}</span>
+                     <span>7. Masa Kerja Golongan</span><span>:</span><span className="uppercase">{selectedPegawai?.masaKerja || '-'}</span>
+                  </div>
+               </section>
+
+               <section>
+                  <p className="font-bold border-b border-black mb-2 uppercase">III. RIWAYAT PENDIDIKAN</p>
+                  <div className="grid grid-cols-[180px_10px_1fr] gap-y-1.5">
+                     <span>1. Tingkat Pendidikan</span><span>:</span><span className="uppercase font-bold">{selectedPegawai?.pendidikan || '-'}</span>
+                     <span>2. Jurusan</span><span>:</span><span className="uppercase">{selectedPegawai?.jurusan || '-'}</span>
+                  </div>
+               </section>
+
+               <section>
+                  <p className="font-bold border-b border-black mb-2 uppercase">IV. DOKUMEN IDENTITAS LAINNYA</p>
+                  <div className="grid grid-cols-[180px_10px_1fr] gap-y-1.5">
+                     <span>1. Nomor NPWP</span><span>:</span><span>{selectedPegawai?.npwp || '-'}</span>
+                     <span>2. Nomor BPJS</span><span>:</span><span>{selectedPegawai?.noBpjs || '-'}</span>
+                     <span>3. No. Karis / Karsu</span><span>:</span><span>{selectedPegawai?.noKarisKarsu || '-'}</span>
+                  </div>
+               </section>
+            </div>
+
+            <div className="mt-20 ml-[55%] text-center text-[10pt]">
+               <p>Jakarta, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+               <div className="mt-2 text-center flex justify-center">
+                  <div className="h-32 w-24 border border-dashed border-gray-300 flex items-center justify-center text-[8pt] italic text-gray-400">PAS FOTO 3X4</div>
+               </div>
+               <p className="mt-4 font-bold uppercase underline leading-none">{selectedPegawai?.nama}</p>
+               <p className="mt-1">NIP {selectedPegawai?.nip}</p>
+            </div>
          </div>
       </div>
     </div>

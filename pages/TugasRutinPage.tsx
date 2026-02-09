@@ -14,7 +14,7 @@ const TugasRutinPage = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TugasRutin | null>(null);
-  const [formData, setFormData] = useState<Partial<TugasRutin>>({ data: {} });
+  const [formData, setFormData] = useState<Partial<TugasRutin>>({ detail: '', data: {} });
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState('Data berhasil disimpan.');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -49,9 +49,11 @@ const TugasRutinPage = () => {
     e.preventDefault();
     setSyncing(true);
     const taskId = editingTask?.id || `TR-${Date.now()}`;
+    // Detail dikosongkan karena field form narasi dihilangkan sesuai request
     const payload = { 
       ...formData, 
       id: taskId, 
+      detail: '', 
       timestamp: new Date().toISOString() 
     };
     const ok = await syncTableRemote('TUGAS_RUTIN', 'SAVE', payload);
@@ -62,6 +64,28 @@ const TugasRutinPage = () => {
       setShowSuccess(true); 
     }
     setSyncing(false);
+  };
+
+  const handleDeleteTask = async () => {
+    if(!taskToDelete) return;
+    setSyncing(true);
+    try {
+      const ok = await syncTableRemote('TUGAS_RUTIN', 'DELETE', { id: taskToDelete.id });
+      if(ok) {
+        logActivity('DELETE', 'Tugas Rutin', `Hapus log: ${TASK_LABELS[taskToDelete.jenis]}`);
+        setSuccessMsg("Data log tugas berhasil dihapus secara permanen.");
+        // Update state lokal langsung agar UI responsif tanpa nunggu fetch ulang
+        setTasks(prev => prev.filter(t => t.id !== taskToDelete.id));
+        setIsConfirmOpen(false);
+        setShowSuccess(true);
+      } else {
+        alert("Gagal menghapus data dari server.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan koneksi.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const inputClass = "w-full px-5 py-3.5 bg-white border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950 shadow-sm";
@@ -307,14 +331,12 @@ const TugasRutinPage = () => {
   return (
     <div className="space-y-8 animate-fadeIn pb-24">
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} message={successMsg} />
-      <ConfirmationModal isOpen={isConfirmOpen} onClose={() => !syncing && setIsConfirmOpen(false)} onConfirm={async () => {
-         if(taskToDelete) {
-           setSyncing(true);
-           const ok = await syncTableRemote('TUGAS_RUTIN', 'DELETE', { id: taskToDelete.id });
-           if(ok) { await loadData(); setIsConfirmOpen(false); setShowSuccess(true); }
-           setSyncing(false);
-         }
-      }} loading={syncing} />
+      <ConfirmationModal 
+        isOpen={isConfirmOpen} 
+        onClose={() => !syncing && setIsConfirmOpen(false)} 
+        onConfirm={handleDeleteTask} 
+        loading={syncing} 
+      />
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
@@ -325,12 +347,11 @@ const TugasRutinPage = () => {
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           {canEdit && (
-            <button onClick={() => { setEditingTask(null); setFormData({ bulan: filterMonth, tahun: filterYear, jenis: TaskType.PELANTIKAN, data: {} }); setIsModalOpen(true); }} className="flex-1 md:flex-none px-10 h-14 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">+ Registrasi Log Baru</button>
+            <button onClick={() => { setEditingTask(null); setFormData({ bulan: filterMonth, tahun: filterYear, jenis: TaskType.PELANTIKAN, detail: '', data: {} }); setIsModalOpen(true); }} className="flex-1 md:flex-none px-10 h-14 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">+ Registrasi Log Baru</button>
           )}
         </div>
       </div>
 
-      {/* FILTER PANEL */}
       <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
         <select className="px-8 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black uppercase outline-none focus:border-blue-600 shadow-inner" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
             {BULAN.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
@@ -347,7 +368,7 @@ const TugasRutinPage = () => {
         <div className="overflow-x-auto">
            <table className="w-full text-left">
              <thead className="bg-[#111827] text-[8px] font-black uppercase text-gray-400 border-b border-white/5 tracking-widest">
-               <tr><th className="px-10 py-6 w-72">Kategori & Waktu</th><th className="px-4 py-6">Ringkasan Narasi & Capaian</th><th className="px-10 py-6 text-right">Opsi</th></tr>
+               <tr><th className="px-10 py-6 w-72">Kategori & Waktu</th><th className="px-4 py-6">Atribut Capaian Administrasi</th><th className="px-10 py-6 text-right">Opsi</th></tr>
              </thead>
              <tbody className="divide-y divide-gray-50">
                {filteredTasks.map(t => (
@@ -357,13 +378,17 @@ const TugasRutinPage = () => {
                      <p className="text-[12px] font-black text-gray-950 uppercase mt-2">{t.bulan} {t.tahun}</p>
                    </td>
                    <td className="px-4 py-7 align-top">
-                      <p className="text-[11px] font-bold text-gray-950 uppercase leading-relaxed line-clamp-3">{t.detail || 'Data Administrasi Terlampir.'}</p>
-                      {t.data && Object.keys(t.data).length > 0 && (
-                         <div className="mt-3 flex flex-wrap gap-2">
-                            {Object.entries(t.data).slice(0, 3).map(([k, v]) => (
-                               <span key={k} className="px-2 py-0.5 bg-gray-50 text-[7px] font-black text-gray-400 border rounded uppercase tracking-tighter">{k.replace(/_/g, ' ')}: {String(v)}</span>
+                      {t.data && Object.keys(t.data).length > 0 ? (
+                         <div className="flex flex-wrap gap-2">
+                            {Object.entries(t.data).map(([k, v]) => (
+                               <div key={k} className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl flex flex-col">
+                                  <span className="text-[7px] font-black text-gray-400 uppercase tracking-tighter">{k.replace(/_/g, ' ')}</span>
+                                  <span className="text-[10px] font-black text-gray-800 uppercase truncate max-w-[150px]">{String(v)}</span>
+                               </div>
                             ))}
                          </div>
+                      ) : (
+                         <p className="text-[10px] font-bold text-gray-300 italic uppercase">Tidak ada data atribut spesifik</p>
                       )}
                    </td>
                    <td className="px-10 py-7 text-right align-top">
@@ -387,13 +412,11 @@ const TugasRutinPage = () => {
         </div>
       </div>
 
-      {/* MODAL INPUT: POSISI DIPERBAIKI (START TOP + OFFSET) */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[2000] flex items-start justify-center p-4 pt-[140px] pb-10">
            <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => !syncing && setIsModalOpen(false)}></div>
            <div className="relative bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl overflow-hidden animate-modalEnter flex flex-col max-h-full border border-white/20">
               
-              {/* STICKY MODAL HEADER */}
               <div className="p-6 md:p-8 border-b bg-gray-50 shrink-0 flex justify-between items-center z-50 relative">
                  <div>
                     <h4 className="text-xl font-black uppercase text-gray-900 tracking-tighter">{editingTask ? 'Perbarui Log Capaian' : 'Registrasi Laporan Rutin'}</h4>
@@ -404,7 +427,6 @@ const TugasRutinPage = () => {
                  </button>
               </div>
               
-              {/* SCROLLABLE FORM BODY */}
               <form onSubmit={handleSave} className="flex-1 p-8 md:p-10 space-y-8 overflow-y-auto custom-scrollbar bg-white">
                  <div className="grid grid-cols-2 gap-6">
                     <div><label className={labelClass}>Periode Bulan</label><select className={inputClass} value={formData.bulan} onChange={e => setFormData({...formData, bulan: e.target.value})}>{BULAN.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}</select></div>
@@ -418,19 +440,14 @@ const TugasRutinPage = () => {
                     </select>
                  </div>
 
-                 {/* DYNAMIC FIELDS SECTION */}
                  <div className="p-8 bg-blue-50/50 rounded-[2.5rem] border-2 border-dashed border-blue-100 space-y-6">
                     <h6 className="text-[9px] font-black text-blue-600 uppercase tracking-widest border-b pb-2 flex items-center gap-2"><i className="bi bi-info-circle-fill"></i> Atribut Spesifik Kategori</h6>
                     {renderDynamicInputs()}
                  </div>
 
-                 <div>
-                    <label className={labelClass}>Narasi Ringkasan Realisasi (Tampil di Nota Dinas)</label>
-                    <textarea rows={4} className={`${inputClass} h-32 resize-none normal-case font-bold`} value={formData.detail || ''} onChange={e => setFormData({...formData, detail: e.target.value})} placeholder="Uraikan detail pencapaian yang akan ditampilkan pada naskah laporan bulanan..." />
-                 </div>
+                 {/* Field Narasi Ringkasan Realisasi dihilangkan sesuai permintaan */}
               </form>
 
-              {/* STICKY MODAL FOOTER */}
               <div className="p-6 md:p-8 bg-gray-50 border-t shrink-0 flex justify-end gap-4 z-50 relative">
                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl text-[10px] font-black uppercase shadow-sm active:scale-95 transition-all">Batalkan</button>
                  <button type="submit" onClick={handleSave} disabled={syncing} className="px-16 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center gap-4 active:scale-95 disabled:bg-gray-300">

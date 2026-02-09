@@ -1,5 +1,4 @@
 
-
 export enum TaskType {
   PELANTIKAN = 'PELANTIKAN',
   APEL = 'APEL',
@@ -137,11 +136,17 @@ export interface Pegawai {
   masaKerja?: string;
   tempatLahir?: string;
   tanggalLahir?: string;
-  // Fix: Added missing properties
   tmtStatus?: string;
   alamat?: string;
   eselon?: string;
   agama?: string;
+  // Field Tambahan Baru
+  noHp?: string;
+  email?: string;
+  npwp?: string;
+  noBpjs?: string;
+  noKarisKarsu?: string;
+  noTapera?: string;
 }
 
 export interface ABKAnjab { 
@@ -153,8 +158,6 @@ export interface ABKAnjab {
   kebutuhanPegawai: number; 
   selisih: number; 
   status: 'IDEAL' | 'KURANG' | 'LEBIH'; 
-  
-  // Analisis Jabatan (ANJAB) Fields
   ikhtisarJabatan: string;
   kualifikasiPendidikan: string;
   tanggungJawab: string;
@@ -167,8 +170,6 @@ export interface ABKAnjab {
   minatKerja: string;
   upayaFisik: string;
   kondisiFisik: string;
-  
-  // Workload Analysis (WLA)
   jamKerjaEfektif: number;
   uraianTugas: any; 
 }
@@ -185,7 +186,6 @@ export interface KenaikanKarir { id: string; nip: string; namaPegawai: string; j
 export interface Kegiatan { id: string; tanggal: string; judulKegiatan: string; tempat: string; jumlahPeserta: number; asalPeserta: string; laporanSingkat: string; linkDriveFoto: string; status: string; }
 export interface AbsensiRecord { id: string; nip: string; nama: string; waktu: string; tipe: 'MASUK' | 'PULANG'; status: string; lokasi: string; fotoAbsen: string; confidence: number; }
 
-// Fix: Added missing interfaces for system modules
 export interface MaintenanceConfig {
   all: boolean;
   pages: string[];
