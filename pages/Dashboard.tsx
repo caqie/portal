@@ -167,16 +167,13 @@ const Dashboard = () => {
       }
 
       // 2. KGB Reguler (2 Tahunan) - Untuk Semua Jenis Pegawai
-      // Menggunakan TMT Pangkat (PNS) atau TMT Status (PPPK/CPNS) sebagai anchor awal
       const anchorDate = p.tmtPangkat || p.tmtStatus;
       if (anchorDate) {
         const tmtParts = String(anchorDate).split(/[-/]/);
         if (tmtParts.length === 3) {
             const tmtYear = tmtParts[0].length === 4 ? parseInt(tmtParts[0]) : parseInt(tmtParts[2]);
             const diffYears = currentYear - tmtYear;
-            // Jika selisih tahun genap dan sudah lewat dari tahun TMT
             if (diffYears > 0 && diffYears % 2 === 0) {
-                // Cek apakah tahun ini sudah diproses di riwayat KGB
                 const sudahDiproses = riwayatKgb.some(k => k.nip === p.nip && k.tmtBaru && k.tmtBaru.includes(currentYear.toString()));
                 if (!sudahDiproses) {
                     listKGB.push({ nama: p.nama, nip: p.nip, tmtTerakhir: anchorDate, keterangan: `Jadwal KGB Tahun ${currentYear} (${p.jenisPegawai})` });
@@ -185,7 +182,7 @@ const Dashboard = () => {
         }
       }
 
-      // 3. Pangkat (4 Tahunan) - Biasanya untuk PNS
+      // 3. Pangkat (4 Tahunan)
       if (p.tmtPangkat && (p.jenisPegawai||'').toUpperCase() === 'PNS') {
         const tmtParts = String(p.tmtPangkat).split(/[-/]/);
         if (tmtParts.length === 3) {
@@ -222,6 +219,48 @@ const Dashboard = () => {
 
   const totalNotifCount = reminders.kgb.length + reminders.pangkat.length + reminders.pensiun.length + reminders.satya.length + reminders.bangkom.length;
 
+  const handleDownloadFullAnalytics = () => {
+    const wb = XLSX.utils.book_new();
+    
+    // Sheet 1: Unit Distribution
+    const unitWs = XLSX.utils.json_to_sheet(unitDistribution.map(u => ({ 
+      'Unit Kerja Pengampu': u.unit, 
+      'PNS': u.pns, 
+      'CPNS': u.cpns, 
+      'PPPK': u.pppk, 
+      'PPPK Paruh Waktu': u.pppkParuh, 
+      'Total ASN': u.total 
+    })));
+    XLSX.utils.book_append_sheet(wb, unitWs, "Sebaran Unit");
+    
+    // Sheet 2: Gender Stats
+    const genderWs = XLSX.utils.json_to_sheet([{
+      'Total Laki-laki': genderStats.pria,
+      'Total Perempuan': genderStats.wanita,
+      'Total ASN Aktif': activePegawaiList.length
+    }]);
+    XLSX.utils.book_append_sheet(wb, genderWs, "Gender");
+    
+    // Sheet 3: Education
+    const eduWs = XLSX.utils.json_to_sheet(educationStats.map(e => ({ 'Jenjang Pendidikan': e.label, 'Jumlah ASN': e.count })));
+    XLSX.utils.book_append_sheet(wb, eduWs, "Pendidikan");
+
+    // Sheet 4: Ranks (Grade)
+    const gradeWs = XLSX.utils.json_to_sheet(gradeStats.map(g => ({ 'Golongan / Ruang': g.label, 'Jumlah ASN': g.count })));
+    XLSX.utils.book_append_sheet(wb, gradeWs, "Golongan");
+    
+    XLSX.writeFile(wb, `PortalSDM_Full_Analytics_${new Date().getTime()}.xlsx`);
+    logActivity('DOWNLOAD', 'Analytics', 'Download Full Analytics Dashboard (All Sheets)');
+  };
+
+  const handleExportJabatan = () => {
+    const ws = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({ 'Nama Jabatan': j.jabatan, 'Jumlah Pegawai': j.total })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Matriks Jabatan");
+    XLSX.writeFile(wb, `Matriks_Jabatan_DJKI_${new Date().getTime()}.xlsx`);
+    logActivity('DOWNLOAD', 'Analytics', 'Download Matriks Nomenklatur Jabatan');
+  };
+
   return (
     <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -232,14 +271,8 @@ const Dashboard = () => {
           </p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
-          <button onClick={() => {
-            const wb = XLSX.utils.book_new();
-            const unitWs = XLSX.utils.json_to_sheet(unitDistribution.map(u => ({ 'Unit Kerja': u.unit, 'PNS': u.pns, 'CPNS': u.cpns, 'PPPK': u.pppk, 'PPPK Paruh Waktu': u.pppkParuh, 'Total ASN': u.total })));
-            XLSX.utils.book_append_sheet(wb, unitWs, "Sebaran Unit");
-            XLSX.writeFile(wb, `Analitik_SDM_DJKI_${new Date().getTime()}.xlsx`);
-            logActivity('DOWNLOAD', 'Analytics', 'Download Full Analytics Dashboard');
-          }} className="flex items-center gap-3 bg-emerald-600 p-4 px-8 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
-             <i className="bi bi-file-earmark-spreadsheet-fill text-lg"></i> Download Analytics
+          <button onClick={handleDownloadFullAnalytics} className="flex-1 md:flex-none flex items-center gap-3 bg-emerald-600 p-4 px-8 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
+             <i className="bi bi-file-earmark-spreadsheet-fill text-lg"></i> Download All Stats
           </button>
           <button onClick={() => setIsNotifOpen(true)} className="relative flex items-center gap-4 bg-white p-4 px-8 rounded-2xl border border-gray-100 shadow-sm active:scale-95 transition-all group">
              <i className="bi bi-bell-fill text-xl text-blue-600 group-hover:animate-swing"></i>
@@ -315,6 +348,7 @@ const Dashboard = () => {
                  <div className="p-6 bg-pink-50 rounded-3xl border border-pink-100"><p className="text-[9px] font-black text-pink-600 uppercase tracking-widest mb-1">Perempuan</p><h5 className="text-3xl font-black text-pink-900">{genderStats.wanita}</h5></div>
               </div>
            </div>
+           
            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <div className="flex justify-between items-center mb-6">
                  <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Statistik Tingkat Pendidikan</h4>
@@ -329,12 +363,54 @@ const Dashboard = () => {
                  ))}
               </div>
            </div>
+
+           {/* SEBARAN GOLONGAN TABLE (RE-ADDED) */}
+           <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+              <div className="flex justify-between items-center mb-6">
+                 <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Sebaran Golongan / Ruang</h4>
+                 <select className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterJenisGrade} onChange={e => setFilterJenisGrade(e.target.value)}><option value="Semua Jenis">Semua Jenis</option><option value="PNS">PNS</option><option value="CPNS">CPNS</option><option value="PPPK">PPPK</option></select>
+              </div>
+              <div className="overflow-x-auto max-h-[400px] custom-scrollbar border border-gray-50 rounded-3xl">
+                <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 bg-gray-50 z-20 text-[8px] font-black uppercase text-gray-400">
+                        <tr>
+                            <th className="px-8 py-5 border-b">Golongan / Ruang</th>
+                            <th className="px-6 py-5 text-right border-b text-blue-600">Total ASN</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                        {gradeStats.map((grade, i) => (
+                            <tr key={i} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-8 py-4 font-black text-[10px] text-gray-800">{grade.label}</td>
+                                <td className="px-6 py-4 text-right font-black text-[12px] text-gray-950">{grade.count}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    {gradeStats.length > 0 && (
+                        <tfoot className="bg-blue-50/30">
+                            <tr className="font-black text-[10px] text-blue-600 uppercase">
+                                <td className="px-8 py-4">Total Terdata</td>
+                                <td className="px-6 py-4 text-right">{gradeStats.reduce((acc, curr) => acc + curr.count, 0)}</td>
+                            </tr>
+                        </tfoot>
+                    )}
+                </table>
+              </div>
+           </div>
         </div>
 
         <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-full">
            <div className="flex flex-col mb-10 gap-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                 <div><h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Matriks Nomenklatur Jabatan</h4><p className="text-[8px] text-gray-400 font-bold uppercase mt-1 tracking-widest text-blue-600">Total Sebaran Nomenklatur Jabatan Terpusat</p></div>
+                 <div>
+                    <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Matriks Nomenklatur Jabatan</h4>
+                    <p className="text-[8px] text-gray-400 font-bold uppercase mt-1 tracking-widest text-blue-600">Total Sebaran Nomenklatur Jabatan Terpusat</p>
+                 </div>
+                 {/* RE-ADDED DOWNLOAD BUTTON */}
+                 <button onClick={handleExportJabatan} className="px-6 py-2.5 bg-[#111827] text-white rounded-xl text-[8px] font-black uppercase shadow-lg flex items-center gap-2 hover:bg-gray-800 transition-all active:scale-95">
+                    <i className="bi bi-file-earmark-spreadsheet text-sm"></i>
+                    Export Excel
+                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                  <div className="space-y-1.5"><label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Unit Kerja</label><select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}><option>Semua Unit</option>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>

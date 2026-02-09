@@ -126,14 +126,11 @@ const PegawaiPage = () => {
       data = filteredPegawai.map(p => ({
         'NIP': p.nip,
         'NAMA PEGAWAI': p.nama,
-        'GELAR': p.gelar || '-',
         'JABATAN': p.jabatan,
-        'TMT JABATAN': p.tmtJabatan || '-',
         'UNIT KERJA': p.unitKerja,
         'PANGKAT': p.pangkat || '-',
         'GOLONGAN': p.golRuang || '-',
-        'JENIS PEGAWAI': p.jenisPegawai,
-        'STATUS': p.status
+        'JENIS PEGAWAI': p.jenisPegawai
       }));
     } else {
       data = filteredPegawai.map(p => ({ ...p }));
