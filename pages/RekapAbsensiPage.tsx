@@ -44,7 +44,7 @@ const RekapAbsensiPage = () => {
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn pb-24">
+    <div className="space-y-8 animate-fadeIn pb-24 text-black">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
@@ -64,7 +64,7 @@ const RekapAbsensiPage = () => {
          <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Logs</p><h4 className="text-2xl font-black text-blue-600">{filteredLogs.length}</h4></div>
          <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Presensi Masuk</p><h4 className="text-2xl font-black text-emerald-600">{filteredLogs.filter(l=>l.tipe==='MASUK').length}</h4></div>
          <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Presensi Pulang</p><h4 className="text-2xl font-black text-amber-600">{filteredLogs.filter(l=>l.tipe==='PULANG').length}</h4></div>
-         <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Status Sistem</p><h4 className="text-2xl font-black text-gray-950">LIVE</h4></div>
+         <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Biometric Status</p><h4 className="text-2xl font-black text-gray-950 uppercase">Secured</h4></div>
       </div>
 
       <div className="bg-white p-6 md:p-10 rounded-[3rem] md:rounded-[4rem] border border-gray-100 shadow-sm space-y-8">
@@ -73,71 +73,59 @@ const RekapAbsensiPage = () => {
           <input type="text" placeholder="Cari Nama Pegawai atau NIP..." className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-[1.5rem] text-xs md:text-sm font-bold uppercase outline-none focus:border-blue-600 focus:bg-white transition-all shadow-inner" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
 
-        {/* MOBILE CARD VIEW - AUTO SHOWN ON MOBILE */}
-        <div className="grid grid-cols-1 gap-4 md:hidden">
-          {filteredLogs.map(l => (
-            <div key={l.id} className="p-6 bg-gray-50 border border-gray-100 rounded-[2.5rem] flex items-center gap-6 active:scale-95 transition-all">
-               <div className="h-16 w-16 rounded-[1.5rem] bg-white border-2 border-white ring-1 ring-gray-100 overflow-hidden shrink-0 shadow-lg"><img src={l.fotoAbsen} className="h-full w-full object-cover" /></div>
-               <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-2"><h6 className="text-[12px] font-black uppercase truncate pr-2 text-gray-950">{l.nama}</h6><span className={`text-[8px] font-black uppercase px-3 py-1 rounded-lg ${l.tipe==='MASUK'?'bg-emerald-600 text-white':'bg-amber-600 text-white'}`}>{l.tipe}</span></div>
-                  <p className="text-[10px] font-mono text-blue-600 font-bold tracking-tighter">NIP. {l.nip}</p>
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-dashed border-gray-200">
-                     <p className="text-[10px] font-bold text-gray-400">{l.waktu}</p>
-                     <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">{(l.confidence*100).toFixed(0)}% Verified</p>
-                  </div>
-               </div>
-            </div>
-          ))}
-          {filteredLogs.length === 0 && <div className="py-20 text-center text-gray-300 font-black uppercase text-[11px] tracking-widest">Data tidak ditemukan</div>}
-        </div>
-
-        {/* DESKTOP TABLE VIEW - AUTO SHOWN ON DESKTOP */}
-        <div className="hidden md:block overflow-hidden rounded-[2rem] border border-gray-50 shadow-inner">
+        {/* TABLE VIEW */}
+        <div className="overflow-hidden rounded-[2rem] border border-gray-50 shadow-inner">
            <table className="w-full text-left">
               <thead className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 border-b tracking-[0.2em]">
                  <tr>
-                    <th className="px-10 py-6">Identity Check</th>
+                    <th className="px-10 py-6">Informasi Pegawai</th>
                     <th className="px-4 py-6 text-center">Waktu & Tipe</th>
-                    <th className="px-4 py-6">Lokasi / Status</th>
-                    <th className="px-4 py-6 text-center">Biometric Score</th>
-                    <th className="px-10 py-6 text-right">Verification</th>
+                    <th className="px-4 py-6">Lokasi Presensi</th>
+                    <th className="px-4 py-6 text-center">Akurasi Biometrik</th>
+                    <th className="px-10 py-6 text-right">Verifikasi</th>
                  </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 bg-white">
-                 {filteredLogs.map(l => (
-                    <tr key={l.id} className="hover:bg-blue-50/5 transition-all group">
-                       <td className="px-10 py-6">
-                          <div className="flex items-center gap-5">
-                             <div className="h-14 w-14 rounded-2xl overflow-hidden bg-gray-100 border-2 border-white ring-1 ring-gray-100 shadow-xl group-hover:scale-110 transition-transform"><img src={l.fotoAbsen} className="w-full h-full object-cover" /></div>
-                             <div className="min-w-0">
-                                <p className="text-[13px] font-black uppercase text-gray-950 leading-tight">{l.nama}</p>
-                                <p className="text-[10px] font-mono text-gray-400 mt-1">NIP. {l.nip}</p>
-                             </div>
-                          </div>
-                       </td>
-                       <td className="px-4 py-6 text-center">
-                          <div className={`inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase mb-1.5 ${l.tipe === 'MASUK' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-amber-600 text-white shadow-lg shadow-amber-600/20'}`}>{l.tipe}</div>
-                          <p className="text-[11px] font-bold text-gray-700">{l.waktu}</p>
-                       </td>
-                       <td className="px-4 py-6">
-                          <p className="text-[11px] font-black text-gray-950 uppercase">{l.lokasi}</p>
-                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1 tracking-widest">Network Verified</p>
-                       </td>
-                       <td className="px-4 py-6 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                             <div className="h-1.5 w-16 bg-gray-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${l.confidence * 100}%` }}></div>
-                             </div>
-                             <span className="text-[11px] font-black text-emerald-600">{(l.confidence * 100).toFixed(0)}%</span>
-                          </div>
-                       </td>
-                       <td className="px-10 py-6 text-right">
-                          <span className="px-4 py-1.5 bg-blue-50 text-blue-600 text-[9px] font-black uppercase rounded-xl border border-blue-100 tracking-widest">VERIFIED</span>
-                       </td>
-                    </tr>
-                 ))}
+                 {filteredLogs.map(l => {
+                    const profile = pegawaiList.find(p => p.nip === l.nip);
+                    return (
+                        <tr key={l.id} className="hover:bg-blue-50/5 transition-all group">
+                        <td className="px-10 py-6">
+                            <div className="flex items-center gap-5">
+                                <div className="h-12 w-12 rounded-2xl overflow-hidden bg-gray-100 border-2 border-white ring-1 ring-gray-100 shadow-lg shrink-0">
+                                    {profile?.foto ? <img src={profile.foto} className="w-full h-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black">?</div>}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[13px] font-black uppercase text-gray-950 leading-tight">{l.nama}</p>
+                                    <p className="text-[10px] font-mono text-gray-400 mt-1">NIP. {l.nip}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td className="px-4 py-6 text-center">
+                            <div className={`inline-flex px-3 py-1 rounded-lg text-[9px] font-black uppercase mb-1.5 ${l.tipe === 'MASUK' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-amber-600 text-white shadow-lg shadow-amber-600/20'}`}>{l.tipe}</div>
+                            <p className="text-[11px] font-black text-gray-950 tabular-nums">{l.waktu}</p>
+                        </td>
+                        <td className="px-4 py-6">
+                            <p className="text-[11px] font-black text-gray-950 uppercase">{l.lokasi}</p>
+                            <p className="text-[9px] font-bold text-gray-400 uppercase mt-1 tracking-widest">Employee Data Match</p>
+                        </td>
+                        <td className="px-4 py-6 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                                <div className="h-1.5 w-16 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${l.confidence * 100}%` }}></div>
+                                </div>
+                                <span className="text-[11px] font-black text-emerald-600">{(l.confidence * 100).toFixed(0)}%</span>
+                            </div>
+                        </td>
+                        <td className="px-10 py-6 text-right">
+                            <span className="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase rounded-xl border border-emerald-100 tracking-widest">SUCCESS</span>
+                        </td>
+                        </tr>
+                    )
+                 })}
               </tbody>
            </table>
+           {filteredLogs.length === 0 && <div className="py-32 text-center text-gray-300 font-black uppercase text-[11px] tracking-widest opacity-40">Database audit absensi tidak ditemukan</div>}
         </div>
       </div>
     </div>

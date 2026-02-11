@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Pegawai, Dossier } from '../types';
 import { fetchPegawaiFromSheets, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { normalizeUnitName, UNIT_KERJA, PANGKAT_MAP, DEFAULT_LOGO } from '../constants';
+import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -187,11 +187,22 @@ const PegawaiPage = () => {
     if (!drhRef.current) return;
     setSyncing(true);
     try {
-      const canvas = await html2canvas(drhRef.current, { scale: 3, useCORS: true });
+      const canvas = await html2canvas(drhRef.current, { 
+        scale: 3, 
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 297);
-      pdf.save(`DRH_${selectedPegawai?.nama.replace(/\s+/g, '_')}_A4.pdf`);
-    } catch (e) { alert("Gagal cetak PDF."); } finally { setSyncing(false); }
+      pdf.save(`DRH_${selectedPegawai?.nama.replace(/\s+/g, '_')}.pdf`);
+      logActivity('DOWNLOAD', 'Pegawai', `Cetak DRH Pegawai: ${selectedPegawai?.nama}`);
+    } catch (e) { 
+      console.error(e);
+      alert("Gagal cetak PDF."); 
+    } finally { 
+      setSyncing(false); 
+    }
   };
 
   const inputClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950";
@@ -202,7 +213,7 @@ const PegawaiPage = () => {
   const detailValueNoCaps = "text-[13px] font-black text-gray-900 leading-tight";
 
   return (
-    <div className="space-y-8 animate-fadeIn pb-24">
+    <div className="space-y-8 animate-fadeIn pb-24 text-black">
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} message={successMsg} />
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => !syncing && setIsConfirmOpen(false)} onConfirm={async () => {
            if(pegawaiToDelete) {
@@ -299,8 +310,9 @@ const PegawaiPage = () => {
                        </div>
                     </div>
                     <div className="w-full space-y-3 pb-6">
-                       <button onClick={handleCetakDRH} className="w-full py-4 bg-[#111827] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
-                          <i className="bi bi-file-earmark-pdf-fill"></i> Cetak DRH
+                       <button onClick={handleCetakDRH} disabled={syncing} className="w-full py-4 bg-[#111827] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
+                          {syncing ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>}
+                          Cetak DRH
                        </button>
                        {canEdit && (
                          <button onClick={() => handleEditPegawai(selectedPegawai)} className="w-full py-4 bg-white border-2 border-gray-100 text-gray-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 hover:text-blue-600 transition-all flex items-center justify-center gap-3">
@@ -414,7 +426,7 @@ const PegawaiPage = () => {
         <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
            <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-sm" onClick={() => !uploading && setIsAddDossierOpen(false)}></div>
            <div className="relative bg-white w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden animate-modalEnter border border-white/20">
-              <div className="p-8 border-b bg-gray-50 flex justify-between items-center">
+              <div className="p-8 border-b bg-gray-50 flex justify-between items-center shrink-0">
                  <div>
                     <h4 className="text-xl font-black uppercase text-gray-950 tracking-tighter">Tambah Berkas Digital</h4>
                     <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Upload to Personnel Dossier</p>
@@ -558,67 +570,97 @@ const PegawaiPage = () => {
         </div>
       )}
 
-      {/* TEMPLATE DAFTAR RIWAYAT HIDUP (HIDDEN UNTUK PDF) */}
+      {/* TEMPLATE DAFTAR RIWAYAT HIDUP (PRINT READY) */}
       <div className="fixed -left-[4000px] top-0 pointer-events-none">
          <div ref={drhRef} className="bg-white text-black font-arial p-[1.5cm_1.5cm] leading-tight" style={{ width: '210mm', minHeight: '297mm' }}>
+            {/* OFFICIAL HEADER */}
+            <div className="flex flex-col items-center mb-8 border-b-2 border-black pb-4 text-center">
+                <img src={LOGO_PENGAYOMAN_URL} className="h-20 mb-4 grayscale" crossOrigin="anonymous" />
+                <p className="text-[12pt] font-bold uppercase leading-tight">KEMENTERIAN HUKUM</p>
+                <p className="text-[12pt] font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                <p className="text-[9pt] font-normal leading-tight mt-1">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
+            </div>
+
             <div className="text-center mb-8">
-               <h1 className="text-[14pt] font-bold uppercase underline">DAFTAR RIWAYAT HIDUP</h1>
-               <p className="text-[10pt] font-bold mt-1">PEGAWAI DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+               <h1 className="text-[13pt] font-bold uppercase underline leading-tight">DAFTAR RIWAYAT HIDUP</h1>
+               <p className="text-[10pt] font-bold mt-1">PEGAWAI NEGERI SIPIL / PPPK</p>
             </div>
 
-            <div className="space-y-6 text-[10pt]">
+            <div className="space-y-6 text-[10pt] text-black">
                <section>
-                  <p className="font-bold border-b border-black mb-2 uppercase">I. DATA PRIBADI</p>
-                  <div className="grid grid-cols-[180px_10px_1fr] gap-y-1.5">
-                     <span>1. Nama Lengkap</span><span>:</span><span className="font-bold uppercase underline">{selectedPegawai?.nama}{selectedPegawai?.gelar ? `, ${selectedPegawai?.gelar}` : ''}</span>
-                     <span>2. NIP</span><span>:</span><span className="font-bold">{selectedPegawai?.nip}</span>
-                     <span>3. NIK</span><span>:</span><span>{selectedPegawai?.nik || '-'}</span>
-                     <span>4. Tempat, Tgl Lahir</span><span>:</span><span className="uppercase">{selectedPegawai?.tempatLahir || '-'}, {selectedPegawai?.tanggalLahir || '-'}</span>
-                     <span>5. Jenis Kelamin</span><span>:</span><span>{selectedPegawai?.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</span>
-                     <span>6. Agama</span><span>:</span><span className="uppercase">{selectedPegawai?.agama || '-'}</span>
-                     <span>7. Alamat</span><span>:</span><span className="uppercase">{selectedPegawai?.alamat || '-'}</span>
-                     <span>8. No. HP / Email</span><span>:</span><span>{selectedPegawai?.noHp || '-'} / {selectedPegawai?.email || '-'}</span>
-                  </div>
+                  <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">I. DATA PRIBADI</p>
+                  <table className="w-full border-collapse">
+                     <tbody>
+                        <tr><td className="w-[180px] py-1">1. Nama Lengkap</td><td className="w-4 py-1 text-center">:</td><td className="py-1 font-bold uppercase underline">{selectedPegawai?.nama}{selectedPegawai?.gelar ? `, ${selectedPegawai?.gelar}` : ''}</td></tr>
+                        <tr><td className="py-1">2. NIP</td><td className="py-1 text-center">:</td><td className="py-1 font-bold">{selectedPegawai?.nip}</td></tr>
+                        <tr><td className="py-1">3. NIK</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.nik || '-'}</td></tr>
+                        <tr><td className="py-1">4. Tempat, Tgl Lahir</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.tempatLahir || '-'}, {selectedPegawai?.tanggalLahir || '-'}</td></tr>
+                        <tr><td className="py-1">5. Jenis Kelamin</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</td></tr>
+                        <tr><td className="py-1">6. Agama</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.agama || '-'}</td></tr>
+                        <tr><td className="py-1">7. Alamat Domisili</td><td className="py-1 text-center">:</td><td className="py-1 uppercase leading-tight">{selectedPegawai?.alamat || '-'}</td></tr>
+                        <tr><td className="py-1">8. No. Telepon / HP</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.noHp || '-'}</td></tr>
+                        <tr><td className="py-1">9. E-Mail</td><td className="py-1 text-center">:</td><td className="py-1 text-blue-800 lowercase">{selectedPegawai?.email || '-'}</td></tr>
+                     </tbody>
+                  </table>
                </section>
 
                <section>
-                  <p className="font-bold border-b border-black mb-2 uppercase">II. POSISI DAN KEPANGKATAN</p>
-                  <div className="grid grid-cols-[180px_10px_1fr] gap-y-1.5">
-                     <span>1. Jabatan</span><span>:</span><span className="font-bold uppercase">{selectedPegawai?.jabatan || '-'}</span>
-                     <span>2. TMT Jabatan</span><span>:</span><span>{selectedPegawai?.tmtJabatan || '-'}</span>
-                     <span>3. Eselon</span><span>:</span><span>{selectedPegawai?.eselon || '-'}</span>
-                     <span>4. Pangkat / Golongan</span><span>:</span><span className="uppercase">{selectedPegawai?.pangkat} ({selectedPegawai?.golRuang})</span>
-                     <span>5. TMT Pangkat</span><span>:</span><span>{selectedPegawai?.tmtPangkat || '-'}</span>
-                     <span>6. Unit Kerja</span><span>:</span><span className="uppercase">{selectedPegawai?.unitKerja}</span>
-                     <span>7. Masa Kerja Golongan</span><span>:</span><span className="uppercase">{selectedPegawai?.masaKerja || '-'}</span>
-                  </div>
+                  <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">II. POSISI DAN KEPANGKATAN</p>
+                  <table className="w-full border-collapse">
+                     <tbody>
+                        <tr><td className="w-[180px] py-1">1. Nama Jabatan</td><td className="w-4 py-1 text-center">:</td><td className="py-1 font-bold uppercase">{selectedPegawai?.jabatan || '-'}</td></tr>
+                        <tr><td className="py-1">2. TMT Jabatan</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.tmtJabatan || '-'}</td></tr>
+                        <tr><td className="py-1">3. Eselon</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.eselon || '-'}</td></tr>
+                        <tr><td className="py-1">4. Pangkat (Golongan)</td><td className="py-1 text-center">:</td><td className="py-1 uppercase font-bold">{selectedPegawai?.pangkat} ({selectedPegawai?.golRuang})</td></tr>
+                        <tr><td className="py-1">5. TMT Pangkat</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.tmtPangkat || '-'}</td></tr>
+                        <tr><td className="py-1">6. Masa Kerja Golongan</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.masaKerja || '-'}</td></tr>
+                        <tr><td className="py-1">7. Unit Kerja</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.unitKerja}</td></tr>
+                        <tr><td className="py-1">8. TMT CPNS / Kontrak</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.tmtStatus || '-'}</td></tr>
+                     </tbody>
+                  </table>
                </section>
 
                <section>
-                  <p className="font-bold border-b border-black mb-2 uppercase">III. RIWAYAT PENDIDIKAN</p>
-                  <div className="grid grid-cols-[180px_10px_1fr] gap-y-1.5">
-                     <span>1. Tingkat Pendidikan</span><span>:</span><span className="uppercase font-bold">{selectedPegawai?.pendidikan || '-'}</span>
-                     <span>2. Jurusan</span><span>:</span><span className="uppercase">{selectedPegawai?.jurusan || '-'}</span>
-                  </div>
+                  <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">III. RIWAYAT PENDIDIKAN</p>
+                  <table className="w-full border-collapse">
+                     <tbody>
+                        <tr><td className="w-[180px] py-1">1. Jenjang Pendidikan</td><td className="w-4 py-1 text-center">:</td><td className="py-1 uppercase font-bold">{selectedPegawai?.pendidikan || '-'}</td></tr>
+                        <tr><td className="py-1">2. Program Studi / Jurusan</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.jurusan || '-'}</td></tr>
+                     </tbody>
+                  </table>
                </section>
 
                <section>
-                  <p className="font-bold border-b border-black mb-2 uppercase">IV. DOKUMEN IDENTITAS LAINNYA</p>
-                  <div className="grid grid-cols-[180px_10px_1fr] gap-y-1.5">
-                     <span>1. Nomor NPWP</span><span>:</span><span>{selectedPegawai?.npwp || '-'}</span>
-                     <span>2. Nomor BPJS</span><span>:</span><span>{selectedPegawai?.noBpjs || '-'}</span>
-                     <span>3. No. Karis / Karsu</span><span>:</span><span>{selectedPegawai?.noKarisKarsu || '-'}</span>
-                  </div>
+                  <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">IV. DATA ADMINISTRASI LAINNYA</p>
+                  <table className="w-full border-collapse">
+                     <tbody>
+                        <tr><td className="w-[180px] py-1">1. Nomor NPWP</td><td className="w-4 py-1 text-center">:</td><td className="py-1">{selectedPegawai?.npwp || '-'}</td></tr>
+                        <tr><td className="py-1">2. Nomor BPJS Kes.</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.noBpjs || '-'}</td></tr>
+                        <tr><td className="py-1">3. No. Karis / Karsu</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.noKarisKarsu || '-'}</td></tr>
+                     </tbody>
+                  </table>
                </section>
             </div>
 
-            <div className="mt-20 ml-[55%] text-center text-[10pt]">
-               <p>Jakarta, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-               <div className="mt-2 text-center flex justify-center">
-                  <div className="h-32 w-24 border border-dashed border-gray-300 flex items-center justify-center text-[8pt] italic text-gray-400">PAS FOTO 3X4</div>
+            <div className="mt-14 flex justify-between items-start text-black">
+               <div className="w-[3.5cm] h-[4.5cm] border-2 border-black flex flex-col items-center justify-center text-[7pt] italic text-gray-400 p-2 text-center ml-10">
+                  {selectedPegawai?.foto ? (
+                    <img src={selectedPegawai.foto} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                  ) : (
+                    <span>PAS FOTO 3X4<br/>TEMPEL DI SINI</span>
+                  )}
                </div>
-               <p className="mt-4 font-bold uppercase underline leading-none">{selectedPegawai?.nama}</p>
-               <p className="mt-1">NIP {selectedPegawai?.nip}</p>
+               
+               <div className="text-center w-[250px] mr-10">
+                  <p className="text-[10pt]">Jakarta, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  <p className="mt-1 mb-28 uppercase font-bold text-[10pt]">Pegawai Bersangkutan,</p>
+                  <p className="font-bold uppercase underline leading-none text-[11pt]">{selectedPegawai?.nama}</p>
+                  <p className="mt-1 text-[10pt]">NIP {selectedPegawai?.nip}</p>
+               </div>
+            </div>
+
+            <div className="mt-10 pt-4 border-t border-dotted border-black/30 text-[7pt] italic text-gray-500 text-right">
+                Dokumen ini dicetak secara otomatis melalui PORTAL SDM DJKI pada {new Date().toLocaleString('id-ID')}.
             </div>
          </div>
       </div>

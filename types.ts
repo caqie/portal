@@ -26,6 +26,16 @@ export enum TaskType {
   UANG_MAKAN = 'UANG_MAKAN'
 }
 
+export interface SatyaLencanaRecord {
+  id: string;
+  nip: string;
+  namaPegawai: string;
+  kategori: '10 TAHUN' | '20 TAHUN' | '30 TAHUN' | string;
+  tahunTerima: number;
+  nomorKeppres: string;
+  fileSertifikatUrl?: string;
+}
+
 export interface PersuratanRecord {
   id: string;
   jenisSurat: 'MASUK' | 'KELUAR' | 'LAPORAN' | string;
@@ -184,7 +194,7 @@ export interface SpmtSppRecord { id: string; type: 'SPP' | 'SPMT'; nomor: string
 export interface PAKRecord { id: string; nip: string; namaPegawai: string; nomor: string; periode: string; tglDibuat: string; penilaiNip: string; akKonversi: number; jumlahKredit: number; akumulasi: any[]; }
 export interface KenaikanKarir { id: string; nip: string; namaPegawai: string; jenisUsulan: string; dari: string; menjadi: string; tmtUsulan: string; status: string; }
 export interface Kegiatan { id: string; tanggal: string; judulKegiatan: string; tempat: string; jumlahPeserta: number; asalPeserta: string; laporanSingkat: string; linkDriveFoto: string; status: string; }
-export interface AbsensiRecord { id: string; nip: string; nama: string; waktu: string; tipe: 'MASUK' | 'PULANG'; status: string; lokasi: string; fotoAbsen: string; confidence: number; }
+export interface AbsensiRecord { id: string; nip: string; nama: string; waktu: string; tipe: 'MASUK' | 'PULANG'; status: string; lokasi: string; confidence: number; }
 
 export interface MaintenanceConfig {
   all: boolean;
