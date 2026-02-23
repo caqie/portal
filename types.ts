@@ -127,7 +127,6 @@ export interface Pegawai {
   id: string; 
   nip: string; 
   nama: string; 
-  gelar?: string; 
   jabatan: string; 
   klasifikasiJabatan?: string;
   subBagian?: string;
@@ -147,7 +146,7 @@ export interface Pegawai {
   masaKerja?: string;
   tempatLahir?: string;
   tanggalLahir?: string;
-  tmtStatus?: string;
+  tmtCpns?: string;
   alamat?: string;
   eselon?: string;
   agama?: string;

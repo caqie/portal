@@ -87,7 +87,7 @@ const KGBGeneratorPage = () => {
         unitKerja: p.unitKerja,
         gajiLama: currentSalary,
         gajiBaru: nextSalary,
-        tmtLama: formatDateForInput(p.tmtPangkat || p.tmtStatus),
+        tmtLama: formatDateForInput(p.tmtPangkat || p.tmtCpns),
         tmtBaru: '',
         masaKerjaTahun: years + 2
       });

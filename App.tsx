@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 // @ts-ignore
 import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
@@ -34,7 +33,7 @@ const SidebarItem = ({ to, icon, label, active, collapsed, onClick }: any) => (
   <Link 
     to={to} 
     onClick={onClick}
-    className={`flex items-center px-4 py-3.5 transition-all duration-300 group relative rounded-xl mx-3 mb-1 ${active ? 'bg-blue-600/10 text-blue-500' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+    className={`flex items-center px-4 py-3.5 transition-all duration-300 group relative rounded-xl mx-3 mb-1 ${active ? 'bg-blue-600/10 text-blue-50' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
   >
     {active && (
       <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-500 rounded-r-full shadow-[0_0_12px_rgba(59,130,246,0.8)]"></div>
@@ -55,6 +54,7 @@ const SidebarItem = ({ to, icon, label, active, collapsed, onClick }: any) => (
 const AppContent = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
   const [isCollapsed, setIsCollapsed] = useState(window.innerWidth < 1440);
+  const [isMobileView, setIsMobileView] = useState(window.innerWidth < 1024);
   const [systemName, setSystemName] = useState('Portal SDM');
   const [systemLogo, setSystemLogo] = useState<string | null>(DEFAULT_LOGO);
   const [runningText, setRunningText] = useState(localStorage.getItem('portal_running_text') || 'Selamat Datang di Portal SDM DJKI.');
@@ -71,9 +71,10 @@ const AppContent = () => {
 
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 1024) setIsSidebarOpen(true);
-      if (window.innerWidth < 1440) setIsCollapsed(true);
-      else setIsCollapsed(false);
+      const width = window.innerWidth;
+      if (width >= 1024) setIsSidebarOpen(true);
+      setIsCollapsed(width < 1440);
+      setIsMobileView(width < 1024);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -144,7 +145,10 @@ const AppContent = () => {
             )}
 
             {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Kehadiran</div>}
-            <SidebarItem to="/absensi-online" icon="bi-camera-fill" label="Absensi Wajah" active={location.pathname === '/absensi-online'} collapsed={isCollapsed} />
+            {/* Hanya tampilkan menu absensi di Mobile View */}
+            {isMobileView && (
+              <SidebarItem to="/absensi-online" icon="bi-camera-fill" label="Absensi Wajah" active={location.pathname === '/absensi-online'} collapsed={isCollapsed} />
+            )}
             <SidebarItem to="/rekap-absensi" icon="bi-clipboard-data-fill" label="Rekapitulasi" active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />
 
             {isSuperadmin && (
@@ -242,7 +246,7 @@ const AppContent = () => {
               <Route path="/satya-lencana" element={<SatyaLencanaPage />} />
               <Route path="/magang-pkl" element={<MagangPKLPage />} />
               <Route path="/persuratan" element={<PersuratanPage />} />
-              <Route path="/pengembangan" element={<PengembanganPage />} />
+              <Route path="/pengembangan" element={< PengembanganPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

@@ -187,7 +187,7 @@ const Dashboard = () => {
       if (ret && ret.tmtPensiun && ret.tmtPensiun.getFullYear() === currentYear) {
         listPensiun.push({ nama: p.nama, nip: p.nip, tmt: ret.tmtPensiun.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), sisa: ret.sisaMasaKerja });
       }
-      const anchorDate = p.tmtPangkat || p.tmtStatus;
+      const anchorDate = p.tmtPangkat || p.tmtCpns;
       if (anchorDate) {
         const tmtParts = String(anchorDate).split(/[-/]/);
         if (tmtParts.length === 3) {

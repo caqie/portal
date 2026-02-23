@@ -104,7 +104,7 @@ const PensiunPage = () => {
         alamatSekarang: p.alamat || '',
         alamatPensiun: p.alamat || '',
         bup: ret?.bup.toString() || '60',
-        mulaiMasukPns: p.tmtStatus || '',
+        mulaiMasukPns: p.tmtCpns || '',
         pendidikanDasar: p.pendidikan || ''
       });
       setActiveView('editor');

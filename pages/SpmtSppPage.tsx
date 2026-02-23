@@ -141,13 +141,13 @@ const SpmtSppPage = () => {
            <div className="grid grid-cols-2 gap-8">
               <div className="space-y-6">
                  <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-2 tracking-widest">Data Pejabat & Nomor</h5>
-                 <SearchableSelect label="Pejabat Penandatangan" options={searchableOptions} value={formData.pejabatNip} onChange={v=>setFormData({...formData, pejabatNip: v})} />
-                 <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Dokumen</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border rounded-xl text-xs font-bold" value={formData.nomor} onChange={e=>setFormData({...formData, nomor: e.target.value})} /></div>
+                 <SearchableSelect label="Pejabat Penandatangan" options={searchableOptions} value={formData.pejabatNip || ''} onChange={v=>setFormData({...formData, pejabatNip: v})} />
+                 <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Dokumen</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border rounded-xl text-xs font-bold" value={formData.nomor || ''} onChange={e=>setFormData({...formData, nomor: e.target.value})} /></div>
               </div>
               <div className="space-y-6">
                  <h5 className="text-[10px] font-black text-emerald-600 uppercase border-b pb-2 tracking-widest">Data Pegawai & SK</h5>
-                 <SearchableSelect label="Pegawai Bersangkutan" options={searchableOptions} value={formData.pegawaiNip} onChange={handlePegawaiSelect} />
-                 <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK Menteri</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border rounded-xl text-xs font-bold" value={formData.nomorSK} onChange={e=>setFormData({...formData, nomorSK: e.target.value})} /></div>
+                 <SearchableSelect label="Pegawai Bersangkutan" options={searchableOptions} value={formData.pegawaiNip || ''} onChange={handlePegawaiSelect} />
+                 <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK Menteri</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border rounded-xl text-xs font-bold" value={formData.nomorSK || ''} onChange={e=>setFormData({...formData, nomorSK: e.target.value})} /></div>
               </div>
            </div>
            <div className="pt-10 border-t flex justify-center"><button onClick={handleSave} disabled={syncing} className="px-24 py-5 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-2xl active:scale-95 transition-all">Generate & Pratinjau F4</button></div>

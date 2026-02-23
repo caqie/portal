@@ -103,18 +103,23 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
   return fetchTableData<Pegawai>('PEGAWAI', 'portal_pegawai_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return {
-      id: get('ID'), nip: get('NIP').replace(/\D/g, ''), nama: get('NAMA'), gelar: get('GELAR'), 
+      id: get('ID'), nip: get('NIP').replace(/\D/g, ''), nama: get('NAMA'), 
       jabatan: get('JABATAN'), 
       klasifikasiJabatan: get('KLASIFIKASI') || get('KLASIFIKASIJABATAN'),
       subBagian: get('SUBBAGIAN'), bagian: get('BAGIAN'),
-      unitKerja: get('UNITKERJA') || 'DJKI', gender: get('JENISKELAMIN').startsWith('P') ? 'P' : 'L',
+      unitKerja: get('UNITKERJA') || 'DJKI', gender: (() => {
+        const g = (get('GENDER') || get('JENISKELAMIN')).toUpperCase();
+        if (g === 'P' || g.startsWith('PEREMPUAN') || g === 'WANITA') return 'P';
+        return 'L';
+      })() as 'L' | 'P',
       golRuang: get('GOLRUANG'), jenisPegawai: get('JENISPEGAWAI'), status: get('STATUS') || 'Aktif',
       pangkat: get('PANGKAT'), foto: get('FOTO') || get('FOTOURL'),
-      tmtPangkat: get('TMTPANGKAT'), tmtJabatan: get('TMTJABATAN'), tmtStatus: get('TMTSTATUS'),
+      tmtPangkat: get('TMTPANGKAT'), tmtJabatan: get('TMTJABATAN'), tmtCpns: get('TMTSTATUS') || get('TMTCPNS'),
       pendidikan: get('PENDIDIKAN'), jurusan: get('JURUSAN'), nik: get('NIK'),
       masaKerja: get('MASAKERJA'), tempatLahir: get('TEMPATLAHIR'), tanggalLahir: get('TANGGALLAHIR'),
       alamat: get('ALAMAT'), eselon: get('ESELON'), agama: get('AGAMA'),
-      noHp: get('NOHP'), email: get('EMAIL'), npwp: get('NPWP'), noBpjs: get('NOBPJS'), noKarisKarsu: get('NOKARISKARSU')
+      noHp: get('NOHP'), email: get('EMAIL'), npwp: get('NPWP'), noBpjs: get('NOBPJS'), noKarisKarsu: get('NOKARISKARSU'),
+      noTapera: get('NOTAPERA')
     } as Pegawai;
   });
 };

@@ -264,12 +264,12 @@ const LaporanPage = () => {
                                  {t.detail}
                                  {t.data && Object.keys(t.data).length > 0 && (
                                     <div className="mt-2 pt-2 border-t border-black/40 not-italic text-[8pt] grid grid-cols-2 gap-2 text-black">
-                                       {Object.entries(t.data).map(([k, v]) => v && (
+                                       {Object.entries(t.data as Record<string, any>).map(([k, v]) => v ? (
                                           <div key={k} className="flex gap-2">
                                              <span className="font-bold uppercase shrink-0 text-black">{k.replace(/_/g, ' ')}:</span>
                                              <span className="truncate text-black font-semibold">{String(v)}</span>
                                           </div>
-                                       ))}
+                                       ) : null)}
                                     </div>
                                  )}
                               </div>

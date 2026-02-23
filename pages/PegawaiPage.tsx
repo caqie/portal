@@ -38,10 +38,12 @@ const PegawaiPage = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [pegawaiToDelete, setPegawaiToDelete] = useState<Pegawai | null>(null);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   
   const drhRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dossierFileInputRef = useRef<HTMLInputElement>(null);
+  const importExcelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -76,7 +78,7 @@ const PegawaiPage = () => {
       ...p,
       tmtPangkat: formatDateForInput(p.tmtPangkat),
       tmtJabatan: formatDateForInput(p.tmtJabatan),
-      tmtStatus: formatDateForInput(p.tmtStatus),
+      tmtCpns: formatDateForInput(p.tmtCpns),
       tanggalLahir: formatDateForInput(p.tanggalLahir)
     });
     setIsModalOpen(true);
@@ -103,9 +105,14 @@ const PegawaiPage = () => {
     const wb = XLSX.utils.book_new();
     let data;
     if (type === 'SHARE') {
-      data = filteredPegawai.map(p => ({
-        'NIP': p.nip, 'NAMA PEGAWAI': p.nama, 'JABATAN': p.jabatan, 'UNIT KERJA': p.unitKerja,
-        'PANGKAT': p.pangkat || '-', 'GOLONGAN': p.golRuang || '-', 'JENIS PEGAWAI': p.jenisPegawai
+      data = filteredPegawai.map((p, index) => ({
+        'No': index + 1,
+        'NIP': p.nip,
+        'NAMA': p.nama,
+        'Pangkat/golongan': `${p.pangkat || '-'}, ${p.golRuang || '-'}`,
+        'Jabatan': p.jabatan,
+        'Unit kerja': p.unitKerja,
+        'Jenis pegawai': p.jenisPegawai
       }));
     } else {
       data = filteredPegawai.map(p => ({ ...p }));
@@ -183,6 +190,101 @@ const PegawaiPage = () => {
     setSyncing(false);
   };
 
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        setSyncing(true);
+        setImportProgress({ current: 0, total: 0 });
+        
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+        if (data.length === 0) {
+          alert("File Excel kosong atau tidak valid.");
+          setSyncing(false);
+          return;
+        }
+
+        // Filter data yang punya NIP
+        const validData = data.filter(row => row.NIP || row.nip || row['NIP (18 Digit)']);
+        if (validData.length === 0) {
+          alert("Tidak ditemukan kolom NIP pada file Excel.");
+          setSyncing(false);
+          return;
+        }
+
+        setImportProgress({ current: 0, total: validData.length });
+
+        let successCount = 0;
+        for (let i = 0; i < validData.length; i++) {
+          const row = validData[i];
+          const payload: any = {};
+                    Object.keys(row).forEach(key => {
+            const normalizedKey = key.toLowerCase().replace(/[\s_.]/g, '');
+            const val = row[key];
+            
+            if (normalizedKey === 'nip' || normalizedKey === 'nip18digit') payload.nip = String(val).replace(/\D/g, '');
+            else if (normalizedKey === 'nama' || normalizedKey === 'namapegawai') payload.nama = val;
+            else if (normalizedKey === 'jabatan') payload.jabatan = val;
+            else if (normalizedKey === 'klasifikasi' || normalizedKey === 'klasifikasijabatan') payload.klasifikasiJabatan = val;
+            else if (normalizedKey === 'subbagian') payload.subBagian = val;
+            else if (normalizedKey === 'bagian') payload.bagian = val;
+            else if (normalizedKey === 'unitkerja') payload.unitKerja = val;
+            else if (normalizedKey === 'golruang' || normalizedKey === 'golongan') payload.golRuang = val;
+            else if (normalizedKey === 'pangkat') payload.pangkat = val;
+            else if (normalizedKey === 'jenispegawai') payload.jenisPegawai = val;
+            else if (normalizedKey === 'status') payload.status = val;
+            else if (normalizedKey === 'nik') payload.nik = val;
+            else if (normalizedKey === 'alamat') payload.alamat = val;
+            else if (normalizedKey === 'email') payload.email = val;
+            else if (normalizedKey === 'nohp' || normalizedKey === 'telepon') payload.noHp = val;
+            else if (normalizedKey === 'tmtpangkat') payload.tmtPangkat = val;
+            else if (normalizedKey === 'tmtjabatan') payload.tmtJabatan = val;
+            else if (normalizedKey === 'tmtstatus' || normalizedKey === 'tmtcpns') payload.tmtCpns = val;
+            else if (normalizedKey === 'pendidikan') payload.pendidikan = val;
+            else if (normalizedKey === 'jurusan') payload.jurusan = val;
+            else if (normalizedKey === 'masakerja') payload.masaKerja = val;
+            else if (normalizedKey === 'tempatlahir') payload.tempatLahir = val;
+            else if (normalizedKey === 'tanggallahir') payload.tanggalLahir = val;
+            else if (normalizedKey === 'eselon') payload.eselon = val;
+            else if (normalizedKey === 'agama') payload.agama = val;
+            else if (normalizedKey === 'npwp') payload.npwp = val;
+            else if (normalizedKey === 'nobpjs') payload.noBpjs = val;
+            else if (normalizedKey === 'nokariskarsu') payload.noKarisKarsu = val;
+            else if (normalizedKey === 'notapera') payload.noTapera = val;
+            else if (normalizedKey === 'gender' || normalizedKey === 'jeniskelamin') payload.gender = String(val).toUpperCase().startsWith('P') ? 'P' : 'L';
+            else payload[key] = val;
+          });
+
+          if (payload.nip) {
+            const ok = await syncTableRemote('PEGAWAI', 'SAVE', payload);
+            if (ok) successCount++;
+          }
+          setImportProgress(prev => ({ ...prev, current: i + 1 }));
+        }
+
+        setSuccessMsg(`Berhasil memproses ${validData.length} baris. ${successCount} data berhasil diperbarui/ditambahkan.`);
+        setShowSuccess(true);
+        await loadData();
+      } catch (err) {
+        console.error(err);
+        alert("Terjadi kesalahan saat membaca file Excel.");
+      } finally {
+        setSyncing(false);
+        setImportProgress({ current: 0, total: 0 });
+        if (importExcelInputRef.current) importExcelInputRef.current.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const handleCetakDRH = async () => {
     if (!drhRef.current) return;
     setSyncing(true);
@@ -221,6 +323,10 @@ const PegawaiPage = () => {
              await syncTableRemote('PEGAWAI', 'DELETE', { nip: pegawaiToDelete.nip });
              setPegawaiList(prev => prev.filter(p => p.nip !== pegawaiToDelete.nip));
              setIsConfirmOpen(false);
+             if (selectedPegawai?.nip === pegawaiToDelete.nip) {
+               setIsDetailOpen(false);
+               setSelectedPegawai(null);
+             }
              setSyncing(false);
            }
         }} loading={syncing} message={`Hapus data pegawai "${pegawaiToDelete?.nama}" secara permanen?`} />
@@ -234,6 +340,23 @@ const PegawaiPage = () => {
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-2"><i className="bi bi-shield-check text-blue-600"></i> Terintegrasi dengan Cloud Google Spreadsheet</p>
         </div>
         <div className="flex flex-wrap gap-2">
+           <input type="file" ref={importExcelInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
+           {canEdit && (
+             <button 
+               onClick={() => importExcelInputRef.current?.click()} 
+               disabled={syncing}
+               className="h-14 px-6 bg-blue-50 text-blue-600 border border-blue-100 rounded-2xl font-black text-[10px] uppercase hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2"
+             >
+               {syncing && importProgress.total > 0 ? (
+                 <div className="flex items-center gap-2">
+                   <div className="h-4 w-4 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div>
+                   <span>{importProgress.current}/{importProgress.total}</span>
+                 </div>
+               ) : (
+                 <><i className="bi bi-file-earmark-arrow-up-fill text-lg"></i> Import Excel</>
+               )}
+             </button>
+           )}
            <button onClick={() => handleExportExcel('SHARE')} className="h-14 px-6 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-2xl font-black text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2"><i className="bi bi-file-earmark-spreadsheet-fill text-lg"></i> Excel Share</button>
            {canEdit && (<button onClick={() => handleExportExcel('FULL')} className="h-14 px-6 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all flex items-center gap-2"><i className="bi bi-database-fill-down text-lg"></i> Excel Full (Raw)</button>)}
            {canEdit && (<button onClick={() => { setSelectedPegawai(null); setFormData({status: 'Aktif', jenisPegawai: 'PNS', gender: 'L', unitKerja: UNIT_KERJA[0]}); setIsModalOpen(true); }} className="h-14 px-10 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">+ Registrasi Pegawai</button>)}
@@ -271,6 +394,18 @@ const PegawaiPage = () => {
                  <div className="min-w-0 flex-1">
                     <h4 className="text-[13px] font-black text-gray-950 truncate leading-tight">{p.nama}</h4>
                     <p className="text-[9px] font-mono text-gray-400 mt-1">NIP. {p.nip}</p>
+                    {canEdit && (
+                      <button 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setPegawaiToDelete(p); 
+                          setIsConfirmOpen(true); 
+                        }}
+                        className="absolute top-4 right-4 h-10 w-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-600 hover:text-white shadow-sm shrink-0 z-10"
+                      >
+                        <i className="bi bi-trash3-fill"></i>
+                      </button>
+                    )}
                     <div className="flex flex-wrap items-center gap-2 mt-2">
                        <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[7px] font-black rounded border border-blue-100 uppercase">{p.golRuang}</span>
                        <span className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[7px] font-black rounded border border-gray-200 uppercase">{p.jenisPegawai}</span>
@@ -302,7 +437,7 @@ const PegawaiPage = () => {
                        {selectedPegawai.foto ? <img src={selectedPegawai.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-6xl font-black text-blue-600 bg-blue-50">{selectedPegawai.nama.charAt(0)}</div>}
                     </div>
                     <div className="text-center space-y-2 mb-8 w-full">
-                       <h4 className="text-lg font-black text-gray-950 leading-tight px-4">{selectedPegawai.nama}{selectedPegawai.gelar ? `, ${selectedPegawai.gelar}` : ''}</h4>
+                       <h4 className="text-lg font-black text-gray-950 leading-tight px-4">{selectedPegawai.nama}</h4>
                        <p className="text-[10px] font-mono font-black text-blue-600 tracking-widest">NIP. {selectedPegawai.nip}</p>
                        <div className="flex justify-center gap-2 mt-4">
                           <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[8px] font-black border border-emerald-100 uppercase">{selectedPegawai.status}</span>
@@ -315,9 +450,14 @@ const PegawaiPage = () => {
                           Cetak DRH
                        </button>
                        {canEdit && (
-                         <button onClick={() => handleEditPegawai(selectedPegawai)} className="w-full py-4 bg-white border-2 border-gray-100 text-gray-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 hover:text-blue-600 transition-all flex items-center justify-center gap-3">
-                            <i className="bi bi-pencil-square"></i> Edit Data
-                         </button>
+                         <div className="w-full space-y-3">
+                           <button onClick={() => handleEditPegawai(selectedPegawai)} className="w-full py-4 bg-white border-2 border-gray-100 text-gray-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 hover:text-blue-600 transition-all flex items-center justify-center gap-3">
+                              <i className="bi bi-pencil-square"></i> Edit Data
+                           </button>
+                           <button onClick={() => { setPegawaiToDelete(selectedPegawai); setIsConfirmOpen(true); }} className="w-full py-4 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all flex items-center justify-center gap-3">
+                              <i className="bi bi-trash3-fill"></i> Hapus Data
+                           </button>
+                         </div>
                        )}
                     </div>
                  </div>
@@ -379,7 +519,8 @@ const PegawaiPage = () => {
                                 <div><p className={detailLabel}>Nomor NPWP</p><p className={detailValue}>{selectedPegawai.npwp || '-'}</p></div>
                                 <div><p className={detailLabel}>Nomor BPJS</p><p className={detailValue}>{selectedPegawai.noBpjs || '-'}</p></div>
                                 <div><p className={detailLabel}>No. Karis/Karsu</p><p className={detailValue}>{selectedPegawai.noKarisKarsu || '-'}</p></div>
-                                <div><p className={detailLabel}>TMT Status Aktif</p><p className={detailValue}>{selectedPegawai.tmtStatus || '-'}</p></div>
+                                 <div><p className={detailLabel}>No. Tapera</p><p className={detailValue}>{selectedPegawai.noTapera || '-'}</p></div>
+                                <div><p className={detailLabel}>TMT CPNS</p><p className={detailValue}>{selectedPegawai.tmtCpns || '-'}</p></div>
                              </div>
                           </div>
                        </div>
@@ -501,8 +642,8 @@ const PegawaiPage = () => {
                        <div className="md:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div><label className={labelClass}>NIP (18 Digit)</label><input type="text" maxLength={18} className={inputClass} value={formData.nip || ''} onChange={e => setFormData({...formData, nip: e.target.value.replace(/\D/g, '')})} required /></div>
                           <div><label className={labelClass}>Nomor NIK KTP</label><input type="text" className={inputClass} value={formData.nik || ''} onChange={e => setFormData({...formData, nik: e.target.value})} /></div>
-                          <div className="col-span-full"><label className={labelClass}>Nama Lengkap (Tanpa Gelar)</label><input type="text" className={inputNoCapsClass} value={formData.nama || ''} onChange={e => setFormData({...formData, nama: e.target.value})} required /></div>
-                          <div><label className={labelClass}>Gelar (Opsional)</label><input type="text" className={inputNoCapsClass} value={formData.gelar || ''} onChange={e => setFormData({...formData, gelar: e.target.value})} /></div>
+                          <div className="col-span-full"><label className={labelClass}>Nama Lengkap</label><input type="text" className={inputNoCapsClass} value={formData.nama || ''} onChange={e => setFormData({...formData, nama: e.target.value})} required /></div>
+                          
                           <div><label className={labelClass}>Agama</label><input type="text" className={inputClass} value={formData.agama || ''} onChange={e => setFormData({...formData, agama: e.target.value})} /></div>
                           <div><label className={labelClass}>Jenis Kelamin</label><select className={inputClass} value={formData.gender || 'L'} onChange={e => setFormData({...formData, gender: e.target.value as any})}><option value="L">LAKI-LAKI</option><option value="P">PEREMPUAN</option></select></div>
                           <div><label className={labelClass}>Tempat Lahir</label><input type="text" className={inputClass} value={formData.tempatLahir || ''} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
@@ -523,6 +664,7 @@ const PegawaiPage = () => {
                     <div className="flex items-center gap-4"><div className="h-8 w-2 bg-indigo-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">B. Jabatan & Penempatan</h5></div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                        <div className="md:col-span-3"><label className={labelClass}>Nama Jabatan</label><input type="text" className={inputClass} value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} /></div>
+                        <div className="md:col-span-2"><label className={labelClass}>Klasifikasi Jabatan</label><input type="text" className={inputClass} value={formData.klasifikasiJabatan || ''} onChange={e => setFormData({...formData, klasifikasiJabatan: e.target.value})} /></div>
                        <div><label className={labelClass}>TMT Jabatan</label><input type="date" className={inputNoCapsClass} value={formData.tmtJabatan || ''} onChange={e => setFormData({...formData, tmtJabatan: e.target.value})} /></div>
                        <div><label className={labelClass}>Eselon (Jika Ada)</label><select className={inputClass} value={formData.eselon || '-'} onChange={e => setFormData({...formData, eselon: e.target.value})}><option value="-">-</option><option value="I.a">I.a</option><option value="I.b">I.b</option><option value="II.a">II.a</option><option value="II.b">II.b</option><option value="III.a">III.a</option><option value="IV.a">IV.a</option></select></div>
                        <div className="md:col-span-3"><label className={labelClass}>Unit Kerja Utama</label><select className={inputClass} value={formData.unitKerja || UNIT_KERJA[0]} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
@@ -539,7 +681,7 @@ const PegawaiPage = () => {
                        <div><label className={labelClass}>TMT Pangkat</label><input type="date" className={inputNoCapsClass} value={formData.tmtPangkat || ''} onChange={e => setFormData({...formData, tmtPangkat: e.target.value})} /></div>
                        <div><label className={labelClass}>Jenis Pegawai</label><select className={inputClass} value={formData.jenisPegawai || 'PNS'} onChange={e => setFormData({...formData, jenisPegawai: e.target.value})}><option value="PNS">PNS</option><option value="CPNS">CPNS</option><option value="PPPK">PPPK</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option></select></div>
                        <div><label className={labelClass}>Status Aktif</label><select className={inputClass} value={formData.status || 'Aktif'} onChange={e => setFormData({...formData, status: e.target.value})}><option value="Aktif">AKTIF</option><option value="Tidak Aktif">TIDAK AKTIF</option><option value="Pensiun">PENSIUN</option><option value="Tugas Belajar">TUGAS BELAJAR</option></select></div>
-                       <div><label className={labelClass}>TMT Status</label><input type="date" className={inputNoCapsClass} value={formData.tmtStatus || ''} onChange={e => setFormData({...formData, tmtStatus: e.target.value})} /></div>
+                       <div><label className={labelClass}>TMT CPNS</label><input type="date" className={inputNoCapsClass} value={formData.tmtCpns || ''} onChange={e => setFormData({...formData, tmtCpns: e.target.value})} /></div>
                        <div><label className={labelClass}>Masa Kerja (Thn Bln)</label><input type="text" className={inputClass} value={formData.masaKerja || ''} onChange={e => setFormData({...formData, masaKerja: e.target.value})} placeholder="exp: 10 THN 2 BLN" /></div>
                     </div>
                  </section>
@@ -552,6 +694,7 @@ const PegawaiPage = () => {
                        <div><label className={labelClass}>Nomor NPWP</label><input type="text" className={inputClass} value={formData.npwp || ''} onChange={e => setFormData({...formData, npwp: e.target.value})} /></div>
                        <div><label className={labelClass}>Nomor BPJS Kesehatan</label><input type="text" className={inputClass} value={formData.noBpjs || ''} onChange={e => setFormData({...formData, noBpjs: e.target.value})} /></div>
                        <div><label className={labelClass}>No. Karis / Karsu</label><input type="text" className={inputClass} value={formData.noKarisKarsu || ''} onChange={e => setFormData({...formData, noKarisKarsu: e.target.value})} /></div>
+                        <div><label className={labelClass}>Nomor Tapera</label><input type="text" className={inputClass} value={formData.noTapera || ''} onChange={e => setFormData({...formData, noTapera: e.target.value})} /></div>
                        <div className="md:col-span-3"><label className={labelClass}>Alamat Lengkap Domisili</label><textarea rows={3} className={`${inputNoCapsClass} h-24 resize-none`} value={formData.alamat || ''} onChange={e => setFormData({...formData, alamat: e.target.value})} placeholder="Masukkan alamat lengkap sesuai KTP/Domisili saat ini..." /></div>
                        <div><label className={labelClass}>Jenjang Pendidikan Terakhir</label><input type="text" className={inputClass} value={formData.pendidikan || ''} onChange={e => setFormData({...formData, pendidikan: e.target.value})} placeholder="exp: S1 / S2 / D3" /></div>
                        <div className="md:col-span-2"><label className={labelClass}>Program Studi / Jurusan</label><input type="text" className={inputClass} value={formData.jurusan || ''} onChange={e => setFormData({...formData, jurusan: e.target.value})} /></div>
@@ -591,7 +734,7 @@ const PegawaiPage = () => {
                   <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">I. DATA PRIBADI</p>
                   <table className="w-full border-collapse">
                      <tbody>
-                        <tr><td className="w-[180px] py-1">1. Nama Lengkap</td><td className="w-4 py-1 text-center">:</td><td className="py-1 font-bold uppercase underline">{selectedPegawai?.nama}{selectedPegawai?.gelar ? `, ${selectedPegawai?.gelar}` : ''}</td></tr>
+                        <tr><td className="w-[180px] py-1">1. Nama Lengkap</td><td className="w-4 py-1 text-center">:</td><td className="py-1 font-bold uppercase underline">{selectedPegawai?.nama}</td></tr>
                         <tr><td className="py-1">2. NIP</td><td className="py-1 text-center">:</td><td className="py-1 font-bold">{selectedPegawai?.nip}</td></tr>
                         <tr><td className="py-1">3. NIK</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.nik || '-'}</td></tr>
                         <tr><td className="py-1">4. Tempat, Tgl Lahir</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.tempatLahir || '-'}, {selectedPegawai?.tanggalLahir || '-'}</td></tr>
@@ -615,7 +758,7 @@ const PegawaiPage = () => {
                         <tr><td className="py-1">5. TMT Pangkat</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.tmtPangkat || '-'}</td></tr>
                         <tr><td className="py-1">6. Masa Kerja Golongan</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.masaKerja || '-'}</td></tr>
                         <tr><td className="py-1">7. Unit Kerja</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.unitKerja}</td></tr>
-                        <tr><td className="py-1">8. TMT CPNS / Kontrak</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.tmtStatus || '-'}</td></tr>
+                        <tr><td className="py-1">8. TMT CPNS / Kontrak</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.tmtCpns || '-'}</td></tr>
                      </tbody>
                   </table>
                </section>

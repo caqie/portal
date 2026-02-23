@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+// Add missing useNavigate import for handling navigation in the restricted access view
+// @ts-ignore
+import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets } from '../spreadsheetService';
 import { Pegawai, AbsensiRecord } from '../types';
 import { useAuth } from '../AuthContext';
@@ -7,6 +10,9 @@ import * as faceapi from '@vladmandic/face-api';
 
 const AbsensiOnlinePage = () => {
   const { user } = useAuth();
+  // Initialize navigate for use in the restricted access view button
+  const navigate = useNavigate();
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [currentPegawai, setCurrentPegawai] = useState<Pegawai | null>(null);
   const [status, setStatus] = useState({ model: 'Loading...', camera: 'Waiting...', data: 'Checking...' });
   const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -22,6 +28,13 @@ const AbsensiOnlinePage = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const detectionInterval = useRef<any>(null);
   const faceMatcher = useRef<any>(null);
+
+  // Deteksi Resize untuk Restriksi
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Aturan Jam Kerja & Flexy Time
   const getScheduleRules = () => {
@@ -48,6 +61,8 @@ const AbsensiOnlinePage = () => {
   };
 
   useEffect(() => {
+    if (!isMobile) return; // Jangan inisialisasi jika bukan mobile
+
     loadHistory();
     const init = async () => {
       try {
@@ -68,7 +83,7 @@ const AbsensiOnlinePage = () => {
       stopCamera();
       if (detectionInterval.current) clearInterval(detectionInterval.current);
     };
-  }, [user]);
+  }, [user, isMobile]);
 
   const loadHistory = () => {
     const saved = localStorage.getItem('absensi_history_db');
@@ -201,21 +216,18 @@ const AbsensiOnlinePage = () => {
     const todayStr = now.toLocaleDateString('id-ID');
     const { limitMasuk } = getScheduleRules();
 
-    // Tipe otomatis: Masuk (<12:00), Pulang (>=12:00)
     const tipe: 'MASUK' | 'PULANG' = currentHour < 12 ? 'MASUK' : 'PULANG';
 
     const savedLogs = JSON.parse(localStorage.getItem('absensi_history_db') || '[]');
     const alreadyCheckIn = savedLogs.find((l: any) => l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'MASUK');
     const alreadyCheckOut = savedLogs.find((l: any) => l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'PULANG');
 
-    // Aturan Masuk: Ambil yang paling pagi (Jika sudah ada, abaikan scan berikutnya)
     if (tipe === 'MASUK' && alreadyCheckIn) {
       setVerificationResult({ status: 'REJECTED', message: `Data MASUK sudah tercatat pada ${alreadyCheckIn.waktu} WIB.`, type: 'MASUK' });
       setTimeout(() => resetState(), 4000);
       return;
     }
 
-    // Hitung Keterlambatan (Hanya untuk MASUK)
     let isLate = false;
     if (tipe === 'MASUK') {
         const [lH, lM, lS] = limitMasuk.split(':').map(Number);
@@ -238,7 +250,6 @@ const AbsensiOnlinePage = () => {
 
     let updatedLogs = [...savedLogs];
     if (tipe === 'PULANG' && alreadyCheckOut) {
-      // Aturan Pulang: Ambil yang paling akhir (Timpa data lama)
       updatedLogs = savedLogs.map((l: any) => 
         (l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'PULANG') ? record : l
       );
@@ -256,7 +267,6 @@ const AbsensiOnlinePage = () => {
       late: isLate 
     });
 
-    // Cooldown 5 detik
     setTimeout(() => resetState(), 5000);
   };
 
@@ -265,6 +275,31 @@ const AbsensiOnlinePage = () => {
     setMatchStabilizedTime(0);
     setVerificationResult(null);
   };
+
+  // UI UNTUK DESKTOP (RESTRICTED)
+  if (!isMobile) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center animate-fadeIn text-center p-10">
+        <div className="w-32 h-32 bg-rose-50 text-rose-500 rounded-[3rem] flex items-center justify-center mb-8 border-4 border-rose-100 shadow-2xl animate-pulse">
+           <i className="bi bi-phone-vibrate text-6xl"></i>
+        </div>
+        <h2 className="text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">Security Restricted</h2>
+        <p className="text-[11px] font-black text-rose-600 uppercase tracking-[0.3em] mt-4">Mobile Device Access Only</p>
+        
+        <div className="mt-10 bg-white p-8 rounded-[3rem] border border-gray-100 shadow-xl max-w-md">
+           <p className="text-sm font-bold text-gray-500 leading-relaxed uppercase">
+              Mohon maaf, fitur pemindaian biometrik wajah hanya tersedia melalui perangkat mobile atau tablet.
+           </p>
+           <div className="h-[1px] w-24 bg-gray-100 mx-auto my-6"></div>
+           <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Silakan buka Portal SDM melalui smartphone Anda untuk melakukan absensi.</p>
+        </div>
+        
+        <button onClick={() => navigate('/')} className="mt-10 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] hover:text-blue-600 transition-colors">
+           <i className="bi bi-arrow-left mr-2"></i> Kembali ke Dashboard
+        </button>
+      </div>
+    );
+  }
 
   const rules = getScheduleRules();
 
