@@ -16,6 +16,19 @@
             padding: 0;
         }
 
+        /* Fix display scale for laptops/desktops */
+        @media (min-width: 1024px) {
+            html {
+                font-size: 14px; /* Scaling down from default 16px */
+            }
+        }
+
+        @media (min-width: 1440px) {
+            html {
+                font-size: 13px; /* Further scaling for ultra-wide/large screens */
+            }
+        }
+
         .font-arial {
             font-family: Arial, Helvetica, sans-serif !important;
         }

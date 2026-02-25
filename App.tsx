@@ -26,6 +26,7 @@ import SatyaLencanaPage from './pages/SatyaLencanaPage';
 import MagangPKLPage from './pages/MagangPKLPage';
 import PersuratanPage from './pages/PersuratanPage';
 import PengembanganPage from './pages/PengembanganPage';
+import KeuanganPage from './pages/KeuanganPage';
 import { DEFAULT_LOGO } from './constants';
 import { syncGidMap } from './spreadsheetService';
 
@@ -140,6 +141,7 @@ const AppContent = () => {
                 <SidebarItem to="/tugas-rutin" icon="bi-clipboard2-check-fill" label="Tugas Rutin" active={location.pathname === '/tugas-rutin'} collapsed={isCollapsed} />
                 <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Kalender Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />
                 <SidebarItem to="/laporan" icon="bi-file-earmark-bar-graph-fill" label="Laporan Bulanan" active={location.pathname === '/laporan'} collapsed={isCollapsed} />
+                <SidebarItem to="/keuangan" icon="bi-cash-stack" label="Keuangan" active={location.pathname === '/keuangan'} collapsed={isCollapsed} />
                 <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />
               </>
             )}
@@ -230,6 +232,7 @@ const AppContent = () => {
               <Route path="/tugas-rutin" element={<TugasRutinPage />} />
               <Route path="/kegiatan" element={<KegiatanPage />} />
               <Route path="/laporan" element={<LaporanPage />} />
+              <Route path="/keuangan" element={<KeuanganPage />} />
               <Route path="/dossiers" element={<DossiersPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/logs" element={<ActivityLogPage />} />

@@ -165,6 +165,47 @@ export interface Pegawai {
   keteranganPensiun?: string;
 }
 
+export interface KeuanganPeserta {
+  id: string;
+  nip?: string;
+  nama: string;
+  jabatan: string;
+  nomorSpd: string;
+  tanggalSpd: string;
+  tujuanPerjalanan: string;
+  kategori: 'SPPD' | 'Fullboard' | 'Halfboard' | 'Transport' | 'Honorarium' | 'Lainnya';
+  rincianBiaya: { item: string; rate: number; qty: number; total: number }[];
+  totalJumlah: number;
+}
+
+export interface KeuanganRecord {
+  id: string;
+  namaKegiatan: string;
+  tanggal: string;
+  mataAnggaran: string;
+  tahunAnggaran: string;
+  ppkNip: string;
+  ppkNama: string;
+  bendaharaNip: string;
+  bendaharaNama: string;
+  unitKerja: string;
+  status: 'Draft' | 'Diajukan' | 'Disetujui' | 'Ditolak';
+  keterangan?: string;
+  peserta: KeuanganPeserta[];
+  configBiaya?: {
+    uangHarian: number;
+    penginapan: number;
+    transport: number;
+    fullboard: number;
+    halfboard: number;
+  };
+  configSpd?: {
+    nomorSpdPrefix: string;
+    tanggalSpd: string;
+    tujuanPerjalanan: string;
+  };
+}
+
 export interface ABKAnjab { 
   id: string; 
   namaJabatan: string; 

@@ -1,5 +1,5 @@
 
-import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord } from './types';
+import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord } from './types';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9zyZrLGmDBRlUOdR1pgftxDfcElY_Fd4BfsCR4Fmd7Qb58MJKAllRkUloFQrbs8lY/exec';
@@ -23,7 +23,8 @@ export const DEFAULT_GIDS = {
   PENSIUN: '985690424',
   MAGANG_PKL: '123456789',
   PERSURATAN: '2025010101',
-  SATYA_LENCANA: '333444555'
+  SATYA_LENCANA: '333444555',
+  KEUANGAN: '999888777'
 };
 
 const getDbConfig = () => {
@@ -253,6 +254,30 @@ export const syncGidMap = async (): Promise<boolean> => {
         return false;
     }
 };
+
+export const fetchKeuanganFromSheets = () => fetchTableData<KeuanganRecord>('KEUANGAN', 'portal_keuangan_db', (cols, headers) => {
+  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+  const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
+  return { 
+    id: get('ID'), 
+    namaKegiatan: get('NAMAKEGIATAN'),
+    tanggal: get('TANGGAL'), 
+    mataAnggaran: get('MATAANGGARAN'),
+    tahunAnggaran: get('TAHUNANGGARAN'),
+    ppkNip: get('PPKNIP'),
+    ppkNama: get('PPKNAMA'),
+    bendaharaNip: get('BENDAHARANIP'),
+    bendaharaNama: get('BENDAHARANAMA'),
+    unitKerja: get('UNITKERJA'),
+    status: (get('STATUS') || 'Draft') as any, 
+    keterangan: get('KETERANGAN'), 
+    peserta: getJson('PESERTA'),
+    configBiaya: getJson('CONFIGBIAYA'),
+    configSpd: getJson('CONFIGSPD')
+  } as KeuanganRecord;
+});
+
+export const syncKeuanganRemote = (action: 'SAVE' | 'DELETE', data: any) => syncTableRemote('KEUANGAN', action, data);
 
 export const getRetirementDetails = (nip: string, jabatan: string) => {
   const cleanNip = (nip || '').replace(/\D/g, '');
