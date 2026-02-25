@@ -31,13 +31,13 @@ const getDbConfig = () => {
   const savedCloud = localStorage.getItem('portal_cloud_config');
   let cloud: CloudConfig;
   try {
-    cloud = savedCloud ? JSON.parse(savedCloud) : { driveFolderId: '', appsScriptUrl: DEFAULT_APPS_SCRIPT_URL, logoUrl: '' };
+    cloud = savedCloud ? JSON.parse(savedCloud) : { driveFolderId: '', appsScriptUrl: (import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL), logoUrl: '' };
   } catch (e) {
-    cloud = { driveFolderId: '', appsScriptUrl: DEFAULT_APPS_SCRIPT_URL, logoUrl: '' };
+    cloud = { driveFolderId: '', appsScriptUrl: (import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL), logoUrl: '' };
   }
   return {
-    spreadsheetId: (savedId && savedId.trim() !== '') ? savedId : DEFAULT_SPREADSHEET_ID,
-    appsScriptUrl: (cloud.appsScriptUrl && cloud.appsScriptUrl.trim() !== '') ? cloud.appsScriptUrl : DEFAULT_APPS_SCRIPT_URL
+    spreadsheetId: (savedId && savedId.trim() !== '') ? savedId : (import.meta.env.VITE_SPREADSHEET_ID || DEFAULT_SPREADSHEET_ID),
+    appsScriptUrl: (cloud.appsScriptUrl && cloud.appsScriptUrl.trim() !== '') ? cloud.appsScriptUrl : (import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL)
   };
 };
 
@@ -119,7 +119,7 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
       masaKerja: get('MASAKERJA'), tempatLahir: get('TEMPATLAHIR'), tanggalLahir: get('TANGGALLAHIR'),
       alamat: get('ALAMAT'), eselon: get('ESELON'), agama: get('AGAMA'),
       noHp: get('NOHP'), email: get('EMAIL'), npwp: get('NPWP'), noBpjs: get('NOBPJS'), noKarisKarsu: get('NOKARISKARSU'),
-      noTapera: get('NOTAPERA')
+      noTapera: get('NOTAPERA'), noKarpeg: get('NOKARPEG')
     } as Pegawai;
   });
 };

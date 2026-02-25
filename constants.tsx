@@ -16,7 +16,7 @@ export const UNIT_KERJA = [
   'Direktorat Hak Cipta dan Desain Industri',
   'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang',
   'Direktorat Merek dan Indikasi Geografis',
-  'Direktorat Kerja Sama, Pemberdayaan, dan Educeasi',
+  'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi',
   'Direktorat Teknologi Informasi Kekayaan Intelektual',
   'Direktorat Penegakan Hukum'
 ];

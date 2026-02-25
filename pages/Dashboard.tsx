@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets, fetchKGBFromSheets } from '../spreadsheetService';
-import { Pegawai, Pengembangan, KGB } from '../types';
+import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets, fetchKGBFromSheets, fetchKegiatanFromSheets } from '../spreadsheetService';
+import { Pegawai, Pengembangan, KGB, Kegiatan } from '../types';
 import { useAuth } from '../AuthContext';
 import { UNIT_KERJA, normalizeUnitName } from '../constants';
 import * as XLSX from 'xlsx';
+import CalendarView from '../components/CalendarView';
 
 const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: string, value: string | number, icon: string, color: string, loading?: boolean, subtext?: string }) => (
   <div className="bg-white p-5 md:p-6 rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 flex items-center space-x-4 hover:shadow-xl transition-all duration-300 group">
@@ -29,6 +30,7 @@ const Dashboard = () => {
   const [pegawai, setPegawai] = useState<Pegawai[]>([]);
   const [riwayatBangkom, setRiwayatBangkom] = useState<Pengembangan[]>([]);
   const [riwayatKgb, setRiwayatKgb] = useState<KGB[]>([]);
+  const [kegiatan, setKegiatan] = useState<Kegiatan[]>([]);
   const [loading, setLoading] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifTab, setNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat' | 'satya' | 'bangkom'>('pensiun');
@@ -46,14 +48,16 @@ const Dashboard = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [pegData, bangkomData, kgbData] = await Promise.all([
+      const [pegData, bangkomData, kgbData, kegiatanData] = await Promise.all([
         fetchPegawaiFromSheets(),
         fetchPengembanganFromSheets(),
-        fetchKGBFromSheets()
+        fetchKGBFromSheets(),
+        fetchKegiatanFromSheets()
       ]);
       setPegawai(Array.isArray(pegData) ? pegData : []);
       setRiwayatBangkom(Array.isArray(bangkomData) ? bangkomData : []);
       setRiwayatKgb(Array.isArray(kgbData) ? kgbData : []);
+      setKegiatan(Array.isArray(kegiatanData) ? kegiatanData : []);
     } catch (error) {
       console.error("Dashboard Load Error:", error);
     } finally {
@@ -284,6 +288,17 @@ const Dashboard = () => {
         <StatsCard title="Total CPNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'CPNS').length} icon="bi-person-plus" color="bg-cyan-600" loading={loading} />
         <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'PPPK').length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
         <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
+      </div>
+
+      <div className="bg-white p-8 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden">
+         <div className="mb-10 flex justify-between items-center">
+            <div>
+              <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Kalender Kerja & Agenda Kegiatan</h4>
+              <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">Jadwal Direktorat Terintegrasi</p>
+            </div>
+            <a href="#/kegiatan" className="px-6 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all">Kelola Agenda</a>
+         </div>
+         <CalendarView events={kegiatan} />
       </div>
 
       <div className="bg-white p-8 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden">

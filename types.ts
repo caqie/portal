@@ -156,6 +156,7 @@ export interface Pegawai {
   noBpjs?: string;
   noKarisKarsu?: string;
   noTapera?: string;
+  noKarpeg?: string;
 }
 
 export interface ABKAnjab { 

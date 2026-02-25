@@ -138,7 +138,7 @@ const AppContent = () => {
                 {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Administrasi</div>}
                 <SidebarItem to="/persuratan" icon="bi-envelope-paper-fill" label="Persuratan Digital" active={location.pathname === '/persuratan'} collapsed={isCollapsed} />
                 <SidebarItem to="/tugas-rutin" icon="bi-clipboard2-check-fill" label="Tugas Rutin" active={location.pathname === '/tugas-rutin'} collapsed={isCollapsed} />
-                <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Agenda Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />
+                <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Kalender Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />
                 <SidebarItem to="/laporan" icon="bi-file-earmark-bar-graph-fill" label="Laporan Bulanan" active={location.pathname === '/laporan'} collapsed={isCollapsed} />
                 <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />
               </>

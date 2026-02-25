@@ -5,6 +5,7 @@ import { useAuth } from '../AuthContext';
 import { syncTableRemote } from '../spreadsheetService';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import CalendarView from '../components/CalendarView';
 
 const KegiatanPage = () => {
   const { canEdit, isSuperadmin, logActivity } = useAuth();
@@ -16,6 +17,7 @@ const KegiatanPage = () => {
   const [editingKegiatan, setEditingKegiatan] = useState<Kegiatan | null>(null);
   const [formData, setFormData] = useState<Partial<Kegiatan>>({});
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'TABLE' | 'CALENDAR'>('CALENDAR');
 
   useEffect(() => { loadData(); }, []);
 
@@ -62,26 +64,51 @@ const KegiatanPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={() => {}} />
       
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div><h3 className="text-2xl font-black text-gray-950 uppercase">Agenda & Logistik</h3></div>
-        {canEdit && <button onClick={() => handleOpenModal()} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-600/20 active:scale-95 flex items-center gap-2"><i className="bi bi-calendar-plus text-lg"></i><span>Tambah Agenda</span></button>}
+        <div>
+          <h3 className="text-2xl font-black text-gray-950 uppercase">Kalender Kerja & Kegiatan</h3>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Manajemen Agenda Direktorat</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="bg-gray-100 p-1 rounded-2xl flex gap-1">
+            <button onClick={() => setViewMode('CALENDAR')} className={`px-6 py-3 text-[9px] font-black uppercase rounded-xl transition-all ${viewMode === 'CALENDAR' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+              <i className="bi bi-calendar3 mr-2"></i>Kalender
+            </button>
+            <button onClick={() => setViewMode('TABLE')} className={`px-6 py-3 text-[9px] font-black uppercase rounded-xl transition-all ${viewMode === 'TABLE' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+              <i className="bi bi-table mr-2"></i>Tabel
+            </button>
+          </div>
+          {canEdit && <button onClick={() => handleOpenModal()} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-600/20 active:scale-95 flex items-center gap-2"><i className="bi bi-calendar-plus text-lg"></i><span>Tambah Agenda</span></button>}
+        </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden min-h-[400px]">
-        <table className="w-full text-left">
-          <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
-            <tr><th className="px-8 py-5">Waktu & Status</th><th className="px-4 py-5">Kegiatan</th><th className="px-8 py-5 text-right">Opsi</th></tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {kegiatanList.map((k) => (
-              <tr key={k.id} className="hover:bg-blue-50/10 group transition-all">
-                <td className="px-8 py-5"><p className="text-[10px] font-black uppercase">{k.tanggal}</p></td>
-                <td className="px-4 py-5"><p className="text-[11px] font-black text-gray-950 uppercase">{k.judulKegiatan}</p></td>
-                <td className="px-8 py-5 text-right"><button onClick={() => handleOpenModal(k)} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl shadow-sm flex items-center justify-center"><i className="bi bi-pencil-fill"></i></button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {viewMode === 'TABLE' ? (
+        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden min-h-[400px]">
+          <table className="w-full text-left">
+            <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
+              <tr><th className="px-8 py-5">Waktu & Status</th><th className="px-4 py-5">Kegiatan</th><th className="px-8 py-5 text-right">Opsi</th></tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {kegiatanList.map((k) => (
+                <tr key={k.id} className="hover:bg-blue-50/10 group transition-all">
+                  <td className="px-8 py-5"><p className="text-[10px] font-black uppercase">{k.tanggal}</p></td>
+                  <td className="px-4 py-5"><p className="text-[11px] font-black text-gray-950 uppercase">{k.judulKegiatan}</p></td>
+                  <td className="px-8 py-5 text-right"><button onClick={() => handleOpenModal(k)} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl shadow-sm flex items-center justify-center"><i className="bi bi-pencil-fill"></i></button></td>
+                </tr>
+              ))}
+              {kegiatanList.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="py-20 text-center opacity-30">
+                    <i className="bi bi-calendar-x text-5xl mb-4 block"></i>
+                    <p className="text-[10px] font-black uppercase tracking-widest">Belum ada agenda terdaftar</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <CalendarView events={kegiatanList} onEventClick={(e) => handleOpenModal(e)} />
+      )}
 
       {isModalOpen && canEdit && (
         <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 pt-[140px]">

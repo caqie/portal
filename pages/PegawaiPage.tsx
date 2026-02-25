@@ -103,9 +103,9 @@ const PegawaiPage = () => {
 
   const handleExportExcel = (type: 'SHARE' | 'FULL') => {
     const wb = XLSX.utils.book_new();
-    let data;
+    
     if (type === 'SHARE') {
-      data = filteredPegawai.map((p, index) => ({
+      const data = filteredPegawai.map((p, index) => ({
         'No': index + 1,
         'NIP': p.nip,
         'NAMA': p.nama,
@@ -114,11 +114,36 @@ const PegawaiPage = () => {
         'Unit kerja': p.unitKerja,
         'Jenis pegawai': p.jenisPegawai
       }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, "Daftar Pegawai");
     } else {
-      data = filteredPegawai.map(p => ({ ...p }));
+      // Sheet 1: Semua Pegawai
+      const allData = filteredPegawai.map(p => ({ ...p }));
+      const wsAll = XLSX.utils.json_to_sheet(allData);
+      XLSX.utils.book_append_sheet(wb, wsAll, "Semua Pegawai");
+
+      // Mapping nama sheet agar tidak melebihi 31 karakter
+      const UNIT_SHEET_NAMES: Record<string, string> = {
+        'Sekretariat Direktorat Jenderal Kekayaan Intelektual': 'Sekretariat',
+        'Direktorat Hak Cipta dan Desain Industri': 'Hak Cipta & DI',
+        'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang': 'Paten, DTLST & RD',
+        'Direktorat Merek dan Indikasi Geografis': 'Merek & IG',
+        'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi': 'Kerjasama & Edukasi',
+        'Direktorat Teknologi Informasi Kekayaan Intelektual': 'TI KI',
+        'Direktorat Penegakan Hukum': 'Penegakan Hukum'
+      };
+
+      // Sheets 2-8: Per Unit Kerja (hanya jika ada data atau jika tidak sedang difilter)
+      UNIT_KERJA.forEach(unit => {
+        const unitData = filteredPegawai.filter(p => normalizeUnitName(p.unitKerja) === unit).map(p => ({ ...p }));
+        if (unitData.length > 0) {
+          const wsUnit = XLSX.utils.json_to_sheet(unitData);
+          const sheetName = UNIT_SHEET_NAMES[unit] || unit.substring(0, 31);
+          XLSX.utils.book_append_sheet(wb, wsUnit, sheetName);
+        }
+      });
     }
-    const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, "Daftar Pegawai");
+    
     XLSX.writeFile(wb, `Data_Pegawai_DJKI_${type}_${Date.now()}.xlsx`);
   };
 
@@ -259,6 +284,7 @@ const PegawaiPage = () => {
             else if (normalizedKey === 'nobpjs') payload.noBpjs = val;
             else if (normalizedKey === 'nokariskarsu') payload.noKarisKarsu = val;
             else if (normalizedKey === 'notapera') payload.noTapera = val;
+            else if (normalizedKey === 'nokarpeg' || normalizedKey === 'kartupegawai') payload.noKarpeg = val;
             else if (normalizedKey === 'gender' || normalizedKey === 'jeniskelamin') payload.gender = String(val).toUpperCase().startsWith('P') ? 'P' : 'L';
             else payload[key] = val;
           });
@@ -520,6 +546,7 @@ const PegawaiPage = () => {
                                 <div><p className={detailLabel}>Nomor BPJS</p><p className={detailValue}>{selectedPegawai.noBpjs || '-'}</p></div>
                                 <div><p className={detailLabel}>No. Karis/Karsu</p><p className={detailValue}>{selectedPegawai.noKarisKarsu || '-'}</p></div>
                                  <div><p className={detailLabel}>No. Tapera</p><p className={detailValue}>{selectedPegawai.noTapera || '-'}</p></div>
+                                 <div><p className={detailLabel}>No. Karpeg</p><p className={detailValue}>{selectedPegawai.noKarpeg || '-'}</p></div>
                                 <div><p className={detailLabel}>TMT CPNS</p><p className={detailValue}>{selectedPegawai.tmtCpns || '-'}</p></div>
                              </div>
                           </div>
