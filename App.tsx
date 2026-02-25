@@ -4,6 +4,7 @@ import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-ro
 import { AuthProvider, useAuth } from './AuthContext';
 import Dashboard from './pages/Dashboard';
 import PegawaiPage from './pages/PegawaiPage';
+import ProfilePegawaiPage from './pages/ProfilePegawaiPage';
 import TugasRutinPage from './pages/TugasRutinPage';
 import LaporanPage from './pages/LaporanPage';
 import DossiersPage from './pages/DossiersPage';
@@ -228,6 +229,7 @@ const AppContent = () => {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/pegawai" element={<PegawaiPage />} />
+              <Route path="/pegawai/:nip" element={<ProfilePegawaiPage />} />
               <Route path="/layanan" element={<LayananKepegawaianPage />} />
               <Route path="/tugas-rutin" element={<TugasRutinPage />} />
               <Route path="/kegiatan" element={<KegiatanPage />} />

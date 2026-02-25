@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Pegawai, Dossier } from '../types';
 import { fetchPegawaiFromSheets, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
@@ -14,6 +15,7 @@ import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
 
 const PegawaiPage = () => {
+  const navigate = useNavigate();
   const { canEdit, isSuperadmin, logActivity } = useAuth();
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
   const [dossierList, setDossierList] = useState<Dossier[]>([]);
@@ -25,8 +27,6 @@ const PegawaiPage = () => {
   const [filterJenis, setFilterJenis] = useState('Semua Jenis');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState<'DATA_DIRI' | 'E_ARSIP'>('DATA_DIRI');
   
   const [isAddDossierOpen, setIsAddDossierOpen] = useState(false);
   const [dossierFormData, setDossierFormData] = useState<Partial<Dossier>>({ fileName: '', keterangan: '' });
@@ -82,7 +82,6 @@ const PegawaiPage = () => {
       tanggalLahir: formatDateForInput(p.tanggalLahir)
     });
     setIsModalOpen(true);
-    setIsDetailOpen(false);
   };
 
   const filteredPegawai = useMemo(() => {
@@ -311,28 +310,6 @@ const PegawaiPage = () => {
     reader.readAsBinaryString(file);
   };
 
-  const handleCetakDRH = async () => {
-    if (!drhRef.current) return;
-    setSyncing(true);
-    try {
-      const canvas = await html2canvas(drhRef.current, { 
-        scale: 3, 
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 297);
-      pdf.save(`DRH_${selectedPegawai?.nama.replace(/\s+/g, '_')}.pdf`);
-      logActivity('DOWNLOAD', 'Pegawai', `Cetak DRH Pegawai: ${selectedPegawai?.nama}`);
-    } catch (e) { 
-      console.error(e);
-      alert("Gagal cetak PDF."); 
-    } finally { 
-      setSyncing(false); 
-    }
-  };
-
   const inputClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950";
   const inputNoCapsClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950";
   const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";
@@ -350,7 +327,6 @@ const PegawaiPage = () => {
              setPegawaiList(prev => prev.filter(p => p.nip !== pegawaiToDelete.nip));
              setIsConfirmOpen(false);
              if (selectedPegawai?.nip === pegawaiToDelete.nip) {
-               setIsDetailOpen(false);
                setSelectedPegawai(null);
              }
              setSyncing(false);
@@ -412,7 +388,7 @@ const PegawaiPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {loading ? Array(6).fill(0).map((_,i) => <div key={i} className="h-44 bg-white rounded-[3rem] animate-pulse"></div>) : 
          filteredPegawai.map(p => (
-           <div key={p.nip} onClick={() => { setSelectedPegawai(p); setDetailTab('DATA_DIRI'); setIsDetailOpen(true); }} className="bg-white p-7 rounded-[3rem] border border-gray-100 shadow-sm group hover:shadow-2xl transition-all cursor-pointer relative overflow-hidden">
+           <div key={p.nip} onClick={() => navigate(`/pegawai/${p.nip}`)} className="bg-white p-7 rounded-[3rem] border border-gray-100 shadow-sm group hover:shadow-2xl transition-all cursor-pointer relative overflow-hidden">
               <div className="flex items-center gap-6">
                  <div className="h-20 w-20 rounded-[1.8rem] bg-blue-50 overflow-hidden border-4 border-white shadow-xl group-hover:scale-105 transition-transform">
                     {p.foto ? <img src={p.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black text-3xl">{p.nama.charAt(0)}</div>}
@@ -441,154 +417,6 @@ const PegawaiPage = () => {
            </div>
          ))}
       </div>
-
-      {isDetailOpen && selectedPegawai && (
-        <div className="fixed inset-0 z-[2000] flex items-start justify-center p-4 pt-[140px] pb-10">
-           <div className="fixed inset-0 bg-gray-950/90 backdrop-blur-md" onClick={() => setIsDetailOpen(false)}></div>
-           <div className="relative bg-white w-full max-w-7xl rounded-[3rem] shadow-2xl overflow-hidden animate-modalEnter flex flex-col max-h-full border border-white/20">
-              
-              <div className="bg-white border-b flex justify-between items-center px-6 md:px-10 shrink-0 z-50 relative">
-                 <div className="flex">
-                    <button onClick={() => setDetailTab('DATA_DIRI')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all border-b-4 ${detailTab === 'DATA_DIRI' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400'}`}>Profil Komprehensif</button>
-                    <button onClick={() => setDetailTab('E_ARSIP')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all border-b-4 ${detailTab === 'E_ARSIP' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400'}`}>Digital Dossier ({filteredDossiers.length})</button>
-                 </div>
-                 <button onClick={() => setIsDetailOpen(false)} className="h-12 w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-gray-50 rounded-2xl shadow-inner transition-all hover:bg-white hover:shadow-md active:scale-95 border border-gray-100">
-                    <i className="bi bi-x-lg text-xl"></i>
-                 </button>
-              </div>
-
-              <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-                 <div className="md:w-[350px] bg-gray-50/50 border-r p-8 flex flex-col items-center shrink-0 overflow-y-auto custom-scrollbar">
-                    <div className="h-44 w-44 rounded-[3rem] bg-white border-8 border-white shadow-2xl overflow-hidden mb-6 group relative">
-                       {selectedPegawai.foto ? <img src={selectedPegawai.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-6xl font-black text-blue-600 bg-blue-50">{selectedPegawai.nama.charAt(0)}</div>}
-                    </div>
-                    <div className="text-center space-y-2 mb-8 w-full">
-                       <h4 className="text-lg font-black text-gray-950 leading-tight px-4">{selectedPegawai.nama}</h4>
-                       <p className="text-[10px] font-mono font-black text-blue-600 tracking-widest">NIP. {selectedPegawai.nip}</p>
-                       <div className="flex justify-center gap-2 mt-4">
-                          <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[8px] font-black border border-emerald-100 uppercase">{selectedPegawai.status}</span>
-                          <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[8px] font-black border border-blue-100 uppercase">{selectedPegawai.jenisPegawai}</span>
-                       </div>
-                    </div>
-                    <div className="w-full space-y-3 pb-6">
-                       <button onClick={handleCetakDRH} disabled={syncing} className="w-full py-4 bg-[#111827] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
-                          {syncing ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>}
-                          Cetak DRH
-                       </button>
-                       {canEdit && (
-                         <div className="w-full space-y-3">
-                           <button onClick={() => handleEditPegawai(selectedPegawai)} className="w-full py-4 bg-white border-2 border-gray-100 text-gray-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 hover:text-blue-600 transition-all flex items-center justify-center gap-3">
-                              <i className="bi bi-pencil-square"></i> Edit Data
-                           </button>
-                           <button onClick={() => { setPegawaiToDelete(selectedPegawai); setIsConfirmOpen(true); }} className="w-full py-4 bg-rose-50 text-rose-600 border border-rose-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all flex items-center justify-center gap-3">
-                              <i className="bi bi-trash3-fill"></i> Hapus Data
-                           </button>
-                         </div>
-                       )}
-                    </div>
-                 </div>
-
-                 <div className="flex-1 p-8 md:p-12 overflow-y-auto custom-scrollbar bg-white">
-                    {detailTab === 'DATA_DIRI' ? (
-                       <div className="animate-fadeIn space-y-12">
-                          <div className="space-y-6">
-                             <div className="flex items-center gap-4">
-                                <div className="h-8 w-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center text-lg"><i className="bi bi-briefcase-fill"></i></div>
-                                <h5 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Jabatan & Struktur</h5>
-                             </div>
-                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 bg-gray-50/50 p-8 rounded-[2.5rem] border border-gray-100">
-                                <div className="col-span-2"><p className={detailLabel}>Jabatan</p><p className={detailValue}>{selectedPegawai.jabatan || '-'}</p></div>
-                                <div><p className={detailLabel}>TMT Jabatan</p><p className={detailValue}>{selectedPegawai.tmtJabatan || '-'}</p></div>
-                                <div><p className={detailLabel}>Eselon</p><p className={detailValue}>{selectedPegawai.eselon || '-'}</p></div>
-                                <div className="col-span-2"><p className={detailLabel}>Unit Kerja</p><p className={detailValue}>{selectedPegawai.unitKerja || '-'}</p></div>
-                                <div><p className={detailLabel}>Bagian</p><p className={detailValue}>{selectedPegawai.bagian || '-'}</p></div>
-                                <div><p className={detailLabel}>Sub Bagian</p><p className={detailValue}>{selectedPegawai.subBagian || '-'}</p></div>
-                             </div>
-                          </div>
-
-                          <div className="space-y-6">
-                             <div className="flex items-center gap-4">
-                                <div className="h-8 w-8 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center text-lg"><i className="bi bi-award-fill"></i></div>
-                                <h5 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Pangkat & Golongan</h5>
-                             </div>
-                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 bg-emerald-50/10 p-8 rounded-[2.5rem] border border-emerald-50">
-                                <div><p className={detailLabel}>Pangkat</p><p className={detailValue}>{selectedPegawai.pangkat}</p></div>
-                                <div><p className={detailLabel}>Golongan</p><p className={detailValue}>{selectedPegawai.golRuang}</p></div>
-                                <div><p className={detailLabel}>TMT Pangkat</p><p className={detailValue}>{selectedPegawai.tmtPangkat || '-'}</p></div>
-                                <div><p className={detailLabel}>Masa Kerja</p><p className={detailValue}>{selectedPegawai.masaKerja || '-'}</p></div>
-                             </div>
-                          </div>
-
-                          <div className="space-y-6">
-                             <div className="flex items-center gap-4">
-                                <div className="h-8 w-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center text-lg"><i className="bi bi-person-lines-fill"></i></div>
-                                <h5 className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Identitas Personal</h5>
-                             </div>
-                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 bg-amber-50/5 p-8 rounded-[2.5rem] border border-amber-50">
-                                <div className="col-span-2"><p className={detailLabel}>NIK</p><p className={detailValue}>{selectedPegawai.nik || '-'}</p></div>
-                                <div><p className={detailLabel}>Agama</p><p className={detailValue}>{selectedPegawai.agama || '-'}</p></div>
-                                <div><p className={detailLabel}>Gender</p><p className={detailValue}>{selectedPegawai.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</p></div>
-                                <div className="col-span-2"><p className={detailLabel}>Tgl Lahir</p><p className={detailValue}>{selectedPegawai.tempatLahir || '-'}, {selectedPegawai.tanggalLahir || '-'}</p></div>
-                                <div className="col-span-2"><p className={detailLabel}>Pendidikan / Jurusan</p><p className={detailValue}>{selectedPegawai.pendidikan} - {selectedPegawai.jurusan}</p></div>
-                                <div><p className={detailLabel}>Nomor HP</p><p className={detailValue}>{selectedPegawai.noHp || '-'}</p></div>
-                                <div className="col-span-full"><p className={detailLabel}>Alamat Domisili</p><p className={detailValueNoCaps}>{selectedPegawai.alamat || '-'}</p></div>
-                             </div>
-                          </div>
-
-                          <div className="space-y-6">
-                             <div className="flex items-center gap-4">
-                                <div className="h-8 w-8 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center text-lg"><i className="bi bi-credit-card-2-front-fill"></i></div>
-                                <h5 className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Atribut Administrasi Lainnya</h5>
-                             </div>
-                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 bg-rose-50/5 p-8 rounded-[2.5rem] border border-rose-50">
-                                <div className="col-span-2"><p className={detailLabel}>Email Resmi / Personal</p><p className={detailValueNoCaps}>{selectedPegawai.email || '-'}</p></div>
-                                <div><p className={detailLabel}>Nomor NPWP</p><p className={detailValue}>{selectedPegawai.npwp || '-'}</p></div>
-                                <div><p className={detailLabel}>Nomor BPJS</p><p className={detailValue}>{selectedPegawai.noBpjs || '-'}</p></div>
-                                <div><p className={detailLabel}>No. Karis/Karsu</p><p className={detailValue}>{selectedPegawai.noKarisKarsu || '-'}</p></div>
-                                 <div><p className={detailLabel}>No. Tapera</p><p className={detailValue}>{selectedPegawai.noTapera || '-'}</p></div>
-                                 <div><p className={detailLabel}>No. Karpeg</p><p className={detailValue}>{selectedPegawai.noKarpeg || '-'}</p></div>
-                                <div><p className={detailLabel}>TMT CPNS</p><p className={detailValue}>{selectedPegawai.tmtCpns || '-'}</p></div>
-                             </div>
-                          </div>
-                       </div>
-                    ) : (
-                       <div className="animate-fadeIn space-y-8">
-                          {canEdit && (
-                            <div className="flex justify-end">
-                               <button 
-                                 onClick={() => setIsAddDossierOpen(true)}
-                                 className="px-6 py-3 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2"
-                               >
-                                  <i className="bi bi-cloud-arrow-up-fill text-lg"></i>
-                                  + Tambah Berkas Baru
-                               </button>
-                            </div>
-                          )}
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             {filteredDossiers.map(d => (
-                               <div key={d.id} onClick={() => d.fileUrl && window.open(d.fileUrl, '_blank')} className="p-6 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-blue-300 transition-all cursor-pointer group flex items-center gap-5">
-                                  <div className="h-14 w-14 bg-white rounded-2xl flex items-center justify-center text-blue-600 text-3xl shadow-sm"><i className="bi bi-file-earmark-pdf-fill"></i></div>
-                                  <div className="min-w-0 flex-1">
-                                     <p className="text-[11px] font-black uppercase truncate text-gray-950">{d.fileName}</p>
-                                     <p className="text-[8px] font-bold text-gray-400 mt-1 uppercase">{d.tanggal}</p>
-                                  </div>
-                               </div>
-                             ))}
-                             {filteredDossiers.length === 0 && (
-                               <div className="col-span-full py-20 text-center opacity-30">
-                                  <i className="bi bi-folder-x text-5xl mb-4 block"></i>
-                                  <p className="text-[10px] font-black uppercase tracking-widest">Belum ada dokumen terunggah</p>
-                               </div>
-                             )}
-                          </div>
-                       </div>
-                    )}
-                 </div>
-              </div>
-           </div>
-        </div>
-      )}
 
       {isAddDossierOpen && selectedPegawai && (
         <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
@@ -740,100 +568,6 @@ const PegawaiPage = () => {
         </div>
       )}
 
-      {/* TEMPLATE DAFTAR RIWAYAT HIDUP (PRINT READY) */}
-      <div className="fixed -left-[4000px] top-0 pointer-events-none">
-         <div ref={drhRef} className="bg-white text-black font-arial p-[1.5cm_1.5cm] leading-tight" style={{ width: '210mm', minHeight: '297mm' }}>
-            {/* OFFICIAL HEADER */}
-            <div className="flex flex-col items-center mb-8 border-b-2 border-black pb-4 text-center">
-                <img src={LOGO_PENGAYOMAN_URL} className="h-20 mb-4 grayscale" crossOrigin="anonymous" />
-                <p className="text-[12pt] font-bold uppercase leading-tight">KEMENTERIAN HUKUM</p>
-                <p className="text-[12pt] font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                <p className="text-[9pt] font-normal leading-tight mt-1">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
-            </div>
-
-            <div className="text-center mb-8">
-               <h1 className="text-[13pt] font-bold uppercase underline leading-tight">DAFTAR RIWAYAT HIDUP</h1>
-               <p className="text-[10pt] font-bold mt-1">PEGAWAI NEGERI SIPIL / PPPK</p>
-            </div>
-
-            <div className="space-y-6 text-[10pt] text-black">
-               <section>
-                  <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">I. DATA PRIBADI</p>
-                  <table className="w-full border-collapse">
-                     <tbody>
-                        <tr><td className="w-[180px] py-1">1. Nama Lengkap</td><td className="w-4 py-1 text-center">:</td><td className="py-1 font-bold uppercase underline">{selectedPegawai?.nama}</td></tr>
-                        <tr><td className="py-1">2. NIP</td><td className="py-1 text-center">:</td><td className="py-1 font-bold">{selectedPegawai?.nip}</td></tr>
-                        <tr><td className="py-1">3. NIK</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.nik || '-'}</td></tr>
-                        <tr><td className="py-1">4. Tempat, Tgl Lahir</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.tempatLahir || '-'}, {selectedPegawai?.tanggalLahir || '-'}</td></tr>
-                        <tr><td className="py-1">5. Jenis Kelamin</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</td></tr>
-                        <tr><td className="py-1">6. Agama</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.agama || '-'}</td></tr>
-                        <tr><td className="py-1">7. Alamat Domisili</td><td className="py-1 text-center">:</td><td className="py-1 uppercase leading-tight">{selectedPegawai?.alamat || '-'}</td></tr>
-                        <tr><td className="py-1">8. No. Telepon / HP</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.noHp || '-'}</td></tr>
-                        <tr><td className="py-1">9. E-Mail</td><td className="py-1 text-center">:</td><td className="py-1 text-blue-800 lowercase">{selectedPegawai?.email || '-'}</td></tr>
-                     </tbody>
-                  </table>
-               </section>
-
-               <section>
-                  <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">II. POSISI DAN KEPANGKATAN</p>
-                  <table className="w-full border-collapse">
-                     <tbody>
-                        <tr><td className="w-[180px] py-1">1. Nama Jabatan</td><td className="w-4 py-1 text-center">:</td><td className="py-1 font-bold uppercase">{selectedPegawai?.jabatan || '-'}</td></tr>
-                        <tr><td className="py-1">2. TMT Jabatan</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.tmtJabatan || '-'}</td></tr>
-                        <tr><td className="py-1">3. Eselon</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.eselon || '-'}</td></tr>
-                        <tr><td className="py-1">4. Pangkat (Golongan)</td><td className="py-1 text-center">:</td><td className="py-1 uppercase font-bold">{selectedPegawai?.pangkat} ({selectedPegawai?.golRuang})</td></tr>
-                        <tr><td className="py-1">5. TMT Pangkat</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.tmtPangkat || '-'}</td></tr>
-                        <tr><td className="py-1">6. Masa Kerja Golongan</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.masaKerja || '-'}</td></tr>
-                        <tr><td className="py-1">7. Unit Kerja</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.unitKerja}</td></tr>
-                        <tr><td className="py-1">8. TMT CPNS / Kontrak</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.tmtCpns || '-'}</td></tr>
-                     </tbody>
-                  </table>
-               </section>
-
-               <section>
-                  <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">III. RIWAYAT PENDIDIKAN</p>
-                  <table className="w-full border-collapse">
-                     <tbody>
-                        <tr><td className="w-[180px] py-1">1. Jenjang Pendidikan</td><td className="w-4 py-1 text-center">:</td><td className="py-1 uppercase font-bold">{selectedPegawai?.pendidikan || '-'}</td></tr>
-                        <tr><td className="py-1">2. Program Studi / Jurusan</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.jurusan || '-'}</td></tr>
-                     </tbody>
-                  </table>
-               </section>
-
-               <section>
-                  <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">IV. DATA ADMINISTRASI LAINNYA</p>
-                  <table className="w-full border-collapse">
-                     <tbody>
-                        <tr><td className="w-[180px] py-1">1. Nomor NPWP</td><td className="w-4 py-1 text-center">:</td><td className="py-1">{selectedPegawai?.npwp || '-'}</td></tr>
-                        <tr><td className="py-1">2. Nomor BPJS Kes.</td><td className="py-1 text-center">:</td><td className="py-1">{selectedPegawai?.noBpjs || '-'}</td></tr>
-                        <tr><td className="py-1">3. No. Karis / Karsu</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{selectedPegawai?.noKarisKarsu || '-'}</td></tr>
-                     </tbody>
-                  </table>
-               </section>
-            </div>
-
-            <div className="mt-14 flex justify-between items-start text-black">
-               <div className="w-[3.5cm] h-[4.5cm] border-2 border-black flex flex-col items-center justify-center text-[7pt] italic text-gray-400 p-2 text-center ml-10">
-                  {selectedPegawai?.foto ? (
-                    <img src={selectedPegawai.foto} className="w-full h-full object-cover" crossOrigin="anonymous" />
-                  ) : (
-                    <span>PAS FOTO 3X4<br/>TEMPEL DI SINI</span>
-                  )}
-               </div>
-               
-               <div className="text-center w-[250px] mr-10">
-                  <p className="text-[10pt]">Jakarta, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                  <p className="mt-1 mb-28 uppercase font-bold text-[10pt]">Pegawai Bersangkutan,</p>
-                  <p className="font-bold uppercase underline leading-none text-[11pt]">{selectedPegawai?.nama}</p>
-                  <p className="mt-1 text-[10pt]">NIP {selectedPegawai?.nip}</p>
-               </div>
-            </div>
-
-            <div className="mt-10 pt-4 border-t border-dotted border-black/30 text-[7pt] italic text-gray-500 text-right">
-                Dokumen ini dicetak secara otomatis melalui PORTAL SDM DJKI pada {new Date().toLocaleString('id-ID')}.
-            </div>
-         </div>
-      </div>
     </div>
   );
 };

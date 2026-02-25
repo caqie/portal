@@ -123,6 +123,46 @@ export interface SKPRecord {
   lampiran?: any; 
 }
 
+export interface RiwayatPendidikan {
+  jenjang: string;
+  institusi: string;
+  jurusan: string;
+  tahunLulus: string;
+  nomorIjazah: string;
+}
+
+export interface RiwayatJabatan {
+  namaJabatan: string;
+  unitKerja: string;
+  tmtJabatan: string;
+  nomorSk: string;
+  tanggalSk: string;
+}
+
+export interface RiwayatPangkat {
+  golRuang: string;
+  pangkat: string;
+  tmtPangkat: string;
+  nomorSk: string;
+  tanggalSk: string;
+}
+
+export interface RiwayatPelatihan {
+  namaPelatihan: string;
+  penyelenggara: string;
+  tahun: string;
+  durasi: string;
+  nomorSertifikat: string;
+}
+
+export interface Keluarga {
+  hubungan: string;
+  nama: string;
+  tempatLahir?: string;
+  tanggalLahir?: string;
+  pekerjaan?: string;
+}
+
 export interface Pegawai { 
   id: string; 
   nip: string; 
@@ -163,6 +203,12 @@ export interface Pegawai {
   bup?: string;
   sisaMasaKerja?: string;
   keteranganPensiun?: string;
+  statusPerkawinan?: string;
+  riwayatPendidikan?: RiwayatPendidikan[];
+  riwayatJabatan?: RiwayatJabatan[];
+  riwayatPangkat?: RiwayatPangkat[];
+  riwayatPelatihan?: RiwayatPelatihan[];
+  keluarga?: Keluarga[];
 }
 
 export interface KeuanganPeserta {

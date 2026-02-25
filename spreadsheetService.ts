@@ -103,6 +103,7 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
 export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
   return fetchTableData<Pegawai>('PEGAWAI', 'portal_pegawai_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
     return {
       id: get('ID'), nip: get('NIP').replace(/\D/g, ''), nama: get('NAMA'), 
       jabatan: get('JABATAN'), 
@@ -121,13 +122,18 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
       alamat: get('ALAMAT'), eselon: get('ESELON'), agama: get('AGAMA'),
       noHp: get('NOHP'), email: get('EMAIL'), npwp: get('NPWP'), noBpjs: get('NOBPJS'), noKarisKarsu: get('NOKARISKARSU'),
       noTapera: get('NOTAPERA'), noKarpeg: get('NOKARPEG'),
-      // Mapping columns X to AC (Index 23 to 28)
       usia: cols[23] || '',
       tglPensiun: cols[24] || '',
       tmtPensiunDisplay: cols[25] || '',
       bup: cols[26] || '',
       sisaMasaKerja: cols[27] || '',
-      keteranganPensiun: cols[28] || ''
+      keteranganPensiun: cols[28] || '',
+      statusPerkawinan: get('STATUSPERKAWINAN'),
+      riwayatPendidikan: getJson('RIWAYATPENDIDIKAN'),
+      riwayatJabatan: getJson('RIWAYATJABATAN'),
+      riwayatPangkat: getJson('RIWAYATPANGKAT'),
+      riwayatPelatihan: getJson('RIWAYATPELATIHAN'),
+      keluarga: getJson('KELUARGA')
     } as Pegawai;
   });
 };
