@@ -2,6 +2,7 @@
 {
   "name": "portal-sdm-djki",
   "version": "1.0.0",
+  "type": "module",
   "description": "Portal SDM Direktorat Jenderal Kekayaan Intelektual",
   "main": "index.tsx",
   "dependencies": {

@@ -157,6 +157,12 @@ export interface Pegawai {
   noKarisKarsu?: string;
   noTapera?: string;
   noKarpeg?: string;
+  usia?: string;
+  tglPensiun?: string;
+  tmtPensiunDisplay?: string;
+  bup?: string;
+  sisaMasaKerja?: string;
+  keteranganPensiun?: string;
 }
 
 export interface ABKAnjab { 

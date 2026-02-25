@@ -26,6 +26,9 @@ const PensiunPage = () => {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
+  const [filterJenis, setFilterJenis] = useState('Semua Jenis');
+  const [filterYearStart, setFilterYearStart] = useState('Semua');
+  const [filterYearEnd, setFilterYearEnd] = useState('Semua');
 
   const pdfRef = useRef<HTMLDivElement>(null);
 
@@ -82,11 +85,31 @@ const PensiunPage = () => {
       if (!p.retirement) return false;
       const termMatch = `${p.nama} ${p.nip}`.toLowerCase().includes(searchTerm.toLowerCase());
       const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
+      const jenisMatch = filterJenis === 'Semua Jenis' || (p.jenisPegawai || '').toUpperCase() === filterJenis.toUpperCase();
+      
+      const pYear = p.retirement.tmtPensiun.getFullYear();
+      const yearStartMatch = filterYearStart === 'Semua' || pYear >= parseInt(filterYearStart);
+      const yearEndMatch = filterYearEnd === 'Semua' || pYear <= parseInt(filterYearEnd);
+      
       const now = new Date();
       const diffYears = (p.retirement.tmtPensiun.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-      return termMatch && unitMatch && diffYears <= 5;
+      
+      // If a specific period is selected, we show all for that period regardless of the 5-year window
+      const isWithinWindow = diffYears <= 5;
+      const hasYearFilter = filterYearStart !== 'Semua' || filterYearEnd !== 'Semua';
+      
+      return termMatch && unitMatch && jenisMatch && (hasYearFilter ? (yearStartMatch && yearEndMatch) : isWithinWindow);
     }).sort((a, b) => a.retirement!.tmtPensiun.getTime() - b.retirement!.tmtPensiun.getTime());
-  }, [pegawaiList, searchTerm, filterUnit]);
+  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterYearStart, filterYearEnd]);
+
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    pegawaiList.forEach(p => {
+      const ret = getRetirementDetails(p.nip, p.jabatan);
+      if (ret) years.add(ret.tmtPensiun.getFullYear().toString());
+    });
+    return Array.from(years).sort();
+  }, [pegawaiList]);
 
   const handleASNSelect = (nip: string) => {
     const p = pegawaiList.find(x => x.nip === nip);
@@ -146,9 +169,38 @@ const PensiunPage = () => {
         <div className="flex gap-2">
            {activeView === 'list' ? (
              <button onClick={() => {
-                const ws = XLSX.utils.json_to_sheet(retiringCandidates.map(p => ({ NIP: p.nip, Nama: p.nama, Unit: p.unitKerja, TMT: p.retirement?.tmtPensiun.toLocaleDateString('id-ID') })));
-                const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Calon Pensiun");
-                XLSX.writeFile(wb, `Calon_Pensiun_DJKI_${new Date().getFullYear()}.xlsx`);
+                const calculateAge = (birthDateStr: string) => {
+                  if (!birthDateStr) return 0;
+                  const birthDate = new Date(birthDateStr);
+                  const today = new Date();
+                  let age = today.getFullYear() - birthDate.getFullYear();
+                  const m = today.getMonth() - birthDate.getMonth();
+                  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+                  return age;
+                };
+
+                const exportData = retiringCandidates.map(p => {
+                  return {
+                    'NIP': p.nip,
+                    'NAMA': p.nama,
+                    'JABATAN': p.jabatan,
+                    'unit kerja': p.unitKerja,
+                    'TMT_JABATAN': p.tmtJabatan || '-',
+                    'GOL_RUANG': p.golRuang,
+                    'TANGGAL_LAHIR': p.tanggalLahir,
+                    'GENDER': p.gender === 'L' ? 'Laki-laki' : 'Perempuan',
+                    'Usia': p.usia || '-',
+                    'Tgl Pensiun': p.tglPensiun || '-',
+                    'TMT Pensiun': p.tmtPensiunDisplay || '-',
+                    'Usia Pensiun': p.bup || '-',
+                    'Sisa Masa Kerja': p.sisaMasaKerja || '-'
+                  };
+                });
+
+                const ws = XLSX.utils.json_to_sheet(exportData);
+                const wb = XLSX.utils.book_new(); 
+                XLSX.utils.book_append_sheet(wb, ws, "Calon Pensiun");
+                XLSX.writeFile(wb, `Data_Pensiun_DJKI_${new Date().getFullYear()}.xlsx`);
              }} className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-[9px] uppercase shadow-lg flex items-center gap-2">
                 <i className="bi bi-file-earmark-spreadsheet-fill"></i> Ekspor Excel
              </button>
@@ -165,6 +217,30 @@ const PensiunPage = () => {
                 <i className="bi bi-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 <input type="text" placeholder="Cari Calon Pensiun..." className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-xs font-black uppercase outline-none focus:border-blue-600 transition-all shadow-inner" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
               </div>
+              <div className="flex flex-wrap gap-2">
+                <select className="px-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all shadow-inner" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
+                  <option>Semua Unit</option>
+                  {UNIT_KERJA.map(u => <option key={u}>{u}</option>)}
+                </select>
+                <select className="px-6 py-3.5 bg-gray-50 border-2 border-transparent rounded-2xl text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all shadow-inner" value={filterJenis} onChange={e => setFilterJenis(e.target.value)}>
+                  <option>Semua Jenis</option>
+                  <option>PNS</option>
+                  <option>CPNS</option>
+                  <option>PPPK</option>
+                </select>
+                <div className="flex items-center gap-2 bg-gray-50 border-2 border-transparent rounded-2xl px-4 shadow-inner">
+                  <span className="text-[8px] font-black text-gray-400 uppercase">Dari:</span>
+                  <select className="bg-transparent text-[10px] font-black uppercase outline-none" value={filterYearStart} onChange={e => setFilterYearStart(e.target.value)}>
+                    <option>Semua</option>
+                    {availableYears.map(y => <option key={y}>{y}</option>)}
+                  </select>
+                  <span className="text-[8px] font-black text-gray-400 uppercase">Sampai:</span>
+                  <select className="bg-transparent text-[10px] font-black uppercase outline-none" value={filterYearEnd} onChange={e => setFilterYearEnd(e.target.value)}>
+                    <option>Semua</option>
+                    {availableYears.map(y => <option key={y}>{y}</option>)}
+                  </select>
+                </div>
+              </div>
            </div>
            <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
               <table className="w-full text-left">
@@ -175,8 +251,8 @@ const PensiunPage = () => {
                   {retiringCandidates.map(p => (
                     <tr key={p.nip} className="hover:bg-blue-50/5 group transition-all">
                       <td className="px-10 py-5"><p className="text-[11px] font-black text-gray-950 uppercase">{p.nama}</p><p className="text-[9px] font-mono text-blue-600">NIP. {p.nip}</p></td>
-                      <td className="px-4 py-5 text-center font-black text-rose-600">{p.retirement?.tmtPensiun.toLocaleDateString('id-ID')}</td>
-                      <td className="px-4 py-5 text-center"><span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black border border-rose-100">{p.retirement?.sisaMasaKerja}</span></td>
+                      <td className="px-4 py-5 text-center font-black text-rose-600">{p.tmtPensiunDisplay || (p.retirement?.tmtPensiun.toLocaleDateString('id-ID'))}</td>
+                      <td className="px-4 py-5 text-center"><span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black border border-rose-100">{p.sisaMasaKerja || p.masaKerja || '-'}</span></td>
                       <td className="px-10 py-5 text-right"><button onClick={() => handleASNSelect(p.nip)} className="h-9 px-6 bg-gray-950 text-white rounded-xl text-[9px] font-black uppercase shadow-lg active:scale-95 transition-all opacity-0 group-hover:opacity-100">Buat DPCP</button></td>
                     </tr>
                   ))}

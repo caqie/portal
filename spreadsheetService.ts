@@ -119,7 +119,14 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
       masaKerja: get('MASAKERJA'), tempatLahir: get('TEMPATLAHIR'), tanggalLahir: get('TANGGALLAHIR'),
       alamat: get('ALAMAT'), eselon: get('ESELON'), agama: get('AGAMA'),
       noHp: get('NOHP'), email: get('EMAIL'), npwp: get('NPWP'), noBpjs: get('NOBPJS'), noKarisKarsu: get('NOKARISKARSU'),
-      noTapera: get('NOTAPERA'), noKarpeg: get('NOKARPEG')
+      noTapera: get('NOTAPERA'), noKarpeg: get('NOKARPEG'),
+      // Mapping columns X to AC (Index 23 to 28)
+      usia: cols[23] || '',
+      tglPensiun: cols[24] || '',
+      tmtPensiunDisplay: cols[25] || '',
+      bup: cols[26] || '',
+      sisaMasaKerja: cols[27] || '',
+      keteranganPensiun: cols[28] || ''
     } as Pegawai;
   });
 };
