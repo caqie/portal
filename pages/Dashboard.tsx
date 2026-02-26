@@ -250,6 +250,7 @@ const Dashboard = () => {
     const ws = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({ 
       'Nama Jabatan': j.jabatan, 
       'Klasifikasi': j.klasifikasi,
+      'Unit Kerja': j.unitKerja,
       'Jenis Pegawai': j.jenis,
       'Jumlah Pegawai': j.total 
     })));

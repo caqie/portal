@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
@@ -40,7 +39,7 @@ const KenaikanPangkatPage = () => {
     pjbNama: 'ANDRIEANSJAH',
     pjbNip: '197410061998031002',
     pjbJabatan: 'SEKRETARIS DIREKTORAT JENDERAL',
-    nomorNota: 'HKI.1-KP.04.01-',
+    nomorNota: 'HKI.1-KP.04.01-', // Nomor Surat Dinas
     keterangan: 'Memenuhi Syarat Kenaikan Pangkat.'
   });
 
@@ -98,10 +97,27 @@ const KenaikanPangkatPage = () => {
     if (!pdfRef.current) return;
     setSyncing(true);
     try {
-      const canvas = await html2canvas(pdfRef.current, { scale: 2.5, useCORS: true, backgroundColor: "#ffffff" });
+      // Skala diperbesar sedikit agar teks tajam, dan format disesuaikan untuk dokumen panjang
+      const canvas = await html2canvas(pdfRef.current, { 
+          scale: 2.5, 
+          useCORS: true, 
+          backgroundColor: "#ffffff",
+          windowWidth: pdfRef.current.scrollWidth,
+          windowHeight: pdfRef.current.scrollHeight
+      });
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 330);
-      pdf.save(`Nota_Usulan_KP_${formData.namaPegawai?.replace(/\s+/g, '_')}.pdf`);
+      
+      // Jika konten melebihi tinggi kertas standar (330mm), kita perlu menangani multi-page
+      // Untuk kesederhanaan dalam kode ini, kita asumsikan cukup 1 halaman F4 atau memotong
+      // Namun untuk Nota Dinas + Lampiran, idealnya lebih panjang.
+      // Di sini kita gunakan fitur auto page jsPDF sederhana jika perlu, atau potong ke canvas.
+      // Karena html2canvas menghasilkan 1 gambar panjang, kita set tinggi pdf dinamis.
+      const imgHeight = (canvas.height * 210) / canvas.width;
+      const pdfHeight = Math.max(330, imgHeight); // Min F4 height
+      
+      const pdfLong = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, pdfHeight] });
+      pdfLong.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, pdfHeight);
+      pdfLong.save(`Usulan_KP_Dinas_${formData.namaPegawai?.replace(/\s+/g, '_')}.pdf`);
     } catch (e) { alert("Gagal cetak PDF."); } finally { setSyncing(false); }
   };
 
@@ -224,51 +240,122 @@ const KenaikanPangkatPage = () => {
               <button onClick={() => setActiveView('editor')} className="px-8 py-4 bg-white text-gray-500 border border-gray-200 rounded-2xl text-[11px] font-black uppercase">Edit Data</button>
               <button onClick={handleDownloadPdf} className="px-12 py-4 bg-gray-950 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-3 shadow-xl active:scale-95 transition-all"><i className="bi bi-file-earmark-pdf-fill"></i> Download PDF (F4)</button>
            </div>
-           <div className="bg-gray-300 py-10 flex justify-center overflow-x-auto no-scrollbar">
+           <div className="bg-gray-200 py-10 flex justify-center overflow-x-auto no-scrollbar">
               <div ref={pdfRef} className="bg-white shadow-2xl p-[1.5cm_2.2cm] font-arial text-black" style={{ width: '210mm', minHeight: '330mm' }}>
+                 
                  {/* KOP SURAT */}
-                 <div className="flex items-center border-b-[3pt] border-black pb-4 mb-8">
-                    <img src={LOGO_PENGAYOMAN_URL} className="h-20 mr-6" crossOrigin="anonymous" />
-                    <div className="text-center flex-1">
-                       <p className="text-[14pt] font-bold uppercase leading-tight">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                       <p className="text-[13pt] font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                       <p className="text-[9pt] font-normal leading-tight mt-1">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
+                 <div className="flex items-center gap-6 border-b-2 border-black pb-4">
+                      <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" className="h-24" />
+                      <div className="text-center flex-1">
+                        <p className="font-normal text-[12pt] uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                        <p className="font-bold text-[12pt] uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                        <p className="text-[9pt]">Jl. H.R. Rasuna Said Kav. 8-9 Kuningan, Jakarta Selatan 12190</p>
+                        <p className="text-[9pt]">Call Center: 152</p>
+                        <p className="text-[9pt]">Laman: www.dgip.go.id. Pos-el: halodjki@dgip.go.id</p>
+                      </div>
+                   </div>
+
+                 {/* ATRIBUT SURAT */}
+                 <div className="flex justify-between mb-4 text-[11pt]">
+                    <div className="space-y-1 w-3/5">
+                       <div className="grid grid-cols-[90px_10px_1fr]">
+                          <span>Nomor</span><span>:</span><span>{record.nomorNota}</span>
+                       </div>
+                       <div className="grid grid-cols-[90px_10px_1fr]">
+                          <span>Sifat</span><span>:</span><span>Segera</span>
+                       </div>
+                       <div className="grid grid-cols-[90px_10px_1fr]">
+                          <span>Lampiran</span><span>:</span><span>1 (satu) berkas</span>
+                       </div>
+                       <div className="grid grid-cols-[90px_10px_1fr] items-start">
+                          <span>Hal</span><span>:</span><span className="font-bold uppercase">Usul Kenaikan Pangkat Periode {new Date(record.tmtUsulan).toLocaleDateString('id-ID', {month:'long', year:'numeric'})}<br/>di lingkungan Direktorat Jenderal Kekayaan Intelektual</span>
+                       </div>
+                    </div>
+                    <div className="text-right w-2/5 pl-4">
+                       <p>{new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
                     </div>
                  </div>
 
-                 <div className="text-center mb-10">
-                    <h1 className="text-[14pt] font-bold uppercase underline leading-tight">NOTA USULAN KENAIKAN PANGKAT</h1>
-                    <p className="text-[11pt] font-bold mt-1">NOMOR : {record.nomorNota}</p>
+                 {/* PENERIMA */}
+                 <div className="text-[11pt] mb-6">
+                    <p>Yth. Kepala Biro Sumber Daya Manusia</p>
+                    <p>Sekretariat Jenderal Kementerian Hukum</p>
+                    <p>di Tempat</p>
                  </div>
+                 <br/>
 
-                 <div className="text-[11pt] space-y-8 text-justify leading-relaxed">
-                    <p>Bersama ini disampaikan usulan Kenaikan Pangkat bagi Pegawai Negeri Sipil di lingkungan Direktorat Jenderal Kekayaan Intelektual, dengan data sebagai berikut:</p>
+                 {/* ISI SURAT */}
+                 <div className="text-[11pt] text-justify leading-relaxed">
+                    <p className="mb-4">Menindaklanjuti surat Kepala Biro Kepegawaian Sekretariat Jenderal Kementerian Hukum R.I. Nomor SEK.2-KP.04.05-599 tanggal 24 September 2025 hal Tata Cara Pengusulan dan Periodisasi Kenaikan Pangkat Sesuai Peraturan Badan Kepegawaian Negara Nomor 4 Tahun 2025, bersama ini terlampir daftar nama-nama pegawai tambahan yang diusulkan untuk kenaikan pangkat periode {new Date(record.tmtUsulan).toLocaleDateString('id-ID', {month:'long', year:'numeric'})}.</p>
                     
-                    <div className="ml-8 grid grid-cols-[180px_10px_1fr] gap-y-2">
-                       <span>Nama Lengkap</span><span>:</span><span className="font-bold uppercase underline">{record.namaPegawai}</span>
-                       <span>NIP</span><span>:</span><span className="font-bold">{record.nip}</span>
-                       <span>Pangkat / Golongan Lama</span><span>:</span><span className="uppercase">{record.dari}</span>
-                       <span>Pangkat / Golongan Baru</span><span>:</span><span className="font-bold uppercase text-blue-700">{record.menjadi}</span>
-                       <span>Jabatan</span><span>:</span><span className="uppercase">{record.jabatan}</span>
-                       <span>Unit Kerja</span><span>:</span><span className="uppercase">{record.unitKerja}</span>
-                       <span>TMT Usulan</span><span>:</span><span className="font-bold">{new Date(record.tmtUsulan).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</span>
-                       <span>Jenis Usulan</span><span>:</span><span className="uppercase">{record.jenisUsulan}</span>
-                    </div>
-
-                    <div className="p-6 bg-gray-50 border-2 border-black rounded-xl">
-                       <p className="font-bold mb-2 uppercase text-[10pt]">Catatan Verifikasi:</p>
-                       <p className="italic text-[10pt]">{record.keterangan || '-'}</p>
-                    </div>
-
-                    <p>Demikian usulan ini dibuat untuk dapat diproses lebih lanjut sesuai dengan ketentuan peraturan perundang-undangan yang berlaku.</p>
-
-                    <div className="mt-20 ml-[50%] text-center leading-tight">
-                       <p>Jakarta, {new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
-                       <p className="font-bold uppercase mb-28 mt-4 leading-tight">{record.pjbJabatan},</p>
-                       <p className="font-bold uppercase underline leading-none">{record.pjbNama}</p>
-                       <p className="mt-1">NIP {record.pjbNip}</p>
-                    </div>
+                    <p className="mb-4">Sehubungan dengan hal tersebut, kami mohon perkenan Saudara untuk dapat memproses usulan kenaikan pangkat pegawai di lingkungan Direktorat Jenderal Kekayaan Intelektual.</p>
+                    
+                    <p className="mb-8">Atas perhatian dan kerja sama yang baik, disampaikan terima kasih.</p>
                  </div>
+
+                 {/* TANDATANGAN */}
+                 <div className="mt-12 text-[11pt] text-right leading-tight w-1/2 ml-auto">
+                    <p className="mb-2">Sekretaris Direktorat Jenderal</p>
+                    <p className="mb-24">Kekayaan Intelektual,</p>
+                    <p className="font-bold uppercase underline leading-none">{record.pjbNama}</p>
+                    <p className="mt-1">NIP {record.pjbNip}</p>
+                 </div>
+
+                 {/* TEMBUSAN */}
+                 <div className="mt-12 text-[9pt]">
+                    <p className="font-bold">Tembusan :</p>
+                    <p className="ml-4">Direktur Jenderal Kekayaan Intelektual;</p>
+                 </div>
+
+                 {/* LAMPIRAN (Simulasi di bawah surat) */}
+                 <div className="mt-16 pt-8 border-t-2 border-black">
+                    <div className="text-center font-bold uppercase mb-4">
+                       LAMPIRAN I
+                    </div>
+                    <div className="text-center text-[11pt] mb-2">
+                       Nota Dinas Sekretaris Direktorat Jenderal
+                    </div>
+                    <div className="text-center text-[11pt] mb-1">
+                       Kekayaan Intelektual
+                    </div>
+                    <div className="flex justify-between text-[11pt] mb-6 px-8">
+                       <div className="grid grid-cols-[80px_10px_1fr]">
+                          <span>Nomor</span><span>:</span><span>{record.nomorNota}</span>
+                       </div>
+                       <div className="grid grid-cols-[80px_10px_1fr]">
+                          <span>Tanggal</span><span>:</span><span>{new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</span>
+                       </div>
+                    </div>
+
+                    <div className="text-center font-bold uppercase mb-6">
+                       Daftar Nama Kenaikan Pangkat Struktural Periode {new Date(record.tmtUsulan).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}
+                    </div>
+
+                    {/* TABEL PEGAWAI (Simulasi Lampiran) */}
+                    <table className="w-full border-collapse text-[11pt] text-center">
+                        <thead>
+                            <tr className="bg-gray-200 font-bold uppercase">
+                                <th className="border border-black p-2 w-[50px]">No</th>
+                                <th className="border border-black p-2">Nama</th>
+                                <th className="border border-black p-2">NIP</th>
+                                <th className="border border-black p-2">Jabatan</th>
+                                <th className="border border-black p-2">Pangkat / Golongan Lama</th>
+                                <th className="border border-black p-2">Pangkat / Golongan Baru</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td className="border border-black p-2">1</td>
+                                <td className="border border-black p-2 uppercase text-left pl-4">{record.namaPegawai}</td>
+                                <td className="border border-black p-2">{record.nip}</td>
+                                <td className="border border-black p-2 uppercase text-left pl-4">{record.jabatan}</td>
+                                <td className="border border-black p-2 uppercase">{record.dari}</td>
+                                <td className="border border-black p-2 uppercase font-bold">{record.menjadi}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                 </div>
+
               </div>
            </div>
         </div>

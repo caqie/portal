@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { TugasRutin, TaskType } from '../types';
 import { fetchTugasRutinFromSheets, syncTableRemote } from '../spreadsheetService';
@@ -6,7 +5,7 @@ import { useAuth } from '../AuthContext';
 import { BULAN, TASK_LABELS, UNIT_KERJA } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
-import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx'; // Uncomment jika digunakan
 
 const TugasRutinPage = () => {
   const { canEdit, isSuperadmin, logActivity } = useAuth();
@@ -45,23 +44,34 @@ const TugasRutinPage = () => {
     }));
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Mengubah signature menjadi React.MouseEvent<HTMLButtonElement> karena tombol di luar form
+  const handleSave = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault(); // Mencegah form submit default jika ada
     setSyncing(true);
     const taskId = editingTask?.id || `TR-${Date.now()}`;
-    // Detail dikosongkan karena field form narasi dihilangkan sesuai request
+    
+    // Validasi sederhana
+    if (!formData.jenis) {
+        alert("Pilih kategori administrasi terlebih dahulu.");
+        setSyncing(false);
+        return;
+    }
+
     const payload = { 
       ...formData, 
       id: taskId, 
-      detail: '', 
+      detail: '', // Detail dikosongkan sesuai request sebelumnya
       timestamp: new Date().toISOString() 
     };
+
     const ok = await syncTableRemote('TUGAS_RUTIN', 'SAVE', payload);
     if(ok) { 
       setSuccessMsg(`Data log ${TASK_LABELS[formData.jenis || ''] || 'tugas'} berhasil disinkronkan.`);
       await loadData();
       setIsModalOpen(false); 
       setShowSuccess(true); 
+    } else {
+        alert("Gagal menyimpan data. Silakan coba lagi.");
     }
     setSyncing(false);
   };
@@ -74,7 +84,6 @@ const TugasRutinPage = () => {
       if(ok) {
         logActivity('DELETE', 'Tugas Rutin', `Hapus log: ${TASK_LABELS[taskToDelete.jenis]}`);
         setSuccessMsg("Data log tugas berhasil dihapus secara permanen.");
-        // Update state lokal langsung agar UI responsif tanpa nunggu fetch ulang
         setTasks(prev => prev.filter(t => t.id !== taskToDelete.id));
         setIsConfirmOpen(false);
         setShowSuccess(true);
@@ -91,238 +100,254 @@ const TugasRutinPage = () => {
   const inputClass = "w-full px-5 py-3.5 bg-white border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950 shadow-sm";
   const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";
 
+  // --- Helper Components (Dipindahkan ke luar renderDynamicInputs untuk mencegah Remount/Focus Loss) ---
+  
+  const renderInput = (label: string, field: string, typeAttr = "text", full = false, placeholder = "") => (
+    <div className={`space-y-1.5 ${full ? 'col-span-full' : ''}`}>
+      <label className={labelClass}>{label}</label>
+      <input 
+        type={typeAttr} 
+        className={inputClass} 
+        value={(formData.data && formData.data[field]) || ''} 
+        onChange={e => updateDataField(field, e.target.value)} 
+        placeholder={placeholder} 
+      />
+    </div>
+  );
+
+  const renderTextArea = (label: string, field: string, placeholder = "") => (
+    <div className="space-y-1.5 col-span-full">
+      <label className={labelClass}>{label}</label>
+      <textarea 
+        rows={2} 
+        className={`${inputClass} normal-case h-20 resize-none font-bold`} 
+        value={(formData.data && formData.data[field]) || ''} 
+        onChange={e => updateDataField(field, e.target.value)} 
+        placeholder={placeholder} 
+      />
+    </div>
+  );
+
+  const renderLinkInput = (label: string, field: string) => (
+    renderInput(label, field, "text", true, "https://drive.google.com/...")
+  );
+
   const renderDynamicInputs = () => {
-    const data = formData.data || {};
     const type = formData.jenis;
     
-    const Input = ({ label, field, placeholder = "", typeAttr = "text", full = false }: any) => (
-      <div className={`space-y-1.5 ${full ? 'col-span-full' : ''}`}>
-        <label className={labelClass}>{label}</label>
-        <input type={typeAttr} className={inputClass} value={data[field] || ''} onChange={e => updateDataField(field, e.target.value)} placeholder={placeholder} />
-      </div>
-    );
-
-    const TextArea = ({ label, field, placeholder = "" }: any) => (
-      <div className="space-y-1.5 col-span-full">
-        <label className={labelClass}>{label}</label>
-        <textarea rows={2} className={`${inputClass} normal-case h-20 resize-none font-bold`} value={data[field] || ''} onChange={e => updateDataField(field, e.target.value)} placeholder={placeholder} />
-      </div>
-    );
-
-    const LinkInput = ({ label, field }: any) => (
-      <Input label={label} field={field} placeholder="https://drive.google.com/..." full={true} />
-    );
+    // Jika jenis belum dipilih, tampilkan pesan
+    if (!type) return <div className="text-center text-gray-400 py-10 font-bold uppercase text-xs">Pilih Kategori untuk menampilkan form</div>;
 
     switch(type) {
       case TaskType.PELANTIKAN:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Tanggal Pelantikan" field="tanggal_pelantikan" typeAttr="date" />
-            <Input label="Judul Pelantikan" field="judul_pelantikan" />
-            <Input label="Nama Pelantikan" field="nama_pelantikan" />
-            <Input label="Tempat Pelantikan" field="tempat_pelantikan" />
-            <Input label="Jumlah Peserta" field="jumlah_peserta_pelantikan" typeAttr="number" />
-            <LinkInput label="Link Dokumen Pelantikan" field="link_dokumen_pelantikan" />
+            {renderInput("Tanggal Pelantikan", "tanggal_pelantikan", "date")}
+            {renderInput("Judul Pelantikan", "judul_pelantikan")}
+            {renderInput("Nama Pelantikan", "nama_pelantikan")}
+            {renderInput("Tempat Pelantikan", "tempat_pelantikan")}
+            {renderInput("Jumlah Peserta", "jumlah_peserta_pelantikan", "number")}
+            {renderLinkInput("Link Dokumen Pelantikan", "link_dokumen_pelantikan")}
           </div>
         );
       case TaskType.APEL:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Tanggal Apel" field="tanggal_apel" typeAttr="date" />
-            <Input label="Tempat Apel" field="tempat_apel" />
-            <Input label="Jumlah Peserta" field="jumlah_peserta_apel" typeAttr="number" />
-            <TextArea label="Keterangan Apel" field="keterangan_apel" />
-            <LinkInput label="Link Dokumen Apel" field="link_dokumen_apel" />
+            {renderInput("Tanggal Apel", "tanggal_apel", "date")}
+            {renderInput("Tempat Apel", "tempat_apel")}
+            {renderInput("Jumlah Peserta", "jumlah_peserta_apel", "number")}
+            {renderTextArea("Keterangan Apel", "keterangan_apel")}
+            {renderLinkInput("Link Dokumen Apel", "link_dokumen_apel")}
           </div>
         );
       case TaskType.LHKPN:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Unit LHKPN" field="unit_lhkpn" />
-            <Input label="Jumlah LHKPN" field="jumlah_lhkpn" typeAttr="number" />
-            <TextArea label="Daftar Nama LHKPN" field="daftar_nama_lhkpn" />
-            <LinkInput label="Link Dokumen LHKPN" field="link_dokumen_lhkpn" />
+            {renderInput("Unit LHKPN", "unit_lhkpn")}
+            {renderInput("Jumlah LHKPN", "jumlah_lhkpn", "number")}
+            {renderTextArea("Daftar Nama LHKPN", "daftar_nama_lhkpn")}
+            {renderLinkInput("Link Dokumen LHKPN", "link_dokumen_lhkpn")}
           </div>
         );
       case TaskType.LHKASN:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Unit LHKASN" field="unit_lhkasn" />
-            <Input label="Jumlah LHKASN" field="jumlah_lhkasn" typeAttr="number" />
-            <TextArea label="Daftar Nama LHKASN" field="daftar_nama_lhkasn" />
-            <LinkInput label="Link Dokumen LHKASN" field="link_dokumen_lhkasn" />
+            {renderInput("Unit LHKASN", "unit_lhkasn")}
+            {renderInput("Jumlah LHKASN", "jumlah_lhkasn", "number")}
+            {renderTextArea("Daftar Nama LHKASN", "daftar_nama_lhkasn")}
+            {renderLinkInput("Link Dokumen LHKASN", "link_dokumen_lhkasn")}
           </div>
         );
       case TaskType.TUGAS_BELAJAR:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jenis Tugas Belajar" field="jenis_tugas_belajar" />
-            <Input label="Nama Pegawai" field="nama_tugas_belajar" />
-            <Input label="Jenjang Pendidikan" field="jenjang_pendidikan" />
-            <Input label="Jurusan" field="jurusan_tugas_belajar" />
-            <Input label="Kampus" field="kampus_tugas_belajar" />
-            <Input label="Periode" field="periode_tugas_belajar" />
-            <LinkInput label="Link Dokumen Tugas Belajar" field="link_dokumen_tugas_belajar" />
+            {renderInput("Jenis Tugas Belajar", "jenis_tugas_belajar")}
+            {renderInput("Nama Pegawai", "nama_tugas_belajar")}
+            {renderInput("Jenjang Pendidikan", "jenjang_pendidikan")}
+            {renderInput("Jurusan", "jurusan_tugas_belajar")}
+            {renderInput("Kampus", "kampus_tugas_belajar")}
+            {renderInput("Periode", "periode_tugas_belajar")}
+            {renderLinkInput("Link Dokumen Tugas Belajar", "link_dokumen_tugas_belajar")}
           </div>
         );
       case TaskType.MAGANG:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Permohonan" field="jumlah_permohonan" typeAttr="number" />
-            <Input label="Unit Tujuan" field="unit_tujuan_magang" />
-            <Input label="Jumlah Peserta Magang" field="jumlah_magang" typeAttr="number" />
-            <LinkInput label="Link Dokumen Magang" field="link_dokumen_magang" />
+            {renderInput("Jumlah Permohonan", "jumlah_permohonan", "number")}
+            {renderInput("Unit Tujuan", "unit_tujuan_magang")}
+            {renderInput("Jumlah Peserta Magang", "jumlah_magang", "number")}
+            {renderLinkInput("Link Dokumen Magang", "link_dokumen_magang")}
           </div>
         );
       case TaskType.PENELITIAN:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Permohonan" field="jumlah_permohonan" typeAttr="number" />
-            <Input label="Unit Tujuan" field="unit_tujuan_penelitian" />
-            <Input label="Jumlah Peserta Penelitian" field="jumlah_penelitian" typeAttr="number" />
-            <LinkInput label="Link Dokumen Penelitian" field="link_dokumen_penelitian" />
+            {renderInput("Jumlah Permohonan", "jumlah_permohonan", "number")}
+            {renderInput("Unit Tujuan", "unit_tujuan_penelitian")}
+            {renderInput("Jumlah Peserta Penelitian", "jumlah_penelitian", "number")}
+            {renderLinkInput("Link Dokumen Penelitian", "link_dokumen_penelitian")}
           </div>
         );
       case TaskType.SATYA_LENCANA:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Kategori Satyalencana" field="kategori_satya_lencana" placeholder="10 / 20 / 30 TAHUN" />
-            <LinkInput label="Link Dokumen Satyalencana" field="link_dokumen_satya_lencana" />
+            {renderInput("Kategori Satyalencana", "kategori_satya_lencana", "text", false, "10 / 20 / 30 TAHUN")}
+            {renderLinkInput("Link Dokumen Satyalencana", "link_dokumen_satya_lencana")}
           </div>
         );
       case TaskType.GELAR:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Pencantuman Gelar" field="jumlah_pencantuman_gelar" typeAttr="number" />
-            <TextArea label="Nama-nama Pegawai" field="nama_pegawai_gelar" />
-            <LinkInput label="Link Dokumen Gelar" field="link_dokumen_gelar" />
+            {renderInput("Jumlah Pencantuman Gelar", "jumlah_pencantuman_gelar", "number")}
+            {renderTextArea("Nama-nama Pegawai", "nama_pegawai_gelar")}
+            {renderLinkInput("Link Dokumen Gelar", "link_dokumen_gelar")}
           </div>
         );
       case TaskType.PANGKAT:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Usulan" field="jumlah_usulan_pangkat" typeAttr="number" />
-            <Input label="Jumlah Diterima" field="jumlah_diterima_pangkat" typeAttr="number" />
-            <LinkInput label="Link Dokumen Pangkat" field="link_dokumen_pangkat" />
+            {renderInput("Jumlah Usulan", "jumlah_usulan_pangkat", "number")}
+            {renderInput("Jumlah Diterima", "jumlah_diterima_pangkat", "number")}
+            {renderLinkInput("Link Dokumen Pangkat", "link_dokumen_pangkat")}
           </div>
         );
       case TaskType.JENJANG:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Usulan Jenjang" field="jumlah_usulan_jenjang" typeAttr="number" />
-            <Input label="Jumlah Diterima Jenjang" field="jumlah_diterima_jenjang" typeAttr="number" />
-            <LinkInput label="Link Dokumen Jenjang" field="link_dokumen_jenjang" />
+            {renderInput("Jumlah Usulan Jenjang", "jumlah_usulan_jenjang", "number")}
+            {renderInput("Jumlah Diterima Jenjang", "jumlah_diterima_jenjang", "number")}
+            {renderLinkInput("Link Dokumen Jenjang", "link_dokumen_jenjang")}
           </div>
         );
       case TaskType.GAJI:
       case TaskType.KGB:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Status Pegawai" field="status_pegawai_gaji" placeholder="PNS / PPPK" />
-            <Input label="Jumlah Diproses" field="jumlah_diproses_gaji" typeAttr="number" />
-            <LinkInput label="Link Dokumen Gaji/KGB" field="link_dokumen_gaji" />
+            {renderInput("Status Pegawai", "status_pegawai_gaji", "text", false, "PNS / PPPK")}
+            {renderInput("Jumlah Diproses", "jumlah_diproses_gaji", "number")}
+            {renderLinkInput("Link Dokumen Gaji/KGB", "link_dokumen_gaji")}
           </div>
         );
       case TaskType.MUTASI:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Diproses" field="jumlah_diproses_mutasi" typeAttr="number" />
-            <Input label="Nama Pegawai" field="nama_pegawai_mutasi" />
-            <Input label="Jabatan Lama" field="jabatan_lama" />
-            <Input label="Unit Kerja Lama" field="unit_kerja_lama" />
-            <Input label="Jabatan Baru" field="jabatan_baru" />
-            <Input label="Unit Kerja Baru" field="unit_kerja_baru" />
-            <LinkInput label="Link Dokumen Mutasi" field="link_dokumen_mutasi" />
+            {renderInput("Jumlah Diproses", "jumlah_diproses_mutasi", "number")}
+            {renderInput("Nama Pegawai", "nama_pegawai_mutasi")}
+            {renderInput("Jabatan Lama", "jabatan_lama")}
+            {renderInput("Unit Kerja Lama", "unit_kerja_lama")}
+            {renderInput("Jabatan Baru", "jabatan_baru")}
+            {renderInput("Unit Kerja Baru", "unit_kerja_baru")}
+            {renderLinkInput("Link Dokumen Mutasi", "link_dokumen_mutasi")}
           </div>
         );
       case TaskType.KARTU_SUAMI_ISTRI:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Usulan Istri" field="jumlah_usulan_istri" typeAttr="number" />
-            <Input label="Jumlah Diterima Istri" field="jumlah_diterima_istri" typeAttr="number" />
-            <Input label="Jumlah Usulan Suami" field="jumlah_usulan_suami" typeAttr="number" />
-            <Input label="Jumlah Diterima Suami" field="jumlah_diterima_suami" typeAttr="number" />
-            <LinkInput label="Link Dokumen Karis/Karsu" field="link_dokumen_kartu_suami_istri" />
+            {renderInput("Jumlah Usulan Istri", "jumlah_usulan_istri", "number")}
+            {renderInput("Jumlah Diterima Istri", "jumlah_diterima_istri", "number")}
+            {renderInput("Jumlah Usulan Suami", "jumlah_usulan_suami", "number")}
+            {renderInput("Jumlah Diterima Suami", "jumlah_diterima_suami", "number")}
+            {renderLinkInput("Link Dokumen Karis/Karsu", "link_dokumen_kartu_suami_istri")}
           </div>
         );
       case TaskType.KARTU_BPJS:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Usulan BPJS" field="jumlah_usulan_bpjs" typeAttr="number" />
-            <Input label="Jumlah Diterima BPJS" field="jumlah_diterima_bpjs" typeAttr="number" />
-            <LinkInput label="Link Dokumen BPJS" field="link_dokumen_kartu_bpjs" />
+            {renderInput("Jumlah Usulan BPJS", "jumlah_usulan_bpjs", "number")}
+            {renderInput("Jumlah Diterima BPJS", "jumlah_diterima_bpjs", "number")}
+            {renderLinkInput("Link Dokumen BPJS", "link_dokumen_kartu_bpjs")}
           </div>
         );
       case TaskType.CUTI:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jenis Cuti" field="jenis_cuti" placeholder="Tahunan / Sakit / Melahirkan..." />
-            <LinkInput label="Link Dokumen Cuti" field="link_dokumen_cuti" />
+            {renderInput("Jenis Cuti", "jenis_cuti", "text", false, "Tahunan / Sakit / Melahirkan...")}
+            {renderLinkInput("Link Dokumen Cuti", "link_dokumen_cuti")}
           </div>
         );
       case TaskType.SPMT_SPP:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah SPMT" field="jumlah_spmt" typeAttr="number" />
-            <Input label="Jumlah SPP" field="jumlah_spp" typeAttr="number" />
-            <LinkInput label="Link Dokumen SPMT/SPP" field="link_dokumen_spmt_spp" />
+            {renderInput("Jumlah SPMT", "jumlah_spmt", "number")}
+            {renderInput("Jumlah SPP", "jumlah_spp", "number")}
+            {renderLinkInput("Link Dokumen SPMT/SPP", "link_dokumen_spmt_spp")}
           </div>
         );
       case TaskType.ABSENSI:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Unit Absensi" field="unit_absensi" />
-            <Input label="Jumlah Absensi" field="jumlah_absensi" typeAttr="number" />
-            <LinkInput label="Link Dokumen Absensi" field="link_dokumen_absensi" />
+            {renderInput("Unit Absensi", "unit_absensi")}
+            {renderInput("Jumlah Absensi", "jumlah_absensi", "number")}
+            {renderLinkInput("Link Dokumen Absensi", "link_dokumen_absensi")}
           </div>
         );
       case TaskType.PERKAWINAN:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Perkawinan" field="jumlah_perkawinan" typeAttr="number" />
-            <Input label="Jumlah Perceraian" field="jumlah_perceraian" typeAttr="number" />
-            <Input label="Jumlah Kelahiran" field="jumlah_kelahiran" typeAttr="number" />
-            <LinkInput label="Link Dokumen Perkawinan" field="link_dokumen_perkawinan" />
+            {renderInput("Jumlah Perkawinan", "jumlah_perkawinan", "number")}
+            {renderInput("Jumlah Perceraian", "jumlah_perceraian", "number")}
+            {renderInput("Jumlah Kelahiran", "jumlah_kelahiran", "number")}
+            {renderLinkInput("Link Dokumen Perkawinan", "link_dokumen_perkawinan")}
           </div>
         );
       case TaskType.HUKUMAN:
         return (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Input label="Jumlah Ringan" field="jumlah_ringan" typeAttr="number" />
-            <Input label="Jumlah Sedang" field="jumlah_sedang" typeAttr="number" />
-            <Input label="Jumlah Berat" field="jumlah_berat" typeAttr="number" />
-            <LinkInput label="Link Dokumen Hukuman" field="link_dokumen_hukuman" />
+            {renderInput("Jumlah Ringan", "jumlah_ringan", "number")}
+            {renderInput("Jumlah Sedang", "jumlah_sedang", "number")}
+            {renderInput("Jumlah Berat", "jumlah_berat", "number")}
+            {renderLinkInput("Link Dokumen Hukuman", "link_dokumen_hukuman")}
           </div>
         );
       case TaskType.PENSIUN:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Usulan Pensiun" field="jumlah_usulan_pensiun" typeAttr="number" />
-            <Input label="Jumlah SK Pensiun" field="jumlah_sk_pensiun" typeAttr="number" />
-            <LinkInput label="Link Dokumen Pensiun" field="link_dokumen_pensiun" />
+            {renderInput("Jumlah Usulan Pensiun", "jumlah_usulan_pensiun", "number")}
+            {renderInput("Jumlah SK Pensiun", "jumlah_sk_pensiun", "number")}
+            {renderLinkInput("Link Dokumen Pensiun", "link_dokumen_pensiun")}
           </div>
         );
       case TaskType.GRATIFIKASI:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Jumlah Gratifikasi" field="jumlah_gratifikasi" typeAttr="number" />
-            <Input label="Jumlah Benturan Kepentingan" field="jumlah_benturan_kepentingan" typeAttr="number" />
-            <LinkInput label="Link Dokumen Gratifikasi" field="link_dokumen_gratifikasi" />
+            {renderInput("Jumlah Gratifikasi", "jumlah_gratifikasi", "number")}
+            {renderInput("Jumlah Benturan Kepentingan", "jumlah_benturan_kepentingan", "number")}
+            {renderLinkInput("Link Dokumen Gratifikasi", "link_dokumen_gratifikasi")}
           </div>
         );
       case TaskType.UANG_MAKAN:
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Periode" field="periode" placeholder="BULAN DAN TAHUN" />
-            <TextArea label="Keterangan" field="keterangan" />
-            <LinkInput label="Link Dokumen Uang Makan" field="link_dokumen_uangmakan" />
+            {renderInput("Periode", "periode", "text", false, "BULAN DAN TAHUN")}
+            {renderTextArea("Keterangan", "keterangan")}
+            {renderLinkInput("Link Dokumen Uang Makan", "link_dokumen_uangmakan")}
           </div>
         );
       default:
         return (
           <div className="grid grid-cols-2 gap-6">
-            <Input label="Volume / Jumlah" field="jumlah" typeAttr="number" />
-            <Input label="Satuan" field="satuan" placeholder="Berkas / Orang / Kegiatan" />
+            {renderInput("Volume / Jumlah", "jumlah", "number")}
+            {renderInput("Satuan", "satuan", "text", false, "Berkas / Orang / Kegiatan")}
           </div>
         );
     }
@@ -347,7 +372,23 @@ const TugasRutinPage = () => {
         </div>
         <div className="flex gap-3 w-full md:w-auto">
           {canEdit && (
-            <button onClick={() => { setEditingTask(null); setFormData({ bulan: filterMonth, tahun: filterYear, jenis: TaskType.PELANTIKAN, detail: '', data: {} }); setIsModalOpen(true); }} className="flex-1 md:flex-none px-10 h-14 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">+ Registrasi Log Baru</button>
+            <button 
+                onClick={() => { 
+                    setEditingTask(null); 
+                    // Reset form untuk data baru
+                    setFormData({ 
+                        bulan: filterMonth, 
+                        tahun: filterYear, 
+                        jenis: TaskType.PELANTIKAN, // Default tipe
+                        detail: '', 
+                        data: {} 
+                    }); 
+                    setIsModalOpen(true); 
+                }} 
+                className="flex-1 md:flex-none px-10 h-14 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all"
+            >
+                + Registrasi Log Baru
+            </button>
           )}
         </div>
       </div>
@@ -393,8 +434,19 @@ const TugasRutinPage = () => {
                    </td>
                    <td className="px-10 py-7 text-right align-top">
                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                       <button onClick={() => { setEditingTask(t); setFormData({ ...t }); setIsModalOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl shadow-sm hover:bg-amber-500 hover:text-white flex items-center justify-center transition-all"><i className="bi bi-pencil-fill"></i></button>
-                       {isSuperadmin && <button onClick={() => { setTaskToDelete(t); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center transition-all hover:bg-rose-500 hover:text-white"><i className="bi bi-trash-fill"></i></button>}
+                       <button onClick={() => { 
+                           setEditingTask(t); 
+                           // Pastikan data tercopy dengan benar termasuk data object
+                           setFormData({ ...t, data: t.data || {} }); 
+                           setIsModalOpen(true); 
+                       }} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl shadow-sm hover:bg-amber-500 hover:text-white flex items-center justify-center transition-all">
+                           <i className="bi bi-pencil-fill"></i>
+                       </button>
+                       {isSuperadmin && (
+                           <button onClick={() => { setTaskToDelete(t); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center transition-all hover:bg-rose-500 hover:text-white">
+                               <i className="bi bi-trash-fill"></i>
+                           </button>
+                       )}
                      </div>
                    </td>
                  </tr>
@@ -427,30 +479,53 @@ const TugasRutinPage = () => {
                  </button>
               </div>
               
-              <form onSubmit={handleSave} className="flex-1 p-8 md:p-10 space-y-8 overflow-y-auto custom-scrollbar bg-white">
+              <form onSubmit={(e) => e.preventDefault()} className="flex-1 p-8 md:p-10 space-y-8 overflow-y-auto custom-scrollbar bg-white">
                  <div className="grid grid-cols-2 gap-6">
-                    <div><label className={labelClass}>Periode Bulan</label><select className={inputClass} value={formData.bulan} onChange={e => setFormData({...formData, bulan: e.target.value})}>{BULAN.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}</select></div>
-                    <div><label className={labelClass}>Periode Tahun</label><input type="number" className={inputClass} value={formData.tahun} onChange={e => setFormData({...formData, tahun: parseInt(e.target.value)})} /></div>
+                    <div>
+                        <label className={labelClass}>Periode Bulan</label>
+                        <select className={inputClass} value={formData.bulan} onChange={e => setFormData({...formData, bulan: e.target.value})}>
+                            {BULAN.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className={labelClass}>Periode Tahun</label>
+                        <input type="number" className={inputClass} value={formData.tahun} onChange={e => setFormData({...formData, tahun: parseInt(e.target.value)})} />
+                    </div>
                  </div>
                  
                  <div>
                     <label className={labelClass}>Kategori Administrasi / Tugas</label>
-                    <select className={`${inputClass} border-blue-100 text-blue-700 font-black`} value={formData.jenis} onChange={e => setFormData({...formData, jenis: e.target.value as any, data: {}})}>
+                    <select 
+                        className={`${inputClass} border-blue-100 text-blue-700 font-black`} 
+                        value={formData.jenis} 
+                        onChange={e => {
+                            setFormData({
+                                ...formData, 
+                                jenis: e.target.value as any, 
+                                data: {} // Reset data saat ganti kategori
+                            });
+                        }}
+                    >
                         {Object.entries(TASK_LABELS).sort((a,b) => a[1].localeCompare(b[1])).map(([k,v]) => <option key={k} value={k}>{v.toUpperCase()}</option>)}
                     </select>
                  </div>
 
                  <div className="p-8 bg-blue-50/50 rounded-[2.5rem] border-2 border-dashed border-blue-100 space-y-6">
-                    <h6 className="text-[9px] font-black text-blue-600 uppercase tracking-widest border-b pb-2 flex items-center gap-2"><i className="bi bi-info-circle-fill"></i> Atribut Spesifik Kategori</h6>
+                    <h6 className="text-[9px] font-black text-blue-600 uppercase tracking-widest border-b pb-2 flex items-center gap-2">
+                        <i className="bi bi-info-circle-fill"></i> Atribut Spesifik Kategori
+                    </h6>
                     {renderDynamicInputs()}
                  </div>
-
-                 {/* Field Narasi Ringkasan Realisasi dihilangkan sesuai permintaan */}
               </form>
 
               <div className="p-6 md:p-8 bg-gray-50 border-t shrink-0 flex justify-end gap-4 z-50 relative">
                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl text-[10px] font-black uppercase shadow-sm active:scale-95 transition-all">Batalkan</button>
-                 <button type="submit" onClick={handleSave} disabled={syncing} className="px-16 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center gap-4 active:scale-95 disabled:bg-gray-300">
+                 <button 
+                    type="button" // Diganti ke button karena tidak di dalam form tag submit
+                    onClick={handleSave} 
+                    disabled={syncing} 
+                    className="px-16 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center gap-4 active:scale-95 disabled:bg-gray-300"
+                 >
                     {syncing && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
                     <span>Simpan & Sinkronkan</span>
                  </button>

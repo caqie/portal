@@ -5,6 +5,7 @@ import { fetchPegawaiFromSheets, fetchKGBFromSheets, syncTableRemote } from '../
 import { Pegawai, KGB } from '../types';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO, getGajiEstimasi, normalizeUnitName } from '../constants';
+import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -12,6 +13,20 @@ import SearchableSelect from '../components/SearchableSelect';
 import html2canvas from 'html2canvas';
 // @ts-ignore
 import { jsPDF } from 'jspdf';
+
+const terbilang = (n: number): string => {
+  const words = ["", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan", "sepuluh", "sebelas"];
+  let result = "";
+  if (n < 12) result = words[n];
+  else if (n < 20) result = terbilang(n - 10) + " belas";
+  else if (n < 100) result = terbilang(Math.floor(n / 10)) + " puluh " + terbilang(n % 10);
+  else if (n < 200) result = "seratus " + terbilang(n - 100);
+  else if (n < 1000) result = terbilang(Math.floor(n / 100)) + " ratus " + terbilang(n % 100);
+  else if (n < 2000) result = "seribu " + terbilang(n - 1000);
+  else if (n < 1000000) result = terbilang(Math.floor(n / 1000)) + " ribu " + terbilang(n % 1000);
+  else if (n < 1000000000) result = terbilang(Math.floor(n / 1000000)) + " juta " + terbilang(n % 1000000);
+  return result.replace(/\s+/g, ' ').trim();
+};
 
 const KGBGeneratorPage = () => {
   const navigate = useNavigate();
@@ -26,8 +41,8 @@ const KGBGeneratorPage = () => {
   const [itemToDelete, setItemToDelete] = useState<KGB | null>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
 
-  const [formData, setFormData] = useState<any>({
-    nomor: 'HKI.1-KP.04.04-',
+  const [formData, setFormData] = useState<Partial<KGB>>({
+    nomorSk: 'HKI.1-KP.04.04-',
     tglSurat: new Date().toISOString().split('T')[0],
     nip: '',
     namaPegawai: '',
@@ -38,11 +53,31 @@ const KGBGeneratorPage = () => {
     gajiBaru: 0,
     tmtLama: '',
     tmtBaru: '',
-    masaKerjaTahun: 0,
-    golongan: '',
+    masaKerjaBaru: '',
+    pangkatGol: '',
     jabatan: '',
-    unitKerja: ''
+    unitKerja: '',
+    kantor: 'DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL',
+    jenisPegawai: 'PNS',
+    skTerakhirPejabat: 'Kepala Biro Sumber Daya Manusia',
+    skTerakhirTanggal: '',
+    skTerakhirNomor: '',
+    skTerakhirTmt: '',
+    skTerakhirMasaKerja: '',
+    masaPerjanjianKerja: '',
+    perpanjanganPerjanjianKerja: '-'
   });
+
+  const inputClass = "w-full px-5 py-3.5 bg-white border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 transition-all text-gray-950 shadow-sm";
+  const labelClass = "text-[10px] font-black text-gray-600 uppercase ml-3 tracking-widest block mb-1.5";
+
+  // Memindahkan FormItem ke dalam komponen utama agar dapat mengakses inputClass dan labelClass
+  const FormItem = ({ label, children }: any) => (
+    <div className="space-y-1.5">
+      <label className={labelClass}>{label}</label>
+      {children}
+    </div>
+  );
 
   useEffect(() => { loadInitialData(); }, []);
 
@@ -78,18 +113,28 @@ const KGBGeneratorPage = () => {
       const years = parseInt(mkParts[0]) || 0;
       const currentSalary = getGajiEstimasi(p.golRuang, years);
       const nextSalary = getGajiEstimasi(p.golRuang, years + 2);
+      
+      // Hitung estimasi TMT Baru (TMT Lama + 2 Tahun)
+      const tmtLamaDate = new Date(formatDateForInput(p.tmtPangkat || p.tmtCpns));
+      const tmtBaruDate = new Date(tmtLamaDate);
+      tmtBaruDate.setFullYear(tmtBaruDate.getFullYear() + 2);
+      const tmtBaruEstimasi = tmtBaruDate.toISOString().split('T')[0];
+
       setFormData({ 
         ...formData, 
         nip: p.nip, 
         namaPegawai: p.nama, 
-        golongan: p.golRuang,
+        pangkatGol: p.jenisPegawai === 'PPPK' ? `${p.golRuang} / ${p.jabatan}` : `${p.pangkat} - ${p.golRuang}`,
         jabatan: p.jabatan,
         unitKerja: p.unitKerja,
+        jenisPegawai: (p.jenisPegawai as any) === 'PPPK' ? 'PPPK' : 'PNS',
         gajiLama: currentSalary,
         gajiBaru: nextSalary,
         tmtLama: formatDateForInput(p.tmtPangkat || p.tmtCpns),
-        tmtBaru: '',
-        masaKerjaTahun: years + 2
+        tmtBaru: tmtBaruEstimasi, // Auto fill TMT Baru
+        masaKerjaBaru: `${years + 2} Tahun 0 Bulan`,
+        skTerakhirMasaKerja: `${years} Tahun 0 Bulan`,
+        masaPerjanjianKerja: p.jenisPegawai === 'PPPK' ? '5 Tahun' : '',
       });
     }
   };
@@ -100,13 +145,14 @@ const KGBGeneratorPage = () => {
       tmtLama: formatDateForInput(k.tmtLama),
       tmtBaru: formatDateForInput(k.tmtBaru),
       tglSk: formatDateForInput(k.tglSk),
-      tglSurat: formatDateForInput(formData.tglSurat)
+      // PERBAIKAN: Menggunakan tanggal dari data KGB yang diedit, bukan dari state saat ini
+      tglSurat: formatDateForInput(k.tglSurat) 
     });
     setActiveView('editor');
   };
 
   const handleSave = async () => {
-    if (!formData.nip || !formData.tmtBaru) return alert("Lengkapi data KGB.");
+    if (!formData.nip || !formData.tmtBaru) return alert("Lengkapi data KGB, khususnya NIP dan TMT Baru.");
     setSyncing(true);
     const payload = { ...formData, id: formData.id || `KGB-${formData.nip}-${Date.now()}`, status: 'Selesai' };
     const ok = await syncTableRemote('KGB', 'SAVE', payload);
@@ -115,6 +161,8 @@ const KGBGeneratorPage = () => {
       await loadInitialData();
       setActiveView('preview');
       setShowSuccess(true);
+    } else {
+        alert("Gagal menyimpan data.");
     }
     setSyncing(false);
   };
@@ -126,12 +174,12 @@ const KGBGeneratorPage = () => {
       const canvas = await html2canvas(pdfRef.current, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 330);
-      pdf.save(`KGB_${formData.namaPegawai.replace(/\s+/g, '_')}.pdf`);
-    } catch (e) { alert("Gagal cetak PDF."); } finally { setSyncing(false); }
+      pdf.save(`KGB_${(formData.namaPegawai || 'Pegawai').replace(/\s+/g, '_')}.pdf`);
+    } catch (e) { 
+        console.error(e);
+        alert("Gagal cetak PDF. Cek konsol browser untuk detail."); 
+    } finally { setSyncing(false); }
   };
-
-  const inputClass = "w-full px-5 py-3.5 bg-white border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 transition-all text-gray-950 shadow-sm";
-  const labelClass = "text-[10px] font-black text-gray-600 uppercase ml-3 tracking-widest block mb-1.5";
 
   const pSubjek = pegawaiList.find(p => p.nip === formData.nip);
 
@@ -141,9 +189,13 @@ const KGBGeneratorPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={async () => {
          if(itemToDelete) {
            setSyncing(true);
-           await syncTableRemote('KGB', 'DELETE', { id: itemToDelete.id });
-           await loadInitialData();
-           setIsConfirmOpen(false);
+           const ok = await syncTableRemote('KGB', 'DELETE', { id: itemToDelete.id });
+           if(ok) {
+               await loadInitialData();
+               setIsConfirmOpen(false);
+           } else {
+               alert("Gagal menghapus data");
+           }
            setSyncing(false);
          }
       }} />
@@ -160,7 +212,7 @@ const KGBGeneratorPage = () => {
         </div>
         <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100">
            <button onClick={() => setActiveView('list')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'list' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>Arsip KGB</button>
-           <button onClick={() => { setFormData({...formData, id: undefined, nip: ''}); setActiveView('editor'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'editor' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>Buat Baru</button>
+           <button onClick={() => { setFormData({...formData, id: undefined, nip: '', tmtBaru: '' }); setActiveView('editor'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'editor' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>Buat Baru</button>
         </div>
       </div>
 
@@ -197,43 +249,67 @@ const KGBGeneratorPage = () => {
                       </td>
                    </tr>
                  ))}
+                 {kgbHistory.length === 0 && (
+                     <tr>
+                        <td colSpan={4} className="py-20 text-center text-gray-400 font-bold uppercase text-xs">
+                            Belum ada riwayat KGB
+                        </td>
+                     </tr>
+                 )}
               </tbody>
            </table>
         </div>
       )}
 
       {activeView === 'editor' && (
-        <div className="max-w-5xl mx-auto bg-white p-10 md:p-14 rounded-[4rem] border border-gray-100 shadow-sm space-y-12 animate-modalEnter">
-           <SearchableSelect label="Pilih Pegawai" options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.golRuang} (${p.jenisPegawai})`}))} value={formData.nip} onChange={handlePegawaiSelect} />
+        <div className="max-w-6xl mx-auto bg-white p-10 md:p-14 rounded-[4rem] border border-gray-100 shadow-sm space-y-12 animate-modalEnter">
+           <SearchableSelect label="Pilih Pegawai" options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.golRuang} (${p.jenisPegawai})`}))} value={formData.nip || ''} onChange={handlePegawaiSelect} />
            
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
               <div className="space-y-6">
                  <h5 className="text-[11px] font-black text-blue-600 uppercase border-b pb-2 tracking-widest">1. Atribut Surat</h5>
-                 <FormItem label="Nomor Surat"><input type="text" className={inputClass} value={formData.nomor} onChange={e=>setFormData({...formData, nomor: e.target.value})} /></FormItem>
+                 <FormItem label="Nomor Surat"><input type="text" className={inputClass} value={formData.nomorSk} onChange={e=>setFormData({...formData, nomorSk: e.target.value})} /></FormItem>
                  <FormItem label="Tanggal Terbit"><input type="date" className={inputClass} value={formData.tglSurat} onChange={e=>setFormData({...formData, tglSurat: e.target.value})} /></FormItem>
-                 <FormItem label="Nama Lengkap (Database)"><input type="text" className={`${inputClass} font-bold`} value={formData.namaPegawai} onChange={e=>setFormData({...formData, namaPegawai: e.target.value})} /></FormItem>
-                 <div className="grid grid-cols-2 gap-4">
-                    <FormItem label="Golongan"><input type="text" className={inputClass} value={formData.golongan} onChange={e=>setFormData({...formData, golongan: e.target.value})} /></FormItem>
-                    <FormItem label="Masa Kerja (Thn Baru)"><input type="number" className={inputClass} value={formData.masaKerjaTahun} onChange={e=>setFormData({...formData, masaKerjaTahun: e.target.value})} /></FormItem>
-                 </div>
+                 <FormItem label="Nama Lengkap"><input type="text" className={`${inputClass} font-bold`} value={formData.namaPegawai} onChange={e=>setFormData({...formData, namaPegawai: e.target.value})} /></FormItem>
+                 <FormItem label="Pangkat / Golongan"><input type="text" className={inputClass} value={formData.pangkatGol} onChange={e=>setFormData({...formData, pangkatGol: e.target.value})} /></FormItem>
+                 <FormItem label="Jabatan"><input type="text" className={inputClass} value={formData.jabatan} onChange={e=>setFormData({...formData, jabatan: e.target.value})} /></FormItem>
+                 <FormItem label="Jenis Pegawai">
+                    <select className={inputClass} value={formData.jenisPegawai} onChange={e=>setFormData({...formData, jenisPegawai: e.target.value as any})}>
+                       <option value="PNS">PNS</option>
+                       <option value="PPPK">PPPK</option>
+                    </select>
+                 </FormItem>
+                 {formData.jenisPegawai === 'PPPK' && (
+                    <>
+                       <FormItem label="Masa Perjanjian"><input type="text" className={inputClass} value={formData.masaPerjanjianKerja} onChange={e=>setFormData({...formData, masaPerjanjianKerja: e.target.value})} /></FormItem>
+                       <FormItem label="Perpanjangan Perjanjian"><input type="text" className={inputClass} value={formData.perpanjanganPerjanjianKerja} onChange={e=>setFormData({...formData, perpanjanganPerjanjianKerja: e.target.value})} /></FormItem>
+                    </>
+                 )}
               </div>
               <div className="space-y-6">
-                 <h5 className="text-[11px] font-black text-emerald-600 uppercase border-b pb-2 tracking-widest">2. Rincian Gaji & TMT</h5>
+                 <h5 className="text-[11px] font-black text-emerald-600 uppercase border-b pb-2 tracking-widest">2. SK Terakhir (Basis)</h5>
+                 <FormItem label="Oleh Pejabat"><input type="text" className={inputClass} value={formData.skTerakhirPejabat} onChange={e=>setFormData({...formData, skTerakhirPejabat: e.target.value})} /></FormItem>
+                 <FormItem label="Nomor SK"><input type="text" className={inputClass} value={formData.skTerakhirNomor} onChange={e=>setFormData({...formData, skTerakhirNomor: e.target.value})} /></FormItem>
+                 <FormItem label="Tanggal SK"><input type="date" className={inputClass} value={formData.skTerakhirTanggal} onChange={e=>setFormData({...formData, skTerakhirTanggal: e.target.value})} /></FormItem>
+                 <FormItem label="TMT SK"><input type="date" className={inputClass} value={formData.skTerakhirTmt} onChange={e=>setFormData({...formData, skTerakhirTmt: e.target.value})} /></FormItem>
+                 <FormItem label="Masa Kerja SK"><input type="text" className={inputClass} value={formData.skTerakhirMasaKerja} onChange={e=>setFormData({...formData, skTerakhirMasaKerja: e.target.value})} placeholder="exp: 12 tahun 10 bulan" /></FormItem>
+              </div>
+              <div className="space-y-6">
+                 <h5 className="text-[11px] font-black text-amber-600 uppercase border-b pb-2 tracking-widest">3. Rincian KGB Baru</h5>
                  <div className="grid grid-cols-2 gap-4">
-                    <FormItem label="Gaji Pokok Lama"><input type="number" className={inputClass} value={formData.gajiLama} onChange={e=>setFormData({...formData, gajiLama: e.target.value})} /></FormItem>
-                    <FormItem label="Gaji Pokok Baru"><input type="number" className={inputClass} value={formData.gajiBaru} onChange={e=>setFormData({...formData, gajiBaru: e.target.value})} /></FormItem>
+                    <FormItem label="Gaji Lama"><input type="number" className={inputClass} value={formData.gajiLama} onChange={e=>setFormData({...formData, gajiLama: Number(e.target.value)})} /></FormItem>
+                    <FormItem label="Gaji Baru"><input type="number" className={inputClass} value={formData.gajiBaru} onChange={e=>setFormData({...formData, gajiBaru: Number(e.target.value)})} /></FormItem>
                  </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <FormItem label="TMT KGB Lama"><input type="date" className={inputClass} value={formData.tmtLama} onChange={e=>setFormData({...formData, tmtLama: e.target.value})} /></FormItem>
-                    <FormItem label="TMT KGB Baru"><input type="date" className={inputClass} value={formData.tmtBaru} onChange={e=>setFormData({...formData, tmtBaru: e.target.value})} /></FormItem>
-                 </div>
-                 <h5 className="text-[11px] font-black text-indigo-600 uppercase border-b pb-2 tracking-widest mt-4">3. Penandatangan</h5>
-                 <SearchableSelect label="Pejabat" options={pegawaiList.map(p=>({value: p.nip, label: p.nama}))} value={formData.pjbNip} onChange={v=>{const p=pegawaiList.find(x=>x.nip===v); if(p) setFormData({...formData, pjbNip:v, pjbNama:p.nama, pjbJabatan:p.jabatan})}} />
+                 <FormItem label="TMT KGB Baru"><input type="date" className={inputClass} value={formData.tmtBaru} onChange={e=>setFormData({...formData, tmtBaru: e.target.value})} /></FormItem>
+                 <FormItem label="Masa Kerja Baru"><input type="text" className={inputClass} value={formData.masaKerjaBaru} onChange={e=>setFormData({...formData, masaKerjaBaru: e.target.value})} placeholder="exp: 14 tahun 0 bulan" /></FormItem>
+                 
+                 <h5 className="text-[11px] font-black text-indigo-600 uppercase border-b pb-2 tracking-widest mt-4">4. Penandatangan</h5>
+                 <SearchableSelect label="Pejabat" options={pegawaiList.map(p=>({value: p.nip, label: p.nama}))} value={formData.pjbNip || ''} onChange={v=>{const p=pegawaiList.find(x=>x.nip===v); if(p) setFormData({...formData, pjbNip:v, pjbNama:p.nama, pjbJabatan:p.jabatan})}} />
               </div>
            </div>
 
            <div className="pt-10 border-t flex justify-center">
-              <button onClick={handleSave} disabled={syncing} className="px-24 py-5 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-2xl active:scale-95 transition-all">Generate & Pratinjau F4</button>
+              <button onClick={handleSave} disabled={syncing} className="px-24 py-5 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-2xl active:scale-95 transition-all">Generate & Pratinjau</button>
            </div>
         </div>
       )}
@@ -246,37 +322,114 @@ const KGBGeneratorPage = () => {
            </div>
            <div className="bg-gray-200 py-10 flex justify-center overflow-x-auto no-scrollbar">
               <div ref={pdfRef} className="bg-white shadow-2xl p-[1.5cm_2.2cm] font-arial text-black" style={{ width: '210mm', minHeight: '330mm', color: '#000000' }}>
-                 <div className="flex flex-col items-center border-b-[3pt] border-black pb-4 mb-10 text-black">
-                    <p className="text-[14pt] font-bold uppercase leading-tight">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                    <p className="text-[14pt] font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                    <div className="h-1.5 bg-black w-full my-1.5"></div>
-                    <p className="text-[10pt] font-normal leading-tight">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
-                 </div>
-                 <div className="text-center mb-10 text-black">
-                    <h1 className="text-[14pt] font-bold uppercase underline leading-tight">PETIKAN KEPUTUSAN KENAIKAN GAJI BERKALA</h1>
-                    <p className="text-[11.5pt] font-bold mt-1 uppercase">NOMOR : {formData.nomor}</p>
-                 </div>
-                 <div className="text-[11pt] space-y-6 text-justify leading-relaxed text-black">
-                    <p>Berdasarkan Peraturan Pemerintah Nomor 7 Tahun 1977 jo. Peraturan Pemerintah Nomor 15 Tahun 2019, dengan ini diberitahukan bahwa Pegawai Negeri Sipil tersebut di bawah ini:</p>
-                    <div className="grid grid-cols-[180px_10px_1fr] ml-10 gap-y-1">
-                       <span>1. Nama</span><span>:</span><span className="font-bold uppercase underline">{formData.namaPegawai}</span>
-                       <span>2. NIP</span><span>:</span><span className="font-bold">{formData.nip}</span>
-                       <span>3. Pangkat/Gol</span><span>:</span><span className="uppercase font-bold">{pSubjek?.pangkat || '-'} ({formData.golongan})</span>
-                       <span>4. Jabatan</span><span>:</span><span className="uppercase font-bold">{formData.jabatan}</span>
-                       <span>5. Unit Kerja</span><span>:</span><span className="uppercase font-bold">{normalizeUnitName(formData.unitKerja)}</span>
+                 
+                 {/* HEADER */}
+                 <div className="flex items-center gap-6 border-b-2 border-black pb-4">
+                      <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" className="h-24" />
+                      <div className="text-center flex-1">
+                        <p className="font-normal text-[12pt] uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                        <p className="font-bold text-[12pt] uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                        <p className="text-[9pt]">Jl. H.R. Rasuna Said Kav. 8-9 Kuningan, Jakarta Selatan 12190</p>
+                        <p className="text-[9pt]">Call Center: 152</p>
+                        <p className="text-[9pt]">Laman: www.dgip.go.id. Pos-el: halodjki@dgip.go.id</p>
+                      </div>
+                   </div>
+                 {/* ATRIBUT SURAT */}
+                 <div className="flex justify-between mb-6 text-[11pt]">
+                    <div className="space-y-0.5">
+                       <div className="grid grid-cols-[80px_10px_1fr]"><span>Nomor</span><span>:</span><span>{formData.nomorSk}</span></div>
+                       <div className="grid grid-cols-[80px_10px_1fr]"><span>Sifat</span><span>:</span><span>Biasa</span></div>
+                       <div className="grid grid-cols-[80px_10px_1fr]"><span>Lampiran</span><span>:</span><span>-</span></div>
+                       <div className="grid grid-cols-[80px_10px_1fr]"><span>Hal</span><span>:</span><span className="font-bold">Kenaikan Gaji Berkala {formData.jenisPegawai === 'PPPK' ? 'Pegawai Pemerintah dengan Perjanjian Kerja' : ''}</span></div>
+                       <div className="ml-[90px] font-bold uppercase">{formData.namaPegawai}</div>
                     </div>
-                    <p>Diberikan kenaikan gaji berkala, sehingga kepadanya diberikan gaji pokok baru sebesar:</p>
-                    <div className="bg-gray-50 p-6 border-2 border-black rounded-xl text-center">
-                       <p className="text-3xl font-black">Rp {Number(formData.gajiBaru).toLocaleString('id-ID')},-</p>
-                       <p className="text-[10pt] font-bold italic mt-2">(Gaji pokok lama: Rp {Number(formData.gajiLama).toLocaleString('id-ID')},-)</p>
+                    <div className="text-right">
+                       <p>{formData.tglSurat ? new Date(formData.tglSurat).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) : '-'}</p>
                     </div>
-                    <p>Kenaikan gaji berkala ini mulai berlaku terhitung mulai tanggal <span className="font-bold">{new Date(formData.tmtBaru).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</span> dengan masa kerja golongan <span className="font-bold">{formData.masaKerjaTahun} Tahun</span>.</p>
                  </div>
-                 <div className="mt-20 ml-[55%] text-center text-[11pt] leading-tight text-black">
-                    <p>Jakarta, {new Date(formData.tglSurat).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
-                    <p className="font-bold uppercase mb-28 mt-4 leading-tight">{formData.pjbJabatan},</p>
+
+                 <div className="text-[11pt] mb-6">
+                    <p>Yth. Kepala Kantor Pelayanan Perbendaharaan Negara Jakarta V.</p>
+                    <p>di Jakarta</p>
+                 </div>
+
+                 <div className="text-[11pt] text-justify leading-relaxed mb-6">
+                    {formData.jenisPegawai === 'PNS' ? (
+                       <p>Sehubungan dengan telah terpenuhinya masa kerja dan syarat-syarat lainnya, kepada:</p>
+                    ) : (
+                       <p>Berdasarkan Peraturan Menteri Pendayagunaan Aparatur Negara dan Reformasi Birokrasi Nomor 7 Tahun 2023 tentang Kenaikan Gaji Berkala dan Kenaikan Gaji Istimewa bagi Pegawai Pemerintah dengan Perjanjian Kerja, dengan ini diberitahukan bahwa berhubung dengan telah terpenuhinya masa kerja dan syarat-syarat lainnya, kepada:</p>
+                    )}
+                 </div>
+
+                 {/* DATA PEGAWAI */}
+                 <div className="text-[11pt] space-y-1 mb-6">
+                    <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>1.</span><span>Nama</span><span>:</span><span className="font-bold uppercase">{formData.namaPegawai}</span></div>
+                    <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>2.</span><span>NIP</span><span>:</span><span>{formData.nip}</span></div>
+                    <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>3.</span><span>{formData.jenisPegawai === 'PNS' ? 'Pangkat / Golongan ruang' : 'Golongan/Jabatan'}</span><span>:</span><span className="uppercase">{formData.pangkatGol}</span></div>
+                    {formData.jenisPegawai === 'PNS' ? (
+                       <>
+                          <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>4.</span><span>Jabatan</span><span>:</span><span className="uppercase">{formData.jabatan}</span></div>
+                          <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>5.</span><span>Kantor / Tempat</span><span>:</span><span className="uppercase">{formData.kantor}</span></div>
+                          <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>6.</span><span>Gaji Pokok Lama</span><span>:</span><span>Rp. {Number(formData.gajiLama).toLocaleString('id-ID')} ({terbilang(formData.gajiLama!)} rupiah)</span></div>
+                       </>
+                    ) : (
+                       <>
+                          <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>4.</span><span>Masa Perjanjian Kerja</span><span>:</span><span>{formData.masaPerjanjianKerja}</span></div>
+                          <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>5.</span><span>Perpanjangan Perjanjian Kerja</span><span>:</span><span>{formData.perpanjanganPerjanjianKerja}</span></div>
+                          <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>6.</span><span>Kantor/Unit Kerja</span><span>:</span><span className="uppercase">{formData.kantor}</span></div>
+                          <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>7.</span><span>Gaji Pokok Lama</span><span>:</span><span>Rp. {Number(formData.gajiLama).toLocaleString('id-ID')} ({terbilang(formData.gajiLama!)} rupiah)</span></div>
+                       </>
+                    )}
+                 </div>
+
+                 <div className="text-[11pt] mb-6">
+                    <p>atas dasar Surat Keputusan terakhir tentang gaji / {formData.jenisPegawai === 'PNS' ? 'pangkat' : 'golongan'} yang ditetapkan:</p>
+                    <div className="ml-8 space-y-1 mt-2">
+                       <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>a.</span><span>Oleh pejabat</span><span>:</span><span>{formData.skTerakhirPejabat}</span></div>
+                       <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>b.</span><span>Tanggal</span><span>:</span><span>{formData.skTerakhirTanggal ? new Date(formData.skTerakhirTanggal).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) : '-'}</span></div>
+                       <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>c.</span><span>Nomor</span><span>:</span><span>{formData.skTerakhirNomor}</span></div>
+                       <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>d.</span><span>Tanggal mulai berlakunya gaji tersebut</span><span>:</span><span>{formData.skTerakhirTmt ? new Date(formData.skTerakhirTmt).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) : '-'}</span></div>
+                       <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>e.</span><span>Masa kerja golongan pada tanggal tersebut</span><span>:</span><span>{formData.skTerakhirMasaKerja}</span></div>
+                    </div>
+                 </div>
+
+                 <div className="text-[11pt] mb-6">
+                    <p>Diberikan kenaikan gaji berkala hingga memperoleh:</p>
+                    <div className="space-y-1 mt-2">
+                       <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>{formData.jenisPegawai === 'PNS' ? '7.' : '8.'}</span><span>Gaji Pokok Baru</span><span>:</span><span className="font-bold">Rp. {Number(formData.gajiBaru).toLocaleString('id-ID')} ({terbilang(formData.gajiBaru!)} rupiah)</span></div>
+                       <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>{formData.jenisPegawai === 'PNS' ? '8.' : '9.'}</span><span>Berdasarkan masa kerja</span><span>:</span><span className="font-bold">{formData.masaKerjaBaru}</span></div>
+                       {formData.jenisPegawai === 'PNS' && (
+                          <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>9.</span><span>Dalam golongan ruang</span><span>:</span><span className="uppercase font-bold">{formData.pangkatGol}</span></div>
+                       )}
+                       <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>10.</span><span>Terhitung mulai tanggal</span><span>:</span><span className="font-bold">{formData.tmtBaru ? new Date(formData.tmtBaru).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) : '-'}</span></div>
+                    </div>
+                 </div>
+
+                 <div className="text-[11pt] text-justify leading-relaxed mb-10">
+                    {formData.jenisPegawai === 'PNS' ? (
+                       <p>Diharapkan agar sesuai dengan Peraturan Pemerintah RI Nomor 5 Tahun 2024 kepada pegawai tersebut dapat dibayarkan penghasilannya berdasarkan gaji pokok baru.</p>
+                    ) : (
+                       <p>Sesuai dengan Peraturan Presiden RI Nomor 11 Tahun 2024, kepada pegawai Pemerintah dengan Perjanjian Kerja tersebut dapat dibayarkan penghasilannya berdasarkan gaji pokok baru.</p>
+                    )}
+                 </div>
+
+                 {/* SIGNATURE */}
+                 <div className="ml-[50%] text-center text-[11pt] leading-tight text-black">
+                    <p>Sekretaris Direktorat Jenderal</p>
+                    <p>Kekayaan Intelektual,</p>
+                    <p className="mb-24 uppercase font-bold"></p>
                     <p className="font-bold uppercase underline leading-none">{formData.pjbNama}</p>
-                    <p className="mt-1 font-bold">NIP {formData.pjbNip}</p>
+                 </div>
+
+                 {/* TEMBUSAN */}
+                 <div className="mt-10 text-[9pt]">
+                    <p className="font-bold">Tembusan:</p>
+                    <ol className="list-decimal ml-4">
+                       <li>Kepala BKN, u.p. Deputi Bidang Informasi Kepegawaian;</li>
+                       <li>Kepala Biro SDM Kementerian Hukum RI;</li>
+                       <li>Pembuat Daftar Gaji Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum RI;</li>
+                       <li>Pegawai yang bersangkutan.</li>
+                    </ol>
                  </div>
               </div>
            </div>
@@ -285,12 +438,5 @@ const KGBGeneratorPage = () => {
     </div>
   );
 };
-
-const FormItem = ({ label, children }: any) => (
-  <div className="space-y-1.5">
-    <label className="text-[10px] font-black text-gray-600 uppercase ml-3 tracking-widest block mb-1.5">{label}</label>
-    {children}
-  </div>
-);
 
 export default KGBGeneratorPage;

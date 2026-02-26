@@ -1,9 +1,13 @@
 
 /**
- * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 4.3.1)
+ * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 5.0.0)
  * ----------------------------------------------------------------
- * Perbaikan:
- * - Update handleSave: Prioritaskan 'ID' sebagai key primer untuk tabel non-pegawai.
+ * Fitur Utama:
+ * - Sinkronisasi Dinamis: Otomatis menambah kolom baru jika ada field baru di aplikasi.
+ * - Multi-Key Support: Mendukung update berdasarkan 'ID' (KGB, Dossier) atau 'NIP' (Pegawai).
+ * - Object Serialization: Mendukung penyimpanan data kompleks (Array/Object) dalam format JSON.
+ * - File Management: Integrasi upload file ke Google Drive.
+ * - Template Engine: Mendukung pembuatan dokumen dari Google Docs template.
  */
 
 var FOLDER_ID_DATABASE = "PASTE_YOUR_FOLDER_ID_HERE"; 
@@ -33,6 +37,7 @@ function doPost(e) {
     if (action === 'UPLOAD') return handleUpload(payload);
     if (action === 'SAVE') return handleSave(ss, moduleName, payload);
     if (action === 'DELETE') return handleDelete(ss, moduleName, payload);
+    if (action === 'GET') return handleGet(ss, moduleName);
     if (action === 'GENERATE_DOC') return handleGenerateFromTemplate(payload);
 
     return createResponse({ success: false, message: "Aksi tidak dikenali." });
@@ -55,6 +60,33 @@ function handleGenerateFromTemplate(payload) {
     doc.saveAndClose();
     newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return createResponse({ success: true, fileUrl: newFile.getUrl(), fileId: newFile.getId() });
+  } catch (e) { return createResponse({ success: false, message: e.toString() }); }
+}
+
+function handleGet(ss, moduleName) {
+  try {
+    var sheet = findSheetByName(ss, moduleName);
+    if (!sheet) return createResponse({ success: false, message: "Sheet tidak ditemukan." });
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0];
+    var rows = data.slice(1).map(function(row) {
+      var obj = {};
+      headers.forEach(function(h, i) {
+        var val = row[i];
+        try {
+          // Coba parse jika string terlihat seperti JSON (Array/Object)
+          if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
+            obj[h] = JSON.parse(val);
+          } else {
+            obj[h] = val;
+          }
+        } catch (e) {
+          obj[h] = val;
+        }
+      });
+      return obj;
+    });
+    return createResponse({ success: true, data: rows });
   } catch (e) { return createResponse({ success: false, message: e.toString() }); }
 }
 

@@ -277,7 +277,44 @@ export interface ABKAnjab {
   uraianTugas: any; 
 }
 
-export interface KGB { id: string; nip: string; namaPegawai: string; tmtLama: string; tmtBaru: string; gajiLama: number; gajiBaru: number; nomorSk: string; tglSk: string; status: 'Proses' | 'Selesai'; pjbNama?: string; pjbNip?: string; pjbJabatan?: string; }
+export interface KGB { 
+  id: string; 
+  nip: string; 
+  namaPegawai: string; 
+  tmtLama: string; 
+  tmtBaru: string; 
+  gajiLama: number; 
+  gajiBaru: number; 
+  nomorSk: string; 
+  tglSk: string; 
+  status: 'Proses' | 'Selesai'; 
+  pjbNama?: string; 
+  pjbNip?: string; 
+  pjbJabatan?: string;
+  
+  // Additional fields for templates
+  pangkatGol?: string;
+  jabatan?: string;
+  kantor?: string;
+  unitKerja?: string;
+  tglSurat?: string;
+  
+  // SK Terakhir (Basis)
+  skTerakhirPejabat?: string;
+  skTerakhirTanggal?: string;
+  skTerakhirNomor?: string;
+  skTerakhirTmt?: string;
+  skTerakhirMasaKerja?: string;
+  
+  // New KGB details
+  masaKerjaBaru?: string;
+  golonganBaru?: string;
+  
+  // PPPK specific
+  masaPerjanjianKerja?: string;
+  perpanjanganPerjanjianKerja?: string;
+  jenisPegawai?: 'PNS' | 'PPPK';
+}
 export interface Dossier { id: string; nip: string; namaPegawai: string; tanggal: string; keterangan: string; fileName: string; fileUrl?: string; }
 export interface TugasRutin { id: string; timestamp: string; bulan: string; tahun: number; jenis: TaskType; detail: string; data?: any; }
 export interface AuditLog { id: string; timestamp: string; userNip: string; userName: string; action: 'CREATE' | 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'LOGIN'; module: string; description: string; }

@@ -171,9 +171,38 @@ export const fetchPengembanganFromSheets = () => fetchTableData<Pengembangan>('P
     return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), namaKegiatan: get('NAMAKEGIATAN'), jumlahJpl: parseFloat(get('JUMLAHJPL')) || 0, tahun: parseInt(get('TAHUN')) || new Date().getFullYear(), fileSertifikatUrl: get('FILESERTIFIKATURL') } as Pengembangan;
 });
 
-export const fetchKGBFromSheets = () => fetchTableData<any>('KGB', 'portal_kgb_db', (cols, headers) => {
+export const fetchKGBFromSheets = () => fetchTableData<KGB>('KGB', 'portal_kgb_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
-    return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), tmtBaru: get('TMTBARU'), gajiBaru: parseFloat(get('GAJIBARU')) || 0 };
+    return { 
+      id: get('ID'), 
+      nip: get('NIP'), 
+      namaPegawai: get('NAMAPEGAWAI'), 
+      tmtLama: get('TMTLAMA'),
+      tmtBaru: get('TMTBARU'), 
+      gajiLama: parseFloat(get('GAJILAMA')) || 0,
+      gajiBaru: parseFloat(get('GAJIBARU')) || 0,
+      nomorSk: get('NOMORSK'),
+      tglSk: get('TGLSK'),
+      status: get('STATUS') as any,
+      pjbNama: get('PJBNAMA'),
+      pjbNip: get('PJBNIP'),
+      pjbJabatan: get('PJBJABATAN'),
+      pangkatGol: get('PANGKATGOL'),
+      jabatan: get('JABATAN'),
+      kantor: get('KANTOR'),
+      unitKerja: get('UNITKERJA'),
+      tglSurat: get('TGLSURAT'),
+      skTerakhirPejabat: get('SKTERAKHIRPEJABAT'),
+      skTerakhirTanggal: get('SKTERAKHIRTANGGAL'),
+      skTerakhirNomor: get('SKTERAKHIRNOMOR'),
+      skTerakhirTmt: get('SKTERAKHIRTMT'),
+      skTerakhirMasaKerja: get('SKTERAKHIRMASAKERJA'),
+      masaKerjaBaru: get('MASAKERJABARU'),
+      golonganBaru: get('GOLONGANBARU'),
+      masaPerjanjianKerja: get('MASAPERJANJIANKERJA'),
+      perpanjanganPerjanjianKerja: get('PERPANJANGANPERJANJIANKERJA'),
+      jenisPegawai: get('JENISPEGAWAI') as any
+    } as KGB;
 });
 
 export const fetchSKPFromSheets = () => fetchTableData<any>('SKP', 'skp_db', (cols, headers) => {
@@ -207,9 +236,17 @@ export const fetchKegiatanFromSheets = () => fetchTableData<any>('KEGIATAN', 'ke
     return { id: get('ID'), judulKegiatan: get('JUDULKEGIATAN'), tanggal: get('TANGGAL'), tempat: get('TEMPAT') };
 });
 
-export const fetchDossiersFromSheets = () => fetchTableData<any>('DOSSIER', 'portal_dossiers_db', (cols, headers) => {
+export const fetchDossiersFromSheets = () => fetchTableData<Dossier>('DOSSIER', 'portal_dossiers_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
-    return { id: get('ID'), nip: get('NIP'), fileName: get('FILENAME'), fileUrl: get('FILEURL') };
+    return { 
+      id: get('ID'), 
+      nip: get('NIP'), 
+      namaPegawai: get('NAMAPEGAWAI'),
+      tanggal: get('TANGGAL'),
+      keterangan: get('KETERANGAN'),
+      fileName: get('FILENAME'), 
+      fileUrl: get('FILEURL') 
+    } as Dossier;
 });
 
 export const fetchUsersFromSheets = () => fetchTableData<AdminUser>('USERS', 'portal_users_db', (cols, headers) => {
