@@ -363,7 +363,7 @@ export interface AbsensiRecord { id: string; nip: string; nama: string; waktu: s
 export interface AbsensiConfig {
   id: string;
   officeWifiSsid: string;
-  officeIpAddress: string;
+  officeIpAddresses: string; // Comma-separated IPs or CIDR ranges
   wfaNips: string[];
 }
 

@@ -37,6 +37,29 @@ const AbsensiOnlinePage = () => {
   const lastLandmarks = useRef<any>(null);
   const livenessHistory = useRef<number[]>([]);
 
+  const isIpInRange = (ip: string, range: string) => {
+    const trimmedRange = range.trim();
+    if (!trimmedRange.includes('/')) return ip === trimmedRange;
+    
+    try {
+      const [rangeIp, prefix] = trimmedRange.split('/');
+      const mask = parseInt(prefix, 10);
+      
+      const ipToLong = (ipAddr: string) => {
+        return ipAddr.split('.').reduce((long, octet) => (long << 8) + parseInt(octet, 10), 0) >>> 0;
+      };
+      
+      const ipLong = ipToLong(ip);
+      const rangeLong = ipToLong(rangeIp);
+      
+      const netmask = mask === 0 ? 0 : (0xFFFFFFFF << (32 - mask)) >>> 0;
+      
+      return (ipLong & netmask) === (rangeLong & netmask);
+    } catch (e) {
+      return false;
+    }
+  };
+
   const speak = (text: string) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -120,7 +143,10 @@ const AbsensiOnlinePage = () => {
       setUserIp(ipRes.ip);
       
       const isWfa = config.wfaNips.includes(user?.nip || '');
-      const isOffice = config.officeIpAddress ? ipRes.ip === config.officeIpAddress : true; // If no IP set, assume valid for now or just SSID check (mock)
+      
+      // Check multiple IPs or Ranges
+      const allowedRanges = (config.officeIpAddresses || '').split(',').map(s => s.trim()).filter(s => s !== '');
+      const isOffice = allowedRanges.length === 0 || allowedRanges.some(range => isIpInRange(ipRes.ip, range));
       
       if (!isWfa && !isOffice) {
         setIsNetworkValid(false);

@@ -346,11 +346,11 @@ export const fetchAbsensiConfig = async (): Promise<AbsensiConfig> => {
     return {
       id: get('ID'),
       officeWifiSsid: get('OFFICEWIFISSID'),
-      officeIpAddress: get('OFFICEIPADDRESS'),
+      officeIpAddresses: get('OFFICEIPADDRESSES') || get('OFFICEIPADDRESS'),
       wfaNips: getJson('WFANIPS')
     } as AbsensiConfig;
   });
-  return data.length > 0 ? data[0] : { id: 'ABSENSI_GLOBAL', officeWifiSsid: '', officeIpAddress: '', wfaNips: [] };
+  return data.length > 0 ? data[0] : { id: 'ABSENSI_GLOBAL', officeWifiSsid: '', officeIpAddresses: '', wfaNips: [] };
 };
 
 export const saveAbsensiConfig = (config: AbsensiConfig) => syncTableRemote('CONFIG', 'SAVE', config);

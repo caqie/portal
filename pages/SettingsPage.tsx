@@ -25,7 +25,7 @@ const SettingsPage = () => {
   
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
-  const [absensiConfig, setAbsensiConfig] = useState<AbsensiConfig>({ id: 'ABSENSI_GLOBAL', officeWifiSsid: '', officeIpAddress: '', wfaNips: [] });
+  const [absensiConfig, setAbsensiConfig] = useState<AbsensiConfig>({ id: 'ABSENSI_GLOBAL', officeWifiSsid: '', officeIpAddresses: '', wfaNips: [] });
   const [wfaSearch, setWfaSearch] = useState('');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userFormData, setUserFormData] = useState<Partial<AdminUser>>({ role: 'Viewer' });
@@ -284,9 +284,9 @@ const SettingsPage = () => {
                       <p className="text-[8px] text-gray-400 font-bold uppercase mt-2 ml-3">* Pegawai reguler wajib terhubung ke Wi-Fi ini</p>
                     </div>
                     <div>
-                      <label className={labelClass}>IP Address Kantor (Public IP)</label>
-                      <input type="text" className={`${inputClass} font-mono`} value={absensiConfig.officeIpAddress} onChange={e => setAbsensiConfig({...absensiConfig, officeIpAddress: e.target.value})} placeholder="Contoh: 103.12.34.56" />
-                      <p className="text-[8px] text-gray-400 font-bold uppercase mt-2 ml-3">* Opsional: Batasi berdasarkan IP Publik kantor</p>
+                      <label className={labelClass}>IP Address Kantor (Public IP / Ranges)</label>
+                      <input type="text" className={`${inputClass} font-mono`} value={absensiConfig.officeIpAddresses} onChange={e => setAbsensiConfig({...absensiConfig, officeIpAddresses: e.target.value})} placeholder="Contoh: 103.12.34.56, 103.12.34.0/24" />
+                      <p className="text-[8px] text-gray-400 font-bold uppercase mt-2 ml-3">* Pisahkan dengan koma untuk banyak IP atau gunakan format CIDR (1.2.3.0/24)</p>
                     </div>
                   </div>
                 </div>
