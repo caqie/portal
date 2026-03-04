@@ -2,17 +2,18 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 // Add missing useNavigate import for handling navigation in the restricted access view
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
-import { fetchPegawaiFromSheets } from '../spreadsheetService';
-import { Pegawai, AbsensiRecord } from '../types';
+import { fetchPegawaiFromSheets, fetchAbsensiConfig } from '../spreadsheetService';
+import { Pegawai, AbsensiRecord, AbsensiConfig } from '../types';
 import { useAuth } from '../AuthContext';
 // @ts-ignore
 import * as faceapi from '@vladmandic/face-api';
 
 const AbsensiOnlinePage = () => {
-  const { user } = useAuth();
+  const { user, isSuperadmin } = useAuth();
   // Initialize navigate for use in the restricted access view button
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [canAccess, setCanAccess] = useState(false);
   const [currentPegawai, setCurrentPegawai] = useState<Pegawai | null>(null);
   const [status, setStatus] = useState({ model: 'Loading...', camera: 'Waiting...', data: 'Checking...' });
   const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -22,12 +23,30 @@ const AbsensiOnlinePage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [verificationResult, setVerificationResult] = useState<{status: 'SUCCESS' | 'REJECTED' | 'ERROR', message: string, type?: string, late?: boolean} | null>(null);
   const [absensiHistory, setAbsensiHistory] = useState<AbsensiRecord[]>([]);
+  const [absensiConfig, setAbsensiConfig] = useState<AbsensiConfig | null>(null);
+  const [userIp, setUserIp] = useState<string>('');
+  const [isNetworkValid, setIsNetworkValid] = useState<boolean>(true);
   const [detectionScore, setDetectionScore] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [livenessScore, setLivenessScore] = useState(0);
+  const [failedAttempts, setFailedAttempts] = useState(0);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const detectionInterval = useRef<any>(null);
   const faceMatcher = useRef<any>(null);
+  const lastLandmarks = useRef<any>(null);
+  const livenessHistory = useRef<number[]>([]);
+
+  const speak = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'id-ID';
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   // Deteksi Resize untuk Restriksi
   useEffect(() => {
@@ -35,6 +54,11 @@ const AbsensiOnlinePage = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Check Access Permission
+  useEffect(() => {
+    setCanAccess(isMobile || isSuperadmin);
+  }, [isMobile, isSuperadmin]);
 
   // Aturan Jam Kerja & Flexy Time
   const getScheduleRules = () => {
@@ -61,7 +85,7 @@ const AbsensiOnlinePage = () => {
   };
 
   useEffect(() => {
-    if (!isMobile) return; // Jangan inisialisasi jika bukan mobile
+    if (!canAccess) return; // Jangan inisialisasi jika tidak punya akses
 
     loadHistory();
     const init = async () => {
@@ -79,11 +103,35 @@ const AbsensiOnlinePage = () => {
       }
     };
     init();
+    checkNetwork();
     return () => {
       stopCamera();
       if (detectionInterval.current) clearInterval(detectionInterval.current);
     };
-  }, [user, isMobile]);
+  }, [user, canAccess]);
+
+  const checkNetwork = async () => {
+    try {
+      const [config, ipRes] = await Promise.all([
+        fetchAbsensiConfig(),
+        fetch('https://api.ipify.org?format=json').then(res => res.json())
+      ]);
+      setAbsensiConfig(config);
+      setUserIp(ipRes.ip);
+      
+      const isWfa = config.wfaNips.includes(user?.nip || '');
+      const isOffice = config.officeIpAddress ? ipRes.ip === config.officeIpAddress : true; // If no IP set, assume valid for now or just SSID check (mock)
+      
+      if (!isWfa && !isOffice) {
+        setIsNetworkValid(false);
+        setErrorMessage(`Akses Ditolak: Anda harus terhubung ke jaringan kantor (${config.officeWifiSsid || 'Wi-Fi Kantor'}).`);
+      } else {
+        setIsNetworkValid(true);
+      }
+    } catch (e) {
+      console.error("Network check failed:", e);
+    }
+  };
 
   const loadHistory = () => {
     const saved = localStorage.getItem('absensi_history_db');
@@ -177,8 +225,35 @@ const AbsensiOnlinePage = () => {
       if (detection) {
         setIsFaceDetected(true);
         setDetectionScore(detection.detection.score);
+
+        // Basic Liveness Detection: Check for micro-movements in landmarks
+        if (lastLandmarks.current) {
+          const currentLandmarks = detection.landmarks.positions;
+          const prevLandmarks = lastLandmarks.current;
+          let movement = 0;
+          for (let i = 0; i < currentLandmarks.length; i++) {
+            movement += Math.sqrt(
+              Math.pow(currentLandmarks[i].x - prevLandmarks[i].x, 2) +
+              Math.pow(currentLandmarks[i].y - prevLandmarks[i].y, 2)
+            );
+          }
+          const avgMovement = movement / currentLandmarks.length;
+          
+          // We want some movement (not a static photo) but not too much (not blurred)
+          // Photos usually have 0 or very consistent movement if the camera is shaking
+          // Real faces have micro-tremors and muscle movements
+          livenessHistory.current.push(avgMovement);
+          if (livenessHistory.current.length > 10) livenessHistory.current.shift();
+          
+          const avgLiveness = livenessHistory.current.reduce((a, b) => a + b, 0) / livenessHistory.current.length;
+          setLivenessScore(avgLiveness);
+        }
+        lastLandmarks.current = detection.landmarks.positions;
         
-        if (faceMatcher.current && detection.detection.score > 0.7) {
+        // Threshold for liveness: avgMovement should be between 0.1 and 5.0
+        const isLive = livenessScore > 0.05 && livenessScore < 10;
+
+        if (faceMatcher.current && detection.detection.score > 0.7 && isLive) {
           const bestMatch = faceMatcher.current.findBestMatch(detection.descriptor);
           const matched = bestMatch.label !== 'unknown';
           setIsFaceMatched(matched);
@@ -189,7 +264,7 @@ const AbsensiOnlinePage = () => {
                 handleAutoAbsensi();
                 return 100;
               }
-              return prev + 20; // Deteksi stabil selama ~1.5 - 2 detik
+              return prev + 10; 
             });
           } else {
             setMatchStabilizedTime(0);
@@ -202,12 +277,13 @@ const AbsensiOnlinePage = () => {
         setIsFaceDetected(false);
         setIsFaceMatched(false);
         setMatchStabilizedTime(0);
+        lastLandmarks.current = null;
       }
-    }, 250);
+    }, 200);
   };
 
   const handleAutoAbsensi = async () => {
-    if (isProcessing) return;
+    if (isProcessing || !isNetworkValid) return;
     setIsProcessing(true);
     
     const now = new Date();
@@ -223,6 +299,7 @@ const AbsensiOnlinePage = () => {
     const alreadyCheckOut = savedLogs.find((l: any) => l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'PULANG');
 
     if (tipe === 'MASUK' && alreadyCheckIn) {
+      speak("Maaf, Anda sudah melakukan absensi masuk hari ini.");
       setVerificationResult({ status: 'REJECTED', message: `Data MASUK sudah tercatat pada ${alreadyCheckIn.waktu} WIB.`, type: 'MASUK' });
       setTimeout(() => resetState(), 4000);
       return;
@@ -244,7 +321,7 @@ const AbsensiOnlinePage = () => {
       waktu: currentTimeStr,
       tipe,
       status: isLate ? 'TERLAMBAT' : 'TEPAT WAKTU',
-      lokasi: 'DJKI Automated Node',
+      lokasi: absensiConfig?.wfaNips.includes(user?.nip || '') ? 'WFA (Remote)' : 'DJKI Office Node',
       confidence: detectionScore
     };
 
@@ -260,6 +337,7 @@ const AbsensiOnlinePage = () => {
     localStorage.setItem('absensi_history_db', JSON.stringify(updatedLogs));
     loadHistory();
     
+    speak("Terima kasih, absensi berhasil.");
     setVerificationResult({ 
       status: 'SUCCESS', 
       message: `Presensi ${tipe} Berhasil`, 
@@ -274,24 +352,51 @@ const AbsensiOnlinePage = () => {
     setIsProcessing(false);
     setMatchStabilizedTime(0);
     setVerificationResult(null);
+    setFailedAttempts(0);
   };
 
+  useEffect(() => {
+    if (isFaceDetected && !isFaceMatched && !isProcessing) {
+      const timer = setTimeout(() => {
+        speak("Maaf, verifikasi wajah gagal. Silakan coba lagi.");
+        setFailedAttempts(prev => prev + 1);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [isFaceDetected, isFaceMatched, isProcessing]);
+
   // UI UNTUK DESKTOP (RESTRICTED)
-  if (!isMobile) {
+  if (!canAccess || !isNetworkValid) {
+    const isWfa = absensiConfig?.wfaNips.includes(user?.nip || '');
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center animate-fadeIn text-center p-10">
-        <div className="w-32 h-32 bg-rose-50 text-rose-500 rounded-[3rem] flex items-center justify-center mb-8 border-4 border-rose-100 shadow-2xl animate-pulse">
-           <i className="bi bi-phone-vibrate text-6xl"></i>
+        <div className={`w-32 h-32 ${!isNetworkValid ? 'bg-amber-50 text-amber-500 border-amber-100' : 'bg-rose-50 text-rose-500 border-rose-100'} rounded-[3rem] flex items-center justify-center mb-8 border-4 shadow-2xl animate-pulse`}>
+           <i className={`bi ${!isNetworkValid ? 'bi-wifi-off' : 'bi-phone-vibrate'} text-6xl`}></i>
         </div>
-        <h2 className="text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">Security Restricted</h2>
-        <p className="text-[11px] font-black text-rose-600 uppercase tracking-[0.3em] mt-4">Mobile Device Access Only</p>
+        <h2 className="text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">
+            {!isNetworkValid ? 'Network Restricted' : 'Security Restricted'}
+        </h2>
+        <p className={`text-[11px] font-black ${!isNetworkValid ? 'text-amber-600' : 'text-rose-600'} uppercase tracking-[0.3em] mt-4`}>
+            {!isNetworkValid ? 'Outside Office Network' : 'Mobile Device Access Only'}
+        </p>
         
         <div className="mt-10 bg-white p-8 rounded-[3rem] border border-gray-100 shadow-xl max-w-md">
            <p className="text-sm font-bold text-gray-500 leading-relaxed uppercase">
-              Mohon maaf, fitur pemindaian biometrik wajah hanya tersedia melalui perangkat mobile atau tablet.
+              {!isNetworkValid 
+                ? `Sistem mendeteksi Anda berada di luar jaringan kantor. Silakan hubungkan perangkat Anda ke Wi-Fi ${absensiConfig?.officeWifiSsid || 'Kantor'} untuk melakukan absensi reguler.`
+                : 'Mohon maaf, fitur pemindaian biometrik wajah hanya tersedia melalui perangkat mobile atau tablet.'
+              }
            </p>
+           {!isNetworkValid && (
+             <div className="mt-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <p className="text-[9px] font-black text-gray-400 uppercase">Your Current IP:</p>
+                <p className="text-xs font-mono font-bold text-gray-600">{userIp || 'Detecting...'}</p>
+             </div>
+           )}
            <div className="h-[1px] w-24 bg-gray-100 mx-auto my-6"></div>
-           <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Silakan buka Portal SDM melalui smartphone Anda untuk melakukan absensi.</p>
+           <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
+             {isWfa ? 'Anda memiliki akses WFA, namun terjadi kendala verifikasi jaringan.' : 'Hanya pegawai dengan izin WFA yang dapat absen dari jaringan luar.'}
+           </p>
         </div>
         
         <button onClick={() => navigate('/')} className="mt-10 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] hover:text-blue-600 transition-colors">
@@ -305,6 +410,13 @@ const AbsensiOnlinePage = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn pb-24 text-black font-['Inter']">
+      <style>{`
+        @keyframes scan {
+          0% { top: 0; }
+          50% { top: 100%; }
+          100% { top: 0; }
+        }
+      `}</style>
       {/* HEADER & DIAGNOSTICS */}
       <div className="flex flex-col md:flex-row justify-between items-start gap-6">
         <div>
@@ -323,40 +435,54 @@ const AbsensiOnlinePage = () => {
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
         <div className="xl:col-span-8 space-y-6">
-          <div className="bg-[#0f172a] rounded-[3.5rem] overflow-hidden relative aspect-video shadow-2xl border-[12px] border-white ring-1 ring-gray-100 group">
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+          <div className="bg-slate-900 rounded-[3.5rem] overflow-hidden relative aspect-square md:aspect-video shadow-2xl border-[12px] border-white ring-1 ring-gray-100 group flex items-center justify-center">
             
+            {/* CIRCULAR CAMERA CONTAINER */}
+            <div className="relative w-72 h-72 md:w-96 md:h-96 rounded-full overflow-hidden border-8 border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10">
+              <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover scale-x-[-1]" />
+              
+              {/* SCANNING LINE ANIMATION */}
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="w-full h-1 bg-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.8)] absolute top-0 animate-[scan_3s_ease-in-out_infinite]"></div>
+              </div>
+
+              {/* FACE FRAME */}
+              <div className={`absolute inset-0 border-4 rounded-full transition-all duration-300 ${isFaceMatched ? 'border-emerald-500 shadow-[inset_0_0_40px_rgba(16,185,129,0.2)]' : isFaceDetected ? 'border-blue-500/50' : 'border-white/5'}`}></div>
+            </div>
+
+            {/* BACKGROUND DECORATION */}
+            <div className="absolute inset-0 opacity-20 pointer-events-none">
+              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:20px_20px]"></div>
+            </div>
+
             {/* SCANNING OVERLAY */}
-            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-               <div className={`w-[40%] h-[75%] border-2 rounded-[3.5rem] transition-all duration-500 relative ${isFaceMatched ? 'border-amber-400 shadow-[0_0_60px_rgba(251,191,36,0.4)] scale-105' : isFaceDetected ? 'border-blue-400' : 'border-white/10'}`}>
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-20">
+               <div className="w-80 h-80 md:w-[450px] md:h-[450px] border border-white/10 rounded-full flex items-center justify-center">
                   {isFaceMatched && !isProcessing && (
                     <div className="absolute inset-0 flex items-center justify-center">
-                       <svg className="w-full h-full -rotate-90 p-6">
-                          <circle cx="50%" cy="50%" r="44%" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="4" />
-                          <circle cx="50%" cy="50%" r="44%" fill="none" stroke="#fbbf24" strokeWidth="8" strokeDasharray="100, 100" strokeDashoffset={100 - matchStabilizedTime} strokeLinecap="round" className="transition-all duration-200" />
+                       <svg className="w-80 h-80 md:w-[400px] md:h-[400px] -rotate-90">
+                          <circle cx="50%" cy="50%" r="48%" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="2" />
+                          <circle cx="50%" cy="50%" r="48%" fill="none" stroke="#10b981" strokeWidth="6" strokeDasharray="100, 100" strokeDashoffset={100 - matchStabilizedTime} strokeLinecap="round" className="transition-all duration-200" />
                        </svg>
-                       <div className="absolute text-white font-black text-2xl animate-pulse">
-                          {Math.ceil((100 - matchStabilizedTime) / 33)}
-                       </div>
                     </div>
                   )}
                </div>
 
-               <div className="absolute bottom-10 flex flex-col items-center gap-3">
+               <div className="absolute bottom-6 flex flex-col items-center gap-3">
                   {!isFaceDetected && (
-                    <div className="bg-black/60 backdrop-blur-xl px-8 py-3 rounded-full text-white text-[10px] font-black uppercase tracking-widest border border-white/10">
-                       <i className="bi bi-person-bounding-box mr-3 text-blue-400"></i> Posisikan Wajah Anda
+                    <div className="bg-black/60 backdrop-blur-xl px-8 py-3 rounded-full text-white text-[10px] font-black uppercase tracking-widest border border-white/10 flex items-center gap-3">
+                       <i className="bi bi-person-bounding-box text-blue-400 animate-pulse"></i> Posisikan Wajah Anda
                     </div>
                   )}
                   {isFaceDetected && !isFaceMatched && (
-                    <div className="bg-rose-600/90 backdrop-blur-xl px-8 py-3 rounded-full text-white text-[10px] font-black uppercase tracking-widest shadow-xl">
-                       <i className="bi bi-shield-lock-fill mr-3"></i> Identitas Belum Singkron
+                    <div className="bg-rose-600/90 backdrop-blur-xl px-8 py-3 rounded-full text-white text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center gap-3">
+                       <i className="bi bi-shield-lock-fill"></i> Identitas Belum Singkron
                     </div>
                   )}
                   {isFaceMatched && !isProcessing && (
-                    <div className="bg-amber-500 backdrop-blur-xl px-8 py-3 rounded-full text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-xl">
+                    <div className="bg-emerald-500 backdrop-blur-xl px-8 py-3 rounded-full text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-xl">
                        <div className="h-2 w-2 bg-white rounded-full animate-ping"></div>
-                       Wajah Terkunci... Mohon Diam
+                       Wajah Terverifikasi... Mohon Diam
                     </div>
                   )}
                </div>

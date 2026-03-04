@@ -204,8 +204,8 @@ const DossiersPage = () => {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr><td colSpan={4} className="py-24 text-center text-[10px] font-black text-gray-300 uppercase animate-pulse">Menghubungkan Database Cloud...</td></tr>
-              ) : filteredDossiers.map(d => (
-                <tr key={d.id} className="group hover:bg-blue-50/5 transition-all">
+              ) : filteredDossiers.map((d, i) => (
+                <tr key={`${d.id}-${i}`} className="group hover:bg-blue-50/5 transition-all">
                   <td className="px-10 py-5">
                     <p className="text-[11px] font-black text-gray-500 uppercase">{d.tanggal}</p>
                     <span className="text-[8px] font-bold text-blue-500 uppercase">Verified System</span>

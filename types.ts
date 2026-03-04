@@ -168,6 +168,7 @@ export interface Pegawai {
   nip: string; 
   nama: string; 
   jabatan: string; 
+  golongan?: string;
   klasifikasiJabatan?: string;
   subBagian?: string;
   bagian?: string;
@@ -261,6 +262,7 @@ export interface ABKAnjab {
   kebutuhanPegawai: number; 
   selisih: number; 
   status: 'IDEAL' | 'KURANG' | 'LEBIH'; 
+  jenisJabatan: 'PELAKSANA' | 'FUNGSIONAL' | 'STRUKTUR';
   ikhtisarJabatan: string;
   kualifikasiPendidikan: string;
   tanggungJawab: string;
@@ -320,11 +322,50 @@ export interface TugasRutin { id: string; timestamp: string; bulan: string; tahu
 export interface AuditLog { id: string; timestamp: string; userNip: string; userName: string; action: 'CREATE' | 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'LOGIN'; module: string; description: string; }
 export interface AdminUser { id: string; nip: string; name: string; password?: string; role: 'Superadmin' | 'Editor' | 'Viewer'; foto?: string; }
 export interface CloudConfig { driveFolderId: string; appsScriptUrl: string; logoUrl?: string; }
-export interface SpmtSppRecord { id: string; type: 'SPP' | 'SPMT'; nomor: string; pejabatNip: string; pegawaiNip: string; nomorSK: string; tentangSK: string; tanggalSK: string; jabatanBaru: string; unitKerja: string; tanggalLantikAtauSpmt: string; tanggalSppAtauSpmt: string; tempatTandaTangan: string; signatureLabel?: string; }
+export interface SpmtSppRecord { 
+  id: string; 
+  type: 'SPP' | 'SPMT'; 
+  nomor: string; 
+  pejabatNip: string; 
+  pegawaiNip: string; 
+  nomorSK: string; 
+  tentangSK: string; 
+  tanggalSK: string; 
+  jabatanBaru: string; 
+  unitKerja: string; 
+  tanggalLantikAtauSpmt: string; 
+  tanggalSppAtauSpmt: string; 
+  tempatTandaTangan: string; 
+  signatureLabel?: string; 
+  menimbang?: string;
+  dasar?: string;
+  nomorSuratPerintah?: string;
+}
 export interface PAKRecord { id: string; nip: string; namaPegawai: string; nomor: string; periode: string; tglDibuat: string; penilaiNip: string; akKonversi: number; jumlahKredit: number; akumulasi: any[]; }
 export interface KenaikanKarir { id: string; nip: string; namaPegawai: string; jenisUsulan: string; dari: string; menjadi: string; tmtUsulan: string; status: string; }
-export interface Kegiatan { id: string; tanggal: string; judulKegiatan: string; tempat: string; jumlahPeserta: number; asalPeserta: string; laporanSingkat: string; linkDriveFoto: string; status: string; }
+export interface Kegiatan { 
+  id: string; 
+  tanggal: string; 
+  tanggalMulai: string;
+  tanggalSelesai: string;
+  jamMulai?: string;
+  jamSelesai?: string;
+  judulKegiatan: string; 
+  tempat: string; 
+  jumlahPeserta: number; 
+  asalPeserta: string; 
+  laporanSingkat: string; 
+  linkDriveFoto: string; 
+  status: string; 
+}
 export interface AbsensiRecord { id: string; nip: string; nama: string; waktu: string; tipe: 'MASUK' | 'PULANG'; status: string; lokasi: string; confidence: number; }
+
+export interface AbsensiConfig {
+  id: string;
+  officeWifiSsid: string;
+  officeIpAddress: string;
+  wfaNips: string[];
+}
 
 export interface MaintenanceConfig {
   all: boolean;

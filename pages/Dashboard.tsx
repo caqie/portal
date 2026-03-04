@@ -247,16 +247,68 @@ const Dashboard = () => {
   };
 
   const handleExportJabatan = () => {
-    const ws = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({ 
-      'Nama Jabatan': j.jabatan, 
-      'Klasifikasi': j.klasifikasi,
-      'Unit Kerja': j.unitKerja,
-      'Jenis Pegawai': j.jenis,
-      'Jumlah Pegawai': j.total 
-    })));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Matriks Jabatan");
+    
+    const getGroupedData = (list: Pegawai[]) => {
+      const groups: Record<string, { total: number, klasifikasi: string, jabatan: string, jenis: string, unitKerja: string }> = {};
+      list.forEach(p => {
+        const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
+        const jen = (p.jenisPegawai || 'ASN').trim().toUpperCase();
+        const klas = (p.klasifikasiJabatan || 'LAINNYA').trim().toUpperCase();
+        const unit = normalizeUnitName(p.unitKerja);
+        const key = `${jab}|${jen}|${klas}|${unit}`;
+        if (!groups[key]) {
+          groups[key] = { total: 0, klasifikasi: klas, jabatan: jab, jenis: jen, unitKerja: unit };
+        }
+        groups[key].total += 1;
+      });
+      return Object.values(groups).sort((a, b) => {
+        const u = a.unitKerja.localeCompare(b.unitKerja);
+        return u !== 0 ? u : b.total - a.total;
+      });
+    };
+
+    // 1. Sheet "Semua Unit"
+    const allGrouped = getGroupedData(activePegawaiList);
+    const wsAll = XLSX.utils.json_to_sheet(allGrouped.map((j, i) => ({
+      'No': i + 1,
+      'Nama Jabatan': j.jabatan,
+      'Unit Kerja': j.unitKerja,
+      'Klasifikasi': j.klasifikasi,
+      'Jenis Pegawai': j.jenis,
+      'Total': j.total
+    })));
+    XLSX.utils.book_append_sheet(wb, wsAll, "Semua Unit");
+
+    // 2. 7 Sheets for each Unit
+    UNIT_KERJA.forEach(unitName => {
+      const unitData = activePegawaiList.filter(p => normalizeUnitName(p.unitKerja) === unitName);
+      const groupedUnit = getGroupedData(unitData);
+      const wsUnit = XLSX.utils.json_to_sheet(groupedUnit.map((j, i) => ({
+        'No': i + 1,
+        'Nama Jabatan': j.jabatan,
+        'Unit Kerja': j.unitKerja,
+        'Klasifikasi': j.klasifikasi,
+        'Jenis Pegawai': j.jenis,
+        'Total': j.total
+      })));
+      
+      // Shorten sheet name for Excel (max 31 chars)
+      let sName = unitName;
+      if (sName.includes('Sekretariat')) sName = 'Sekretariat';
+      else if (sName.includes('Hak Cipta')) sName = 'Hak Cipta';
+      else if (sName.includes('Paten')) sName = 'Paten';
+      else if (sName.includes('Merek')) sName = 'Merek';
+      else if (sName.includes('Kerja Sama')) sName = 'Kerja Sama';
+      else if (sName.includes('Teknologi Informasi')) sName = 'TI';
+      else if (sName.includes('Penegakan Hukum')) sName = 'Penegakan Hukum';
+      else sName = sName.substring(0, 31);
+
+      XLSX.utils.book_append_sheet(wb, wsUnit, sName);
+    });
+
     XLSX.writeFile(wb, `Matriks_Jabatan_DJKI_${new Date().getTime()}.xlsx`);
+    logActivity('DOWNLOAD', 'Dashboard', 'Export Excel Matriks Jabatan (8 Sheets)');
   };
 
   return (
@@ -291,13 +343,15 @@ const Dashboard = () => {
         <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
       </div>
 
-      <div className="bg-white p-8 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden">
-         <div className="mb-10 flex justify-between items-center">
-            <div>
-              <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Kalender Kerja & Agenda Kegiatan</h4>
-              <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">Jadwal Direktorat Terintegrasi</p>
-            </div>
-            <a href="#/kegiatan" className="px-6 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all">Kelola Agenda</a>
+      <div className="relative">
+         <div className="absolute top-8 right-32 z-10 hidden md:block">
+            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.3em]">Jadwal Direktorat Terintegrasi</p>
+         </div>
+         <div className="absolute top-6 right-8 z-10 hidden md:block">
+            <a href="#/kegiatan" className="px-6 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-2">
+               <i className="bi bi-gear-fill"></i>
+               Kelola
+            </a>
          </div>
          <CalendarView events={kegiatan} />
       </div>

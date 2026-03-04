@@ -118,9 +118,10 @@ const ABKAnjabPage = () => {
     unitMadya: 'Direktorat Jenderal Kekayaan Intelektual',
     unitPratama: 'Direktorat Merek dan Indikasi Geografis',
     unitKerja: UNIT_KERJA[0],
+    jenisJabatan: 'PELAKSANA',
     kelasJabatan: '',
     jumlahSaatIni: 0,
-    jamKerjaEfektif: 1250,
+    jamKerjaEfektif: 75000,
     ikhtisarJabatan: '',
     pendidikanFormal: '',
     diklat: 'Pelatihan Dasar; Pelatihan Teknis Jabatan',
@@ -165,11 +166,16 @@ const ABKAnjabPage = () => {
     const master = MASTER_JABATAN.find(j => j.label === val);
     if (master) {
       const count = countAsnPopulation(master.label, formData.unitKerja);
+      const jenis = master.type === 'JFU' ? 'PELAKSANA' : (master.type === 'JF' ? 'FUNGSIONAL' : 'STRUKTUR');
+      const jke = jenis === 'PELAKSANA' ? 75000 : 1250;
+      
       setFormData({
         ...formData,
         namaJabatan: master.label,
         kodeJabatan: master.code,
         kelasJabatan: master.class,
+        jenisJabatan: jenis,
+        jamKerjaEfektif: jke,
         jumlahSaatIni: count,
         ikhtisarJabatan: `Melaksanakan tugas ${master.label.toLowerCase()} sesuai dengan ketentuan peraturan perundang-undangan untuk kelancaran tugas organisasi.`
       });
@@ -195,14 +201,14 @@ const ABKAnjabPage = () => {
 
   const liveCalc = useMemo(() => {
     const currentUraian = Array.isArray(formData.uraianTugas) ? formData.uraianTugas : [];
-    const totalJamBeban = currentUraian.reduce((acc: number, curr: any) => acc + (curr.totalWaktu || 0), 0);
-    const jke = Number(formData.jamKerjaEfektif) || 1250;
-    const kebutuhan = Number((totalJamBeban / jke).toFixed(2));
+    const totalBeban = currentUraian.reduce((acc: number, curr: any) => acc + (curr.totalWaktu || 0), 0);
+    const jke = Number(formData.jamKerjaEfektif) || (formData.jenisJabatan === 'PELAKSANA' ? 75000 : 1250);
+    const kebutuhan = Number((totalBeban / jke).toFixed(2));
     const selisih = Number(((formData.jumlahSaatIni || 0) - kebutuhan).toFixed(2));
     let status: ABKAnjab['status'] = 'IDEAL';
     if (selisih <= -0.5) status = 'KURANG';
     else if (selisih >= 0.5) status = 'LEBIH';
-    return { totalJamBeban, kebutuhan, selisih, status };
+    return { totalBeban, kebutuhan, selisih, status };
   }, [formData]);
 
   const handleSave = async () => {
@@ -212,7 +218,7 @@ const ABKAnjabPage = () => {
       ...formData,
       id: editingId || `ABK-${Date.now()}`,
       namaJabatan: formData.namaJabatan.toUpperCase(),
-      totalMenitBebanKerja: liveCalc.totalJamBeban * 60,
+      totalMenitBebanKerja: formData.jenisJabatan === 'PELAKSANA' ? liveCalc.totalBeban : liveCalc.totalBeban * 60,
       kebutuhanPegawai: liveCalc.kebutuhan,
       selisih: liveCalc.selisih,
       status: liveCalc.status
@@ -307,6 +313,7 @@ const ABKAnjabPage = () => {
                        </td>
                        <td className="px-4 py-6 text-center">
                           <p className="text-[11px] font-black text-gray-900">{(a.totalMenitBebanKerja / 60).toLocaleString()} JAM</p>
+                          <p className="text-[7px] font-bold text-gray-400 uppercase">{a.totalMenitBebanKerja.toLocaleString()} MENIT</p>
                        </td>
                        <td className="px-4 py-6 text-center">
                           <p className="text-[13px] font-black text-gray-950">{a.kebutuhanPegawai}</p>
@@ -364,7 +371,20 @@ const ABKAnjabPage = () => {
 
                       <div className="grid grid-cols-2 gap-4">
                         <div><label className={labelClass}>Kode Jabatan (SIASN)</label><input className={`${inputClass} bg-blue-50/30`} value={formData.kodeJabatan} onChange={e=>setFormData({...formData, kodeJabatan: e.target.value})} /></div>
+                        <div><label className={labelClass}>Jenis Jabatan</label>
+                          <select className={inputClass} value={formData.jenisJabatan} onChange={e => {
+                            const jenis = e.target.value;
+                            setFormData({ ...formData, jenisJabatan: jenis, jamKerjaEfektif: jenis === 'PELAKSANA' ? 75000 : 1250 });
+                          }}>
+                            <option value="PELAKSANA">PELAKSANA</option>
+                            <option value="FUNGSIONAL">FUNGSIONAL</option>
+                            <option value="STRUKTUR">STRUKTUR</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
                         <div><label className={labelClass}>Kelas Jabatan</label><input className={`${inputClass} bg-blue-50/30`} value={formData.kelasJabatan} onChange={e=>setFormData({...formData, kelasJabatan: e.target.value})} /></div>
+                        <div><label className={labelClass}>Jam Kerja Efektif / Thn</label><input type="number" className={inputClass} value={formData.jamKerjaEfektif} onChange={e => setFormData({...formData, jamKerjaEfektif: parseInt(e.target.value) || 75000})} /></div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div><label className={labelClass}>JPT Madya</label><input className={inputClass} value={formData.unitMadya} onChange={e=>setFormData({...formData, unitMadya: e.target.value})} /></div>
@@ -387,7 +407,6 @@ const ABKAnjabPage = () => {
                             <input type="number" readOnly className={`${inputClass} bg-blue-50 border-blue-200 text-blue-900 font-black cursor-not-allowed`} value={formData.jumlahSaatIni} />
                             <p className="text-[8px] font-black text-blue-600 mt-1 uppercase tracking-tighter">* Kalkulasi otomatis per Jabatan & Unit</p>
                          </div>
-                         <div><label className={labelClass}>Jam Kerja Efektif / Thn</label><input type="number" className={inputClass} value={formData.jamKerjaEfektif} onChange={e => setFormData({...formData, jamKerjaEfektif: parseInt(e.target.value) || 1250})} /></div>
                       </div>
                    </div>
                 </div>
@@ -412,14 +431,14 @@ const ABKAnjabPage = () => {
                     <div className="flex justify-between items-center border-b pb-4">
                        <div>
                          <h5 className="text-[11px] font-black text-blue-600 uppercase tracking-widest">Tugas Pokok & Beban Kerja (ABK)</h5>
-                         <p className="text-[9px] font-black text-gray-500 uppercase mt-1">Norma Waktu dihitung dalam satuan <span className="text-blue-600">JAM</span></p>
+                         <p className="text-[9px] font-black text-gray-500 uppercase mt-1">Norma Waktu dihitung dalam satuan <span className="text-blue-600">{formData.jenisJabatan === 'PELAKSANA' ? 'MENIT' : 'JAM'}</span></p>
                        </div>
                        <button onClick={() => setFormData({ ...formData, uraianTugas: [...(formData.uraianTugas || []), { tugas: '', hasilKerja: '', volume: 0, normaWaktu: 0, totalWaktu: 0 }] })} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg">+ Butir Tugas</button>
                     </div>
                     <div className="overflow-hidden border border-gray-200 rounded-[2.5rem]">
                        <table className="w-full text-left">
                           <thead className="bg-gray-100 text-[10px] font-black uppercase text-gray-700">
-                             <tr><th className="px-6 py-5">Uraian Butir Kegiatan</th><th className="px-4 py-5">Hasil Kerja</th><th className="px-4 py-5 text-center w-24">Jumlah Hasil</th><th className="px-4 py-5 text-center w-32">Waktu (Jam)</th><th className="px-4 py-5 text-right w-32">Beban (Jam)</th><th className="px-6 py-5 w-12"></th></tr>
+                             <tr><th className="px-6 py-5">Uraian Butir Kegiatan</th><th className="px-4 py-5">Hasil Kerja</th><th className="px-4 py-5 text-center w-24">Jumlah Hasil</th><th className="px-4 py-5 text-center w-32">Waktu ({formData.jenisJabatan === 'PELAKSANA' ? 'Menit' : 'Jam'})</th><th className="px-4 py-5 text-right w-32">Beban ({formData.jenisJabatan === 'PELAKSANA' ? 'Menit' : 'Jam'})</th><th className="px-6 py-5 w-12"></th></tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
                              {formData.uraianTugas.map((row: any, i: number) => (
@@ -436,7 +455,7 @@ const ABKAnjabPage = () => {
                           <tfoot className="bg-blue-50/30">
                              <tr className="font-black text-[11px] text-blue-700 uppercase">
                                 <td className="px-6 py-5" colSpan={4}>TOTAL BEBAN KERJA JABATAN PER TAHUN</td>
-                                <td className="px-4 py-5 text-right text-[13px]">{liveCalc.totalJamBeban.toLocaleString()} JAM</td>
+                                <td className="px-4 py-5 text-right text-[13px]">{liveCalc.totalBeban.toLocaleString()} {formData.jenisJabatan === 'PELAKSANA' ? 'MENIT' : 'JAM'}</td>
                                 <td></td>
                              </tr>
                           </tfoot>
@@ -569,8 +588,8 @@ const ABKAnjabPage = () => {
                                 <th className="p-1 border-r-2 border-black">Uraian Tugas</th>
                                 <th className="p-1 border-r-2 border-black w-24">Hasil Kerja</th>
                                 <th className="p-1 border-r-2 border-black w-14">Jumlah Hasil</th>
-                                <th className="p-1 border-r-2 border-black w-14">Waktu (Jam)</th>
-                                <th className="p-1 w-16">Beban (Jam)</th>
+                                <th className="p-1 border-r-2 border-black w-14">Waktu ({formData.jenisJabatan === 'PELAKSANA' ? 'Menit' : 'Jam'})</th>
+                                <th className="p-1 w-16">Beban ({formData.jenisJabatan === 'PELAKSANA' ? 'Menit' : 'Jam'})</th>
                              </tr>
                           </thead>
                           <tbody>
@@ -585,11 +604,11 @@ const ABKAnjabPage = () => {
                                 </tr>
                              ))}
                              <tr className="font-bold bg-gray-50 border-t-2 border-black">
-                                <td colSpan={5} className="p-1 border-r-2 border-black text-right uppercase">Total Beban Kerja Jabatan (Jam)</td>
-                                <td className="p-1 text-center">{liveCalc.totalJamBeban.toFixed(2)}</td>
+                                <td colSpan={5} className="p-1 border-r-2 border-black text-right uppercase">Total Beban Kerja Jabatan ({formData.jenisJabatan === 'PELAKSANA' ? 'Menit' : 'Jam'})</td>
+                                <td className="p-1 text-center">{liveCalc.totalBeban.toFixed(2)}</td>
                              </tr>
                              <tr className="font-bold bg-blue-50/50 border-t-2 border-black">
-                                <td colSpan={5} border-r-2 border-black className="p-1 border-r-2 border-black text-right uppercase">Kebutuhan Pegawai ASN Ideal</td>
+                                <td colSpan={5} className="p-1 border-r-2 border-black text-right uppercase">Kebutuhan Pegawai ASN Ideal</td>
                                 <td className="p-1 text-center underline decoration-2">{liveCalc.kebutuhan}</td>
                              </tr>
                           </tbody>

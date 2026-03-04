@@ -40,6 +40,7 @@ const KenaikanPangkatPage = () => {
     pjbNip: '197410061998031002',
     pjbJabatan: 'SEKRETARIS DIREKTORAT JENDERAL',
     nomorNota: 'HKI.1-KP.04.01-', // Nomor Surat Dinas
+    tanggalNota: new Date().toISOString().split('T')[0],
     keterangan: 'Memenuhi Syarat Kenaikan Pangkat.'
   });
 
@@ -97,7 +98,6 @@ const KenaikanPangkatPage = () => {
     if (!pdfRef.current) return;
     setSyncing(true);
     try {
-      // Skala diperbesar sedikit agar teks tajam, dan format disesuaikan untuk dokumen panjang
       const canvas = await html2canvas(pdfRef.current, { 
           scale: 2.5, 
           useCORS: true, 
@@ -105,20 +105,29 @@ const KenaikanPangkatPage = () => {
           windowWidth: pdfRef.current.scrollWidth,
           windowHeight: pdfRef.current.scrollHeight
       });
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
-      
-      // Jika konten melebihi tinggi kertas standar (330mm), kita perlu menangani multi-page
-      // Untuk kesederhanaan dalam kode ini, kita asumsikan cukup 1 halaman F4 atau memotong
-      // Namun untuk Nota Dinas + Lampiran, idealnya lebih panjang.
-      // Di sini kita gunakan fitur auto page jsPDF sederhana jika perlu, atau potong ke canvas.
-      // Karena html2canvas menghasilkan 1 gambar panjang, kita set tinggi pdf dinamis.
-      const imgHeight = (canvas.height * 210) / canvas.width;
-      const pdfHeight = Math.max(330, imgHeight); // Min F4 height
-      
-      const pdfLong = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, pdfHeight] });
-      pdfLong.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, pdfHeight);
-      pdfLong.save(`Usulan_KP_Dinas_${formData.namaPegawai?.replace(/\s+/g, '_')}.pdf`);
-    } catch (e) { alert("Gagal cetak PDF."); } finally { setSyncing(false); }
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const imgWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`Usulan_KP_Dinas_${formData.namaPegawai?.replace(/\s+/g, '_')}.pdf`);
+    } catch (e) {
+      alert("Gagal cetak PDF.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const record = selectedKenaikan || formData;
@@ -215,6 +224,7 @@ const KenaikanPangkatPage = () => {
                  <div className="grid grid-cols-2 gap-4">
                     <div><label className={labelClass}>TMT Usulan</label><input type="date" className={inputClass} value={formData.tmtUsulan} onChange={e=>setFormData({...formData, tmtUsulan: e.target.value})} /></div>
                     <div><label className={labelClass}>Nomor Nota Dinas</label><input className={inputClass} value={formData.nomorNota} onChange={e=>setFormData({...formData, nomorNota: e.target.value})} /></div>
+                     <div><label className={labelClass}>Tanggal Nota Dinas</label><input type="date" className={inputClass} value={formData.tanggalNota} onChange={e=>setFormData({...formData, tanggalNota: e.target.value})} /></div>
                  </div>
               </div>
               <div className="space-y-6">
@@ -237,21 +247,21 @@ const KenaikanPangkatPage = () => {
       {activeView === 'preview' && (
         <div className="animate-fadeIn space-y-10">
            <div className="flex justify-end gap-3 no-print px-6">
-              <button onClick={() => setActiveView('editor')} className="px-8 py-4 bg-white text-gray-500 border border-gray-200 rounded-2xl text-[11px] font-black uppercase">Edit Data</button>
+              <button onClick={() => setActiveView('editor')} className="px-8 py-4 bg-white text-gray-900 border border-gray-200 rounded-2xl text-[11px] font-black uppercase shadow-sm">Edit Data</button>
               <button onClick={handleDownloadPdf} className="px-12 py-4 bg-gray-950 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-3 shadow-xl active:scale-95 transition-all"><i className="bi bi-file-earmark-pdf-fill"></i> Download PDF (F4)</button>
            </div>
            <div className="bg-gray-200 py-10 flex justify-center overflow-x-auto no-scrollbar">
-              <div ref={pdfRef} className="bg-white shadow-2xl p-[1.5cm_2.2cm] font-arial text-black" style={{ width: '210mm', minHeight: '330mm' }}>
+              <div ref={pdfRef} className="bg-white shadow-2xl font-arial p-[2cm_2cm_2.5cm_3cm] leading-tight text-black" style={{ width: '210mm', minHeight: '297mm', color: '#000000', fontSize: '11pt' }}>
                  
                  {/* KOP SURAT */}
-                 <div className="flex items-center gap-6 border-b-2 border-black pb-4">
-                      <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" className="h-24" />
-                      <div className="text-center flex-1">
-                        <p className="font-normal text-[12pt] uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                        <p className="font-bold text-[12pt] uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                        <p className="text-[9pt]">Jl. H.R. Rasuna Said Kav. 8-9 Kuningan, Jakarta Selatan 12190</p>
-                        <p className="text-[9pt]">Call Center: 152</p>
-                        <p className="text-[9pt]">Laman: www.dgip.go.id. Pos-el: halodjki@dgip.go.id</p>
+                 <div className="flex items-start gap-4 border-b-[0.5pt] border-black pb-2 mb-6 text-black">
+                     <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" style={{ width: '20.04mm', height: '22.90mm' }} crossOrigin="anonymous" />
+                     <div className="flex-1 text-center">
+                        <p style={{ fontSize: '12pt' }} className="uppercase leading-tight font-normal">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                        <p style={{ fontSize: '12pt' }} className="font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                        <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
+                        <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Call Center: 152</p>
+                        <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Laman: www.dgip.go.id. Pos-el: halodjki@dgip.go.id</p>
                       </div>
                    </div>
 
@@ -272,7 +282,7 @@ const KenaikanPangkatPage = () => {
                        </div>
                     </div>
                     <div className="text-right w-2/5 pl-4">
-                       <p>{new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
+                       <p>{new Date(record.tanggalNota || new Date()).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
                     </div>
                  </div>
 
@@ -308,9 +318,12 @@ const KenaikanPangkatPage = () => {
                  </div>
 
                  {/* LAMPIRAN (Simulasi di bawah surat) */}
-                 <div className="mt-16 pt-8 border-t-2 border-black">
-                    <div className="text-center font-bold uppercase mb-4">
-                       LAMPIRAN I
+                 <div className="mt-16 pt-8 border-t-[0.5pt] border-black">
+                    <div className="flex flex-col items-end text-right mb-4">
+                       <p style={{ fontSize: '11pt' }} className="font-bold">LAMPIRAN</p>
+                       <p style={{ fontSize: '9pt' }}>Nota Dinas Sekretaris Direktorat Jenderal Kekayaan Intelektual</p>
+                       <p style={{ fontSize: '9pt' }}>Nomor : {record.nomorNota}</p>
+                       <p style={{ fontSize: '9pt' }}>Tanggal : {new Date(record.tanggalNota || new Date()).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</p>
                     </div>
                     <div className="text-center text-[11pt] mb-2">
                        Nota Dinas Sekretaris Direktorat Jenderal
@@ -323,7 +336,7 @@ const KenaikanPangkatPage = () => {
                           <span>Nomor</span><span>:</span><span>{record.nomorNota}</span>
                        </div>
                        <div className="grid grid-cols-[80px_10px_1fr]">
-                          <span>Tanggal</span><span>:</span><span>{new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</span>
+                          <span>Tanggal</span><span>:</span><span>{new Date(record.tanggalNota || new Date()).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}</span>
                        </div>
                     </div>
 

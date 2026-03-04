@@ -172,8 +172,23 @@ const KGBGeneratorPage = () => {
     setSyncing(true);
     try {
       const canvas = await html2canvas(pdfRef.current, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 330);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const imgWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
       pdf.save(`KGB_${(formData.namaPegawai || 'Pegawai').replace(/\s+/g, '_')}.pdf`);
     } catch (e) { 
         console.error(e);
@@ -321,17 +336,17 @@ const KGBGeneratorPage = () => {
               <button onClick={handleDownloadPdf} className="px-12 py-4 bg-gray-950 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-3 shadow-xl active:scale-95 transition-all"><i className="bi bi-file-earmark-pdf-fill"></i> Download PDF (F4)</button>
            </div>
            <div className="bg-gray-200 py-10 flex justify-center overflow-x-auto no-scrollbar">
-              <div ref={pdfRef} className="bg-white shadow-2xl p-[1.5cm_2.2cm] font-arial text-black" style={{ width: '210mm', minHeight: '330mm', color: '#000000' }}>
+              <div ref={pdfRef} className="bg-white shadow-2xl font-arial p-[2cm_2cm_2.5cm_3cm] leading-tight text-black" style={{ width: '210mm', minHeight: '297mm', color: '#000000', fontSize: '11pt' }}>
                  
-                 {/* HEADER */}
-                 <div className="flex items-center gap-6 border-b-2 border-black pb-4">
-                      <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" className="h-24" />
-                      <div className="text-center flex-1">
-                        <p className="font-normal text-[12pt] uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                        <p className="font-bold text-[12pt] uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                        <p className="text-[9pt]">Jl. H.R. Rasuna Said Kav. 8-9 Kuningan, Jakarta Selatan 12190</p>
-                        <p className="text-[9pt]">Call Center: 152</p>
-                        <p className="text-[9pt]">Laman: www.dgip.go.id. Pos-el: halodjki@dgip.go.id</p>
+                  {/* KOP SURAT RESMI */}
+                  <div className="flex items-start gap-4 border-b-[0.5pt] border-black pb-2 mb-6 text-black">
+                     <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" style={{ width: '20.04mm', height: '22.90mm' }} crossOrigin="anonymous" />
+                     <div className="flex-1 text-center">
+                        <p style={{ fontSize: '12pt' }} className="uppercase leading-tight font-normal">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                        <p style={{ fontSize: '12pt' }} className="font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                        <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
+                        <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Call Center: 152</p>
+                        <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Laman: www.dgip.go.id. Pos-el: halodjki@dgip.go.id</p>
                       </div>
                    </div>
                  {/* ATRIBUT SURAT */}

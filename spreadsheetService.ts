@@ -1,5 +1,5 @@
 
-import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord } from './types';
+import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig } from './types';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9zyZrLGmDBRlUOdR1pgftxDfcElY_Fd4BfsCR4Fmd7Qb58MJKAllRkUloFQrbs8lY/exec';
@@ -14,6 +14,7 @@ export const DEFAULT_GIDS = {
   PENGEMBANGAN: '747902508',
   KGB: '1233453234',
   ABSENSI: '1044338428',
+  CONFIG: '1234567890', // Default or will be synced
   TUGAS_RUTIN: '457929061',
   LAPORAN: '555034467',
   KEGIATAN: '456342206',
@@ -152,6 +153,7 @@ export const fetchABKAnjabFromSheets = () => fetchTableData<ABKAnjab>('ABK_ANJAB
     totalMenitBebanKerja: parseFloat(get('TOTALMENITBEBANKERJA')) || 0, 
     kebutuhanPegawai: parseFloat(get('KEBUTUHANPEGAWAI')) || 0, 
     selisih: parseFloat(get('SELISIH')) || 0, status: get('STATUS') as any, 
+    jenisJabatan: (get('JENISJABATAN') || 'PELAKSANA') as any,
     ikhtisarJabatan: get('IKHTISARJABATAN'), kualifikasiPendidikan: get('KUALIFIKASIPENDIDIKAN'),
     tanggungJawab: get('TANGGUNGJAWAB'), wewenang: get('WEWENANG'), syaratJabatan: get('SYARATJABATAN'),
     lingkunganKerja: get('LINGKUNGANKERJA'), risikoBahaya: get('RISIKOBAHAYA'), bakatKerja: get('BAKATKERJA'),
@@ -231,9 +233,23 @@ export const fetchTugasRutinFromSheets = () => fetchTableData<TugasRutin>('TUGAS
     };
 });
 
-export const fetchKegiatanFromSheets = () => fetchTableData<any>('KEGIATAN', 'kegiatan_db', (cols, headers) => {
+export const fetchKegiatanFromSheets = () => fetchTableData<Kegiatan>('KEGIATAN', 'kegiatan_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
-    return { id: get('ID'), judulKegiatan: get('JUDULKEGIATAN'), tanggal: get('TANGGAL'), tempat: get('TEMPAT') };
+    return { 
+      id: get('ID'), 
+      judulKegiatan: get('JUDULKEGIATAN'), 
+      tanggal: get('TANGGAL'), 
+      tanggalMulai: get('TANGGALMULAI') || get('TANGGAL'),
+      tanggalSelesai: get('TANGGALSELESAI') || get('TANGGAL'),
+      jamMulai: get('JAMMULAI'),
+      jamSelesai: get('JAMSELESAI'),
+      tempat: get('TEMPAT'),
+      jumlahPeserta: parseInt(get('JUMLAHPESERTA')) || 0,
+      asalPeserta: get('ASALPESERTA'),
+      laporanSingkat: get('LAPORANSINGKAT'),
+      linkDriveFoto: get('LINKDRIVEFOTO'),
+      status: get('STATUS')
+    } as Kegiatan;
 });
 
 export const fetchDossiersFromSheets = () => fetchTableData<Dossier>('DOSSIER', 'portal_dossiers_db', (cols, headers) => {
@@ -321,6 +337,23 @@ export const fetchKeuanganFromSheets = () => fetchTableData<KeuanganRecord>('KEU
 });
 
 export const syncKeuanganRemote = (action: 'SAVE' | 'DELETE', data: any) => syncTableRemote('KEUANGAN', action, data);
+
+export const fetchAbsensiConfig = async (): Promise<AbsensiConfig> => {
+  const data = await fetchTableData<AbsensiConfig>('CONFIG', 'portal_absensi_config', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
+    if (get('ID') !== 'ABSENSI_GLOBAL') return null;
+    return {
+      id: get('ID'),
+      officeWifiSsid: get('OFFICEWIFISSID'),
+      officeIpAddress: get('OFFICEIPADDRESS'),
+      wfaNips: getJson('WFANIPS')
+    } as AbsensiConfig;
+  });
+  return data.length > 0 ? data[0] : { id: 'ABSENSI_GLOBAL', officeWifiSsid: '', officeIpAddress: '', wfaNips: [] };
+};
+
+export const saveAbsensiConfig = (config: AbsensiConfig) => syncTableRemote('CONFIG', 'SAVE', config);
 
 export const getRetirementDetails = (nip: string, jabatan: string) => {
   const cleanNip = (nip || '').replace(/\D/g, '');

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
@@ -26,8 +25,9 @@ const MagangPKLPage = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   
+  // Tambahkan 'KETERANGAN' ke tipe docType
   const [activeView, setActiveView] = useState<'list' | 'editor' | 'preview'>('list');
-  const [docType, setDocType] = useState<'BALASAN' | 'NOTA' | 'SERTIFIKAT'>('BALASAN');
+  const [docType, setDocType] = useState<'BALASAN' | 'NOTA' | 'SERTIFIKAT' | 'KETERANGAN'>('BALASAN');
   const [selectedPeserta, setSelectedPeserta] = useState<MagangPKL | null>(null);
   
   const [formData, setFormData] = useState<Partial<MagangPKL>>({
@@ -77,7 +77,7 @@ const MagangPKLPage = () => {
     setSyncing(false);
   };
 
-  const handleGenerate = (peserta: MagangPKL, type: 'BALASAN' | 'NOTA' | 'SERTIFIKAT') => {
+  const handleGenerate = (peserta: MagangPKL, type: 'BALASAN' | 'NOTA' | 'SERTIFIKAT' | 'KETERANGAN') => {
     setSelectedPeserta(peserta);
     setDocType(type);
     setActiveView('preview');
@@ -176,6 +176,7 @@ const MagangPKLPage = () => {
                             <div className="flex justify-end gap-2">
                                <button onClick={() => handleGenerate(p, 'BALASAN')} title="Surat Balasan" className="h-9 w-9 bg-white border border-gray-100 text-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm"><i className="bi bi-reply-all-fill"></i></button>
                                <button onClick={() => handleGenerate(p, 'NOTA')} title="Nota Penempatan" className="h-9 w-9 bg-white border border-gray-100 text-indigo-600 rounded-xl flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><i className="bi bi-journal-text"></i></button>
+                               <button onClick={() => handleGenerate(p, 'KETERANGAN')} title="Surat Keterangan" className="h-9 w-9 bg-white border border-gray-100 text-teal-600 rounded-xl flex items-center justify-center hover:bg-teal-600 hover:text-white transition-all shadow-sm"><i className="bi bi-file-text-fill"></i></button>
                                <button onClick={() => handleGenerate(p, 'SERTIFIKAT')} title="Sertifikat" className="h-9 w-9 bg-white border border-gray-100 text-amber-600 rounded-xl flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm"><i className="bi bi-award-fill"></i></button>
                                {canEdit && (
                                  <button onClick={() => { setFormData(p); setActiveView('editor'); }} className="h-9 w-9 bg-white border border-gray-100 text-gray-400 rounded-xl flex items-center justify-center hover:text-gray-900 transition-all shadow-sm"><i className="bi bi-pencil-fill"></i></button>
@@ -243,16 +244,17 @@ const MagangPKLPage = () => {
       {activeView === 'preview' && selectedPeserta && (
         <div className="animate-fadeIn space-y-10">
            <div className="bg-[#111827] p-4 flex flex-col md:flex-row justify-between items-center no-print rounded-[2rem] gap-4">
-              <div className="flex gap-2 bg-gray-800 p-1 rounded-xl">
+              <div className="flex gap-2 bg-gray-800 p-1 rounded-xl flex-wrap justify-center">
                  <button onClick={() => setDocType('BALASAN')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${docType==='BALASAN'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Surat Balasan</button>
                  <button onClick={() => setDocType('NOTA')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${docType==='NOTA'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Nota Penempatan</button>
+                 <button onClick={() => setDocType('KETERANGAN')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${docType==='KETERANGAN'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Surat Keterangan</button>
                  <button onClick={() => setDocType('SERTIFIKAT')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${docType==='SERTIFIKAT'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Sertifikat</button>
               </div>
               <div className="flex gap-3">
                  <button onClick={() => setActiveView('list')} className="px-6 py-3 bg-white/10 text-white rounded-xl text-[9px] font-black uppercase hover:bg-white/20">Kembali</button>
                  <button onClick={handleDownloadPdf} disabled={syncing} className="px-10 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-xl flex items-center gap-2 active:scale-95">
                     {syncing ? <div className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>}
-                    Download F4 (PDF)
+                    Download PDF
                  </button>
               </div>
            </div>
@@ -289,87 +291,134 @@ const MagangPKLPage = () => {
                    </div>
                 </div>
               ) : (
-                /* TEMPLATE SURAT/NOTA (PORTRAIT F4) */
-                <div ref={pdfRef} className="bg-white shadow-2xl p-[1.5cm_2.2cm] font-arial text-black" style={{ width: '210mm', minHeight: '330mm' }}>
-                   {/* HEADER KOP */}
-                   <div className="flex items-center border-b-[3pt] border-black pb-4 mb-8">
-                      <img src={LOGO_PENGAYOMAN_URL} className="h-20 mr-6" crossOrigin="anonymous" />
-                      <div className="text-center flex-1">
-                         <p className="text-[14pt] font-bold uppercase leading-tight">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                         <p className="text-[13pt] font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                         <p className="text-[9pt] font-normal leading-tight mt-1">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
-                      </div>
-                   </div>
+                /* TEMPLATE SURAT/NOTA/KETERANGAN (PORTRAIT A4/F4) */
+                <div ref={pdfRef} className="bg-white shadow-2xl font-arial leading-tight text-black" style={{ width: '210mm', minHeight: '297mm', color: '#000000', fontSize: '11pt', padding: docType === 'NOTA' ? '2cm 2cm 2.5cm 3cm' : '2cm 2cm 2.5cm 3cm' }}>
+                 
+                  {/* HEADER LOGIC */}
+                  {docType === 'NOTA' ? (
+                    /* NOTA DINAS: HEADER SEDERHANA (Tanpa Logo, Alamat, Garis) */
+                    <div className="text-center mb-6 pt-4">
+                       <p style={{ fontSize: '12pt' }} className="uppercase leading-tight font-normal">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                        <p style={{ fontSize: '12pt' }} className="font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                    </div>
+                  ) : (
+                    /* BALASAN & KETERANGAN: KOP SURAT LENGKAP (Logo + Alamat + Garis) */
+                    <div className="flex items-start gap-4 border-b-[0.5pt] border-black pb-2 mb-6 text-black">
+                       <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" style={{ width: '20.04mm', height: '22.90mm' }} crossOrigin="anonymous" />
+                       <div className="flex-1 text-center">
+                          <p style={{ fontSize: '12pt' }} className="uppercase leading-tight font-normal">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                          <p style={{ fontSize: '12pt' }} className="font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                          <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
+                          <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Call Center: 152</p>
+                          <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Laman: www.dgip.go.id. Pos-el: halodjki@dgip.go.id</p>
+                        </div>
+                     </div>
+                  )}
 
-                   {docType === 'BALASAN' ? (
-                     <div className="text-[11pt] space-y-8 text-justify leading-relaxed">
-                        <div className="flex justify-between">
-                           <div className="space-y-0.5">
-                              <p>Nomor : {selectedPeserta.nomorSurat || 'HKI.1-UM.01.01-...'}</p>
-                              <p>Lampiran : -</p>
-                              <p>Hal : Persetujuan {selectedPeserta.jenis}</p>
+                  {/* BODY LOGIC */}
+                  <div className="text-[11pt] space-y-4 text-justify leading-relaxed">
+                     {docType === 'BALASAN' && (
+                        <>
+                           <div className="flex justify-between">
+                              <div className="space-y-0.5">
+                                 <p>Nomor : {selectedPeserta.nomorSurat || 'HKI.1-UM.01.01-...'}</p>
+                                 <p>Lampiran : -</p>
+                                 <p>Hal : Persetujuan {selectedPeserta.jenis}</p>
+                              </div>
+                              <p>{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                            </div>
-                           <p>{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                        </div>
-                        
-                        <div className="space-y-0.5">
-                           <p>Yth. Pimpinan {selectedPeserta.institusi}</p>
-                           <p>di Tempat</p>
-                        </div>
+                           
+                           <div className="space-y-0.5">
+                              <p>Yth. Pimpinan {selectedPeserta.institusi}</p>
+                              <p>di Tempat</p>
+                           </div>
 
-                        <p>Menindaklanjuti surat permohonan Magang/PKL dari {selectedPeserta.institusi}, dengan ini kami sampaikan bahwa kami <span className="font-bold">MENYETUJUI</span> pelaksanaan {selectedPeserta.jenis} bagi mahasiswa/siswa berikut:</p>
-                        
-                        <div className="ml-8 grid grid-cols-[160px_10px_1fr] gap-y-1">
-                           <span>Nama</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.nama}</span>
-                           <span>NIM / NIS</span><span>:</span><span>{selectedPeserta.nisNim}</span>
-                           <span>Jurusan</span><span>:</span><span className="uppercase">{selectedPeserta.jurusan}</span>
-                           <span>Periode</span><span>:</span><span>{selectedPeserta.tanggalMulai} s/d {selectedPeserta.tanggalSelesai}</span>
-                        </div>
+                           <p>Menindaklanjuti surat permohonan Magang/PKL dari {selectedPeserta.institusi}, dengan ini kami sampaikan bahwa kami <span className="font-bold">MENYETUJUI</span> pelaksanaan {selectedPeserta.jenis} bagi mahasiswa/siswa berikut:</p>
+                           
+                           <div className="ml-8 grid grid-cols-[160px_10px_1fr] gap-y-1">
+                              <span>Nama</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.nama}</span>
+                              <span>NIM / NIS</span><span>:</span><span>{selectedPeserta.nisNim}</span>
+                              <span>Jurusan</span><span>:</span><span className="uppercase">{selectedPeserta.jurusan}</span>
+                              <span>Periode</span><span>:</span><span>{selectedPeserta.tanggalMulai} s/d {selectedPeserta.tanggalSelesai}</span>
+                           </div>
 
-                        <p>Peserta akan ditempatkan pada <span className="font-bold">{selectedPeserta.penempatan}</span>. Selama masa pelaksanaan program, peserta wajib mentaati seluruh peraturan yang berlaku di lingkungan Direktorat Jenderal Kekayaan Intelektual.</p>
-                        
-                        <p>Demikian kami sampaikan, atas perhatiannya diucapkan terima kasih.</p>
+                           <p>Peserta akan ditempatkan pada <span className="font-bold">{selectedPeserta.penempatan}</span>. Selama masa pelaksanaan program, peserta wajib mentaati seluruh peraturan yang berlaku di lingkungan Direktorat Jenderal Kekayaan Intelektual.</p>
+                           
+                           <p>Demikian kami sampaikan, atas perhatiannya diucapkan terima kasih.</p>
 
-                        <div className="mt-14 ml-[55%] text-center leading-tight">
-                           <p className="font-bold uppercase mb-24">{selectedPeserta.pjbJabatan},</p>
-                           <p className="font-bold uppercase underline leading-none">{selectedPeserta.pjbNama}</p>
-                           <p className="mt-1">NIP {selectedPeserta.pjbNip}</p>
-                        </div>
-                     </div>
-                   ) : (
-                     /* NOTA DINAS INTERNAL */
-                     <div className="text-[11pt] space-y-6 text-justify leading-relaxed">
-                        <div className="text-center mb-6">
-                           <h1 className="text-[13pt] font-bold uppercase underline">NOTA DINAS</h1>
-                           <p>Nomor: {selectedPeserta.nomorSurat || 'HKI.1-PR.04.01-...'}</p>
-                        </div>
-                        
-                        <div className="grid grid-cols-[80px_10px_1fr] border-b border-black pb-4 mb-6">
-                           <span>Yth</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.penempatan}</span>
-                           <span>Dari</span><span>:</span><span>Bagian Kepegawaian</span>
-                           <span>Hal</span><span>:</span><span className="font-bold">Penempatan Peserta {selectedPeserta.jenis}</span>
-                           <span>Tanggal</span><span>:</span><span>{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                        </div>
+                           <div className="mt-14 ml-[55%] text-center leading-tight">
+                              <p className="font-bold uppercase mb-24">{selectedPeserta.pjbJabatan},</p>
+                              <p className="font-bold uppercase underline leading-none">{selectedPeserta.pjbNama}</p>
+                              <p className="mt-1">NIP {selectedPeserta.pjbNip}</p>
+                           </div>
+                        </>
+                     )}
 
-                        <p>Bersama ini kami sampaikan data peserta <span className="font-bold">{selectedPeserta.jenis}</span> yang akan melaksanakan praktik kerja pada unit kerja Saudara:</p>
-                        
-                        <div className="ml-10 grid grid-cols-[140px_10px_1fr] gap-y-1 border p-4 rounded-lg bg-gray-50">
-                           <span>Nama</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.nama}</span>
-                           <span>NIM / NIS</span><span>:</span><span>{selectedPeserta.nisNim}</span>
-                           <span>Institusi</span><span>:</span><span className="uppercase">{selectedPeserta.institusi}</span>
-                           <span>Masa Program</span><span>:</span><span>{selectedPeserta.tanggalMulai} s/d {selectedPeserta.tanggalSelesai}</span>
-                        </div>
+                     {docType === 'NOTA' && (
+                        <>
+                           <div className="text-center mb-6">
+                              <h1 className="text-[12pt] font-bold uppercase">NOTA DINAS</h1>
+                              <p className="text-[11pt] font-normal mt-1 uppercase">Nomor: {selectedPeserta.nomorSurat || 'HKI.1-PR.04.01-...'}</p>
+                           </div>
+                           
+                           <div className="grid grid-cols-[80px_10px_1fr] border-b border-black pb-4 mb-6">
+                              <span>Yth</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.penempatan}</span>
+                              <span>Dari</span><span>:</span><span>Bagian Kepegawaian</span>
+                              <span>Hal</span><span>:</span><span className="font-bold">Penempatan Peserta {selectedPeserta.jenis}</span>
+                              <span>Tanggal</span><span>:</span><span>{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                           </div>
 
-                        <p>Mohon kiranya Saudara dapat memberikan bimbingan teknis serta mengawasi kehadiran peserta tersebut selama masa program berlangsung.</p>
-                        <p>Demikian untuk menjadi maklum dan dilaksanakan.</p>
+                           <p>Bersama ini kami sampaikan data peserta <span className="font-bold">{selectedPeserta.jenis}</span> yang akan melaksanakan praktik kerja pada unit kerja Saudara:</p>
+                           
+                           <div className="ml-10 grid grid-cols-[140px_10px_1fr] gap-y-1 border p-4 rounded-lg bg-gray-50">
+                              <span>Nama</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.nama}</span>
+                              <span>NIM / NIS</span><span>:</span><span>{selectedPeserta.nisNim}</span>
+                              <span>Institusi</span><span>:</span><span className="uppercase">{selectedPeserta.institusi}</span>
+                              <span>Masa Program</span><span>:</span><span>{selectedPeserta.tanggalMulai} s/d {selectedPeserta.tanggalSelesai}</span>
+                           </div>
 
-                        <div className="mt-14 ml-[55%] text-center leading-tight">
-                           <p className="font-bold uppercase mb-24">KEPALA BAGIAN KEPEGAWAIAN,</p>
-                           <p className="font-bold uppercase underline leading-none">{selectedPeserta.pjbNama}</p>
-                           <p className="mt-1">NIP {selectedPeserta.pjbNip}</p>
-                        </div>
-                     </div>
-                   )}
+                           <p>Mohon kiranya Saudara dapat memberikan bimbingan teknis serta mengawasi kehadiran peserta tersebut selama masa program berlangsung.</p>
+                           <p>Demikian untuk menjadi maklum dan dilaksanakan.</p>
+
+                           <div className="mt-14 ml-[55%] text-center leading-tight">
+                              <p className="font-bold uppercase mb-24">KEPALA BAGIAN KEPEGAWAIAN,</p>
+                              <p className="font-bold uppercase underline leading-none">{selectedPeserta.pjbNama}</p>
+                              <p className="mt-1">NIP {selectedPeserta.pjbNip}</p>
+                           </div>
+                        </>
+                     )}
+
+                     {docType === 'KETERANGAN' && (
+                        <>
+                           <div className="text-center mb-8">
+                              <h2 className="text-[14pt] font-bold uppercase underline mb-2">SURAT KETERANGAN</h2>
+                              <p>Nomor: {selectedPeserta.nomorSurat || 'HKI.1-UM.01.01-...'}</p>
+                           </div>
+                           
+                           <p>Yang bertanda tangan di bawah ini Kepala Bagian Kepegawaian Direktorat Jenderal Kekayaan Intelektual, menerangkan dengan sesungguhnya bahwa:</p>
+                           
+                           <div className="ml-8 grid grid-cols-[160px_10px_1fr] gap-y-1 my-4">
+                              <span>Nama</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.nama}</span>
+                              <span>NIM / NIS</span><span>:</span><span>{selectedPeserta.nisNim}</span>
+                              <span>Institusi</span><span>:</span><span className="uppercase">{selectedPeserta.institusi}</span>
+                              <span>Jurusan</span><span>:</span><span className="uppercase">{selectedPeserta.jurusan}</span>
+                              <span>Penempatan</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.penempatan}</span>
+                              <span>Periode</span><span>:</span><span>{selectedPeserta.tanggalMulai} s/d {selectedPeserta.tanggalSelesai}</span>
+                           </div>
+
+                           <p>Adalah benar peserta <span className="font-bold">{selectedPeserta.jenis}</span> yang sedang melaksanakan kegiatan praktik kerja lapangan di lingkungan Direktorat Jenderal Kekayaan Intelektual.</p>
+                           
+                           <p>Demikian surat keterangan ini dibuat untuk dipergunakan sebagaimana mestinya.</p>
+
+                           <div className="mt-14 ml-[55%] text-center leading-tight">
+                              <p>Jakarta, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                              <p className="font-bold uppercase mt-4 mb-24">KEPALA BAGIAN KEPEGAWAIAN,</p>
+                              <p className="font-bold uppercase underline leading-none">{selectedPeserta.pjbNama}</p>
+                              <p className="mt-1">NIP {selectedPeserta.pjbNip}</p>
+                           </div>
+                        </>
+                     )}
+                  </div>
                 </div>
               )}
            </div>

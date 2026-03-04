@@ -22,8 +22,10 @@ const KeuanganPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<'kuitansi' | 'rincian' | 'spb' | 'sptjm'>('kuitansi');
+  const [previewType, setPreviewType] = useState<'kuitansi' | 'rincian' | 'spb' | 'sptjm' | 'riil'>('kuitansi');
   const [selectedPesertaIdx, setSelectedPesertaIdx] = useState<number>(0);
+  const [docDate, setDocDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [docCity, setDocCity] = useState<string>('Bogor');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('Semua Status');
@@ -243,13 +245,143 @@ const KeuanganPage = () => {
     setLoading(true);
     try {
       const canvas = await html2canvas(pdfRef.current, { scale: 3, useCORS: true, backgroundColor: "#ffffff" });
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const imgWidth = 210;
+      const isKuitansi = previewType === 'kuitansi';
+      
+      const pdf = new jsPDF({ 
+        orientation: isKuitansi ? 'landscape' : 'portrait', 
+        unit: 'mm', 
+        format: isKuitansi ? 'a5' : 'a4' 
+      });
+
+      const imgWidth = isKuitansi ? 210 : 210;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
       const p = formData.peserta?.[selectedPesertaIdx];
       pdf.save(`${previewType.toUpperCase()}_${p?.nama?.replace(/\s+/g, '_')}.pdf`);
     } catch (e) { alert("Gagal cetak PDF."); } finally { setLoading(false); }
+  };
+
+  const handleDownloadExcelParticipants = (record: KeuanganRecord) => {
+    if (!record.peserta || record.peserta.length === 0) {
+      alert("Tidak ada data peserta untuk diunduh.");
+      return;
+    }
+    const data = record.peserta.map((p, index) => ({
+      'No': index + 1,
+      'Nama': p.nama,
+      'NIP': p.nip || '-',
+      'Jabatan': p.jabatan,
+      'Kategori': p.kategori,
+      'Nomor SPD': p.nomorSpd,
+      'Tanggal SPD': p.tanggalSpd,
+      'Tujuan': p.tujuanPerjalanan,
+      'Total Biaya': p.totalJumlah
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Peserta");
+    XLSX.writeFile(wb, `Peserta_${record.namaKegiatan.replace(/\s+/g, '_')}.xlsx`);
+  };
+
+  const handleDownloadAllActivitiesExcel = () => {
+    const data = records.map((r, idx) => ({
+      'No': idx + 1,
+      'Nama Kegiatan': r.namaKegiatan,
+      'Tanggal': r.tanggal,
+      'Mata Anggaran': r.mataAnggaran,
+      'Tahun': r.tahunAnggaran,
+      'Unit Kerja': r.unitKerja,
+      'Status': r.status,
+      'Jumlah Peserta': r.peserta.length,
+      'Total Biaya': r.peserta.reduce((acc, p) => acc + p.totalJumlah, 0)
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Kegiatan_Keuangan");
+    XLSX.writeFile(wb, `Data_Keuangan_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handlePrintAllDocuments = async (record: KeuanganRecord, type: typeof previewType) => {
+    if (!record.peserta || record.peserta.length === 0) return;
+    setLoading(true);
+    try {
+      const isKuitansi = type === 'kuitansi';
+      const pdf = new jsPDF({ 
+        orientation: isKuitansi ? 'landscape' : 'portrait', 
+        unit: 'mm', 
+        format: isKuitansi ? 'a5' : 'a4' 
+      });
+
+      for (let i = 0; i < record.peserta.length; i++) {
+        setSelectedPesertaIdx(i);
+        // Wait for React to render the new participant
+        await new Promise(resolve => setTimeout(resolve, 600)); 
+        
+        if (pdfRef.current) {
+          const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+          const imgWidth = isKuitansi ? (isKuitansi ? 210 : 210) : 210;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          if (i > 0) pdf.addPage(isKuitansi ? 'a5' : 'a4', isKuitansi ? 'landscape' : 'portrait');
+          pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+        }
+      }
+      
+      pdf.save(`ALL_${type.toUpperCase()}_${record.namaKegiatan.replace(/\s+/g, '_')}.pdf`);
+    } catch (e) { 
+      console.error(e);
+      alert("Gagal cetak semua dokumen."); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
+
+  const handleDownloadFullBundle = async (record: KeuanganRecord) => {
+    if (!record.peserta || record.peserta.length === 0) return;
+    setLoading(true);
+    try {
+      const types: (typeof previewType)[] = ['kuitansi', 'rincian', 'riil', 'spb', 'sptjm'];
+      const pdf = new jsPDF({ 
+        orientation: 'landscape', 
+        unit: 'mm', 
+        format: 'a5' 
+      });
+
+      let isFirst = true;
+
+      for (let i = 0; i < record.peserta.length; i++) {
+        setSelectedPesertaIdx(i);
+        for (const type of types) {
+          setPreviewType(type);
+          // Wait for React to render
+          await new Promise(resolve => setTimeout(resolve, 800)); 
+          
+          if (pdfRef.current) {
+            const isKuitansi = type === 'kuitansi';
+            const canvas = await html2canvas(pdfRef.current, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+            
+            if (!isFirst) {
+              pdf.addPage(isKuitansi ? 'a5' : 'a4', isKuitansi ? 'landscape' : 'portrait');
+            }
+            isFirst = false;
+
+            const imgWidth = isKuitansi ? 210 : 210;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+          }
+        }
+      }
+      
+      pdf.save(`BUNDLE_LENGKAP_${record.namaKegiatan.replace(/\s+/g, '_')}.pdf`);
+    } catch (e) { 
+      console.error(e);
+      alert("Gagal cetak bundle dokumen."); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const currentPeserta = formData.peserta?.[selectedPesertaIdx];
@@ -269,6 +401,9 @@ const KeuanganPage = () => {
         <div className="flex gap-2">
           {activeView === 'list' ? (
             <>
+              <button onClick={handleDownloadAllActivitiesExcel} className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-emerald-200 flex items-center gap-2 active:scale-95 transition-all">
+                <i className="bi bi-file-earmark-excel"></i> Rekap Excel
+              </button>
               {(canEdit || isSuperadmin) && (
                 <button onClick={() => { setFormData({ namaKegiatan: '', tanggal: new Date().toISOString().split('T')[0], mataAnggaran: '', tahunAnggaran: new Date().getFullYear().toString(), ppkNip: '', ppkNama: '', bendaharaNip: '', bendaharaNama: '', unitKerja: UNIT_KERJA[0], status: 'Draft', peserta: [] }); setActiveView('editor'); }} className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center gap-2 active:scale-95 transition-all">
                   <i className="bi bi-plus-lg"></i> Buat Kegiatan Baru
@@ -279,6 +414,9 @@ const KeuanganPage = () => {
             <div className="flex gap-2">
               <button onClick={handleDownloadPdf} className="px-6 py-3 bg-gray-950 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg flex items-center gap-2">
                 <i className="bi bi-file-earmark-pdf-fill"></i> Cetak PDF
+              </button>
+              <button onClick={() => handlePrintAllDocuments(formData as KeuanganRecord, previewType)} className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg flex items-center gap-2 active:scale-95 transition-all">
+                <i className="bi bi-printer-fill"></i> Cetak Semua ({formData.peserta?.length})
               </button>
               <button onClick={() => setActiveView('list')} className="px-8 py-3 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black text-[10px] uppercase shadow-sm">Kembali</button>
             </div>
@@ -328,6 +466,12 @@ const KeuanganPage = () => {
                     </p>
                   </div>
                   <div className="flex gap-2">
+                    <button onClick={() => handleDownloadExcelParticipants(r)} className="h-12 w-12 bg-white border border-gray-100 text-emerald-600 rounded-2xl flex items-center justify-center hover:text-emerald-700 hover:border-emerald-100 transition-all shadow-sm" title="Download Excel Peserta">
+                      <i className="bi bi-file-earmark-excel"></i>
+                    </button>
+                    <button onClick={() => handleDownloadFullBundle(r)} className="h-12 w-12 bg-white border border-gray-100 text-rose-600 rounded-2xl flex items-center justify-center hover:text-rose-700 hover:border-rose-100 transition-all shadow-sm" title="Download Semua PDF (Kuitansi, Rincian, dll)">
+                      <i className="bi bi-file-earmark-pdf"></i>
+                    </button>
                     {(canEdit || isSuperadmin) && (
                       <>
                         <button onClick={() => { setFormData(r); setActiveView('editor'); }} className="h-12 px-6 bg-white border border-gray-100 text-gray-600 rounded-2xl flex items-center gap-2 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm font-black text-[10px] uppercase">
@@ -446,7 +590,17 @@ const KeuanganPage = () => {
 
             <div className="space-y-8">
               <div className="flex justify-between items-center border-b pb-4">
-                <h5 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">3. Daftar Peserta & Perincian</h5>
+                <div className="flex flex-col">
+                  <h5 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">3. Daftar Peserta & Perincian</h5>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => handleDownloadExcelParticipants(formData as KeuanganRecord)} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-sm hover:bg-emerald-100 transition-all">
+                      <i className="bi bi-file-earmark-excel"></i> Excel Peserta
+                    </button>
+                    <button onClick={() => handleDownloadFullBundle(formData as KeuanganRecord)} className="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-sm hover:bg-rose-100 transition-all">
+                      <i className="bi bi-file-earmark-pdf"></i> Download Semua PDF
+                    </button>
+                  </div>
+                </div>
                 <button onClick={addPeserta} className="px-6 py-3 bg-blue-50 text-blue-600 rounded-2xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-blue-100 transition-all">
                   <i className="bi bi-person-plus-fill"></i> Tambah Peserta
                 </button>
@@ -559,89 +713,103 @@ const KeuanganPage = () => {
 
       {activeView === 'preview' && (
         <div className="space-y-8">
-          <div className="flex justify-center gap-4 no-print">
-            {['kuitansi', 'rincian', 'spb', 'sptjm'].map(type => (
-              <button key={type} onClick={() => setPreviewType(type as any)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all ${previewType === type ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-400 border border-gray-100'}`}>
-                {type.replace(/_/g, ' ')}
-              </button>
-            ))}
+          <div className="flex flex-col gap-4 no-print max-w-2xl mx-auto">
+            <div className="flex justify-center gap-4">
+              {['kuitansi', 'rincian', 'riil', 'spb', 'sptjm'].map(type => (
+                <button key={type} onClick={() => setPreviewType(type as any)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all ${previewType === type ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-400 border border-gray-100'}`}>
+                  {type.replace(/_/g, ' ')}
+                </button>
+              ))}
+            </div>
+            
+            <div className="flex justify-center gap-6 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+              <div className="space-y-1 flex-1">
+                <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Kota TTD</label>
+                <input type="text" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600 transition-all uppercase" value={docCity} onChange={e => setDocCity(e.target.value)} />
+              </div>
+              <div className="space-y-1 flex-1">
+                <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Tanggal Dokumen</label>
+                <input type="date" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600 transition-all" value={docDate} onChange={e => setDocDate(e.target.value)} />
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-center">
-            <div ref={pdfRef} className="bg-white shadow-2xl p-[1.5cm_2cm] font-sans text-black leading-tight" style={{ width: '210mm', minHeight: '297mm' }}>
+            <div ref={pdfRef} className="bg-white shadow-2xl p-[1cm_1.5cm] font-sans text-black leading-tight overflow-hidden" style={{ 
+              width: '210mm', 
+              height: previewType === 'kuitansi' ? '148.5mm' : 'auto',
+              minHeight: previewType === 'kuitansi' ? '148.5mm' : '297mm' 
+            }}>
               
               {previewType === 'kuitansi' && (
-                <div className="space-y-6 text-[11pt]">
+                <div className="space-y-3 text-[10pt]">
                   {/* HEADER KUITANSI */}
-                  <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-4">
-                    <div className="text-[9pt]">
-                      <p className="font-bold uppercase leading-none">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                      <p className="font-bold uppercase leading-none mt-1">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                  
+                    <div className="text-right text-[7pt] italic">
+                      <p>LAMPIRAN</p>
+                      <p>PMK NO. 190/PMK.05/2012</p>
+                      <p>TENTANG TATA CARA PEMBAYARAN DALAM RANGKA </p>
+                      <p>PELAKSANAAN ANGGARAN PENDAPATAN BELANJA NEGARA</p>
                     </div>
-                    <div className="text-right text-[8pt] italic">
-                      <p>LAMPIRAN PMK NO. 190/PMK.05/2012</p>
-                    </div>
-                  </div>
-
-                  {/* TITLE */}
-                  <div className="text-center pt-2">
-                    <h2 className="text-[12pt] font-bold underline uppercase">KUITANSI / BUKTI PEMBAYARAN</h2>
-                  </div>
-
+                  
+                  <div className="flex justify-between items-start border-b border-black pb-1 mb-2">
                   {/* INFO BLOCK */}
-                  <div className="grid grid-cols-2 gap-4 text-[10pt] mb-4">
-                    <div className="grid grid-cols-[120px_5px_1fr] items-center">
+                  
+                    <div className="grid grid-cols-[100px_5px_1fr] items-center">
                        <span>Transaction ID</span><span>:</span><span>{formData.id}</span>
                     </div>
-                    <div className="grid grid-cols-[120px_5px_1fr] items-center">
+                    <div className="text-left text-[9pt] ">
+                    <div className="grid grid-cols-[100px_5px_1fr] items-center">
                        <span>Tahun Anggaran</span><span>:</span><span>{formData.tahunAnggaran}</span>
                     </div>
-                    <div className="grid grid-cols-[120px_5px_1fr] items-center">
+                    <div className="grid grid-cols-[100px_5px_1fr] items-center">
                        <span>Nomor Bukti</span><span>:</span><span>-</span>
                     </div>
-                    <div className="grid grid-cols-[120px_5px_1fr] items-center">
+                    <div className="grid grid-cols-[100px_5px_1fr] items-center">
                        <span>Mata Anggaran</span><span>:</span><span>{formData.mataAnggaran}</span>
                     </div>
+                    </div>
+                  </div>
+                 
+
+                   {/* TITLE */}
+                  <div className="text-center pt-1">
+                    <h2 className="text-[11pt] font-bold underline uppercase">KUITANSI / BUKTI PEMBAYARAN</h2>
                   </div>
 
                   {/* BODY */}
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-[160px_10px_1fr]">
+                  <div className="space-y-1.5 text-[9pt]">
+                    <div className="grid grid-cols-[140px_10px_1fr]">
                       <span className="font-bold">Sudah terima dari</span>
                       <span>:</span>
                       <span>Kuasa Pengguna Anggaran / Pejabat Pembuat Komitmen Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum dan HAM RI</span>
                     </div>
-                    <div className="grid grid-cols-[160px_10px_1fr] items-center">
+                    <div className="grid grid-cols-[140px_10px_1fr] items-center">
                       <span className="font-bold">Jumlah uang</span>
                       <span>:</span>
                       <span className="font-bold">Rp {formatCurrency(currentPeserta?.totalJumlah || 0).replace('Rp', '').trim()}</span>
                     </div>
-                    <div className="grid grid-cols-[160px_10px_1fr] items-center">
+                    <div className="grid grid-cols-[140px_10px_1fr] items-center">
                       <span>Terbilang</span>
                       <span>:</span>
-                      <span className="italic font-bold uppercase text-[10pt]"># {terbilang(currentPeserta?.totalJumlah || 0)} RUPIAH #</span>
+                      <span className="italic font-bold propercase text-[9pt]"> {terbilang(currentPeserta?.totalJumlah || 0)} RUPIAH </span>
                     </div>
-                    <div className="grid grid-cols-[160px_10px_1fr]">
+                    <div className="grid grid-cols-[140px_10px_1fr]">
                       <span>Untuk pembayaran</span>
                       <span>:</span>
-                      <span>Biaya Perjalanan dinas dalam rangka <span className="font-bold uppercase">{formData.namaKegiatan}</span></span>
+                      <span>Biaya Perjalanan dinas dalam rangka <span className="font-bold ropercase">{formData.namaKegiatan}</span></span>
                     </div>
-                    <div className="grid grid-cols-[160px_10px_1fr]">
+                    <div className="grid grid-cols-[140px_10px_1fr]">
                       <span>Berdasarkan SPD</span>
                       <span>:</span>
                       <span>Sekretaris Direktorat Jenderal Kekayaan Intelektual</span>
                     </div>
-                    <div className="grid grid-cols-[160px_10px_1fr] items-center">
-                      <span>Nomor</span>
+                    <div className="grid grid-cols-[140px_10px_1fr] items-center">
+                      <span>Nomor / Tanggal</span>
                       <span>:</span>
-                      <span>{currentPeserta?.nomorSpd || '-'}</span>
+                      <span>{currentPeserta?.nomorSpd || '-'} / {currentPeserta?.tanggalSpd || '-'}</span>
                     </div>
-                    <div className="grid grid-cols-[160px_10px_1fr] items-center">
-                      <span>Tanggal</span>
-                      <span>:</span>
-                      <span>{currentPeserta?.tanggalSpd || '-'}</span>
-                    </div>
-                    <div className="grid grid-cols-[160px_10px_1fr]">
+                    <div className="grid grid-cols-[140px_10px_1fr]">
                       <span>Untuk Perjalanan Dinas</span>
                       <span>:</span>
                       <span>{currentPeserta?.tujuanPerjalanan || '-'}</span>
@@ -649,33 +817,33 @@ const KeuanganPage = () => {
                   </div>
 
                   {/* SIGNATURES */}
-                  <div className="grid grid-cols-2 gap-12 pt-10">
-                    <div className="text-center space-y-16">
+                  <div className="grid grid-cols-2 gap-8 pt-4 text-[9pt]">
+                    <div className="text-center space-y-12">
                       <p>a.n Kuasa Pengguna Anggaran<br/>Pejabat Pembuat Komitmen</p>
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         <p className="font-bold underline uppercase">{formData.ppkNama}</p>
-                        <p className="text-[10pt]">NIP {formData.ppkNip}</p>
+                        <p>NIP {formData.ppkNip}</p>
                       </div>
                     </div>
-                    <div className="text-center space-y-16">
-                      <p>Bogor, {new Date(formData.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Yang Menerima</p>
-                      <div className="space-y-1">
+                    <div className="text-center space-y-12">
+                      <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Yang Menerima</p>
+                      <div className="space-y-0.5">
                         <p className="font-bold underline uppercase">{currentPeserta?.nama || '-'}</p>
-                        <p className="text-[10pt]">NIP {currentPeserta?.nip || '-'}</p>
+                        <p>NIP {currentPeserta?.nip || '-'}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* BOTTOM SECTION */}
-                  <div className="mt-8 pt-4 border-t border-black space-y-4">
-                     <div className="text-center">
-                        <p className="italic">Lunas dibayar tanggal, {new Date(formData.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                        <p className="font-bold mt-1">Bendahara Pengeluaran</p>
+                  <div className="mt-4 pt-2 border-t border-black grid grid-cols-2 gap-4 text-[9pt]">
+                     <div className="text-center italic">
+                        <p>Lunas dibayar tanggal, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                      </div>
-                     <div className="ml-auto text-center w-1/2 space-y-12">
-                        <div className="space-y-1">
+                     <div className="text-center space-y-12">
+                        <p className="font-bold">Bendahara Pengeluaran</p>
+                        <div className="space-y-0.5">
                           <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
-                          <p className="text-[10pt]">NIP {formData.bendaharaNip}</p>
+                          <p>NIP {formData.bendaharaNip}</p>
                         </div>
                      </div>
                   </div>
@@ -684,15 +852,25 @@ const KeuanganPage = () => {
 
               {previewType === 'rincian' && (
                 <div className="space-y-8 text-[10pt]">
-                   <div className="flex justify-between items-start">
-                     <div className="space-y-1">
-                       <div className="grid grid-cols-[100px_10px_1fr]"><span>Lampiran SPD No</span><span>:</span><span>{currentPeserta?.nomorSpd}</span></div>
-                       <div className="grid grid-cols-[100px_10px_1fr]"><span>Tanggal</span><span>:</span><span>{currentPeserta?.tanggalSpd}</span></div>
-                     </div>
-                     <div className="text-right text-[8pt] italic max-w-[200px]">
-                       <p>LAMPIRAN PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA NOMOR 113/PMK.05/2012 TENTANG PERJALANAN DINAS JABATAN DALAM NEGERI</p>
-                     </div>
-                   </div>
+                  <div className="grid grid-cols-2 gap-8 pt-4 text-[9pt]">
+                    <div className="space-y-1">
+                      <div className="grid grid-cols-[120px_10px_1fr] items-center">
+                        <span>Lampiran SPD No</span><span>:</span><span>{currentPeserta?.nomorSpd}</span>
+                      </div>
+                      <div className="grid grid-cols-[120px_10px_1fr] items-center">
+                        <span>Tanggal</span><span>:</span><span>{currentPeserta?.tanggalSpd}</span>
+                      </div>
+                    </div>
+                    <div className="text-left text-[7pt] italic">
+                      <p>LAMPIRAN</p>
+                      <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA </p>
+                      <p>NOMOR 113/PMK.05/2012 TENTANG PERJALANAN DINAS </p>
+                      <p>JABATAN DALAM NEGERI BAGI PEJABAT NEGARA,</p>
+                      <p>PEGAWAI NEGERI, DAN PEGAWAI TIDAK TETAP</p>
+                    </div>
+                  </div>
+                   
+                   
 
                    <div className="text-center py-4">
                      <h2 className="text-[12pt] font-bold uppercase">RINCIAN BIAYA PERJALANAN DINAS</h2>
@@ -743,7 +921,7 @@ const KeuanganPage = () => {
                     </div>
                     <div className="text-center space-y-16">
                       <div className="space-y-1">
-                        <p>Bogor, {new Date(formData.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                         <p>Telah menerima sejumlah uang sebesar</p>
                         <p className="font-bold">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</p>
                       </div>
@@ -772,18 +950,96 @@ const KeuanganPage = () => {
                 </div>
               )}
 
-              {previewType === 'spb' && (
+              {previewType === 'riil' && (
                 <div className="space-y-8 text-[10pt]">
-                   <div className="text-right text-[8pt] italic">
-                     <p>LAMPIRAN PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA NOMOR 190/PMK.05/2012 TENTANG TATA CARA PEMBAYARAN DALAM RANGKA PELAKSANAAN ANGGARAN PENDAPATAN BELANJA NEGARA</p>
+                     <div className="grid grid-cols-2 gap-8 pt-4 text-[9pt]">
+                    <div className="space-y-1">
+                    </div>
+                    <div className="text-left text-[7pt] italic">
+                      <p>LAMPIRAN</p>
+                      <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA </p>
+                      <p>NOMOR 113/PMK.05/2012 TENTANG PERJALANAN DINAS </p>
+                      <p>JABATAN DALAM NEGERI BAGI PEJABAT NEGARA,</p>
+                      <p>PEGAWAI NEGERI, DAN PEGAWAI TIDAK TETAP</p>
+                    </div>
+                    </div>
+                   <div className="text-center py-4">
+                     <h2 className="text-[12pt] font-bold uppercase underline">DAFTAR PENGELUARAN RIIL</h2>
                    </div>
 
+                   <div className="space-y-4">
+                     <p>Yang bertandatangan di bawah ini:</p>
+                     <div className="pl-10 space-y-1">
+                        <div className="grid grid-cols-[120px_10px_1fr]"><span>Nama</span><span>:</span><span className="font-bold uppercase">{currentPeserta?.nama}</span></div>
+                        <div className="grid grid-cols-[120px_10px_1fr]"><span>NIP</span><span>:</span><span>{currentPeserta?.nip || '-'}</span></div>
+                        <div className="grid grid-cols-[120px_10px_1fr]"><span>Jabatan</span><span>:</span><span className="uppercase">{currentPeserta?.jabatan}</span></div>
+                     </div>
+
+                     <p className="leading-relaxed">Berdasarkan Surat Perjalanan Dinas (SPD) Nomor: <span className="font-bold">{currentPeserta?.nomorSpd}</span> Tanggal <span className="font-bold">{currentPeserta?.tanggalSpd}</span>, dengan ini kami menyatakan dengan sesungguhnya bahwa:</p>
+                     
+                     <div className="space-y-2">
+                        <p>1. Biaya transport pegawai dan/atau biaya penginapan di bawah ini yang tidak dapat diperoleh bukti-bukti pengeluarannya meliputi:</p>
+                        <table className="w-full border-collapse border border-black text-center">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-black">
+                              <th className="border-r border-black p-2 w-10">No.</th>
+                              <th className="border-r border-black p-2">Uraian</th>
+                              <th className="p-2 w-48">Jumlah</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(currentPeserta?.rincianBiaya || []).map((item, idx) => (
+                              <tr key={idx} className="border-b border-black">
+                                <td className="border-r border-black p-2">{idx + 1}</td>
+                                <td className="border-r border-black p-2 text-left">{item.item}</td>
+                                <td className="p-2 text-right">Rp {item.total.toLocaleString('id-ID')}</td>
+                              </tr>
+                            ))}
+                            <tr className="font-bold bg-gray-50">
+                              <td colSpan={2} className="border-r border-black p-2 text-right uppercase">JUMLAH</td>
+                              <td className="p-2 text-right">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                     </div>
+
+                     <p>2. Jumlah uang tersebut pada angka 1 di atas benar-benar dikeluarkan untuk pelaksanaan perjalanan dinas dimaksud dan apabila di kemudian hari terdapat kelebihan atas pembayaran, kami bersedia untuk menyetorkan kelebihan tersebut ke Kas Negara.</p>
+                     <p>Demikian pernyataan ini kami buat dengan sebenarnya, untuk dipergunakan sebagaimana mestinya.</p>
+                   </div>
+
+                   <div className="grid grid-cols-2 gap-10 pt-10">
+                    <div className="text-center space-y-20">
+                      <p>Mengetahui/Menyetujui<br/>Pejabat Pembuat Komitmen</p>
+                      <div className="space-y-1">
+                        <p className="font-bold underline uppercase">{formData.ppkNama}</p>
+                        <p>NIP {formData.ppkNip}</p>
+                      </div>
+                    </div>
+                    <div className="text-center space-y-20">
+                      <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Pelaksana SPD</p>
+                      <div className="space-y-1">
+                        <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
+                        <p>NIP {currentPeserta?.nip || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {previewType === 'spb' && (
+                <div className="space-y-8 text-[10pt]">
+                   <div className="text-right text-[7pt] italic">
+                      <p>LAMPIRAN</p>
+                      <p>PMK NO. 190/PMK.05/2012</p>
+                      <p>TENTANG TATA CARA PEMBAYARAN DALAM RANGKA </p>
+                      <p>PELAKSANAAN ANGGARAN PENDAPATAN BELANJA NEGARA</p>
+                    </div>
                    <div className="text-center space-y-1">
                      <p className="font-bold uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
                      <p className="font-bold uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
                      <h2 className="text-[12pt] font-bold underline uppercase pt-4">SURAT PERINTAH BAYAR</h2>
                      <div className="flex justify-center gap-10 pt-2">
-                        <p>Tanggal : {new Date(formData.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        <p>Tanggal : {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                         <p>Nomor : .........................</p>
                      </div>
                    </div>
@@ -809,21 +1065,21 @@ const KeuanganPage = () => {
 
                    <div className="grid grid-cols-3 gap-4 pt-10 text-center text-[9pt]">
                       <div className="space-y-20">
-                        <p>Setuju/lunas dibayar, tanggal {new Date(formData.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Bendahara Pengeluaran,</p>
+                        <p>Setuju/lunas dibayar, tanggal {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Bendahara Pengeluaran,</p>
                         <div className="space-y-1">
                           <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
                           <p>NIP {formData.bendaharaNip}</p>
                         </div>
                       </div>
                       <div className="space-y-20">
-                        <p>Diterima tanggal {new Date(formData.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Penerima Uang/ Uang Muka Kerja</p>
+                        <p>Diterima tanggal {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Penerima Uang/ Uang Muka Kerja</p>
                         <div className="space-y-1">
                           <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
                           <p>NIP {currentPeserta?.nip || '-'}</p>
                         </div>
                       </div>
                       <div className="space-y-20">
-                        <p>Jakarta, {new Date(formData.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>a.n. Kuasa Pengguna Anggaran<br/>Pejabat Pembuat Komitmen</p>
+                        <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>a.n. Kuasa Pengguna Anggaran<br/>Pejabat Pembuat Komitmen</p>
                         <div className="space-y-1">
                           <p className="font-bold underline uppercase">{formData.ppkNama}</p>
                           <p>NIP {formData.ppkNip}</p>
@@ -874,7 +1130,7 @@ const KeuanganPage = () => {
                    </div>
 
                    <div className="ml-[60%] mt-20 text-center space-y-24">
-                      <p>Bogor, {new Date(formData.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Yang melakukan perjalanan dinas</p>
+                      <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Yang melakukan perjalanan dinas</p>
                       <div className="space-y-1">
                         <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
                         <p>NIP {currentPeserta?.nip || '-'}</p>

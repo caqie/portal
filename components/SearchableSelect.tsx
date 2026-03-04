@@ -106,9 +106,9 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
           
           <div className="overflow-y-auto flex-1 custom-scrollbar min-h-0">
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt) => (
+              filteredOptions.map((opt, idx) => (
                 <div 
-                  key={opt.value}
+                  key={`${opt.value}-${idx}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onChange(opt.value);

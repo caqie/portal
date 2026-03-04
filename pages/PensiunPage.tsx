@@ -56,13 +56,8 @@ const PensiunPage = () => {
     mkgBulan: '0',
     mkpTahun: '0',
     mkpBulan: '0',
-    mkSebelumPns: '0 TAHUN 0 BULAN',
-    pendidikanDasar: '',
-    mulaiMasukPns: '',
-    
-    istriSuami: [{ nama: '', tglLahir: '', kawinTgl: '', urutan: '1' }],
-    anak: [{ nama: '', tglLahir: '', kandung: 'YA', tiri: '-', ayahIbu: '' }],
-    
+    mkSebelumPnsTahun: '0',
+    mkSebelumPnsBulan: '0',
     alamatSekarang: '',
     alamatPensiun: ''
   });
@@ -115,27 +110,71 @@ const PensiunPage = () => {
     const p = pegawaiList.find(x => x.nip === nip);
     if (p) {
       const ret = getRetirementDetails(p.nip, p.jabatan);
+      
+      // Parse Masa Kerja if available (format usually "XX Tahun YY Bulan")
+      let mkgT = '0', mkgB = '0';
+      if (p.masaKerja) {
+        const match = p.masaKerja.match(/(\d+)\s*Tahun\s*(\d+)\s*Bulan/i);
+        if (match) {
+          mkgT = match[1];
+          mkgB = match[2];
+        }
+      }
+
       setFormData({ 
         ...formData, 
         nip: p.nip, 
         namaPegawai: p.nama, 
-        pangkat: p.pangkat, 
-        golRuang: p.golRuang,
-        jabatan: p.jabatan,
+        pangkat: p.pangkat || '', 
+        golRuang: p.golRuang || '',
+        jabatan: p.jabatan || '',
         tempatLahir: p.tempatLahir || '',
         tanggalLahir: p.tanggalLahir || '',
         alamatSekarang: p.alamat || '',
         alamatPensiun: p.alamat || '',
         bup: ret?.bup.toString() || '60',
         mulaiMasukPns: p.tmtCpns || '',
-        pendidikanDasar: p.pendidikan || ''
+        pendidikanDasar: p.pendidikan || '',
+        mkgTahun: mkgT,
+        mkgBulan: mkgB,
+        mkpTahun: mkgT, // Default to MKG if MKP not explicitly in Pegawai
+        mkpBulan: mkgB,
+        mkSebelumPnsTahun: '0',
+        mkSebelumPnsBulan: '0',
+        unitKerjaHeader: p.unitKerja || formData.unitKerjaHeader,
+        istriSuami: p.keluarga?.filter(k => k.hubungan.toUpperCase().includes('ISTRI') || k.hubungan.toUpperCase().includes('SUAMI')).map(k => ({
+          nama: k.nama,
+          tglLahir: k.tanggalLahir || '',
+          kawinTgl: '',
+          urutan: '1'
+        })) || [{ nama: '', tglLahir: '', kawinTgl: '', urutan: '1' }],
+        anak: p.keluarga?.filter(k => k.hubungan.toUpperCase().includes('ANAK')).map(k => ({
+          nama: k.nama,
+          tglLahir: k.tanggalLahir || '',
+          kandung: 'YA',
+          tiri: '-',
+          ayahIbu: p.nama
+        })) || [{ nama: '', tglLahir: '', kandung: 'YA', tiri: '-', ayahIbu: '' }]
       });
       setActiveView('editor');
     }
   };
 
   const addIstriSuami = () => setFormData({ ...formData, istriSuami: [...formData.istriSuami, { nama: '', tglLahir: '', kawinTgl: '', urutan: (formData.istriSuami.length + 1).toString() }] });
+  const removeIstriSuami = (index: number) => {
+    const list = [...formData.istriSuami];
+    list.splice(index, 1);
+    setFormData({ ...formData, istriSuami: list });
+  };
+
   const addAnak = () => setFormData({ ...formData, anak: [...formData.anak, { nama: '', tglLahir: '', kandung: 'YA', tiri: '-', ayahIbu: '' }] });
+  const removeAnak = (index: number) => {
+    const list = [...formData.anak];
+    list.splice(index, 1);
+    setFormData({ ...formData, anak: list });
+  };
+
+  const copyAlamat = () => setFormData({ ...formData, alamatPensiun: formData.alamatSekarang });
 
   const handleDownloadPdf = async () => {
     if (!pdfRef.current) return;
@@ -266,48 +305,121 @@ const PensiunPage = () => {
         <div className="max-w-6xl mx-auto bg-white p-10 md:p-14 rounded-[4rem] border border-gray-100 shadow-sm space-y-12 animate-modalEnter">
            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="space-y-6">
-                 <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-2 tracking-widest">1. Keterangan Pribadi</h5>
+                 <h5 className="text-[10px] font-black text-rose-600 uppercase border-b pb-2 tracking-widest">1. Header Dokumen</h5>
                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-full"><label className={labelClass}>Nama Lengkap</label><input type="text" className={inputClass} value={formData.namaPegawai} onChange={e=>setFormData({...formData, namaPegawai: e.target.value})} /></div>
-                    <div><label className={labelClass}>Tempat Lahir</label><input type="text" className={inputClass} value={formData.tempatLahir} onChange={e=>setFormData({...formData, tempatLahir: e.target.value})} /></div>
-                    <div><label className={labelClass}>Tgl Lahir</label><input type="date" className={inputClass} value={formData.tanggalLahir} onChange={e=>setFormData({...formData, tanggalLahir: e.target.value})} /></div>
+                    <div className="col-span-full"><label className={labelClass}>Instansi Induk</label><input type="text" className={inputClass} value={formData.instansiInduk} onChange={e=>setFormData({...formData, instansiInduk: e.target.value})} /></div>
+                    <div><label className={labelClass}>Provinsi</label><input type="text" className={inputClass} value={formData.provinsi} onChange={e=>setFormData({...formData, provinsi: e.target.value})} /></div>
+                    <div><label className={labelClass}>Kabupaten</label><input type="text" className={inputClass} value={formData.kabupaten} onChange={e=>setFormData({...formData, kabupaten: e.target.value})} /></div>
+                    <div className="col-span-full"><label className={labelClass}>Unit Kerja</label><input type="text" className={inputClass} value={formData.unitKerjaHeader} onChange={e=>setFormData({...formData, unitKerjaHeader: e.target.value})} /></div>
+                    <div><label className={labelClass}>Pembayaran</label><input type="text" className={inputClass} value={formData.pembayaran} onChange={e=>setFormData({...formData, pembayaran: e.target.value})} /></div>
+                    <div><label className={labelClass}>BUP</label><input type="number" className={inputClass} value={formData.bup} onChange={e=>setFormData({...formData, bup: e.target.value})} /></div>
                  </div>
               </div>
+
               <div className="space-y-6">
-                 <h5 className="text-[10px] font-black text-emerald-600 uppercase border-b pb-2 tracking-widest">2. Alamat & Penandatangan</h5>
-                 <SearchableSelect label="Pejabat Penilai" options={pegawaiList.map(p=>({value:p.nip, label:p.nama, subLabel:p.jabatan}))} value={formData.pjbNip} onChange={v=>{ const p = pegawaiList.find(x=>x.nip===v); if(p) setFormData({...formData, pjbNip:v, pjbNama:p.nama, pjbJabatan:p.jabatan}); }} />
+                 <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-2 tracking-widest">2. Keterangan Pribadi</h5>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-full"><label className={labelClass}>Nama Lengkap</label><input type="text" className={inputClass} value={formData.namaPegawai} onChange={e=>setFormData({...formData, namaPegawai: e.target.value})} /></div>
+                    <div><label className={labelClass}>NIP</label><input type="text" className={inputClass} value={formData.nip} onChange={e=>setFormData({...formData, nip: e.target.value})} /></div>
+                    <div><label className={labelClass}>Jabatan</label><input type="text" className={inputClass} value={formData.jabatan} onChange={e=>setFormData({...formData, jabatan: e.target.value})} /></div>
+                    <div><label className={labelClass}>Tempat Lahir</label><input type="text" className={inputClass} value={formData.tempatLahir} onChange={e=>setFormData({...formData, tempatLahir: e.target.value})} /></div>
+                    <div><label className={labelClass}>Tgl Lahir</label><input type="date" className={inputClass} value={formData.tanggalLahir} onChange={e=>setFormData({...formData, tanggalLahir: e.target.value})} /></div>
+                    <div><label className={labelClass}>Pangkat</label><input type="text" className={inputClass} value={formData.pangkat} onChange={e=>setFormData({...formData, pangkat: e.target.value})} /></div>
+                    <div><label className={labelClass}>Gol/Ruang</label><input type="text" className={inputClass} value={formData.golRuang} onChange={e=>setFormData({...formData, golRuang: e.target.value})} /></div>
+                    <div><label className={labelClass}>Gaji Pokok</label><input type="text" className={inputClass} value={formData.gajiPokokTerakhir} onChange={e=>setFormData({...formData, gajiPokokTerakhir: e.target.value})} /></div>
+                    <div><label className={labelClass}>Pendidikan Pertama</label><input type="text" className={inputClass} value={formData.pendidikanDasar} onChange={e=>setFormData({...formData, pendidikanDasar: e.target.value})} /></div>
+                    <div className="col-span-full"><label className={labelClass}>Mulai Masuk PNS</label><input type="date" className={inputClass} value={formData.mulaiMasukPns} onChange={e=>setFormData({...formData, mulaiMasukPns: e.target.value})} /></div>
+                 </div>
+              </div>
+
+              <div className="space-y-6">
+                 <h5 className="text-[10px] font-black text-emerald-600 uppercase border-b pb-2 tracking-widest">3. Masa Kerja & Alamat</h5>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div><label className={labelClass}>MKG (Tahun)</label><input type="number" className={inputClass} value={formData.mkgTahun} onChange={e=>setFormData({...formData, mkgTahun: e.target.value})} /></div>
+                    <div><label className={labelClass}>MKG (Bulan)</label><input type="number" className={inputClass} value={formData.mkgBulan} onChange={e=>setFormData({...formData, mkgBulan: e.target.value})} /></div>
+                    <div><label className={labelClass}>MKP (Tahun)</label><input type="number" className={inputClass} value={formData.mkpTahun} onChange={e=>setFormData({...formData, mkpTahun: e.target.value})} /></div>
+                    <div><label className={labelClass}>MKP (Bulan)</label><input type="number" className={inputClass} value={formData.mkpBulan} onChange={e=>setFormData({...formData, mkpBulan: e.target.value})} /></div>
+                    <div><label className={labelClass}>MK Sebelum PNS (Thn)</label><input type="number" className={inputClass} value={formData.mkSebelumPnsTahun} onChange={e=>setFormData({...formData, mkSebelumPnsTahun: e.target.value})} /></div>
+                    <div><label className={labelClass}>MK Sebelum PNS (Bln)</label><input type="number" className={inputClass} value={formData.mkSebelumPnsBulan} onChange={e=>setFormData({...formData, mkSebelumPnsBulan: e.target.value})} /></div>
+                    
+                    <div className="col-span-full">
+                      <div className="flex justify-between items-end mb-1.5">
+                        <label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Alamat Sekarang</label>
+                      </div>
+                      <textarea className={`${inputClass} h-24 resize-none`} value={formData.alamatSekarang} onChange={e=>setFormData({...formData, alamatSekarang: e.target.value})} />
+                    </div>
+                    
+                    <div className="col-span-full">
+                      <div className="flex justify-between items-end mb-1.5">
+                        <label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Alamat Pensiun</label>
+                        <button onClick={copyAlamat} className="text-[8px] font-black text-blue-600 uppercase hover:underline">Salin Alamat Sekarang</button>
+                      </div>
+                      <textarea className={`${inputClass} h-24 resize-none`} value={formData.alamatPensiun} onChange={e=>setFormData({...formData, alamatPensiun: e.target.value})} />
+                    </div>
+                 </div>
+              </div>
+
+              <div className="space-y-6">
+                 <h5 className="text-[10px] font-black text-indigo-600 uppercase border-b pb-2 tracking-widest">4. Penandatangan & Tanggal</h5>
+                 <div className="space-y-4">
+                    <SearchableSelect label="Pejabat Penilai" options={pegawaiList.map(p=>({value:p.nip, label:p.nama, subLabel:p.jabatan}))} value={formData.pjbNip} onChange={v=>{ const p = pegawaiList.find(x=>x.nip===v); if(p) setFormData({...formData, pjbNip:v, pjbNama:p.nama, pjbJabatan:p.jabatan}); }} />
+                    <div><label className={labelClass}>Tanggal Dibuat</label><input type="text" className={inputClass} value={formData.tglDibuat} onChange={e=>setFormData({...formData, tglDibuat: e.target.value})} /></div>
+                 </div>
               </div>
            </div>
 
            <div className="space-y-6 pt-6 border-t">
-              <div className="flex justify-between items-center"><h5 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">3. Data Suami / Istri</h5><button onClick={addIstriSuami} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[8px] font-black uppercase">+ Baris</button></div>
+              <div className="flex justify-between items-center"><h5 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">5. Data Suami / Istri</h5><button onClick={addIstriSuami} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[8px] font-black uppercase">+ Baris</button></div>
               <div className="space-y-4">
                  {formData.istriSuami.map((is: any, i: number) => (
-                    <div key={i} className="grid grid-cols-4 gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                       <input placeholder="Nama" className={inputClass} value={is.nama} onChange={e => { const list = [...formData.istriSuami]; list[i].nama = e.target.value; setFormData({ ...formData, istriSuami: list }); }} />
-                       <input type="date" placeholder="Tgl Lahir" className={inputClass} value={is.tglLahir} onChange={e => { const list = [...formData.istriSuami]; list[i].tglLahir = e.target.value; setFormData({ ...formData, istriSuami: list }); }} />
-                       <input type="date" placeholder="Tgl Kawin" className={inputClass} value={is.kawinTgl} onChange={e => { const list = [...formData.istriSuami]; list[i].kawinTgl = e.target.value; setFormData({ ...formData, istriSuami: list }); }} />
-                       <input placeholder="Urutan Ke" className={inputClass} value={is.urutan} onChange={e => { const list = [...formData.istriSuami]; list[i].urutan = e.target.value; setFormData({ ...formData, istriSuami: list }); }} />
+                    <div key={i} className="relative group">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 pr-12">
+                         <div><label className={labelClass}>Nama</label><input placeholder="Nama" className={inputClass} value={is.nama} onChange={e => { const list = [...formData.istriSuami]; list[i].nama = e.target.value; setFormData({ ...formData, istriSuami: list }); }} /></div>
+                         <div><label className={labelClass}>Tgl Lahir</label><input type="date" placeholder="Tgl Lahir" className={inputClass} value={is.tglLahir} onChange={e => { const list = [...formData.istriSuami]; list[i].tglLahir = e.target.value; setFormData({ ...formData, istriSuami: list }); }} /></div>
+                         <div><label className={labelClass}>Tgl Kawin</label><input type="date" placeholder="Tgl Kawin" className={inputClass} value={is.kawinTgl} onChange={e => { const list = [...formData.istriSuami]; list[i].kawinTgl = e.target.value; setFormData({ ...formData, istriSuami: list }); }} /></div>
+                         <div><label className={labelClass}>Urutan Ke</label><input placeholder="Urutan Ke" className={inputClass} value={is.urutan} onChange={e => { const list = [...formData.istriSuami]; list[i].urutan = e.target.value; setFormData({ ...formData, istriSuami: list }); }} /></div>
+                      </div>
+                      <button onClick={() => removeIstriSuami(i)} className="absolute right-4 top-1/2 -translate-y-1/2 h-8 w-8 bg-white border border-rose-100 text-rose-500 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-rose-50">
+                        <i className="bi bi-trash"></i>
+                      </button>
                     </div>
                  ))}
               </div>
            </div>
 
            <div className="space-y-6 pt-6 border-t">
-              <div className="flex justify-between items-center"><h5 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">4. Data Anak</h5><button onClick={addAnak} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[8px] font-black uppercase">+ Baris</button></div>
+              <div className="flex justify-between items-center"><h5 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">6. Data Anak</h5><button onClick={addAnak} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[8px] font-black uppercase">+ Baris</button></div>
               <div className="space-y-4">
                  {formData.anak.map((a: any, i: number) => (
-                    <div key={i} className="grid grid-cols-4 gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                       <input placeholder="Nama Anak" className={inputClass} value={a.nama} onChange={e => { const list = [...formData.anak]; list[i].nama = e.target.value; setFormData({ ...formData, anak: list }); }} />
-                       <input type="date" placeholder="Tgl Lahir" className={inputClass} value={a.tglLahir} onChange={e => { const list = [...formData.anak]; list[i].tglLahir = e.target.value; setFormData({ ...formData, anak: list }); }} />
-                       <select className={inputClass} value={a.kandung} onChange={e => { const list = [...formData.anak]; list[i].kandung = e.target.value; setFormData({ ...formData, anak: list }); }}><option value="YA">YA (Kandung)</option><option value="TIDAK">TIDAK</option></select>
-                       <input placeholder="Nama Ayah/Ibu" className={inputClass} value={a.ayahIbu} onChange={e => { const list = [...formData.anak]; list[i].ayahIbu = e.target.value; setFormData({ ...formData, anak: list }); }} />
+                    <div key={i} className="relative group">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 pr-12">
+                         <div><label className={labelClass}>Nama Anak</label><input placeholder="Nama Anak" className={inputClass} value={a.nama} onChange={e => { const list = [...formData.anak]; list[i].nama = e.target.value; setFormData({ ...formData, anak: list }); }} /></div>
+                         <div><label className={labelClass}>Tgl Lahir</label><input type="date" placeholder="Tgl Lahir" className={inputClass} value={a.tglLahir} onChange={e => { const list = [...formData.anak]; list[i].tglLahir = e.target.value; setFormData({ ...formData, anak: list }); }} /></div>
+                         <div><label className={labelClass}>Status</label><select className={inputClass} value={a.kandung} onChange={e => { const list = [...formData.anak]; list[i].kandung = e.target.value; setFormData({ ...formData, anak: list }); }}><option value="YA">YA (Kandung)</option><option value="TIDAK">TIDAK</option></select></div>
+                         <div><label className={labelClass}>Ayah/Ibu</label><input placeholder="Nama Ayah/Ibu" className={inputClass} value={a.ayahIbu} onChange={e => { const list = [...formData.anak]; list[i].ayahIbu = e.target.value; setFormData({ ...formData, anak: list }); }} /></div>
+                      </div>
+                      <button onClick={() => removeAnak(i)} className="absolute right-4 top-1/2 -translate-y-1/2 h-8 w-8 bg-white border border-rose-100 text-rose-500 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:bg-rose-50">
+                        <i className="bi bi-trash"></i>
+                      </button>
                     </div>
                  ))}
               </div>
            </div>
 
            <div className="pt-10 border-t flex justify-center gap-4">
+              <button onClick={() => {
+                if(window.confirm('Apakah Anda yakin ingin mengosongkan form?')) {
+                  setFormData({
+                    ...formData,
+                    nip: '', namaPegawai: '', tempatLahir: '', tanggalLahir: '', jabatan: '', pangkat: '', golRuang: '',
+                    gajiPokokTerakhir: 'Rp. 0', mkgTahun: '0', mkgBulan: '0', mkpTahun: '0', mkpBulan: '0',
+                    mkSebelumPnsTahun: '0', mkSebelumPnsBulan: '0', pendidikanDasar: '', mulaiMasukPns: '',
+                    istriSuami: [{ nama: '', tglLahir: '', kawinTgl: '', urutan: '1' }],
+                    anak: [{ nama: '', tglLahir: '', kandung: 'YA', tiri: '-', ayahIbu: '' }],
+                    alamatSekarang: '', alamatPensiun: ''
+                  });
+                }
+              }} className="px-12 py-5 bg-white border border-gray-200 text-gray-400 rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-sm active:scale-95 transition-all">Reset Form</button>
               <button onClick={() => setActiveView('preview')} className="px-24 py-5 bg-[#111827] text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-2xl active:scale-95 transition-all">Pratinjau Dokumen BKN</button>
            </div>
         </div>
@@ -349,7 +461,7 @@ const PensiunPage = () => {
                              <span>F. GAJI POKOK TERAKHIR</span><span>:</span><span>{formData.gajiPokokTerakhir}</span>
                              <span>G. MASA KERJA GOLONGAN</span><span>:</span><span>{formData.mkgTahun} TAHUN {formData.mkgBulan} BULAN</span>
                              <span>H. MASA KERJA PENSIUN</span><span>:</span><span>{formData.mkpTahun} TAHUN {formData.mkpBulan} BULAN</span>
-                             <span>I. MASA KERJA SEBELUM PNS</span><span>:</span><span>{formData.mkSebelumPns}</span>
+                             <span>I. MASA KERJA SEBELUM PNS</span><span>:</span><span>{formData.mkSebelumPnsTahun} TAHUN {formData.mkSebelumPnsBulan} BULAN</span>
                              <span>J. PENDIDIKAN PERTAMA</span><span>:</span><span className="uppercase">{formData.pendidikanDasar}</span>
                              <span>K. MULAI MASUK PNS</span><span>:</span><span>{formData.mulaiMasukPns}</span>
                           </div>

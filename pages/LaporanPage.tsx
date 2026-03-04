@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { TugasRutin, Kegiatan, Pegawai, TaskType } from '../types';
 import { BULAN, UNIT_KERJA, normalizeUnitName, TASK_LABELS, PANGKAT_MAP } from '../constants';
+import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import { fetchPegawaiFromSheets, fetchTugasRutinFromSheets, fetchKegiatanFromSheets } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import SuccessModal from '../components/SuccessModal';
@@ -25,6 +26,7 @@ const LaporanPage = () => {
   const [selMonth, setSelMonth] = useState(BULAN[new Date().getMonth()]);
   const [selYear, setSelYear] = useState(new Date().getFullYear());
   const [nomorNota, setNomorNota] = useState(`HKI.1-PR.04.01-${Math.floor(Math.random() * 1000)}`);
+  const [tanggalNota, setTanggalNota] = useState(new Date().toISOString().split('T')[0]);
   const [signatoryNip, setSignatoryNip] = useState('197410061998031002'); 
   const [signatoryData, setSignatoryData] = useState({ nama: 'ANDRIEANSJAH', jabatan: 'KETUA TIM KERJA PENGELOLAAN SDM' });
 
@@ -93,9 +95,9 @@ const LaporanPage = () => {
     setLoading(true);
     try {
       const canvas = await html2canvas(pdfRef.current, { scale: 3, useCORS: true, backgroundColor: "#ffffff" });
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const imgWidth = 210;
-      const pageHeight = 330;
+      const pageHeight = 297;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
       let position = 0;
@@ -161,37 +163,40 @@ const LaporanPage = () => {
                   <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tahun</label><input type="number" className="w-full px-4 py-3 bg-gray-50 border rounded-xl text-xs font-black" value={selYear} onChange={e => setSelYear(parseInt(e.target.value))} /></div>
                </div>
                <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Nota Dinas</label><input type="text" className="w-full px-4 py-3 bg-gray-50 border rounded-xl text-xs font-black" value={nomorNota} onChange={e => setNomorNota(e.target.value)} /></div>
+               <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal Nota Dinas</label><input type="date" className="w-full px-4 py-3 bg-gray-50 border rounded-xl text-xs font-black" value={tanggalNota} onChange={e => setTanggalNota(e.target.value)} /></div>
                <SearchableSelect label="Dari (Pejabat Penandatangan)" options={pegawai.map(p => ({ value: p.nip, label: p.nama, subLabel: p.jabatan }))} value={signatoryNip} onChange={handleSignatoryChange} />
             </div>
          </div>
 
          <div className="xl:col-span-8 flex justify-center">
             <div className="bg-gray-400/10 p-6 md:p-10 rounded-[3rem] overflow-x-auto no-scrollbar flex justify-center w-full">
-               <div ref={pdfRef} className="bg-white shadow-2xl font-arial p-[1.5cm_2.2cm] leading-tight text-black" style={{ width: '210mm', minHeight: '330mm' }}>
+               <div ref={pdfRef} className="bg-white shadow-2xl font-arial p-[2cm_2cm_2.5cm_3cm] leading-tight text-black" style={{ width: '210mm', minHeight: '297mm', fontSize: '11pt' }}>
                   
                   {/* KOP SURAT RESMI */}
-                  <div className="flex flex-col items-center border-b-[2.5pt] border-black pb-1 mb-6 text-black">
-                     <p className="text-[12pt] font-bold uppercase text-center leading-tight">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                     <p className="text-[12pt] font-bold uppercase text-center leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                  <div className="text-center mb-6 text-black">
+                     <div className="flex-1 text-center">
+                        <p style={{ fontSize: '12pt' }} className="uppercase leading-tight font-normal">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                        <p style={{ fontSize: '12pt' }} className="font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                     </div>
                   </div>
                   
                   <div className="text-center mb-6 text-black">
-                     <h1 className="text-[13pt] font-bold uppercase underline leading-tight">NOTA DINAS</h1>
-                     <p className="text-[11pt] font-bold mt-1 uppercase">NOMOR : {nomorNota}</p>
+                     <h1 className="text-[12pt] font-bold uppercase">NOTA DINAS</h1>
+                     <p className="text-[11pt] font-normal mt-1 uppercase">NOMOR : {nomorNota}</p>
                   </div>
                   
                   {/* ATRIBUT NOTA DINAS */}
-                  <div className="text-[10pt] mb-6 space-y-1.5 leading-snug text-black">
-                     <div className="grid grid-cols-[80px_10px_1fr]"><span>Yth</span><span>:</span><div className="font-bold">1. Sekretaris Direktorat Jenderal Kekayaan Intelektual<br/>2. Kepala Bagian Program dan Pelaporan</div></div>
-                     <div className="grid grid-cols-[80px_10px_1fr]"><span>Dari</span><span>:</span><span className="font-bold uppercase">{signatoryData.jabatan}</span></div>
-                     <div className="grid grid-cols-[80px_10px_1fr]"><span>Hal</span><span>:</span><span className="font-bold">Laporan Bulanan Tim Kerja Pengelolaan Sumber Daya Manusia Bulan {selMonth} {selYear}</span></div>
+                  <div className="text-[11pt] mb-6 space-y-1.5 leading-snug text-black">
+                     <div className="grid grid-cols-[80px_10px_1fr]"><span>Yth</span><span>:</span><div className="font-normal">1. Sekretaris Direktorat Jenderal Kekayaan Intelektual<br/>2. Kepala Bagian Program dan Pelaporan</div></div>
+                     <div className="grid grid-cols-[80px_10px_1fr]"><span>Dari</span><span>:</span><span className="font-normal">Tim Kerja Pengelolaan Sumber Daya Manusia</span></div>
+                     <div className="grid grid-cols-[80px_10px_1fr]"><span>Hal</span><span>:</span><span className="font-normal">Laporan Bulanan Tim Kerja Pengelolaan Sumber Daya Manusia Bulan {selMonth} {selYear}</span></div>
                      <div className="grid grid-cols-[80px_10px_1fr]"><span>Lampiran</span><span>:</span><span>satu berkas</span></div>
-                     <div className="grid grid-cols-[80px_10px_1fr]"><span>Tanggal</span><span>:</span><span>{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
+                     <div className="grid grid-cols-[80px_10px_1fr]"><span>Tanggal</span><span>:</span><span>{new Date(tanggalNota).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
                   </div>
                   
-                  <div className="h-[1pt] bg-black w-full mb-6"></div>
+                  <div className="h-[0.5pt] bg-black w-full mb-6"></div> 
 
-                  <div className="text-[10pt] space-y-6 text-justify leading-relaxed text-black">
+                  <div className="text-[11pt] space-y-6 text-justify leading-relaxed text-black">
                      <p>Dengan hormat kami melaporkan hasil pekerjaan Tim Kerja Pengelolaan Sumber Daya Manusia pada bulan {selMonth} {selYear}, sebagai berikut:</p>
                      
                      {/* 1. DATA PEGAWAI */}
@@ -315,9 +320,9 @@ const LaporanPage = () => {
                      </div>
 
                      {/* TANDA TANGAN */}
-                     <div className="mt-14 ml-[55%] text-center text-[10.5pt] leading-tight text-black">
-                        <p className="font-bold uppercase mb-28 text-black">{signatoryData.jabatan},</p>
-                        <p className="font-bold uppercase underline leading-none text-black">{signatoryData.nama}</p>
+                     <div className="mt-14 ml-[55%] text-left text-[10.5pt] leading-tight text-black">
+                        <p className="font-normal text-black">Ketua Tim Kerja Pengelolaan Sumber Daya Manusia,</p>
+                        <p className="font-normal mt-28 text-black">{signatoryData.nama}</p>
                         <p className="mt-1 text-black">NIP {signatoryNip}</p>
                      </div>
                   </div>

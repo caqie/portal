@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AdminUser, MaintenanceConfig, CloudConfig } from '../types';
-import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap } from '../spreadsheetService';
+import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai } from '../types';
+import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO } from '../constants';
 import SuccessModal from '../components/SuccessModal';
@@ -24,6 +24,9 @@ const SettingsPage = () => {
   const [templateLogo, setTemplateLogo] = useState<string>(localStorage.getItem('portal_template_logo') || DEFAULT_TEMPLATE_LOGO);
   
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
+  const [absensiConfig, setAbsensiConfig] = useState<AbsensiConfig>({ id: 'ABSENSI_GLOBAL', officeWifiSsid: '', officeIpAddress: '', wfaNips: [] });
+  const [wfaSearch, setWfaSearch] = useState('');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userFormData, setUserFormData] = useState<Partial<AdminUser>>({ role: 'Viewer' });
 
@@ -39,6 +42,11 @@ const SettingsPage = () => {
     setLoading(true);
     try {
       if (activeTab === 'users') { const u = await fetchUsersFromSheets(); setUsers(u); }
+      if (activeTab === 'absensi') {
+        const [config, pList] = await Promise.all([fetchAbsensiConfig(), fetchPegawaiFromSheets()]);
+        setAbsensiConfig(config);
+        setPegawaiList(pList);
+      }
     } catch (e) { console.error("Gagal memuat data pengaturan:", e); }
     setLoading(false);
   };
@@ -112,6 +120,27 @@ const SettingsPage = () => {
     }
   };
 
+  const saveAbsensiSettings = async () => {
+    setLoading(true);
+    const ok = await saveAbsensiConfig(absensiConfig);
+    if (ok) {
+        setSuccessMsg("Pengaturan Absensi Berhasil Disimpan.");
+        setShowSuccess(true);
+        logActivity('UPDATE', 'Settings', 'Update Pengaturan Absensi (Reguler/WFA)');
+    } else {
+        alert("Gagal menyimpan pengaturan absensi.");
+    }
+    setLoading(false);
+  };
+
+  const toggleWfaUser = (nip: string) => {
+    setAbsensiConfig(prev => {
+        const exists = prev.wfaNips.includes(nip);
+        if (exists) return { ...prev, wfaNips: prev.wfaNips.filter(n => n !== nip) };
+        return { ...prev, wfaNips: [...prev.wfaNips, nip] };
+    });
+  };
+
   const inputClass = "w-full px-5 py-4 bg-white border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950 shadow-sm";
   const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-2";
 
@@ -125,6 +154,7 @@ const SettingsPage = () => {
           {[
             { id: 'general', label: 'Branding & Teks', icon: 'bi-palette2' }, 
             { id: 'database', label: 'Integrasi Cloud', icon: 'bi-database-fill-gear' }, 
+            { id: 'absensi', label: 'Pengaturan Absensi', icon: 'bi-clock-history' },
             { id: 'users', label: 'Manajemen User', icon: 'bi-people-fill' }
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 lg:flex-none flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-[#111827] text-white shadow-xl' : 'text-gray-400 hover:text-gray-900 hover:bg-white'}`}>
@@ -228,6 +258,98 @@ const SettingsPage = () => {
                     <h5 className="text-[11px] font-black text-amber-800 uppercase tracking-widest">Peringatan Keamanan</h5>
                     <p className="text-[10px] text-amber-700 font-medium mt-2 leading-relaxed uppercase">Perubahan ID database dapat menyebabkan sistem tidak dapat memuat data jika ID tersebut tidak valid atau tidak memiliki izin akses yang tepat.</p>
                  </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB ABSENSI: PENGATURAN ABSENSI */}
+          {activeTab === 'absensi' && (
+            <div className="space-y-12 animate-fadeIn max-w-5xl">
+              <div>
+                <h4 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Konfigurasi Absensi</h4>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Atur batasan jaringan kantor dan hak akses WFA</p>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+                {/* OFFICE NETWORK SETTINGS */}
+                <div className="space-y-8 bg-gray-50 p-10 rounded-[3rem] border border-gray-100">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="h-12 w-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg"><i className="bi bi-wifi"></i></div>
+                    <h5 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Jaringan Kantor (Reguler)</h5>
+                  </div>
+                  <div className="space-y-6">
+                    <div>
+                      <label className={labelClass}>Nama Wi-Fi Kantor (SSID)</label>
+                      <input type="text" className={inputClass} value={absensiConfig.officeWifiSsid} onChange={e => setAbsensiConfig({...absensiConfig, officeWifiSsid: e.target.value})} placeholder="Contoh: @DJKI_FREE_WIFI" />
+                      <p className="text-[8px] text-gray-400 font-bold uppercase mt-2 ml-3">* Pegawai reguler wajib terhubung ke Wi-Fi ini</p>
+                    </div>
+                    <div>
+                      <label className={labelClass}>IP Address Kantor (Public IP)</label>
+                      <input type="text" className={`${inputClass} font-mono`} value={absensiConfig.officeIpAddress} onChange={e => setAbsensiConfig({...absensiConfig, officeIpAddress: e.target.value})} placeholder="Contoh: 103.12.34.56" />
+                      <p className="text-[8px] text-gray-400 font-bold uppercase mt-2 ml-3">* Opsional: Batasi berdasarkan IP Publik kantor</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* WFA WHITELIST */}
+                <div className="space-y-6 bg-emerald-50/50 p-10 rounded-[3rem] border border-emerald-100 flex flex-col h-[600px]">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg"><i className="bi bi-house-heart"></i></div>
+                      <h5 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Akses WFA (Work From Anywhere)</h5>
+                    </div>
+                    <span className="px-4 py-1 bg-emerald-600 text-white rounded-full text-[10px] font-black">{absensiConfig.wfaNips.length} Pegawai</span>
+                  </div>
+                  
+                  <div className="relative">
+                    <i className="bi bi-search absolute left-5 top-1/2 -translate-y-1/2 text-emerald-600"></i>
+                    <input 
+                        type="text" 
+                        className="w-full pl-12 pr-5 py-4 bg-white border-2 border-emerald-100 rounded-2xl text-[11px] font-black uppercase outline-none focus:border-emerald-600 transition-all" 
+                        placeholder="Cari Nama / NIP Pegawai..." 
+                        value={wfaSearch}
+                        onChange={e => setWfaSearch(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
+                    {pegawaiList
+                      .filter(p => p.nama.toLowerCase().includes(wfaSearch.toLowerCase()) || p.nip.includes(wfaSearch))
+                      .map(p => {
+                        const isWfa = absensiConfig.wfaNips.includes(p.nip);
+                        return (
+                          <div 
+                            key={p.nip} 
+                            onClick={() => toggleWfaUser(p.nip)}
+                            className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isWfa ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg' : 'bg-white border-gray-100 text-gray-900 hover:border-emerald-200'}`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className={`h-10 w-10 rounded-xl flex items-center justify-center font-black text-xs ${isWfa ? 'bg-white/20' : 'bg-gray-100 text-gray-400'}`}>
+                                {p.nama.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-black uppercase leading-tight">{p.nama}</p>
+                                <p className={`text-[8px] font-bold ${isWfa ? 'text-white/70' : 'text-gray-400'}`}>NIP. {p.nip}</p>
+                              </div>
+                            </div>
+                            {isWfa && <i className="bi bi-check-circle-fill text-lg"></i>}
+                          </div>
+                        );
+                      })
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-8 border-t flex items-center justify-between">
+                 <div className="flex items-center gap-4 text-amber-600 bg-amber-50 px-6 py-3 rounded-2xl border border-amber-100">
+                    <i className="bi bi-info-circle-fill text-xl"></i>
+                    <p className="text-[9px] font-black uppercase leading-relaxed">Pegawai yang tidak ada di daftar WFA <br/>hanya bisa absen jika terhubung Wi-Fi Kantor.</p>
+                 </div>
+                 <button onClick={saveAbsensiSettings} disabled={loading} className="px-16 py-5 bg-[#111827] text-white rounded-[2rem] font-black text-[11px] uppercase shadow-2xl active:scale-95 transition-all flex items-center gap-3">
+                    {loading ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-upload-fill text-lg"></i>}
+                    Simpan Konfigurasi Absensi
+                 </button>
               </div>
             </div>
           )}
