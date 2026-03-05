@@ -35,6 +35,10 @@ const Dashboard = () => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifTab, setNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat' | 'satya' | 'bangkom'>('pensiun');
 
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
+  const [selectedCalendarEvents, setSelectedCalendarEvents] = useState<Kegiatan[]>([]);
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
   const [filterJenisMatrix, setFilterJenisMatrix] = useState<string[]>([]); // Ubah ke Array untuk Multi-select
   const [searchJabatan, setSearchJabatan] = useState('');
@@ -109,7 +113,19 @@ const Dashboard = () => {
     list.forEach(p => {
       const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
       const jen = (p.jenisPegawai || 'ASN').trim().toUpperCase();
-      const klas = (p.klasifikasiJabatan || 'LAINNYA').trim().toUpperCase();
+      
+      // Improved Classification Logic
+      let klas = (p.klasifikasiJabatan || '').trim().toUpperCase();
+      if (!klas || klas === 'LAINNYA') {
+        if (jab.includes('AHLI') || jab.includes('TERAMPIL') || jab.includes('MAHIR') || jab.includes('PENYELIA')) klas = 'FUNGSIONAL';
+        else if (jab.includes('DIREKTUR') || jab.includes('KEPALA') || jab.includes('SEKRETARIS')) {
+            if (jab.includes('BIRO') || jab.includes('DIREKTORAT') || jab.includes('DITJEN')) klas = 'JPT';
+            else if (jab.includes('BAGIAN') || jab.includes('SUBDIREKTORAT')) klas = 'ADMINISTRATOR';
+            else klas = 'PENGAWAS';
+        }
+        else if (jab.includes('PENGADMINISTRASI') || jab.includes('PENGOLAH') || jab.includes('PENYUSUN') || jab.includes('PETUGAS')) klas = 'PELAKSANA';
+        else klas = 'LAINNYA';
+      }
       
       const key = `${jab}|${jen}|${klas}`;
 
@@ -353,7 +369,14 @@ const Dashboard = () => {
                Kelola
             </a>
          </div>
-         <CalendarView events={kegiatan} />
+         <CalendarView 
+            events={kegiatan} 
+            onDateClick={(date, evs) => {
+              setSelectedCalendarDate(date);
+              setSelectedCalendarEvents(evs);
+              setIsCalendarModalOpen(true);
+            }}
+          />
       </div>
 
       <div className="bg-white p-8 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden">
@@ -551,8 +574,10 @@ const Dashboard = () => {
                             <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase border ${
                               row.klasifikasi === 'FUNGSIONAL' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                               row.klasifikasi === 'PELAKSANA' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                              row.klasifikasi === 'JPT / ADM' ? 'bg-amber-50 text-amber-600 border-amber-100' :
                               row.klasifikasi === 'JPT' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                              row.klasifikasi === 'ADMINISTRATOR' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                              row.klasifikasi === 'PENGAWAS' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                              row.klasifikasi === 'JPT / ADM' ? 'bg-amber-50 text-amber-600 border-amber-100' :
                               row.klasifikasi === 'ADM' ? 'bg-orange-50 text-orange-600 border-orange-100' :
                               'bg-gray-50 text-gray-400 border-gray-100'
                             }`}>
@@ -585,6 +610,170 @@ const Dashboard = () => {
            </div>
         </div>
       </div>
+
+      {/* CALENDAR DETAIL MODAL */}
+      {isCalendarModalOpen && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+           <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => setIsCalendarModalOpen(false)}></div>
+           <div className="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-modalEnter max-h-[90vh]">
+              <div className="p-8 md:p-10 bg-gray-50 border-b shrink-0 flex justify-between items-center">
+                 <div>
+                    <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">Agenda Direktorat</h4>
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-2">
+                       {selectedCalendarDate ? new Date(selectedCalendarDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+                    </p>
+                 </div>
+                 <button onClick={() => setIsCalendarModalOpen(false)} className="h-12 w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white border border-gray-100 rounded-2xl shadow-sm transition-all hover:shadow-md active:scale-95">
+                    <i className="bi bi-x-lg text-xl"></i>
+                 </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar space-y-6 bg-white">
+                 {selectedCalendarEvents.length > 0 ? (
+                    selectedCalendarEvents.map((ev, i) => (
+                       <div key={i} className="p-8 bg-gray-50/50 border border-gray-100 rounded-[2.5rem] space-y-6 hover:bg-blue-50/30 transition-all group">
+                          <div className="flex justify-between items-start gap-4">
+                             <div className="flex-1">
+                                <h5 className="text-xl font-black text-gray-950 uppercase leading-tight group-hover:text-blue-600 transition-colors">{ev.judulKegiatan}</h5>
+                                <div className="flex flex-wrap gap-4 mt-4">
+                                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase">
+                                      <i className="bi bi-clock-fill text-blue-600"></i>
+                                      {ev.jamMulai || '00:00'} - {ev.jamSelesai || 'Selesai'}
+                                   </div>
+                                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase">
+                                      <i className="bi bi-geo-alt-fill text-rose-600"></i>
+                                      {ev.tempat || 'TBA'}
+                                   </div>
+                                </div>
+                             </div>
+                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase border ${
+                                ev.status === 'SELESAI' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                ev.status === 'BATAL' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                'bg-blue-50 text-blue-600 border-blue-100'
+                             }`}>
+                                {ev.status || 'TERJADWAL'}
+                             </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                             <div className="p-4 bg-white rounded-2xl border border-gray-100">
+                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Jumlah Peserta</p>
+                                <p className="text-sm font-black text-gray-900">{ev.jumlahPeserta || 0} Orang</p>
+                             </div>
+                             <div className="p-4 bg-white rounded-2xl border border-gray-100">
+                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Asal Peserta</p>
+                                <p className="text-sm font-black text-gray-900 truncate">{ev.asalPeserta || '-'}</p>
+                             </div>
+                          </div>
+
+                          {ev.laporanSingkat && (
+                             <div className="space-y-2">
+                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Laporan Singkat</p>
+                                <div className="p-5 bg-white rounded-2xl border border-gray-100 text-[11px] text-gray-600 leading-relaxed italic">
+                                   "{ev.laporanSingkat}"
+                                </div>
+                             </div>
+                          )}
+
+                          {ev.linkDriveFoto && (
+                             <a href={ev.linkDriveFoto} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all active:scale-[0.98]">
+                                <i className="bi bi-images text-lg"></i>
+                                Lihat Dokumentasi Foto
+                             </a>
+                          )}
+                       </div>
+                    ))
+                 ) : (
+                    <div className="py-20 text-center opacity-30">
+                       <i className="bi bi-calendar-x text-6xl mb-4 block"></i>
+                       <p className="text-[10px] font-black uppercase tracking-widest">Tidak ada agenda pada tanggal ini</p>
+                    </div>
+                 )}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* CALENDAR DETAIL MODAL */}
+      {isCalendarModalOpen && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+           <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => setIsCalendarModalOpen(false)}></div>
+           <div className="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-modalEnter max-h-[90vh]">
+              <div className="p-8 md:p-10 bg-gray-50 border-b shrink-0 flex justify-between items-center">
+                 <div>
+                    <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">Agenda Direktorat</h4>
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-2">
+                       {selectedCalendarDate ? new Date(selectedCalendarDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+                    </p>
+                 </div>
+                 <button onClick={() => setIsCalendarModalOpen(false)} className="h-12 w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white border border-gray-100 rounded-2xl shadow-sm transition-all hover:shadow-md active:scale-95">
+                    <i className="bi bi-x-lg text-xl"></i>
+                 </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar space-y-6 bg-white">
+                 {selectedCalendarEvents.length > 0 ? (
+                    selectedCalendarEvents.map((ev, i) => (
+                       <div key={i} className="p-8 bg-gray-50/50 border border-gray-100 rounded-[2.5rem] space-y-6 hover:bg-blue-50/30 transition-all group">
+                          <div className="flex justify-between items-start gap-4">
+                             <div className="flex-1">
+                                <h5 className="text-xl font-black text-gray-950 uppercase leading-tight group-hover:text-blue-600 transition-colors">{ev.judulKegiatan}</h5>
+                                <div className="flex flex-wrap gap-4 mt-4">
+                                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase">
+                                      <i className="bi bi-clock-fill text-blue-600"></i>
+                                      {ev.jamMulai || '00:00'} - {ev.jamSelesai || 'Selesai'}
+                                   </div>
+                                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase">
+                                      <i className="bi bi-geo-alt-fill text-rose-600"></i>
+                                      {ev.tempat || 'TBA'}
+                                   </div>
+                                </div>
+                             </div>
+                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase border ${
+                                ev.status === 'SELESAI' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                ev.status === 'BATAL' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                'bg-blue-50 text-blue-600 border-blue-100'
+                             }`}>
+                                {ev.status || 'TERJADWAL'}
+                             </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                             <div className="p-4 bg-white rounded-2xl border border-gray-100">
+                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Jumlah Peserta</p>
+                                <p className="text-sm font-black text-gray-900">{ev.jumlahPeserta || 0} Orang</p>
+                             </div>
+                             <div className="p-4 bg-white rounded-2xl border border-gray-100">
+                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Asal Peserta</p>
+                                <p className="text-sm font-black text-gray-900 truncate">{ev.asalPeserta || '-'}</p>
+                             </div>
+                          </div>
+
+                          {ev.laporanSingkat && (
+                             <div className="space-y-2">
+                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Laporan Singkat</p>
+                                <div className="p-5 bg-white rounded-2xl border border-gray-100 text-[11px] text-gray-600 leading-relaxed italic">
+                                   "{ev.laporanSingkat}"
+                                </div>
+                             </div>
+                          )}
+
+                          {ev.linkDriveFoto && (
+                             <a href={ev.linkDriveFoto} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all active:scale-[0.98]">
+                                <i className="bi bi-images text-lg"></i>
+                                Lihat Dokumentasi Foto
+                             </a>
+                          )}
+                       </div>
+                    ))
+                 ) : (
+                    <div className="py-20 text-center opacity-30">
+                       <i className="bi bi-calendar-x text-6xl mb-4 block"></i>
+                       <p className="text-[10px] font-black uppercase tracking-widest">Tidak ada agenda pada tanggal ini</p>
+                    </div>
+                 )}
+              </div>
+           </div>
+        </div>
+      )}
 
       {/* NOTIFIKASI MODAL */}
       {isNotifOpen && (

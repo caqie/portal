@@ -28,8 +28,13 @@ import MagangPKLPage from './pages/MagangPKLPage';
 import PersuratanPage from './pages/PersuratanPage';
 import PengembanganPage from './pages/PengembanganPage';
 import KeuanganPage from './pages/KeuanganPage';
-import { DEFAULT_LOGO } from './constants';
-import { syncGidMap } from './spreadsheetService';
+import UkomLoginPage from './pages/UkomLoginPage';
+import UkomDashboardPage from './pages/UkomDashboardPage';
+import UkomExamPage from './pages/UkomExamPage';
+import UkomAdminPage from './pages/UkomAdminPage';
+import { DEFAULT_LOGO, APP_ROUTES } from './constants';
+import { syncGidMap, fetchSystemConfig } from './spreadsheetService';
+import { SystemConfig } from './types';
 
 const SidebarItem = ({ to, icon, label, active, collapsed, onClick }: any) => (
   <Link 
@@ -61,12 +66,19 @@ const AppContent = () => {
   const [systemLogo, setSystemLogo] = useState<string | null>(DEFAULT_LOGO);
   const [runningText, setRunningText] = useState(localStorage.getItem('portal_running_text') || 'Selamat Datang di Portal SDM DJKI.');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>({ maintenance: { all: false, pages: [] }, pageAccess: [] });
   
   const location = useLocation();
   const { user, logout, isSuperadmin, canEdit, isAuthenticated } = useAuth();
 
+  const loadSystemConfig = async () => {
+    const config = await fetchSystemConfig();
+    setSystemConfig(config);
+  };
+
   useEffect(() => { 
     syncGidMap(); 
+    loadSystemConfig();
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -94,12 +106,71 @@ const AppContent = () => {
     return () => window.removeEventListener('storage_updated', sync);
   }, []);
 
-  if (!isAuthenticated && location.pathname !== '/login') return <Navigate to="/login" replace />;
+  if (!isAuthenticated && !location.pathname.startsWith('/ukom') && location.pathname !== '/login') return <Navigate to="/login" replace />;
   if (location.pathname === '/login' && isAuthenticated) return <Navigate to="/" replace />;
   if (location.pathname === '/login') return <LoginPage />;
+  
+  // UKOM Routes (Separate Layout)
+  if (location.pathname.startsWith('/ukom')) {
+    return (
+      <Routes>
+        <Route path="/ukom/login" element={<UkomLoginPage />} />
+        <Route path="/ukom/dashboard" element={<UkomDashboardPage />} />
+        <Route path="/ukom/exam" element={<UkomExamPage />} />
+        <Route path="/ukom/admin" element={<UkomAdminPage />} />
+      </Routes>
+    );
+  }
 
   const formattedDate = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const isPageInMaintenance = (path: string) => {
+    if (systemConfig.maintenance.all) return true;
+    return systemConfig.maintenance.pages.includes(path);
+  };
+
+  const hasAccess = (path: string) => {
+    if (isSuperadmin) return true;
+    const access = systemConfig.pageAccess.find(a => a.route === path);
+    if (!access) {
+      // Default access rules if not configured
+      if (['/settings', '/logs'].includes(path)) return isSuperadmin;
+      if (['/persuratan', '/tugas-rutin', '/kegiatan', '/laporan', '/keuangan', '/dossiers'].includes(path)) return canEdit || isSuperadmin;
+      return true;
+    }
+    
+    const roleMatch = access.roles.includes(user?.role || '');
+    const nipMatch = access.nips.includes(user?.nip || '');
+    
+    return roleMatch || nipMatch;
+  };
+
+  const currentPath = location.pathname;
+  const isMaintenance = isPageInMaintenance(currentPath);
+  const isDenied = !hasAccess(currentPath);
+
+  const MaintenanceView = () => (
+    <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
+      <div className="h-32 w-32 bg-amber-100 text-amber-600 rounded-[3rem] flex items-center justify-center text-6xl mb-8 animate-bounce">
+        <i className="bi bi-tools"></i>
+      </div>
+      <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter mb-4">Halaman Dalam Pengembangan</h2>
+      <p className="text-gray-500 max-w-md font-medium">Mohon maaf, halaman ini sedang dalam proses pemeliharaan atau pengembangan fitur baru. Silakan kembali lagi nanti.</p>
+      <Link to="/" className="mt-10 px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all">Kembali ke Dashboard</Link>
+    </div>
+  );
+
+  const AccessDeniedView = () => (
+    <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
+      <div className="h-32 w-32 bg-rose-100 text-rose-600 rounded-[3rem] flex items-center justify-center text-6xl mb-8">
+        <i className="bi bi-shield-lock-fill"></i>
+      </div>
+      <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter mb-4">Akses Terbatas</h2>
+      <p className="text-gray-500 max-w-md font-medium">Anda tidak memiliki izin untuk mengakses halaman ini. Silakan hubungi administrator jika Anda merasa ini adalah kesalahan.</p>
+      <Link to="/" className="mt-10 px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold uppercase tracking-widest shadow-xl hover:bg-gray-800 transition-all">Kembali ke Dashboard</Link>
+    </div>
+  );
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-[#F8F9FC] text-gray-900 font-['Inter']">
@@ -131,34 +202,41 @@ const AppContent = () => {
           </div>
           
           <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar space-y-0.5 pb-20">
-            <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard" active={location.pathname === '/'} collapsed={isCollapsed} />
-            <SidebarItem to="/pegawai" icon="bi-person-vcard-fill" label="Database Pegawai" active={location.pathname === '/pegawai'} collapsed={isCollapsed} />
-            <SidebarItem to="/layanan" icon="bi-briefcase-fill" label="Layanan Karir" active={['/layanan', '/kenaikan-pangkat', '/skp', '/pak', '/anjab-abk', '/pensiun', '/kgb-gen', '/spmt-spp', '/pelantikan-gen', '/satya-lencana', '/magang-pkl', '/pengembangan'].some(p => location.pathname.startsWith(p))} collapsed={isCollapsed} />
+            {hasAccess('/') && <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard" active={location.pathname === '/'} collapsed={isCollapsed} />}
+            {hasAccess('/pegawai') && <SidebarItem to="/pegawai" icon="bi-person-vcard-fill" label="Database Pegawai" active={location.pathname === '/pegawai'} collapsed={isCollapsed} />}
             
-            {(canEdit || isSuperadmin) && (
+            {hasAccess('/layanan') && (
+              <SidebarItem to="/layanan" icon="bi-briefcase-fill" label="Layanan Karir" active={['/layanan', '/kenaikan-pangkat', '/skp', '/pak', '/anjab-abk', '/pensiun', '/kgb-gen', '/spmt-spp', '/pelantikan-gen', '/satya-lencana', '/magang-pkl', '/pengembangan'].some(p => location.pathname.startsWith(p))} collapsed={isCollapsed} />
+            )}
+            
+            {(hasAccess('/persuratan') || hasAccess('/tugas-rutin') || hasAccess('/kegiatan') || hasAccess('/laporan') || hasAccess('/keuangan') || hasAccess('/dossiers')) && (
               <>
                 {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Administrasi</div>}
-                <SidebarItem to="/persuratan" icon="bi-envelope-paper-fill" label="Persuratan Digital" active={location.pathname === '/persuratan'} collapsed={isCollapsed} />
-                <SidebarItem to="/tugas-rutin" icon="bi-clipboard2-check-fill" label="Tugas Rutin" active={location.pathname === '/tugas-rutin'} collapsed={isCollapsed} />
-                <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Kalender Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />
-                <SidebarItem to="/laporan" icon="bi-file-earmark-bar-graph-fill" label="Laporan Bulanan" active={location.pathname === '/laporan'} collapsed={isCollapsed} />
-                <SidebarItem to="/keuangan" icon="bi-cash-stack" label="Keuangan" active={location.pathname === '/keuangan'} collapsed={isCollapsed} />
-                <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />
+                {hasAccess('/persuratan') && <SidebarItem to="/persuratan" icon="bi-envelope-paper-fill" label="Persuratan Digital" active={location.pathname === '/persuratan'} collapsed={isCollapsed} />}
+                {hasAccess('/tugas-rutin') && <SidebarItem to="/tugas-rutin" icon="bi-clipboard2-check-fill" label="Tugas Rutin" active={location.pathname === '/tugas-rutin'} collapsed={isCollapsed} />}
+                {hasAccess('/kegiatan') && <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Kalender Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />}
+                {hasAccess('/laporan') && <SidebarItem to="/laporan" icon="bi-file-earmark-bar-graph-fill" label="Laporan Bulanan" active={location.pathname === '/laporan'} collapsed={isCollapsed} />}
+                {hasAccess('/keuangan') && <SidebarItem to="/keuangan" icon="bi-cash-stack" label="Keuangan" active={location.pathname === '/keuangan'} collapsed={isCollapsed} />}
+                {hasAccess('/dossiers') && <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />}
               </>
             )}
 
             {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Kehadiran</div>}
             {/* Hanya tampilkan menu absensi di Mobile View */}
-            {isMobileView && (
+            {isMobileView && hasAccess('/absensi-online') && (
               <SidebarItem to="/absensi-online" icon="bi-camera-fill" label="Absensi Wajah" active={location.pathname === '/absensi-online'} collapsed={isCollapsed} />
             )}
-            <SidebarItem to="/rekap-absensi" icon="bi-clipboard-data-fill" label="Rekapitulasi" active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />
+            {hasAccess('/rekap-absensi') && <SidebarItem to="/rekap-absensi" icon="bi-clipboard-data-fill" label="Rekapitulasi" active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />}
 
-            {isSuperadmin && (
+            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Uji Kompetensi</div>}
+            {hasAccess('/ukom/admin') && <SidebarItem to="/ukom/admin" icon="bi-pc-display-horizontal" label="Admin CAT" active={location.pathname === '/ukom/admin'} collapsed={isCollapsed} />}
+            <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian" active={location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin'} collapsed={isCollapsed} />
+
+            {(hasAccess('/settings') || hasAccess('/logs')) && (
               <>
                 {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Sistem</div>}
-                <SidebarItem to="/settings" icon="bi-gear-wide-connected" label="Pengaturan" active={location.pathname === '/settings'} collapsed={isCollapsed} />
-                <SidebarItem to="/logs" icon="bi-clock-history" label="Audit Logs" active={location.pathname === '/logs'} collapsed={isCollapsed} />
+                {hasAccess('/settings') && <SidebarItem to="/settings" icon="bi-gear-wide-connected" label="Pengaturan" active={location.pathname === '/settings'} collapsed={isCollapsed} />}
+                {hasAccess('/logs') && <SidebarItem to="/logs" icon="bi-clock-history" label="Audit Logs" active={location.pathname === '/logs'} collapsed={isCollapsed} />}
               </>
             )}
           </nav>
@@ -226,34 +304,40 @@ const AppContent = () => {
 
         <div className="flex-1 overflow-y-auto p-8 lg:p-12 custom-scrollbar relative flex flex-col">
           <div className="flex-1">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/pegawai" element={<PegawaiPage />} />
-              <Route path="/pegawai/:nip" element={<ProfilePegawaiPage />} />
-              <Route path="/layanan" element={<LayananKepegawaianPage />} />
-              <Route path="/tugas-rutin" element={<TugasRutinPage />} />
-              <Route path="/kegiatan" element={<KegiatanPage />} />
-              <Route path="/laporan" element={<LaporanPage />} />
-              <Route path="/keuangan" element={<KeuanganPage />} />
-              <Route path="/dossiers" element={<DossiersPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/logs" element={<ActivityLogPage />} />
-              <Route path="/absensi-online" element={<AbsensiOnlinePage />} />
-              <Route path="/rekap-absensi" element={<RekapAbsensiPage />} />
-              <Route path="/skp" element={<SKPPage />} />
-              <Route path="/pak" element={<PAKPage />} />
-              <Route path="/anjab-abk" element={<ABKAnjabPage />} />
-              <Route path="/pelantikan-gen" element={<PelantikanGeneratorPage />} />
-              <Route path="/spmt-spp" element={<SpmtSppPage />} />
-              <Route path="/kgb-gen" element={<KGBGeneratorPage />} />
-              <Route path="/pensiun" element={<PensiunPage />} />
-              <Route path="/kenaikan-pangkat" element={<KenaikanPangkatPage />} />
-              <Route path="/satya-lencana" element={<SatyaLencanaPage />} />
-              <Route path="/magang-pkl" element={<MagangPKLPage />} />
-              <Route path="/persuratan" element={<PersuratanPage />} />
-              <Route path="/pengembangan" element={< PengembanganPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            {isMaintenance ? (
+              <MaintenanceView />
+            ) : isDenied ? (
+              <AccessDeniedView />
+            ) : (
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/pegawai" element={<PegawaiPage />} />
+                <Route path="/pegawai/:nip" element={<ProfilePegawaiPage />} />
+                <Route path="/layanan" element={<LayananKepegawaianPage />} />
+                <Route path="/tugas-rutin" element={<TugasRutinPage />} />
+                <Route path="/kegiatan" element={<KegiatanPage />} />
+                <Route path="/laporan" element={<LaporanPage />} />
+                <Route path="/keuangan" element={<KeuanganPage />} />
+                <Route path="/dossiers" element={<DossiersPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/logs" element={<ActivityLogPage />} />
+                <Route path="/absensi-online" element={<AbsensiOnlinePage />} />
+                <Route path="/rekap-absensi" element={<RekapAbsensiPage />} />
+                <Route path="/skp" element={<SKPPage />} />
+                <Route path="/pak" element={<PAKPage />} />
+                <Route path="/anjab-abk" element={<ABKAnjabPage />} />
+                <Route path="/pelantikan-gen" element={<PelantikanGeneratorPage />} />
+                <Route path="/spmt-spp" element={<SpmtSppPage />} />
+                <Route path="/kgb-gen" element={<KGBGeneratorPage />} />
+                <Route path="/pensiun" element={<PensiunPage />} />
+                <Route path="/kenaikan-pangkat" element={<KenaikanPangkatPage />} />
+                <Route path="/satya-lencana" element={<SatyaLencanaPage />} />
+                <Route path="/magang-pkl" element={<MagangPKLPage />} />
+                <Route path="/persuratan" element={<PersuratanPage />} />
+                <Route path="/pengembangan" element={< PengembanganPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            )}
           </div>
 
           <footer className="mt-16 pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left shrink-0 pb-4">

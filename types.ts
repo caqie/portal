@@ -185,6 +185,8 @@ export interface Pegawai {
   jurusan?: string;
   nik?: string;
   masaKerja?: string;
+  masaKerjaGolongan?: string;
+  masaKerjaPensiun?: string;
   tempatLahir?: string;
   tanggalLahir?: string;
   tmtCpns?: string;
@@ -200,9 +202,12 @@ export interface Pegawai {
   noKarpeg?: string;
   usia?: string;
   tglPensiun?: string;
+  tmtPensiun?: string;
   tmtPensiunDisplay?: string;
+  usiaPensiun?: string;
   bup?: string;
   sisaMasaKerja?: string;
+  jenisJabatan?: string;
   keteranganPensiun?: string;
   statusPerkawinan?: string;
   riwayatPendidikan?: RiwayatPendidikan[];
@@ -369,7 +374,64 @@ export interface AbsensiConfig {
 
 export interface MaintenanceConfig {
   all: boolean;
-  pages: string[];
+  pages: string[]; // List of routes in maintenance
+}
+
+export interface PageAccess {
+  route: string;
+  roles: string[];
+  nips: string[];
+}
+
+export interface SystemConfig {
+  maintenance: MaintenanceConfig;
+  pageAccess: PageAccess[];
+}
+
+export interface BankSoal {
+  id: string;
+  kategori: 'TWK' | 'TIU' | 'TKP';
+  jenjang: string;
+  pertanyaan: string;
+  imageUrl?: string;
+  pilihanA: string;
+  pilihanB: string;
+  pilihanC: string;
+  pilihanD: string;
+  pilihanE: string;
+  jawabanBenar: string;
+  bobotNilai: string;
+}
+
+export interface PesertaUkom {
+  noPeserta: string;
+  nama: string;
+  tanggalLahir: string;
+  jenjang: string;
+  unitKerja?: string;
+  fotoUrl?: string;
+  password?: string;
+  statusUjian: 'Belum' | 'Sudah';
+}
+
+export interface HasilUkom {
+  noPeserta: string;
+  nama: string;
+  jenjang: string;
+  nilaiTwk: number;
+  nilaiTiu: number;
+  nilaiTkp: number;
+  totalNilai: number;
+  tanggalUjian: string;
+  waktuSelesai: string;
+}
+
+export interface UkomActivityLog {
+  noPeserta: string;
+  soalId: string;
+  jawaban: string;
+  timestamp: string;
+  isRagu: boolean;
 }
 
 export interface Laporan {

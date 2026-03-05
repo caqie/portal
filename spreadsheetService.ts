@@ -1,5 +1,5 @@
 
-import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig } from './types';
+import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom } from './types';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9zyZrLGmDBRlUOdR1pgftxDfcElY_Fd4BfsCR4Fmd7Qb58MJKAllRkUloFQrbs8lY/exec';
@@ -25,7 +25,10 @@ export const DEFAULT_GIDS = {
   MAGANG_PKL: '123456789',
   PERSURATAN: '2025010101',
   SATYA_LENCANA: '333444555',
-  KEUANGAN: '999888777'
+  KEUANGAN: '999888777',
+  BANK_SOAL: '111222333',
+  PESERTA_UKOM: '444555666',
+  HASIL_UKOM: '777888999'
 };
 
 const getDbConfig = () => {
@@ -354,6 +357,78 @@ export const fetchAbsensiConfig = async (): Promise<AbsensiConfig> => {
 };
 
 export const saveAbsensiConfig = (config: AbsensiConfig) => syncTableRemote('CONFIG', 'SAVE', config);
+
+export const fetchSystemConfig = async (): Promise<SystemConfig> => {
+  const data = await fetchTableData<SystemConfig>('CONFIG', 'portal_system_config', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } };
+    if (get('ID') !== 'SYSTEM_CONFIG') return null;
+    return {
+      maintenance: getJson('MAINTENANCE') || { all: false, pages: [] },
+      pageAccess: getJson('PAGEACCESS') || []
+    } as SystemConfig;
+  });
+  return data.length > 0 ? data[0] : { 
+    maintenance: { all: false, pages: [] }, 
+    pageAccess: [] 
+  };
+};
+
+export const saveSystemConfig = (config: any) => syncTableRemote('CONFIG', 'SAVE', { id: 'SYSTEM_CONFIG', ...config });
+
+export const fetchBankSoalFromSheets = () => fetchTableData<BankSoal>('BANK_SOAL', 'ukom_bank_soal', (cols, headers) => {
+  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+  return {
+    id: get('IDSOAL'),
+    kategori: get('KATEGORI') as any,
+    jenjang: get('JENJANG'),
+    pertanyaan: get('PERTANYAAN'),
+    imageUrl: get('IMAGEURL'),
+    pilihanA: get('PILIHANA'),
+    pilihanB: get('PILIHANB'),
+    pilihanC: get('PILIHANC'),
+    pilihanD: get('PILIHAND'),
+    pilihanE: get('PILIHANE'),
+    jawabanBenar: get('JAWABANBENAR'),
+    bobotNilai: get('BOBOTNILAI')
+  } as BankSoal;
+});
+
+export const fetchPesertaUkomFromSheets = () => fetchTableData<PesertaUkom>('PESERTA_UKOM', 'ukom_peserta', (cols, headers) => {
+  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+  return {
+    noPeserta: get('NOPESERTA'),
+    nama: get('NAMA'),
+    tanggalLahir: get('TANGGALLAHIR'),
+    jenjang: get('JENJANG'),
+    unitKerja: get('UNITKERJA'),
+    fotoUrl: get('FOTOURL') || get('FOTO'),
+    password: get('PASSWORD'),
+    statusUjian: get('STATUSUJIAN') as any
+  } as PesertaUkom;
+});
+
+export const fetchHasilUkomFromSheets = () => fetchTableData<HasilUkom>('HASIL_UKOM', 'ukom_hasil', (cols, headers) => {
+  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+  return {
+    noPeserta: get('NOPESERTA'),
+    nama: get('NAMA'),
+    jenjang: get('JENJANG'),
+    nilaiTwk: parseFloat(get('NILAITWK')) || 0,
+    nilaiTiu: parseFloat(get('NILAITIU')) || 0,
+    nilaiTkp: parseFloat(get('NILAITKP')) || 0,
+    totalNilai: parseFloat(get('TOTALNILAI')) || 0,
+    tanggalUjian: get('TANGGALUJIAN'),
+    waktuSelesai: get('WAKTUSELESAI')
+  } as HasilUkom;
+});
+
+export const saveHasilUkom = (hasil: HasilUkom) => syncTableRemote('HASIL_UKOM', 'SAVE', hasil);
+export const savePesertaUkom = (peserta: PesertaUkom) => syncTableRemote('PESERTA_UKOM', 'SAVE', peserta);
+export const deletePesertaUkom = (noPeserta: string) => syncTableRemote('PESERTA_UKOM', 'DELETE', { noPeserta });
+export const saveBankSoalBulk = (soalList: BankSoal[]) => syncTableRemote('BANK_SOAL', 'SAVE', soalList);
+export const saveBankSoal = (soal: BankSoal) => syncTableRemote('BANK_SOAL', 'SAVE', soal);
+export const deleteBankSoal = (id: string) => syncTableRemote('BANK_SOAL', 'DELETE', { id });
 
 export const getRetirementDetails = (nip: string, jabatan: string) => {
   const cleanNip = (nip || '').replace(/\D/g, '');

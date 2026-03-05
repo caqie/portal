@@ -176,3 +176,30 @@ export const getGajiEstimasi = (gol: string, mk: number): number => {
   const base = baseSalaries[gol] || 1600000;
   return Math.round(base * (1 + (mk * 0.025)));
 };
+
+export const APP_ROUTES = [
+  { path: '/', label: 'Dashboard', icon: 'bi-grid-1x2-fill' },
+  { path: '/pegawai', label: 'Database Pegawai', icon: 'bi-person-vcard-fill' },
+  { path: '/layanan', label: 'Layanan Karir', icon: 'bi-briefcase-fill' },
+  { path: '/persuratan', label: 'Persuratan Digital', icon: 'bi-envelope-paper-fill' },
+  { path: '/tugas-rutin', label: 'Tugas Rutin', icon: 'bi-clipboard2-check-fill' },
+  { path: '/kegiatan', label: 'Kalender Kegiatan', icon: 'bi-calendar2-event-fill' },
+  { path: '/laporan', label: 'Laporan Bulanan', icon: 'bi-file-earmark-bar-graph-fill' },
+  { path: '/keuangan', label: 'Keuangan', icon: 'bi-cash-stack' },
+  { path: '/dossiers', label: 'E-Dossier Digital', icon: 'bi-folder-fill' },
+  { path: '/absensi-online', label: 'Absensi Wajah', icon: 'bi-camera-fill' },
+  { path: '/rekap-absensi', label: 'Rekapitulasi Absensi', icon: 'bi-clipboard-data-fill' },
+  { path: '/settings', label: 'Pengaturan Sistem', icon: 'bi-gear-wide-connected' },
+  { path: '/logs', label: 'Audit Logs', icon: 'bi-clock-history' },
+  { path: '/skp', label: 'SKP', icon: 'bi-file-earmark-text' },
+  { path: '/pak', label: 'PAK', icon: 'bi-file-earmark-medical' },
+  { path: '/anjab-abk', label: 'ANJAB ABK', icon: 'bi-diagram-3' },
+  { path: '/pelantikan-gen', label: 'Pelantikan Generator', icon: 'bi-file-earmark-person' },
+  { path: '/spmt-spp', label: 'SPMT / SPP', icon: 'bi-file-earmark-check' },
+  { path: '/kgb-gen', label: 'KGB Generator', icon: 'bi-cash' },
+  { path: '/pensiun', label: 'Pensiun', icon: 'bi-door-open' },
+  { path: '/kenaikan-pangkat', label: 'Kenaikan Pangkat', icon: 'bi-graph-up-arrow' },
+  { path: '/satya-lencana', label: 'Satya Lencana', icon: 'bi-award' },
+  { path: '/magang-pkl', label: 'Magang & PKL', icon: 'bi-mortarboard' },
+  { path: '/pengembangan', label: 'Pengembangan Kompetensi', icon: 'bi-book' }
+];

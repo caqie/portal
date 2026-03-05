@@ -516,13 +516,14 @@ const PegawaiPage = () => {
                  </section>
 
                  <section className="space-y-6">
-                    <div className="flex items-center gap-4"><div className="h-8 w-2 bg-indigo-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">B. Jabatan & Penempatan</h5></div>
+                    <div className="flex items-center gap-4"><div className="h-8 w-2 bg-indigo-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">B. Jabatan & Penempatan (Auto)</h5></div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                       <div className="md:col-span-3"><label className={labelClass}>Nama Jabatan</label><input type="text" className={inputClass} value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} /></div>
-                        <div className="md:col-span-2"><label className={labelClass}>Klasifikasi Jabatan</label><input type="text" className={inputClass} value={formData.klasifikasiJabatan || ''} onChange={e => setFormData({...formData, klasifikasiJabatan: e.target.value})} /></div>
+                        <div className="md:col-span-2"><label className={labelClass}>Nama Jabatan</label><input type="text" className={inputClass} value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} /></div>
+                        <div><label className={labelClass}>Jenis Jabatan (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.jenisJabatan || '-'} /></div>
+                        <div><label className={labelClass}>Klasifikasi Jabatan (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.klasifikasiJabatan || '-'} /></div>
                        <div><label className={labelClass}>TMT Jabatan</label><input type="date" className={inputNoCapsClass} value={formData.tmtJabatan || ''} onChange={e => setFormData({...formData, tmtJabatan: e.target.value})} /></div>
                        <div><label className={labelClass}>Eselon (Jika Ada)</label><select className={inputClass} value={formData.eselon || '-'} onChange={e => setFormData({...formData, eselon: e.target.value})}><option value="-">-</option><option value="I.a">I.a</option><option value="I.b">I.b</option><option value="II.a">II.a</option><option value="II.b">II.b</option><option value="III.a">III.a</option><option value="IV.a">IV.a</option></select></div>
-                       <div className="md:col-span-3"><label className={labelClass}>Unit Kerja Utama</label><select className={inputClass} value={formData.unitKerja || UNIT_KERJA[0]} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
+                       <div className="md:col-span-2"><label className={labelClass}>Unit Kerja Utama</label><select className={inputClass} value={formData.unitKerja || UNIT_KERJA[0]} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
                        <div className="md:col-span-2"><label className={labelClass}>Nama Bagian</label><input type="text" className={inputClass} value={formData.bagian || ''} onChange={e => setFormData({...formData, bagian: e.target.value})} /></div>
                        <div className="md:col-span-2"><label className={labelClass}>Nama Sub Bagian / Tim</label><input type="text" className={inputClass} value={formData.subBagian || ''} onChange={e => setFormData({...formData, subBagian: e.target.value})} /></div>
                     </div>
@@ -532,17 +533,31 @@ const PegawaiPage = () => {
                     <div className="flex items-center gap-4"><div className="h-8 w-2 bg-emerald-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">C. Pangkat & Masa Kerja</h5></div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                        <div><label className={labelClass}>Golongan / Ruang</label><select className={inputClass} value={formData.golRuang || 'III/a'} onChange={e => setFormData({...formData, golRuang: e.target.value, pangkat: PANGKAT_MAP[e.target.value] || ''})}>{Object.keys(PANGKAT_MAP).map(g => <option key={g} value={g}>{g}</option>)}</select></div>
-                       <div className="md:col-span-2"><label className={labelClass}>Pangkat</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.pangkat || '-'} /></div>
+                       <div className="md:col-span-2"><label className={labelClass}>Pangkat (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.pangkat || '-'} /></div>
                        <div><label className={labelClass}>TMT Pangkat</label><input type="date" className={inputNoCapsClass} value={formData.tmtPangkat || ''} onChange={e => setFormData({...formData, tmtPangkat: e.target.value})} /></div>
                        <div><label className={labelClass}>Jenis Pegawai</label><select className={inputClass} value={formData.jenisPegawai || 'PNS'} onChange={e => setFormData({...formData, jenisPegawai: e.target.value})}><option value="PNS">PNS</option><option value="CPNS">CPNS</option><option value="PPPK">PPPK</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option></select></div>
                        <div><label className={labelClass}>Status Aktif</label><select className={inputClass} value={formData.status || 'Aktif'} onChange={e => setFormData({...formData, status: e.target.value})}><option value="Aktif">AKTIF</option><option value="Tidak Aktif">TIDAK AKTIF</option><option value="Pensiun">PENSIUN</option><option value="Tugas Belajar">TUGAS BELAJAR</option></select></div>
-                       <div><label className={labelClass}>TMT CPNS</label><input type="date" className={inputNoCapsClass} value={formData.tmtCpns || ''} onChange={e => setFormData({...formData, tmtCpns: e.target.value})} /></div>
-                       <div><label className={labelClass}>Masa Kerja (Thn Bln)</label><input type="text" className={inputClass} value={formData.masaKerja || ''} onChange={e => setFormData({...formData, masaKerja: e.target.value})} placeholder="exp: 10 THN 2 BLN" /></div>
+                       <div><label className={labelClass}>TMT CPNS (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.tmtCpns || '-'} /></div>
+                       <div><label className={labelClass}>Masa Kerja (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.masaKerja || '-'} /></div>
+                        <div><label className={labelClass}>MK Golongan (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.masaKerjaGolongan || '-'} /></div>
+                        <div><label className={labelClass}>MK Pensiun (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.masaKerjaPensiun || '-'} /></div>
+                        <div><label className={labelClass}>Usia (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.usia || '-'} /></div>
+                        <div><label className={labelClass}>Sisa Masa Kerja (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.sisaMasaKerja || '-'} /></div>
                     </div>
                  </section>
 
-                 <section className="space-y-6 pb-10">
-                    <div className="flex items-center gap-4"><div className="h-8 w-2 bg-amber-500 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">D. Kontak & Dokumen Identitas</h5></div>
+                 <section className="space-y-6">
+                     <div className="flex items-center gap-4"><div className="h-8 w-2 bg-rose-600 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">D. Informasi Pensiun (Auto Calculation)</h5></div>
+                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div><label className={labelClass}>Tgl Pensiun</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.tglPensiun || '-'} /></div>
+                        <div><label className={labelClass}>TMT Pensiun</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.tmtPensiun || '-'} /></div>
+                        <div><label className={labelClass}>Usia Pensiun</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.usiaPensiun || '-'} /></div>
+                        <div><label className={labelClass}>BUP</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.bup || '-'} /></div>
+                     </div>
+                  </section>
+
+                  <section className="space-y-6 pb-10">
+                    <div className="flex items-center gap-4"><div className="h-8 w-2 bg-amber-500 rounded-full"></div><h5 className="text-[11px] font-black text-gray-950 uppercase tracking-widest">E. Kontak & Dokumen Identitas</h5></div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                        <div><label className={labelClass}>Nomor HP / WhatsApp</label><input type="text" className={inputClass} value={formData.noHp || ''} onChange={e => setFormData({...formData, noHp: e.target.value})} /></div>
                        <div className="md:col-span-2"><label className={labelClass}>Email Personal / Dinas</label><input type="email" className={inputNoCapsClass} value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} /></div>

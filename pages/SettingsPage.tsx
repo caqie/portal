@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai } from '../types';
-import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets } from '../spreadsheetService';
+import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai, SystemConfig, PageAccess } from '../types';
+import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
-import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO } from '../constants';
+import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO, APP_ROUTES } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 
 const SettingsPage = () => {
@@ -26,6 +26,7 @@ const SettingsPage = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
   const [absensiConfig, setAbsensiConfig] = useState<AbsensiConfig>({ id: 'ABSENSI_GLOBAL', officeWifiSsid: '', officeIpAddresses: '', wfaNips: [] });
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>({ maintenance: { all: false, pages: [] }, pageAccess: [] });
   const [wfaSearch, setWfaSearch] = useState('');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userFormData, setUserFormData] = useState<Partial<AdminUser>>({ role: 'Viewer' });
@@ -47,8 +48,67 @@ const SettingsPage = () => {
         setAbsensiConfig(config);
         setPegawaiList(pList);
       }
+      if (activeTab === 'access') {
+        const config = await fetchSystemConfig();
+        setSystemConfig(config);
+      }
     } catch (e) { console.error("Gagal memuat data pengaturan:", e); }
     setLoading(false);
+  };
+
+  const saveSystemSettings = async () => {
+    setLoading(true);
+    const ok = await saveSystemConfig(systemConfig);
+    if (ok) {
+      setSuccessMsg("Pengaturan Akses & Pemeliharaan Berhasil Disimpan.");
+      setShowSuccess(true);
+      logActivity('UPDATE', 'Settings', 'Update Pengaturan Akses & Pemeliharaan');
+    } else {
+      alert("Gagal menyimpan pengaturan sistem.");
+    }
+    setLoading(false);
+  };
+
+  const toggleMaintenancePage = (path: string) => {
+    setSystemConfig(prev => {
+      const exists = prev.maintenance.pages.includes(path);
+      const newPages = exists 
+        ? prev.maintenance.pages.filter(p => p !== path)
+        : [...prev.maintenance.pages, path];
+      return { ...prev, maintenance: { ...prev.maintenance, pages: newPages } };
+    });
+  };
+
+  const updatePageAccess = (path: string, field: 'roles' | 'nips', value: string) => {
+    setSystemConfig(prev => {
+      const existing = prev.pageAccess.find(a => a.route === path);
+      const values = value.split(',').map(v => v.trim()).filter(v => v !== '');
+      
+      let newAccess: PageAccess[];
+      if (existing) {
+        newAccess = prev.pageAccess.map(a => a.route === path ? { ...a, [field]: values } : a);
+      } else {
+        newAccess = [...prev.pageAccess, { route: path, roles: field === 'roles' ? values : [], nips: field === 'nips' ? values : [] }];
+      }
+      return { ...prev, pageAccess: newAccess };
+    });
+  };
+
+  const toggleRoleAccess = (path: string, role: string) => {
+    setSystemConfig(prev => {
+      const existing = prev.pageAccess.find(a => a.route === path);
+      let newAccess: PageAccess[];
+      
+      if (existing) {
+        const roles = existing.roles.includes(role)
+          ? existing.roles.filter(r => r !== role)
+          : [...existing.roles, role];
+        newAccess = prev.pageAccess.map(a => a.route === path ? { ...a, roles } : a);
+      } else {
+        newAccess = [...prev.pageAccess, { route: path, roles: [role], nips: [] }];
+      }
+      return { ...prev, pageAccess: newAccess };
+    });
   };
 
   const handleUploadLogo = async (type: 'APP' | 'TEMPLATE', e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,6 +215,7 @@ const SettingsPage = () => {
             { id: 'general', label: 'Branding & Teks', icon: 'bi-palette2' }, 
             { id: 'database', label: 'Integrasi Cloud', icon: 'bi-database-fill-gear' }, 
             { id: 'absensi', label: 'Pengaturan Absensi', icon: 'bi-clock-history' },
+            { id: 'access', label: 'Manajemen Akses', icon: 'bi-shield-lock-fill' },
             { id: 'users', label: 'Manajemen User', icon: 'bi-people-fill' }
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 lg:flex-none flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-[#111827] text-white shadow-xl' : 'text-gray-400 hover:text-gray-900 hover:bg-white'}`}>
@@ -350,6 +411,126 @@ const SettingsPage = () => {
                     {loading ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-upload-fill text-lg"></i>}
                     Simpan Konfigurasi Absensi
                  </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB ACCESS: MANAJEMEN AKSES & PEMELIHARAAN */}
+          {activeTab === 'access' && (
+            <div className="space-y-12 animate-fadeIn max-w-6xl">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <h4 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Akses & Pemeliharaan</h4>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Kontrol akses halaman dan status pengembangan</p>
+                </div>
+                <button onClick={saveSystemSettings} disabled={loading} className="px-10 py-4 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 flex items-center gap-3">
+                  {loading ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-upload-fill"></i>}
+                  Simpan Semua Perubahan
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* MAINTENANCE MODE */}
+                <div className="lg:col-span-1 space-y-6">
+                  <div className="bg-amber-50 p-8 rounded-[2.5rem] border border-amber-100">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="h-12 w-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg"><i className="bi bi-tools"></i></div>
+                      <h5 className="text-[12px] font-black text-amber-900 uppercase tracking-widest">Mode Pemeliharaan</h5>
+                    </div>
+                    <div className="space-y-4">
+                      <label className="flex items-center gap-4 p-4 bg-white rounded-2xl border-2 border-amber-100 cursor-pointer hover:border-amber-300 transition-all">
+                        <input 
+                          type="checkbox" 
+                          className="h-6 w-6 rounded-lg border-amber-300 text-amber-600 focus:ring-amber-500"
+                          checked={systemConfig.maintenance.all}
+                          onChange={e => setSystemConfig({...systemConfig, maintenance: {...systemConfig.maintenance, all: e.target.checked}})}
+                        />
+                        <span className="text-[11px] font-black text-amber-900 uppercase">Tutup Seluruh Sistem</span>
+                      </label>
+                      <p className="text-[8px] text-amber-600 font-bold uppercase ml-2">* Jika aktif, seluruh halaman akan menampilkan pesan pemeliharaan kecuali untuk Superadmin.</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-[500px]">
+                    <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-widest mb-4">Halaman Dalam Pengembangan</h5>
+                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
+                      {APP_ROUTES.map(route => (
+                        <div 
+                          key={route.path}
+                          onClick={() => toggleMaintenancePage(route.path)}
+                          className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${systemConfig.maintenance.pages.includes(route.path) ? 'bg-amber-500 border-amber-500 text-white shadow-md' : 'bg-white border-gray-50 text-gray-900 hover:border-amber-200'}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <i className={`bi ${route.icon} text-lg`}></i>
+                            <span className="text-[10px] font-black uppercase">{route.label}</span>
+                          </div>
+                          {systemConfig.maintenance.pages.includes(route.path) && <i className="bi bi-cone-striped"></i>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* PAGE ACCESS CONTROL */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-white border border-gray-100 rounded-[3rem] overflow-hidden shadow-sm flex flex-col h-[700px]">
+                    <div className="p-8 bg-gray-50 border-b flex items-center justify-between">
+                      <h5 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Kontrol Akses Halaman</h5>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase">Superadmin memiliki akses penuh ke semua halaman</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+                      {APP_ROUTES.map(route => {
+                        const access = systemConfig.pageAccess.find(a => a.route === route.path);
+                        return (
+                          <div key={route.path} className="p-6 bg-gray-50/50 rounded-[2rem] border border-gray-100 space-y-6">
+                            <div className="flex items-center gap-4">
+                              <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-xl shadow-sm text-blue-600"><i className={`bi ${route.icon}`}></i></div>
+                              <div>
+                                <h6 className="text-[11px] font-black text-gray-900 uppercase">{route.label}</h6>
+                                <p className="text-[9px] font-mono text-gray-400">{route.path}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                <label className={labelClass}>Role yang Diizinkan</label>
+                                <div className="flex flex-wrap gap-3 mt-2">
+                                  {['Superadmin', 'Editor', 'Viewer'].map(role => {
+                                    const isChecked = access?.roles.includes(role);
+                                    return (
+                                      <label key={role} className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${isChecked ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-500 hover:border-blue-200'}`}>
+                                        <input 
+                                          type="checkbox" 
+                                          className="hidden"
+                                          checked={isChecked}
+                                          onChange={() => toggleRoleAccess(route.path, role)}
+                                        />
+                                        <i className={`bi ${isChecked ? 'bi-check-square-fill' : 'bi-square'} text-sm`}></i>
+                                        <span className="text-[10px] font-black uppercase tracking-wider">{role}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                                <p className="text-[8px] text-gray-400 font-bold uppercase mt-3 ml-2">* Superadmin disarankan tetap dicentang</p>
+                              </div>
+                              <div>
+                                <label className={labelClass}>NIP Khusus (Whitelist)</label>
+                                <input 
+                                  type="text" 
+                                  className={`${inputClass} font-mono`}
+                                  placeholder="Contoh: 19800101..., 19900202..."
+                                  value={access?.nips.join(', ') || ''}
+                                  onChange={e => updatePageAccess(route.path, 'nips', e.target.value)}
+                                />
+                                <p className="text-[8px] text-gray-400 font-bold uppercase mt-2 ml-2">* Pisahkan dengan koma</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
