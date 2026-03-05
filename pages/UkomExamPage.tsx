@@ -54,13 +54,15 @@ const UkomExamPage: React.FC = () => {
       try {
         const allQuestions = await fetchBankSoalFromSheets();
         
-        // Filter by jenjang
-        const filteredByJenjang = allQuestions.filter(q => 
-          !q.jenjang || q.jenjang === 'Umum' || q.jenjang === p.jenjang
-        );
+        // Filter by jenjang and jabatan fungsional
+        const filteredQuestions = allQuestions.filter(q => {
+          const matchJabatan = !q.jabatanFungsional || q.jabatanFungsional === p.jabatanFungsional;
+          const matchJenjang = !q.jenjang || q.jenjang === 'Umum' || q.jenjang === p.jenjang;
+          return matchJabatan && matchJenjang;
+        });
 
         // Randomize questions
-        const shuffled = [...filteredByJenjang].sort(() => Math.random() - 0.5);
+        const shuffled = [...filteredQuestions].sort(() => Math.random() - 0.5);
         
         // Load saved state if exists
         try {

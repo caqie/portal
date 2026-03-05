@@ -72,7 +72,17 @@ const UkomAdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'PESERTA' | 'HASIL'>('HASIL');
   const [showPesertaModal, setShowPesertaModal] = useState(false);
   const [editingPeserta, setEditingPeserta] = useState<PesertaUkom | null>(null);
-  const [pesertaForm, setPesertaForm] = useState<PesertaUkom>({ noPeserta: '', nama: '', tanggalLahir: '', jenjang: '', unitKerja: '', fotoUrl: '', password: '', statusUjian: 'Belum' });
+  const [pesertaForm, setPesertaForm] = useState<PesertaUkom>({ 
+    noPeserta: '', 
+    nama: '', 
+    tanggalLahir: '', 
+    jabatanFungsional: '',
+    jenjang: '', 
+    unitKerja: '', 
+    fotoUrl: '', 
+    password: '', 
+    statusUjian: 'Belum' 
+  });
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
 
@@ -112,10 +122,17 @@ const UkomAdminPage: React.FC = () => {
 
   const handleDeletePeserta = async (noPeserta: string) => {
     if (!window.confirm('Hapus peserta ini secara permanen?')) return;
-    const success = await deletePesertaUkom(noPeserta);
-    if (success) {
-      alert('Peserta berhasil dihapus.');
-      loadData();
+    try {
+      const success = await deletePesertaUkom(noPeserta);
+      if (success) {
+        alert('Peserta berhasil dihapus.');
+        loadData();
+      } else {
+        alert('Gagal menghapus peserta. Pastikan koneksi internet stabil.');
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert('Terjadi kesalahan sistem saat menghapus peserta.');
     }
   };
 
@@ -127,7 +144,17 @@ const UkomAdminPage: React.FC = () => {
       setShowPesertaModal(false);
       setEditingPeserta(null);
       setPegawaiSearch('');
-      setPesertaForm({ noPeserta: '', nama: '', tanggalLahir: '', jenjang: '', unitKerja: '', fotoUrl: '', password: '', statusUjian: 'Belum' });
+      setPesertaForm({ 
+        noPeserta: '', 
+        nama: '', 
+        tanggalLahir: '', 
+        jabatanFungsional: '',
+        jenjang: '', 
+        unitKerja: '', 
+        fotoUrl: '', 
+        password: '', 
+        statusUjian: 'Belum' 
+      });
       loadData();
     }
   };
@@ -146,20 +173,21 @@ const UkomAdminPage: React.FC = () => {
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-        const formattedSoal: BankSoal[] = data.map(row => ({
-          id: row.IDSOAL || row.id || Math.random().toString(36).substr(2, 9),
-          kategori: row.KATEGORI || row.kategori,
-          jenjang: row.JENJANG || row.jenjang || 'Umum',
-          pertanyaan: row.PERTANYAAN || row.pertanyaan,
-          imageUrl: row.IMAGEURL || row.imageUrl || '',
-          pilihanA: row.PILIHANA || row.pilihanA,
-          pilihanB: row.PILIHANB || row.pilihanB,
-          pilihanC: row.PILIHANC || row.pilihanC,
-          pilihanD: row.PILIHAND || row.pilihanD,
-          pilihanE: row.PILIHANE || row.pilihanE,
-          jawabanBenar: row.JAWABANBENAR || row.jawabanBenar,
-          bobotNilai: typeof row.BOBOTNILAI === 'object' ? JSON.stringify(row.BOBOTNILAI) : (row.BOBOTNILAI || row.bobotNilai).toString()
-        }));
+          const formattedSoal: BankSoal[] = data.map(row => ({
+            id: row.IDSOAL || row.id || Math.random().toString(36).substr(2, 9),
+            kategori: row.KATEGORI || row.kategori,
+            jabatanFungsional: row.JABATANFUNGSIONAL || row.jabatanFungsional || '',
+            jenjang: row.JENJANG || row.jenjang || 'Umum',
+            pertanyaan: row.PERTANYAAN || row.pertanyaan,
+            imageUrl: row.IMAGEURL || row.imageUrl || '',
+            pilihanA: row.PILIHANA || row.pilihanA,
+            pilihanB: row.PILIHANB || row.pilihanB,
+            pilihanC: row.PILIHANC || row.pilihanC,
+            pilihanD: row.PILIHAND || row.pilihanD,
+            pilihanE: row.PILIHANE || row.pilihanE,
+            jawabanBenar: row.JAWABANBENAR || row.jawabanBenar,
+            bobotNilai: typeof row.BOBOTNILAI === 'object' ? JSON.stringify(row.BOBOTNILAI) : (row.BOBOTNILAI || row.bobotNilai).toString()
+          }));
 
         const success = await saveBankSoalBulk(formattedSoal);
         if (success) {
@@ -183,6 +211,7 @@ const UkomAdminPage: React.FC = () => {
       {
         IDSOAL: 'S001',
         KATEGORI: 'TWK',
+        JABATANFUNGSIONAL: 'Pemeriksa Paten',
         JENJANG: 'Ahli Pertama',
         PERTANYAAN: 'Apa ibukota Indonesia?',
         IMAGEURL: '',
@@ -297,6 +326,10 @@ const UkomAdminPage: React.FC = () => {
                   <div class="value">${p.unitKerja || '-'}</div>
                 </div>
                 <div class="info-item">
+                  <div class="label">Jabatan Fungsional</div>
+                  <div class="value">${p.jabatanFungsional || '-'}</div>
+                </div>
+                <div class="info-item">
                   <div class="label">Jenjang Jabatan</div>
                   <div class="value">${p.jenjang || 'Umum'}</div>
                 </div>
@@ -324,20 +357,22 @@ const UkomAdminPage: React.FC = () => {
     printWindow.document.close();
   };
   const filteredPeserta = peserta.filter(p => 
-    (jenjangFilter === 'Semua' || p.jenjang === jenjangFilter) &&
+    (jenjangFilter === 'Semua' || p.jenjang === jenjangFilter || p.jabatanFungsional === jenjangFilter) &&
     (p.nama.toLowerCase().includes(searchTerm.toLowerCase()) || 
      p.noPeserta.includes(searchTerm))
   );
 
   const filteredHasil = hasil.filter(h => 
-    (jenjangFilter === 'Semua' || h.jenjang === jenjangFilter) &&
+    (jenjangFilter === 'Semua' || h.jenjang === jenjangFilter || h.jabatanFungsional === jenjangFilter) &&
     (h.nama.toLowerCase().includes(searchTerm.toLowerCase()) || 
      h.noPeserta.includes(searchTerm))
   );
 
-  const availableJenjangs = Array.from(new Set([
+  const availableFilters = Array.from(new Set([
     ...peserta.map(p => p.jenjang),
-    ...hasil.map(h => h.jenjang)
+    ...peserta.map(p => p.jabatanFungsional),
+    ...hasil.map(h => h.jenjang),
+    ...hasil.map(h => h.jabatanFungsional)
   ])).filter(Boolean).sort();
 
   const stats = {
@@ -349,37 +384,29 @@ const UkomAdminPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-8 md:p-12 font-sans">
-      <div className="max-w-7xl mx-auto space-y-10">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tighter">Admin Panel UKOM</h1>
-            <p className="text-[11px] text-gray-400 font-bold uppercase tracking-[0.2em]">Monitoring Hasil & Peserta Ujian CAT</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => navigate('/')}
-              className="px-6 py-4 bg-white border border-gray-200 text-gray-600 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm flex items-center gap-3 hover:bg-gray-50 transition-all"
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              <span>Kembali ke Portal</span>
-            </button>
-            <button 
-              onClick={loadData}
-              className="p-4 bg-white border border-gray-200 text-gray-400 rounded-2xl hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
-            >
-              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button 
-              onClick={exportToExcel}
-              className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-100 flex items-center gap-3"
-            >
-              <Download className="w-4 h-4" />
-              <span>Export Excel</span>
-            </button>
-          </div>
+    <div className="space-y-10">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tighter">Admin Panel UKOM</h1>
+          <p className="text-[11px] text-gray-400 font-bold uppercase tracking-[0.2em]">Monitoring Hasil & Peserta Ujian CAT</p>
         </div>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={loadData}
+            className="p-4 bg-white border border-gray-200 text-gray-400 rounded-2xl hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm"
+          >
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button 
+            onClick={exportToExcel}
+            className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-100 flex items-center gap-3"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export Excel</span>
+          </button>
+        </div>
+      </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
@@ -436,6 +463,7 @@ const UkomAdminPage: React.FC = () => {
                       noPeserta: '', 
                       nama: '', 
                       tanggalLahir: '', 
+                      jabatanFungsional: '',
                       jenjang: '', 
                       unitKerja: '',
                       fotoUrl: '',
@@ -485,9 +513,9 @@ const UkomAdminPage: React.FC = () => {
                 onChange={e => setJenjangFilter(e.target.value)}
                 className="px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:bg-white transition-all"
               >
-                <option value="Semua">Semua Jenjang</option>
-                {availableJenjangs.map(j => (
-                  <option key={j} value={j}>{j}</option>
+                <option value="Semua">Semua Filter</option>
+                {availableFilters.map(f => (
+                  <option key={f} value={f}>{f}</option>
                 ))}
               </select>
             </div>
@@ -530,6 +558,7 @@ const UkomAdminPage: React.FC = () => {
                         <div>
                           <p className="text-sm font-black text-gray-900">{h.nama}</p>
                           <p className="text-[10px] font-mono font-bold text-gray-400">{h.noPeserta}</p>
+                          <p className="text-[9px] font-bold text-blue-600 uppercase mt-1">{h.jabatanFungsional}</p>
                         </div>
                       </td>
                       <td className="px-8 py-6">
@@ -574,6 +603,7 @@ const UkomAdminPage: React.FC = () => {
                         <div>
                           <p className="text-sm font-black text-gray-900">{p.nama}</p>
                           <p className="text-[10px] font-mono font-bold text-gray-400">{p.noPeserta}</p>
+                          <p className="text-[9px] font-bold text-blue-600 uppercase mt-1">{p.jabatanFungsional}</p>
                         </div>
                       </td>
                       <td className="px-8 py-6">
@@ -630,9 +660,8 @@ const UkomAdminPage: React.FC = () => {
             </table>
           </div>
         </div>
-      </div>
 
-      {/* Peserta Modal */}
+        {/* Peserta Modal */}
       {showPesertaModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[200] flex items-center justify-center p-6">
           <motion.div 
@@ -673,7 +702,8 @@ const UkomAdminPage: React.FC = () => {
                                 noPeserta: p.nip,
                                 nama: p.nama,
                                 tanggalLahir: p.tanggalLahir || '',
-                                jenjang: p.jabatan || '',
+                                jabatanFungsional: p.jabatan || '',
+                                jenjang: '', // Will be filled manually or from other logic
                                 unitKerja: p.unitKerja || '',
                                 fotoUrl: p.foto || '',
                                 password: generateDefaultPassword()
@@ -729,6 +759,17 @@ const UkomAdminPage: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Jabatan Fungsional</label>
+                    <input 
+                      type="text" 
+                      value={pesertaForm.jabatanFungsional}
+                      onChange={e => setPesertaForm({ ...pesertaForm, jabatanFungsional: e.target.value })}
+                      placeholder="Contoh: Pemeriksa Paten"
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Jenjang Jabatan</label>
                     <input 
                       type="text" 
@@ -739,16 +780,16 @@ const UkomAdminPage: React.FC = () => {
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Unit Kerja</label>
-                    <input 
-                      type="text" 
-                      value={pesertaForm.unitKerja}
-                      onChange={e => setPesertaForm({ ...pesertaForm, unitKerja: e.target.value })}
-                      placeholder="Contoh: Dit. TI"
-                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
-                    />
-                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Unit Kerja</label>
+                  <input 
+                    type="text" 
+                    value={pesertaForm.unitKerja}
+                    onChange={e => setPesertaForm({ ...pesertaForm, unitKerja: e.target.value })}
+                    placeholder="Contoh: Dit. TI"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">URL Foto Peserta</label>

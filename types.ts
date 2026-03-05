@@ -391,6 +391,7 @@ export interface SystemConfig {
 export interface BankSoal {
   id: string;
   kategori: 'TWK' | 'TIU' | 'TKP';
+  jabatanFungsional?: string;
   jenjang: string;
   pertanyaan: string;
   imageUrl?: string;
@@ -407,6 +408,7 @@ export interface PesertaUkom {
   noPeserta: string;
   nama: string;
   tanggalLahir: string;
+  jabatanFungsional?: string;
   jenjang: string;
   unitKerja?: string;
   fotoUrl?: string;
@@ -417,6 +419,7 @@ export interface PesertaUkom {
 export interface HasilUkom {
   noPeserta: string;
   nama: string;
+  jabatanFungsional?: string;
   jenjang: string;
   nilaiTwk: number;
   nilaiTiu: number;

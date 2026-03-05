@@ -381,6 +381,7 @@ export const fetchBankSoalFromSheets = () => fetchTableData<BankSoal>('BANK_SOAL
   return {
     id: get('IDSOAL'),
     kategori: get('KATEGORI') as any,
+    jabatanFungsional: get('JABATANFUNGSIONAL'),
     jenjang: get('JENJANG'),
     pertanyaan: get('PERTANYAAN'),
     imageUrl: get('IMAGEURL'),
@@ -400,6 +401,7 @@ export const fetchPesertaUkomFromSheets = () => fetchTableData<PesertaUkom>('PES
     noPeserta: get('NOPESERTA'),
     nama: get('NAMA'),
     tanggalLahir: get('TANGGALLAHIR'),
+    jabatanFungsional: get('JABATANFUNGSIONAL'),
     jenjang: get('JENJANG'),
     unitKerja: get('UNITKERJA'),
     fotoUrl: get('FOTOURL') || get('FOTO'),
@@ -413,6 +415,7 @@ export const fetchHasilUkomFromSheets = () => fetchTableData<HasilUkom>('HASIL_U
   return {
     noPeserta: get('NOPESERTA'),
     nama: get('NAMA'),
+    jabatanFungsional: get('JABATANFUNGSIONAL'),
     jenjang: get('JENJANG'),
     nilaiTwk: parseFloat(get('NILAITWK')) || 0,
     nilaiTiu: parseFloat(get('NILAITIU')) || 0,
@@ -425,7 +428,7 @@ export const fetchHasilUkomFromSheets = () => fetchTableData<HasilUkom>('HASIL_U
 
 export const saveHasilUkom = (hasil: HasilUkom) => syncTableRemote('HASIL_UKOM', 'SAVE', hasil);
 export const savePesertaUkom = (peserta: PesertaUkom) => syncTableRemote('PESERTA_UKOM', 'SAVE', peserta);
-export const deletePesertaUkom = (noPeserta: string) => syncTableRemote('PESERTA_UKOM', 'DELETE', { noPeserta });
+export const deletePesertaUkom = (noPeserta: string) => syncTableRemote('PESERTA_UKOM', 'DELETE', { id: noPeserta, noPeserta });
 export const saveBankSoalBulk = (soalList: BankSoal[]) => syncTableRemote('BANK_SOAL', 'SAVE', soalList);
 export const saveBankSoal = (soal: BankSoal) => syncTableRemote('BANK_SOAL', 'SAVE', soal);
 export const deleteBankSoal = (id: string) => syncTableRemote('BANK_SOAL', 'DELETE', { id });

@@ -111,13 +111,12 @@ const AppContent = () => {
   if (location.pathname === '/login') return <LoginPage />;
   
   // UKOM Routes (Separate Layout)
-  if (location.pathname.startsWith('/ukom')) {
+  if (location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin') {
     return (
       <Routes>
         <Route path="/ukom/login" element={<UkomLoginPage />} />
         <Route path="/ukom/dashboard" element={<UkomDashboardPage />} />
         <Route path="/ukom/exam" element={<UkomExamPage />} />
-        <Route path="/ukom/admin" element={<UkomAdminPage />} />
       </Routes>
     );
   }
@@ -335,6 +334,7 @@ const AppContent = () => {
                 <Route path="/magang-pkl" element={<MagangPKLPage />} />
                 <Route path="/persuratan" element={<PersuratanPage />} />
                 <Route path="/pengembangan" element={< PengembanganPage />} />
+                <Route path="/ukom/admin" element={<UkomAdminPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             )}

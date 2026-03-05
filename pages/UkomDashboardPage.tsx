@@ -115,6 +115,15 @@ const UkomDashboardPage: React.FC = () => {
                         <ShieldCheck className="w-5 h-5" />
                       </div>
                       <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Jabatan Fungsional</p>
+                        <p className="text-sm font-black text-blue-600">{peserta.jabatanFungsional || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">
+                        <ShieldCheck className="w-5 h-5" />
+                      </div>
+                      <div>
                         <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Jenjang Jabatan</p>
                         <p className="text-sm font-black text-blue-600">{peserta.jenjang || 'Umum'}</p>
                       </div>
