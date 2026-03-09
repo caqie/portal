@@ -54,10 +54,13 @@ const UkomExamPage: React.FC = () => {
       try {
         const allQuestions = await fetchBankSoalFromSheets();
         
-        // Filter by jenjang and jabatan fungsional
+        // Filter by tipeSoal, jenjang and jabatan fungsional
         const filteredQuestions = allQuestions.filter(q => {
-          const matchJabatan = !q.jabatanFungsional || q.jabatanFungsional === p.jabatanFungsional;
-          const matchJenjang = !q.jenjang || q.jenjang === 'Umum' || q.jenjang === p.jenjang;
+          if (q.tipeSoal === 'Umum') return true;
+          
+          // For Khusus, must match both jabatan and jenjang
+          const matchJabatan = q.jabatanFungsional === p.jabatanFungsional;
+          const matchJenjang = q.jenjang === p.jenjang;
           return matchJabatan && matchJenjang;
         });
 

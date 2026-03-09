@@ -58,19 +58,25 @@ const PAKPage = () => {
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
-  // Filter Pegawai: Hanya PNS & Jabatan Fungsional
+  // Filter Pegawai: PNS & CPNS dengan Jabatan Fungsional
   const eligibleSubjectOptions = useMemo(() => {
     return pegawaiList
       .filter(p => {
-        const isPns = (p.jenisPegawai || '').toUpperCase() === 'PNS';
+        const jenis = (p.jenisPegawai || '').toUpperCase();
+        const isEligibleJenis = jenis === 'PNS' || jenis === 'CPNS';
+        
         const jab = (p.jabatan || '').toUpperCase();
-        // Cek keywords Jabatan Fungsional (Ahli, Terampil, Mahir, Penyelia, Pemula)
+        const klas = (p.klasifikasiJabatan || '').toUpperCase();
+        
+        // Cek keywords Jabatan Fungsional atau Klasifikasi Jabatan
         const isFungsional = jab.includes('AHLI') || 
                              jab.includes('TERAMPIL') || 
                              jab.includes('MAHIR') || 
                              jab.includes('PENYELIA') || 
-                             jab.includes('PEMULA');
-        return isPns && isFungsional;
+                             jab.includes('PEMULA') ||
+                             klas.includes('FUNGSIONAL');
+                             
+        return isEligibleJenis && isFungsional;
       })
       .map(p => ({
         value: p.nip,
@@ -89,12 +95,21 @@ const PAKPage = () => {
   const handlePegawaiSelect = (nip: string) => {
     const p = pegawaiList.find(peg => peg.nip === nip);
     if (p) {
-      const isPns = (p.jenisPegawai || '').toUpperCase() === 'PNS';
+      const jenis = (p.jenisPegawai || '').toUpperCase();
+      const isEligibleJenis = jenis === 'PNS' || jenis === 'CPNS';
+      
       const jab = (p.jabatan || '').toUpperCase();
-      const isFungsional = jab.includes('AHLI') || jab.includes('TERAMPIL') || jab.includes('MAHIR') || jab.includes('PENYELIA') || jab.includes('PEMULA');
+      const klas = (p.klasifikasiJabatan || '').toUpperCase();
+      
+      const isFungsional = jab.includes('AHLI') || 
+                           jab.includes('TERAMPIL') || 
+                           jab.includes('MAHIR') || 
+                           jab.includes('PENYELIA') || 
+                           jab.includes('PEMULA') ||
+                           klas.includes('FUNGSIONAL');
 
-      if (!isPns || !isFungsional) {
-        alert("PERHATIAN: Angka Kredit (PAK) hanya dapat dibuat untuk Pegawai Negeri Sipil (PNS) dengan Jabatan Fungsional.");
+      if (!isEligibleJenis || !isFungsional) {
+        alert("PERHATIAN: Angka Kredit (PAK) hanya dapat dibuat untuk PNS/CPNS dengan Jabatan Fungsional atau Pejabat Fungsional.");
         return;
       }
 
@@ -259,9 +274,9 @@ const PAKPage = () => {
                        <div className="space-y-4">
                           <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl mb-4">
                              <p className="text-[9px] font-black text-blue-600 uppercase flex items-center gap-2"><i className="bi bi-info-circle-fill"></i> Aturan Sistem</p>
-                             <p className="text-[10px] font-bold text-blue-900 mt-1 uppercase">Hanya PNS dengan Jabatan Fungsional yang muncul dalam daftar pencarian.</p>
+                             <p className="text-[10px] font-bold text-blue-900 mt-1 uppercase">Hanya PNS dan CPNS dengan Jabatan Fungsional yang muncul dalam daftar pencarian.</p>
                           </div>
-                          <SearchableSelect label="Subjek Angka Kredit" options={eligibleSubjectOptions} value={formData.nip} onChange={handlePegawaiSelect} placeholder="Cari PNS Fungsional..." />
+                          <SearchableSelect label="Subjek Angka Kredit" options={eligibleSubjectOptions} value={formData.nip} onChange={handlePegawaiSelect} placeholder="Cari PNS/CPNS Fungsional..." />
                           <div><label className={labelClass}>Jenjang Jabatan Terdeteksi</label><select className={inputClass} value={formData.jenjang} onChange={e=>setFormData({...formData, jenjang: e.target.value})}><option>AHLI PERTAMA</option><option>AHLI MUDA</option><option>AHLI MADYA</option><option>AHLI UTAMA</option><option>MAHIR</option><option>TERAMPIL</option><option>PENYELIA</option></select></div>
                           <div><label className={labelClass}>Nomor SK PAK</label><input className={inputClass} value={formData.nomor} onChange={e=>setFormData({...formData, nomor: e.target.value})} placeholder="exp: HKI.1-KP.04.05-2024" /></div>
                        </div>

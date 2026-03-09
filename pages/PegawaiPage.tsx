@@ -25,6 +25,8 @@ const PegawaiPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
   const [filterJenis, setFilterJenis] = useState('Semua Jenis');
+  const [minAge, setMinAge] = useState<string>('');
+  const [maxAge, setMaxAge] = useState<string>('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -86,14 +88,40 @@ const PegawaiPage = () => {
 
   const filteredPegawai = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
+    const min = minAge ? parseInt(minAge) : 0;
+    const max = maxAge ? parseInt(maxAge) : 200;
+
     return pegawaiList.filter(p => {
       const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
       const match = searchStr.includes(term);
       const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
       const jenisMatch = filterJenis === 'Semua Jenis' || (p.jenisPegawai || '').toUpperCase() === filterJenis.toUpperCase();
-      return match && unitMatch && jenisMatch;
+      
+      // Age calculation
+      let ageMatch = true;
+      if (minAge || maxAge) {
+        const birthDateStr = formatDateForInput(p.tanggalLahir);
+        if (birthDateStr) {
+          const birthDate = new Date(birthDateStr);
+          if (!isNaN(birthDate.getTime())) {
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+              age--;
+            }
+            ageMatch = age >= min && age <= max;
+          } else {
+            ageMatch = false; // Cannot calculate age
+          }
+        } else {
+          ageMatch = false; // No birth date
+        }
+      }
+
+      return match && unitMatch && jenisMatch && ageMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterJenis]);
+  }, [pegawaiList, searchTerm, filterUnit, filterJenis, minAge, maxAge]);
 
   const filteredDossiers = useMemo(() => {
     if (!selectedPegawai) return [];
@@ -382,6 +410,24 @@ const PegawaiPage = () => {
               <option value="PPPK">PPPK</option>
               <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
           </select>
+          <div className="flex items-center gap-2 px-6 py-2 bg-gray-50 border-2 border-transparent rounded-[1.8rem]">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Usia:</span>
+            <input 
+              type="number" 
+              placeholder="Min" 
+              className="w-12 bg-transparent text-[10px] font-black outline-none border-b border-gray-200 focus:border-blue-600 text-center" 
+              value={minAge} 
+              onChange={e => setMinAge(e.target.value)} 
+            />
+            <span className="text-[9px] font-black text-gray-400">-</span>
+            <input 
+              type="number" 
+              placeholder="Max" 
+              className="w-12 bg-transparent text-[10px] font-black outline-none border-b border-gray-200 focus:border-blue-600 text-center" 
+              value={maxAge} 
+              onChange={e => setMaxAge(e.target.value)} 
+            />
+          </div>
         </div>
       </div>
 

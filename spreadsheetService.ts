@@ -381,6 +381,7 @@ export const fetchBankSoalFromSheets = () => fetchTableData<BankSoal>('BANK_SOAL
   return {
     id: get('IDSOAL'),
     kategori: get('KATEGORI') as any,
+    tipeSoal: (get('TIPESOAL') || 'Umum') as any,
     jabatanFungsional: get('JABATANFUNGSIONAL'),
     jenjang: get('JENJANG'),
     pertanyaan: get('PERTANYAAN'),

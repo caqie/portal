@@ -391,6 +391,7 @@ export interface SystemConfig {
 export interface BankSoal {
   id: string;
   kategori: 'TWK' | 'TIU' | 'TKP';
+  tipeSoal: 'Umum' | 'Khusus';
   jabatanFungsional?: string;
   jenjang: string;
   pertanyaan: string;

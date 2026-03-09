@@ -21,7 +21,8 @@ import {
   Edit2,
   FileSpreadsheet,
   AlertCircle,
-  Printer
+  Printer,
+  HelpCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { PesertaUkom, HasilUkom, BankSoal, Pegawai } from '../types';
@@ -31,7 +32,8 @@ import {
   savePesertaUkom, 
   deletePesertaUkom,
   saveBankSoalBulk,
-  fetchPegawaiFromSheets
+  fetchPegawaiFromSheets,
+  fetchBankSoalFromSheets
 } from '../spreadsheetService';
 
 const PASSING_GRADE = {
@@ -39,6 +41,20 @@ const PASSING_GRADE = {
   TIU: 80,
   TKP: 166
 };
+
+const JABATAN_LIST = [
+  'PEMERIKSA PATEN',
+  'PEMERIKSA MEREK',
+  'PEMERIKSA DESAIN INDUSTRI',
+  'ANALIS KEKAYAAN INTELEKTUAL'
+];
+
+const JENJANG_LIST = [
+  'AHLI PERTAMA',
+  'AHLI MUDA',
+  'AHLI MADYA',
+  'AHLI UTAMA'
+];
 
 const generateDefaultPassword = () => {
   const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -69,9 +85,12 @@ const UkomAdminPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [pegawaiSearch, setPegawaiSearch] = useState('');
   const [jenjangFilter, setJenjangFilter] = useState('Semua');
-  const [activeTab, setActiveTab] = useState<'PESERTA' | 'HASIL'>('HASIL');
+  const [activeTab, setActiveTab] = useState<'PESERTA' | 'HASIL' | 'SOAL'>('HASIL');
   const [showPesertaModal, setShowPesertaModal] = useState(false);
+  const [showSoalModal, setShowSoalModal] = useState(false);
   const [editingPeserta, setEditingPeserta] = useState<PesertaUkom | null>(null);
+  const [editingSoal, setEditingSoal] = useState<BankSoal | null>(null);
+  const [bankSoal, setBankSoal] = useState<BankSoal[]>([]);
   const [pesertaForm, setPesertaForm] = useState<PesertaUkom>({ 
     noPeserta: '', 
     nama: '', 
@@ -83,6 +102,21 @@ const UkomAdminPage: React.FC = () => {
     password: '', 
     statusUjian: 'Belum' 
   });
+  const [soalForm, setSoalForm] = useState<BankSoal>({
+    id: '',
+    kategori: 'TWK',
+    tipeSoal: 'Umum',
+    jabatanFungsional: '',
+    jenjang: 'Umum',
+    pertanyaan: '',
+    pilihanA: '',
+    pilihanB: '',
+    pilihanC: '',
+    pilihanD: '',
+    pilihanE: '',
+    jawabanBenar: 'A',
+    bobotNilai: '5'
+  });
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
 
@@ -93,14 +127,16 @@ const UkomAdminPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [p, h, peg] = await Promise.all([
+      const [p, h, peg, s] = await Promise.all([
         fetchPesertaUkomFromSheets(),
         fetchHasilUkomFromSheets(),
-        fetchPegawaiFromSheets()
+        fetchPegawaiFromSheets(),
+        fetchBankSoalFromSheets()
       ]);
       setPeserta(p);
       setHasil(h.sort((a: HasilUkom, b: HasilUkom) => b.totalNilai - a.totalNilai));
       setAllPegawai(peg);
+      setBankSoal(s);
     } catch (err) {
       console.error(err);
     } finally {
@@ -159,6 +195,17 @@ const UkomAdminPage: React.FC = () => {
     }
   };
 
+  const handleSaveSoal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = await saveBankSoalBulk([soalForm]);
+    if (success) {
+      alert('Data soal berhasil disimpan.');
+      setShowSoalModal(false);
+      setEditingSoal(null);
+      loadData();
+    }
+  };
+
   const handleUploadBankSoal = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -176,6 +223,7 @@ const UkomAdminPage: React.FC = () => {
           const formattedSoal: BankSoal[] = data.map(row => ({
             id: row.IDSOAL || row.id || Math.random().toString(36).substr(2, 9),
             kategori: row.KATEGORI || row.kategori,
+            tipeSoal: row.TIPESOAL || row.tipeSoal || 'Umum',
             jabatanFungsional: row.JABATANFUNGSIONAL || row.jabatanFungsional || '',
             jenjang: row.JENJANG || row.jenjang || 'Umum',
             pertanyaan: row.PERTANYAAN || row.pertanyaan,
@@ -211,31 +259,50 @@ const UkomAdminPage: React.FC = () => {
       {
         IDSOAL: 'S001',
         KATEGORI: 'TWK',
-        JABATANFUNGSIONAL: 'Pemeriksa Paten',
-        JENJANG: 'Ahli Pertama',
-        PERTANYAAN: 'Apa ibukota Indonesia?',
+        TIPESOAL: 'Umum',
+        JABATANFUNGSIONAL: '',
+        JENJANG: 'Umum',
+        PERTANYAAN: 'Pancasila sebagai dasar negara Indonesia disahkan pada tanggal...',
         IMAGEURL: '',
-        PILIHANA: 'Jakarta',
-        PILIHANB: 'Bandung',
-        PILIHANC: 'Surabaya',
-        PILIHAND: 'Medan',
-        PILIHANE: 'Makassar',
-        JAWABANBENAR: 'A',
+        PILIHANA: '1 Juni 1945',
+        PILIHANB: '17 Agustus 1945',
+        PILIHANC: '18 Agustus 1945',
+        PILIHAND: '22 Juni 1945',
+        PILIHANE: '27 Desember 1949',
+        JAWABANBENAR: 'C',
         BOBOTNILAI: '5'
       },
       {
         IDSOAL: 'S002',
-        KATEGORI: 'TKP',
-        JENJANG: 'Ahli Muda',
-        PERTANYAAN: 'Anda melihat rekan kerja kesulitan...',
-        IMAGEURL: 'https://link-gambar.com/soal2.jpg',
-        PILIHANA: 'Membantu segera',
-        PILIHANB: 'Menunggu diminta',
-        PILIHANC: 'Pura-pura tidak tahu',
-        PILIHAND: 'Melapor atasan',
-        PILIHANE: 'Menertawakan',
-        JAWABANBENAR: 'A',
-        BOBOTNILAI: '{"A":5,"B":4,"C":3,"D":2,"E":1}'
+        KATEGORI: 'KI',
+        TIPESOAL: 'Khusus',
+        JABATANFUNGSIONAL: 'PEMERIKSA PATEN',
+        JENJANG: 'AHLI MUDA',
+        PERTANYAAN: 'Berapa lama masa perlindungan paten biasa di Indonesia menurut UU No. 13 Tahun 2016?',
+        IMAGEURL: '',
+        PILIHANA: '10 Tahun',
+        PILIHANB: '20 Tahun',
+        PILIHANC: '25 Tahun',
+        PILIHAND: '50 Tahun',
+        PILIHANE: 'Seumur Hidup',
+        JAWABANBENAR: 'B',
+        BOBOTNILAI: '5'
+      },
+      {
+        IDSOAL: 'S003',
+        KATEGORI: 'KI',
+        TIPESOAL: 'Khusus',
+        JABATANFUNGSIONAL: 'PEMERIKSA MEREK',
+        JENJANG: 'AHLI PERTAMA',
+        PERTANYAAN: 'Merek yang tidak dapat didaftarkan adalah merek yang...',
+        IMAGEURL: '',
+        PILIHANA: 'Memiliki daya pembeda',
+        PILIHANB: 'Bertentangan dengan ideologi negara',
+        PILIHANC: 'Menggunakan nama orang terkenal dengan izin',
+        PILIHAND: 'Merupakan kata umum dalam bahasa asing',
+        PILIHANE: 'Memiliki kombinasi warna yang unik',
+        JAWABANBENAR: 'B',
+        BOBOTNILAI: '5'
       }
     ];
     const ws = XLSX.utils.json_to_sheet(template);
@@ -452,6 +519,12 @@ const UkomAdminPage: React.FC = () => {
                 >
                   Daftar Peserta
                 </button>
+                <button 
+                  onClick={() => setActiveTab('SOAL')}
+                  className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'SOAL' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  Bank Soal
+                </button>
               </div>
               
               {activeTab === 'PESERTA' && (
@@ -477,6 +550,66 @@ const UkomAdminPage: React.FC = () => {
                   <Plus className="w-4 h-4" />
                   <span>Tambah Peserta</span>
                 </button>
+              )}
+
+              {activeTab === 'SOAL' && (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      const template = [
+                        {
+                          IDSOAL: 'S001',
+                          KATEGORI: 'TWK',
+                          TIPESOAL: 'Umum',
+                          JABATANFUNGSIONAL: '',
+                          JENJANG: 'Umum',
+                          PERTANYAAN: 'Pancasila sebagai dasar negara Indonesia disahkan pada tanggal...',
+                          IMAGEURL: '',
+                          PILIHANA: '1 Juni 1945',
+                          PILIHANB: '17 Agustus 1945',
+                          PILIHANC: '18 Agustus 1945',
+                          PILIHAND: '22 Juni 1945',
+                          PILIHANE: '27 Desember 1949',
+                          JAWABANBENAR: 'C',
+                          BOBOTNILAI: '5'
+                        }
+                      ];
+                      const ws = XLSX.utils.json_to_sheet(template);
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, "Soal");
+                      XLSX.writeFile(wb, "Template_Soal_UKOM.xlsx");
+                    }}
+                    className="px-6 py-3 bg-white border border-gray-200 text-gray-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Template Excel</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setEditingSoal(null);
+                      setSoalForm({
+                        id: 'S' + Math.floor(Math.random() * 10000),
+                        kategori: 'TWK',
+                        tipeSoal: 'Umum',
+                        jabatanFungsional: '',
+                        jenjang: 'Umum',
+                        pertanyaan: '',
+                        pilihanA: '',
+                        pilihanB: '',
+                        pilihanC: '',
+                        pilihanD: '',
+                        pilihanE: '',
+                        jawabanBenar: 'A',
+                        bobotNilai: '5'
+                      });
+                      setShowSoalModal(true);
+                    }}
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Tambah Soal</span>
+                  </button>
+                </div>
               )}
 
               <div className="flex items-center gap-2">
@@ -525,9 +658,15 @@ const UkomAdminPage: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/50">
-                  <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Rank</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Data Peserta</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Jenjang</th>
+                  <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    {activeTab === 'SOAL' ? 'ID' : 'Rank'}
+                  </th>
+                  <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    {activeTab === 'SOAL' ? 'Pertanyaan' : 'Data Peserta'}
+                  </th>
+                  <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    {activeTab === 'SOAL' ? 'Kategori / Tipe' : 'Jenjang'}
+                  </th>
                   {activeTab === 'HASIL' ? (
                     <>
                       <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">TWK</th>
@@ -536,10 +675,15 @@ const UkomAdminPage: React.FC = () => {
                       <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Total</th>
                       <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Waktu</th>
                     </>
-                  ) : (
+                  ) : activeTab === 'PESERTA' ? (
                     <>
                       <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Tgl Lahir</th>
                       <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                      <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Aksi</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Jabatan / Jenjang</th>
                       <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Aksi</th>
                     </>
                   )}
@@ -595,7 +739,7 @@ const UkomAdminPage: React.FC = () => {
                       </td>
                     </tr>
                   ))
-                ) : (
+                ) : activeTab === 'PESERTA' ? (
                   filteredPeserta.map((p, i) => (
                     <tr key={i} className="hover:bg-blue-50/30 transition-colors group">
                       <td className="px-8 py-6 text-xs font-bold text-gray-400">#{i + 1}</td>
@@ -647,6 +791,61 @@ const UkomAdminPage: React.FC = () => {
                           </button>
                           <button 
                             onClick={() => handleDeletePeserta(p.noPeserta)}
+                            className="p-3 bg-white border border-gray-200 text-gray-400 rounded-xl hover:text-rose-600 hover:border-rose-100 transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  bankSoal.filter(s => 
+                    s.pertanyaan.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                    s.id.includes(searchTerm)
+                  ).map((s, i) => (
+                    <tr key={i} className="hover:bg-blue-50/30 transition-colors group">
+                      <td className="px-8 py-6 text-xs font-bold text-gray-400">{s.id}</td>
+                      <td className="px-8 py-6">
+                        <p className="text-sm font-bold text-gray-900 line-clamp-2">{s.pertanyaan}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex flex-col gap-1">
+                          <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit">
+                            {s.kategori}
+                          </span>
+                          <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit ${
+                            s.tipeSoal === 'Umum' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                          }`}>
+                            {s.tipeSoal}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex flex-col gap-1">
+                          <p className="text-[10px] font-black text-gray-900">{s.jabatanFungsional || 'SEMUA JABATAN'}</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase">{s.jenjang || 'SEMUA JENJANG'}</p>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                          <button 
+                            onClick={() => {
+                              setEditingSoal(s);
+                              setSoalForm(s);
+                              setShowSoalModal(true);
+                            }}
+                            className="p-3 bg-white border border-gray-200 text-gray-400 rounded-xl hover:text-blue-600 hover:border-blue-100 transition-all"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (window.confirm('Hapus soal ini?')) {
+                                // Logic for delete soal could be added to spreadsheetService
+                                alert('Fitur hapus soal akan segera hadir.');
+                              }
+                            }}
                             className="p-3 bg-white border border-gray-200 text-gray-400 rounded-xl hover:text-rose-600 hover:border-rose-100 transition-all"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -760,25 +959,31 @@ const UkomAdminPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Jabatan Fungsional</label>
-                    <input 
-                      type="text" 
+                    <select 
                       value={pesertaForm.jabatanFungsional}
                       onChange={e => setPesertaForm({ ...pesertaForm, jabatanFungsional: e.target.value })}
-                      placeholder="Contoh: Pemeriksa Paten"
                       className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
                       required
-                    />
+                    >
+                      <option value="">Pilih Jabatan</option>
+                      {JABATAN_LIST.map(j => (
+                        <option key={j} value={j}>{j}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Jenjang Jabatan</label>
-                    <input 
-                      type="text" 
+                    <select 
                       value={pesertaForm.jenjang}
                       onChange={e => setPesertaForm({ ...pesertaForm, jenjang: e.target.value })}
-                      placeholder="Contoh: Ahli Pertama"
                       className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
                       required
-                    />
+                    >
+                      <option value="">Pilih Jenjang</option>
+                      {JENJANG_LIST.map(j => (
+                        <option key={j} value={j}>{j}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -841,6 +1046,153 @@ const UkomAdminPage: React.FC = () => {
                   className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all"
                 >
                   Simpan Data
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Soal Modal */}
+      {showSoalModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[200] flex items-center justify-center p-6">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl"
+          >
+            <div className="bg-indigo-600 p-8 text-white">
+              <h2 className="text-xl font-black uppercase tracking-tighter">{editingSoal ? 'Edit Soal' : 'Tambah Soal Baru'}</h2>
+              <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-widest opacity-80">Kelola bank soal ujian CAT</p>
+            </div>
+            <form onSubmit={handleSaveSoal} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Kategori</label>
+                  <select 
+                    value={soalForm.kategori}
+                    onChange={e => setSoalForm({ ...soalForm, kategori: e.target.value as any })}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
+                    required
+                  >
+                    <option value="TWK">TWK</option>
+                    <option value="TIU">TIU</option>
+                    <option value="TKP">TKP</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Tipe Soal</label>
+                  <select 
+                    value={soalForm.tipeSoal}
+                    onChange={e => setSoalForm({ ...soalForm, tipeSoal: e.target.value as any })}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
+                    required
+                  >
+                    <option value="Umum">Umum (Semua)</option>
+                    <option value="Khusus">Khusus (Jabatan/Jenjang)</option>
+                  </select>
+                </div>
+              </div>
+
+              {soalForm.tipeSoal === 'Khusus' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Jabatan Fungsional</label>
+                    <select 
+                      value={soalForm.jabatanFungsional}
+                      onChange={e => setSoalForm({ ...soalForm, jabatanFungsional: e.target.value })}
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
+                      required
+                    >
+                      <option value="">Pilih Jabatan</option>
+                      {JABATAN_LIST.map(j => (
+                        <option key={j} value={j}>{j}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Jenjang Jabatan</label>
+                    <select 
+                      value={soalForm.jenjang}
+                      onChange={e => setSoalForm({ ...soalForm, jenjang: e.target.value })}
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
+                      required
+                    >
+                      <option value="">Pilih Jenjang</option>
+                      <option value="Umum">Umum</option>
+                      {JENJANG_LIST.map(j => (
+                        <option key={j} value={j}>{j}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Pertanyaan</label>
+                <textarea 
+                  value={soalForm.pertanyaan}
+                  onChange={e => setSoalForm({ ...soalForm, pertanyaan: e.target.value })}
+                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all min-h-[100px]"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {['A', 'B', 'C', 'D', 'E'].map(opt => (
+                  <div key={opt} className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Pilihan {opt}</label>
+                    <input 
+                      type="text" 
+                      value={(soalForm as any)[`pilihan${opt}`]}
+                      onChange={e => setSoalForm({ ...soalForm, [`pilihan${opt}`]: e.target.value })}
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
+                      required
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Jawaban Benar</label>
+                  <select 
+                    value={soalForm.jawabanBenar}
+                    onChange={e => setSoalForm({ ...soalForm, jawabanBenar: e.target.value })}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
+                    required
+                  >
+                    {['A', 'B', 'C', 'D', 'E'].map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Bobot Nilai</label>
+                  <input 
+                    type="text" 
+                    value={soalForm.bobotNilai}
+                    onChange={e => setSoalForm({ ...soalForm, bobotNilai: e.target.value })}
+                    placeholder='Contoh: 5 atau {"A":5,"B":4...}'
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button 
+                  type="button"
+                  onClick={() => setShowSoalModal(false)}
+                  className="flex-1 py-4 bg-gray-100 text-gray-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all"
+                >
+                  Simpan Soal
                 </button>
               </div>
             </form>
