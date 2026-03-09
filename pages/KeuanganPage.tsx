@@ -745,7 +745,7 @@ const KeuanganPage = () => {
                 <div className="space-y-3 text-[10pt]">
                   {/* HEADER KUITANSI */}
                   
-                    <div className="text-right text-[7pt] italic">
+                    <div className="text-right text-[6pt] italic">
                       <p>LAMPIRAN</p>
                       <p>PMK NO. 190/PMK.05/2012</p>
                       <p>TENTANG TATA CARA PEMBAYARAN DALAM RANGKA </p>
@@ -758,7 +758,7 @@ const KeuanganPage = () => {
                     <div className="grid grid-cols-[100px_5px_1fr] items-center">
                        <span>Transaction ID</span><span>:</span><span>{formData.id}</span>
                     </div>
-                    <div className="text-left text-[9pt] ">
+                    <div className="text-left text-[8pt] ">
                     <div className="grid grid-cols-[100px_5px_1fr] items-center">
                        <span>Tahun Anggaran</span><span>:</span><span>{formData.tahunAnggaran}</span>
                     </div>
@@ -774,11 +774,11 @@ const KeuanganPage = () => {
 
                    {/* TITLE */}
                   <div className="text-center pt-1">
-                    <h2 className="text-[11pt] font-bold underline uppercase">KUITANSI / BUKTI PEMBAYARAN</h2>
+                    <h2 className="text-[9pt] font-bold underline uppercase">KUITANSI / BUKTI PEMBAYARAN</h2>
                   </div>
 
                   {/* BODY */}
-                  <div className="space-y-1.5 text-[9pt]">
+                  <div className="space-y-1.0 text-[8pt]">
                     <div className="grid grid-cols-[140px_10px_1fr]">
                       <span className="font-bold">Sudah terima dari</span>
                       <span>:</span>
@@ -792,7 +792,7 @@ const KeuanganPage = () => {
                     <div className="grid grid-cols-[140px_10px_1fr] items-center">
                       <span>Terbilang</span>
                       <span>:</span>
-                      <span className="italic font-bold propercase text-[9pt]"> {terbilang(currentPeserta?.totalJumlah || 0)} RUPIAH </span>
+                      <span className="italic font-bold propercase text-[8pt]"> {terbilang(currentPeserta?.totalJumlah || 0)} RUPIAH </span>
                     </div>
                     <div className="grid grid-cols-[140px_10px_1fr]">
                       <span>Untuk pembayaran</span>
@@ -817,7 +817,7 @@ const KeuanganPage = () => {
                   </div>
 
                   {/* SIGNATURES */}
-                  <div className="grid grid-cols-2 gap-8 pt-4 text-[9pt]">
+                  <div className="grid grid-cols-2 gap-8 pt-4 text-[8pt]">
                     <div className="text-center space-y-12">
                       <p>a.n Kuasa Pengguna Anggaran<br/>Pejabat Pembuat Komitmen</p>
                       <div className="space-y-0.5">
@@ -835,7 +835,7 @@ const KeuanganPage = () => {
                   </div>
 
                   {/* BOTTOM SECTION */}
-                  <div className="mt-4 pt-2 border-t border-black grid grid-cols-2 gap-4 text-[9pt]">
+                  <div className="mt-4 pt-4 border-t border-black grid grid-cols-2 gap-8 text-[8pt]">
                      <div className="text-center italic">
                         <p>Lunas dibayar tanggal, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                      </div>
