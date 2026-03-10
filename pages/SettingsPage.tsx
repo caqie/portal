@@ -28,6 +28,7 @@ const SettingsPage = () => {
   const [absensiConfig, setAbsensiConfig] = useState<AbsensiConfig>({ id: 'ABSENSI_GLOBAL', officeWifiSsid: '', officeIpAddresses: '', wfaNips: [] });
   const [systemConfig, setSystemConfig] = useState<SystemConfig>({ maintenance: { all: false, pages: [] }, pageAccess: [] });
   const [wfaSearch, setWfaSearch] = useState('');
+  const [accessSearch, setAccessSearch] = useState('');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userFormData, setUserFormData] = useState<Partial<AdminUser>>({ role: 'Viewer' });
 
@@ -106,6 +107,21 @@ const SettingsPage = () => {
         newAccess = prev.pageAccess.map(a => a.route === path ? { ...a, roles } : a);
       } else {
         newAccess = [...prev.pageAccess, { route: path, roles: [role], nips: [] }];
+      }
+      return { ...prev, pageAccess: newAccess };
+    });
+  };
+
+  const bulkRoleAccess = (path: string, action: 'all' | 'none') => {
+    setSystemConfig(prev => {
+      const existing = prev.pageAccess.find(a => a.route === path);
+      const allRoles = ['Superadmin', 'Editor', 'Viewer'];
+      let newAccess: PageAccess[];
+      
+      if (existing) {
+        newAccess = prev.pageAccess.map(a => a.route === path ? { ...a, roles: action === 'all' ? allRoles : [] } : a);
+      } else {
+        newAccess = [...prev.pageAccess, { route: path, roles: action === 'all' ? allRoles : [], nips: [] }];
       }
       return { ...prev, pageAccess: newAccess };
     });
@@ -474,20 +490,38 @@ const SettingsPage = () => {
                 {/* PAGE ACCESS CONTROL */}
                 <div className="lg:col-span-2 space-y-6">
                   <div className="bg-white border border-gray-100 rounded-[3rem] overflow-hidden shadow-sm flex flex-col h-[700px]">
-                    <div className="p-8 bg-gray-50 border-b flex items-center justify-between">
-                      <h5 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Kontrol Akses Halaman</h5>
-                      <span className="text-[9px] font-bold text-gray-400 uppercase">Superadmin memiliki akses penuh ke semua halaman</span>
+                    <div className="p-8 bg-gray-50 border-b flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h5 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Kontrol Akses Halaman</h5>
+                        <span className="text-[9px] font-bold text-gray-400 uppercase">Superadmin memiliki akses penuh ke semua halaman</span>
+                      </div>
+                      <div className="relative w-full md:w-64">
+                        <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        <input 
+                          type="text" 
+                          className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase outline-none focus:border-blue-600 transition-all"
+                          placeholder="Cari Halaman..."
+                          value={accessSearch}
+                          onChange={e => setAccessSearch(e.target.value)}
+                        />
+                      </div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
-                      {APP_ROUTES.map(route => {
+                      {APP_ROUTES.filter(r => r.label.toLowerCase().includes(accessSearch.toLowerCase()) || r.path.toLowerCase().includes(accessSearch.toLowerCase())).map(route => {
                         const access = systemConfig.pageAccess.find(a => a.route === route.path);
                         return (
                           <div key={route.path} className="p-6 bg-gray-50/50 rounded-[2rem] border border-gray-100 space-y-6">
-                            <div className="flex items-center gap-4">
-                              <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-xl shadow-sm text-blue-600"><i className={`bi ${route.icon}`}></i></div>
-                              <div>
-                                <h6 className="text-[11px] font-black text-gray-900 uppercase">{route.label}</h6>
-                                <p className="text-[9px] font-mono text-gray-400">{route.path}</p>
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-4">
+                                <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-xl shadow-sm text-blue-600"><i className={`bi ${route.icon}`}></i></div>
+                                <div>
+                                  <h6 className="text-[11px] font-black text-gray-900 uppercase">{route.label}</h6>
+                                  <p className="text-[9px] font-mono text-gray-400">{route.path}</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => bulkRoleAccess(route.path, 'all')} className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[8px] font-black uppercase border border-blue-100 hover:bg-blue-600 hover:text-white transition-all">All</button>
+                                <button onClick={() => bulkRoleAccess(route.path, 'none')} className="px-3 py-1 bg-gray-50 text-gray-400 rounded-lg text-[8px] font-black uppercase border border-gray-200 hover:bg-gray-200 hover:text-gray-600 transition-all">None</button>
                               </div>
                             </div>
                             

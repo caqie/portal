@@ -69,11 +69,14 @@ const PAKPage = () => {
         const klas = (p.klasifikasiJabatan || '').toUpperCase();
         
         // Cek keywords Jabatan Fungsional atau Klasifikasi Jabatan
+        // User request: "klasifikasi jabatannya pejabat fungsional atau jabatan fungsional"
+        // Also check common functional level keywords
         const isFungsional = jab.includes('AHLI') || 
                              jab.includes('TERAMPIL') || 
                              jab.includes('MAHIR') || 
                              jab.includes('PENYELIA') || 
                              jab.includes('PEMULA') ||
+                             jab.includes('FUNGSIONAL') ||
                              klas.includes('FUNGSIONAL');
                              
         return isEligibleJenis && isFungsional;
