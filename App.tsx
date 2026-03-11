@@ -32,6 +32,7 @@ import UkomLoginPage from './pages/UkomLoginPage';
 import UkomDashboardPage from './pages/UkomDashboardPage';
 import UkomExamPage from './pages/UkomExamPage';
 import UkomAdminPage from './pages/UkomAdminPage';
+import UkomSupervisorPage from './pages/UkomSupervisorPage';
 import { DEFAULT_LOGO, APP_ROUTES } from './constants';
 import { syncGidMap, fetchSystemConfig } from './spreadsheetService';
 import { SystemConfig } from './types';
@@ -110,17 +111,6 @@ const AppContent = () => {
   if (location.pathname === '/login' && isAuthenticated) return <Navigate to="/" replace />;
   if (location.pathname === '/login') return <LoginPage />;
   
-  // UKOM Routes (Separate Layout)
-  if (location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin') {
-    return (
-      <Routes>
-        <Route path="/ukom/login" element={<UkomLoginPage />} />
-        <Route path="/ukom/dashboard" element={<UkomDashboardPage />} />
-        <Route path="/ukom/exam" element={<UkomExamPage />} />
-      </Routes>
-    );
-  }
-
   const formattedDate = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -170,6 +160,25 @@ const AppContent = () => {
       <Link to="/" className="mt-10 px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold uppercase tracking-widest shadow-xl hover:bg-gray-800 transition-all">Kembali ke Dashboard</Link>
     </div>
   );
+
+  // UKOM Routes (Separate Layout)
+  if (location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin') {
+    if (isPageInMaintenance(location.pathname) && !isSuperadmin) {
+      return (
+        <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+          <MaintenanceView />
+        </div>
+      );
+    }
+    return (
+      <Routes>
+        <Route path="/ukom/login" element={<UkomLoginPage />} />
+        <Route path="/ukom/dashboard" element={<UkomDashboardPage />} />
+        <Route path="/ukom/exam" element={<UkomExamPage />} />
+        <Route path="/ukom/supervisor" element={<UkomSupervisorPage />} />
+      </Routes>
+    );
+  }
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-[#F8F9FC] text-gray-900 font-['Inter']">
@@ -229,7 +238,7 @@ const AppContent = () => {
 
             {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Uji Kompetensi</div>}
             {hasAccess('/ukom/admin') && <SidebarItem to="/ukom/admin" icon="bi-pc-display-horizontal" label="Admin CAT" active={location.pathname === '/ukom/admin'} collapsed={isCollapsed} />}
-            <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian" active={location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin'} collapsed={isCollapsed} />
+            {hasAccess('/ukom/login') && <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian" active={location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin'} collapsed={isCollapsed} />}
 
             {(hasAccess('/settings') || hasAccess('/logs')) && (
               <>

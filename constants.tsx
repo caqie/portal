@@ -201,5 +201,8 @@ export const APP_ROUTES = [
   { path: '/kenaikan-pangkat', label: 'Kenaikan Pangkat', icon: 'bi-graph-up-arrow' },
   { path: '/satya-lencana', label: 'Satya Lencana', icon: 'bi-award' },
   { path: '/magang-pkl', label: 'Magang & PKL', icon: 'bi-mortarboard' },
-  { path: '/pengembangan', label: 'Pengembangan Kompetensi', icon: 'bi-book' }
+  { path: '/pengembangan', label: 'Pengembangan Kompetensi', icon: 'bi-book' },
+  { path: '/ukom/admin', label: 'Admin UKOM (CAT)', icon: 'bi-pc-display-horizontal' },
+  { path: '/ukom/supervisor', label: 'Pengawas UKOM', icon: 'bi-shield-check' },
+  { path: '/ukom/login', label: 'Portal Ujian UKOM', icon: 'bi-pencil-square' }
 ];

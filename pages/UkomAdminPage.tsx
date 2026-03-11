@@ -22,10 +22,15 @@ import {
   FileSpreadsheet,
   AlertCircle,
   Printer,
-  HelpCircle
+  HelpCircle,
+  Calendar,
+  Clock,
+  ShieldCheck,
+  Monitor,
+  ExternalLink
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { PesertaUkom, HasilUkom, BankSoal, Pegawai } from '../types';
+import { PesertaUkom, HasilUkom, BankSoal, Pegawai, UkomSession, UkomSupervisor } from '../types';
 import { 
   fetchPesertaUkomFromSheets, 
   fetchHasilUkomFromSheets, 
@@ -33,7 +38,12 @@ import {
   deletePesertaUkom,
   saveBankSoalBulk,
   fetchPegawaiFromSheets,
-  fetchBankSoalFromSheets
+  fetchBankSoalFromSheets,
+  fetchUkomSessionsFromSheets,
+  saveUkomSession,
+  deleteUkomSession,
+  deleteBankSoal,
+  saveHasilUkom
 } from '../spreadsheetService';
 
 const PASSING_GRADE = {
@@ -85,12 +95,15 @@ const UkomAdminPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [pegawaiSearch, setPegawaiSearch] = useState('');
   const [jenjangFilter, setJenjangFilter] = useState('Semua');
-  const [activeTab, setActiveTab] = useState<'PESERTA' | 'HASIL' | 'SOAL'>('HASIL');
+  const [activeTab, setActiveTab] = useState<'PESERTA' | 'HASIL' | 'SOAL' | 'SESI'>('HASIL');
   const [showPesertaModal, setShowPesertaModal] = useState(false);
   const [showSoalModal, setShowSoalModal] = useState(false);
+  const [showSessionModal, setShowSessionModal] = useState(false);
   const [editingPeserta, setEditingPeserta] = useState<PesertaUkom | null>(null);
   const [editingSoal, setEditingSoal] = useState<BankSoal | null>(null);
+  const [editingSession, setEditingSession] = useState<UkomSession | null>(null);
   const [bankSoal, setBankSoal] = useState<BankSoal[]>([]);
+  const [sessions, setSessions] = useState<UkomSession[]>([]);
   const [pesertaForm, setPesertaForm] = useState<PesertaUkom>({ 
     noPeserta: '', 
     nama: '', 
@@ -117,6 +130,16 @@ const UkomAdminPage: React.FC = () => {
     jawabanBenar: 'A',
     bobotNilai: '5'
   });
+  const [sessionForm, setSessionForm] = useState<UkomSession>({
+    id: '',
+    namaSesi: '',
+    tanggal: '',
+    waktuMulai: '',
+    waktuSelesai: '',
+    supervisorNips: [],
+    pesertaIds: [],
+    status: 'Draft'
+  });
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
 
@@ -127,16 +150,18 @@ const UkomAdminPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [p, h, peg, s] = await Promise.all([
+      const [p, h, peg, s, sess] = await Promise.all([
         fetchPesertaUkomFromSheets(),
         fetchHasilUkomFromSheets(),
         fetchPegawaiFromSheets(),
-        fetchBankSoalFromSheets()
+        fetchBankSoalFromSheets(),
+        fetchUkomSessionsFromSheets()
       ]);
       setPeserta(p);
       setHasil(h.sort((a: HasilUkom, b: HasilUkom) => b.totalNilai - a.totalNilai));
       setAllPegawai(peg);
       setBankSoal(s);
+      setSessions(sess);
     } catch (err) {
       console.error(err);
     } finally {
@@ -202,6 +227,26 @@ const UkomAdminPage: React.FC = () => {
       alert('Data soal berhasil disimpan.');
       setShowSoalModal(false);
       setEditingSoal(null);
+      loadData();
+    }
+  };
+
+  const handleSaveSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = await saveUkomSession(sessionForm);
+    if (success) {
+      alert('Data sesi berhasil disimpan.');
+      setShowSessionModal(false);
+      setEditingSession(null);
+      loadData();
+    }
+  };
+
+  const handleDeleteSession = async (id: string) => {
+    if (!window.confirm('Hapus sesi ini?')) return;
+    const success = await deleteUkomSession(id);
+    if (success) {
+      alert('Sesi berhasil dihapus.');
       loadData();
     }
   };
@@ -525,6 +570,12 @@ const UkomAdminPage: React.FC = () => {
                 >
                   Bank Soal
                 </button>
+                <button 
+                  onClick={() => setActiveTab('SESI')}
+                  className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'SESI' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  Sesi & Pengawas
+                </button>
               </div>
               
               {activeTab === 'PESERTA' && (
@@ -612,6 +663,29 @@ const UkomAdminPage: React.FC = () => {
                 </div>
               )}
 
+              {activeTab === 'SESI' && (
+                <button 
+                  onClick={() => {
+                    setEditingSession(null);
+                    setSessionForm({
+                      id: 'SESS-' + Math.floor(Math.random() * 10000),
+                      namaSesi: '',
+                      tanggal: new Date().toISOString().split('T')[0],
+                      waktuMulai: '08:00',
+                      waktuSelesai: '10:00',
+                      supervisorNips: [],
+                      pesertaIds: [],
+                      status: 'Draft'
+                    });
+                    setShowSessionModal(true);
+                  }}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100 flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Buat Sesi Baru</span>
+                </button>
+              )}
+
               <div className="flex items-center gap-2">
                 <button 
                   onClick={downloadTemplate}
@@ -681,9 +755,16 @@ const UkomAdminPage: React.FC = () => {
                       <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
                       <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Aksi</th>
                     </>
-                  ) : (
+                  ) : activeTab === 'SOAL' ? (
                     <>
                       <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Jabatan / Jenjang</th>
+                      <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Aksi</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Jadwal</th>
+                      <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Pengawas & Peserta</th>
+                      <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
                       <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Aksi</th>
                     </>
                   )}
@@ -726,8 +807,8 @@ const UkomAdminPage: React.FC = () => {
                               : 'text-rose-500'
                           }`}>
                             {h.nilaiTwk >= PASSING_GRADE.TWK && 
-                             h.nilaiTiu >= PASSING_GRADE.TIU && 
-                             h.nilaiTkp >= PASSING_GRADE.TKP 
+                            h.nilaiTiu >= PASSING_GRADE.TIU && 
+                            h.nilaiTkp >= PASSING_GRADE.TKP 
                                ? 'Lulus PG' 
                                : 'Tidak Lulus PG'}
                           </span>
@@ -799,7 +880,7 @@ const UkomAdminPage: React.FC = () => {
                       </td>
                     </tr>
                   ))
-                ) : (
+                ) : activeTab === 'SOAL' ? (
                   bankSoal.filter(s => 
                     s.pertanyaan.toLowerCase().includes(searchTerm.toLowerCase()) || 
                     s.id.includes(searchTerm)
@@ -840,12 +921,85 @@ const UkomAdminPage: React.FC = () => {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => {
+                            onClick={async () => {
                               if (window.confirm('Hapus soal ini?')) {
-                                // Logic for delete soal could be added to spreadsheetService
-                                alert('Fitur hapus soal akan segera hadir.');
+                                const success = await deleteBankSoal(s.id);
+                                if (success) {
+                                  alert('Soal berhasil dihapus.');
+                                  loadData();
+                                }
                               }
                             }}
+                            className="p-3 bg-white border border-gray-200 text-gray-400 rounded-xl hover:text-rose-600 hover:border-rose-100 transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  sessions.map((sess, i) => (
+                    <tr key={i} className="hover:bg-blue-50/30 transition-colors group">
+                      <td className="px-8 py-6">
+                        <div className="flex flex-col gap-1">
+                          <p className="text-sm font-black text-gray-900">{sess.namaSesi}</p>
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400">
+                            <Calendar className="w-3 h-3" />
+                            <span>{sess.tanggal}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400">
+                            <Clock className="w-3 h-3" />
+                            <span>{sess.waktuMulai} - {sess.waktuSelesai}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                            <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">
+                              {sess.supervisorNips?.length || 0} Pengawas
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Users className="w-4 h-4 text-blue-500" />
+                            <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">
+                              {sess.pesertaIds?.length || 0} Peserta
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                          sess.status === 'Aktif' ? 'bg-emerald-50 text-emerald-600' : 
+                          sess.status === 'Selesai' ? 'bg-gray-100 text-gray-400' : 
+                          'bg-amber-50 text-amber-600'
+                        }`}>
+                          {sess.status}
+                        </span>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                          <button 
+                            onClick={() => navigate(`/ukom/supervisor?sessionId=${sess.id}`)}
+                            className="p-3 bg-white border border-gray-200 text-gray-400 rounded-xl hover:text-emerald-600 hover:border-emerald-100 transition-all"
+                            title="Dashboard Pengawas"
+                          >
+                            <Monitor className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setEditingSession(sess);
+                              setSessionForm(sess);
+                              setShowSessionModal(true);
+                            }}
+                            className="p-3 bg-white border border-gray-200 text-gray-400 rounded-xl hover:text-blue-600 hover:border-blue-100 transition-all"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteSession(sess.id)}
                             className="p-3 bg-white border border-gray-200 text-gray-400 rounded-xl hover:text-rose-600 hover:border-rose-100 transition-all"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -859,6 +1013,162 @@ const UkomAdminPage: React.FC = () => {
             </table>
           </div>
         </div>
+
+      {/* Session Modal */}
+      {showSessionModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-gray-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl overflow-hidden"
+          >
+            <div className="p-10 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">
+                  {editingSession ? 'Edit Sesi UKOM' : 'Buat Sesi UKOM Baru'}
+                </h2>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Atur jadwal, pengawas, dan peserta ujian</p>
+              </div>
+              <button onClick={() => setShowSessionModal(false)} className="p-4 hover:bg-gray-50 rounded-2xl transition-all">
+                <XCircle className="w-6 h-6 text-gray-400" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveSession} className="p-10 space-y-8 overflow-y-auto max-h-[70vh]">
+              <div className="grid grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nama Sesi</label>
+                  <input 
+                    type="text"
+                    required
+                    placeholder="Contoh: UKOM Gelombang I - Pagi"
+                    value={sessionForm.namaSesi}
+                    onChange={e => setSessionForm({ ...sessionForm, namaSesi: e.target.value })}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tanggal Ujian</label>
+                  <input 
+                    type="date"
+                    required
+                    value={sessionForm.tanggal}
+                    onChange={e => setSessionForm({ ...sessionForm, tanggal: e.target.value })}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Waktu Mulai</label>
+                  <input 
+                    type="time"
+                    required
+                    value={sessionForm.waktuMulai}
+                    onChange={e => setSessionForm({ ...sessionForm, waktuMulai: e.target.value })}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Waktu Selesai</label>
+                  <input 
+                    type="time"
+                    required
+                    value={sessionForm.waktuSelesai}
+                    onChange={e => setSessionForm({ ...sessionForm, waktuSelesai: e.target.value })}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Status Sesi</label>
+                  <select 
+                    required
+                    value={sessionForm.status}
+                    onChange={e => setSessionForm({ ...sessionForm, status: e.target.value as any })}
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:bg-white transition-all"
+                  >
+                    <option value="Draft">Draft</option>
+                    <option value="Aktif">Aktif</option>
+                    <option value="Selesai">Selesai</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-8">
+                {/* Supervisor Selection */}
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Pilih Pengawas</label>
+                  <div className="bg-gray-50 rounded-[2rem] p-6 border border-gray-100 max-h-64 overflow-y-auto space-y-2">
+                    {allPegawai.map(peg => (
+                      <label key={peg.nip} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-50 hover:border-blue-100 transition-all cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={sessionForm.supervisorNips.includes(peg.nip)}
+                          onChange={e => {
+                            const nips = e.target.checked 
+                              ? [...sessionForm.supervisorNips, peg.nip]
+                              : sessionForm.supervisorNips.filter(n => n !== peg.nip);
+                            setSessionForm({ ...sessionForm, supervisorNips: nips });
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <div className="flex-grow">
+                          <p className="text-[11px] font-black text-gray-900">{peg.nama}</p>
+                          <p className="text-[9px] font-bold text-gray-400">{peg.nip}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Participant Selection */}
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Pilih Peserta</label>
+                  <div className="bg-gray-50 rounded-[2rem] p-6 border border-gray-100 max-h-64 overflow-y-auto space-y-2">
+                    {peserta.map(p => (
+                      <label key={p.noPeserta} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-50 hover:border-blue-100 transition-all cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={sessionForm.pesertaIds.includes(p.noPeserta)}
+                          onChange={e => {
+                            const ids = e.target.checked 
+                              ? [...sessionForm.pesertaIds, p.noPeserta]
+                              : sessionForm.pesertaIds.filter(id => id !== p.noPeserta);
+                            setSessionForm({ ...sessionForm, pesertaIds: ids });
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <div className="flex-grow">
+                          <p className="text-[11px] font-black text-gray-900">{p.nama}</p>
+                          <p className="text-[9px] font-bold text-gray-400">{p.noPeserta}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-4 pt-6">
+                <button 
+                  type="button"
+                  onClick={() => setShowSessionModal(false)}
+                  className="px-8 py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 transition-all"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit"
+                  className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-100 hover:scale-105 transition-all"
+                >
+                  Simpan Sesi
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
 
         {/* Peserta Modal */}
       {showPesertaModal && (
@@ -1138,47 +1448,78 @@ const UkomAdminPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                {['A', 'B', 'C', 'D', 'E'].map(opt => (
-                  <div key={opt} className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Pilihan {opt}</label>
-                    <input 
-                      type="text" 
-                      value={(soalForm as any)[`pilihan${opt}`]}
-                      onChange={e => setSoalForm({ ...soalForm, [`pilihan${opt}`]: e.target.value })}
-                      className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
-                      required
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Jawaban Benar</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Tipe Jawaban</label>
                   <select 
-                    value={soalForm.jawabanBenar}
-                    onChange={e => setSoalForm({ ...soalForm, jawabanBenar: e.target.value })}
+                    value={soalForm.tipeJawaban || 'PILIHAN_GANDA'}
+                    onChange={e => setSoalForm({ ...soalForm, tipeJawaban: e.target.value as any })}
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
                     required
                   >
-                    {['A', 'B', 'C', 'D', 'E'].map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
+                    <option value="PILIHAN_GANDA">Pilihan Ganda</option>
+                    <option value="ESAI">Esai</option>
                   </select>
                 </div>
+
+              {(soalForm.tipeJawaban as string) !== 'ESAI' && (
+                <>
+                  <div className="grid grid-cols-1 gap-4">
+                    {['A', 'B', 'C', 'D', 'E'].map(opt => (
+                      <div key={opt} className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Pilihan {opt}</label>
+                        <input 
+                          type="text" 
+                          value={(soalForm as any)[`pilihan${opt}`]}
+                          onChange={e => setSoalForm({ ...soalForm, [`pilihan${opt}`]: e.target.value })}
+                          className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
+                          required={soalForm.tipeJawaban !== 'ESAI'}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Jawaban Benar</label>
+                      <select 
+                        value={soalForm.jawabanBenar}
+                        onChange={e => setSoalForm({ ...soalForm, jawabanBenar: e.target.value })}
+                        className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
+                        required={soalForm.tipeJawaban !== 'ESAI'}
+                      >
+                        {['A', 'B', 'C', 'D', 'E'].map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Bobot Nilai</label>
+                      <input 
+                        type="text" 
+                        value={soalForm.bobotNilai}
+                        onChange={e => setSoalForm({ ...soalForm, bobotNilai: e.target.value })}
+                        placeholder='Contoh: 5 atau {"A":5,"B":4...}'
+                        className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
+                        required
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {(soalForm.tipeJawaban as string) === 'ESAI' && (
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Bobot Nilai</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Bobot Nilai Maksimal</label>
                   <input 
-                    type="text" 
+                    type="number" 
                     value={soalForm.bobotNilai}
                     onChange={e => setSoalForm({ ...soalForm, bobotNilai: e.target.value })}
-                    placeholder='Contoh: 5 atau {"A":5,"B":4...}'
+                    placeholder="Contoh: 100"
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all"
                     required
                   />
                 </div>
-              </div>
+              )}
 
               <div className="flex gap-4 pt-4">
                 <button 

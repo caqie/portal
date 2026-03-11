@@ -39,6 +39,16 @@ const UkomExamPage: React.FC = () => {
 
   const navigate = useNavigate();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const [sessionId] = useState(sessionStorage.getItem('ukom_session_id') || 'SESSION-' + Date.now());
+  const [logs, setLogs] = useState<{message: string, time: string}[]>([]);
+
+  const addLog = useCallback((message: string) => {
+    const log = { message, time: new Date().toLocaleTimeString() };
+    setLogs(prev => [...prev.slice(-9), log]);
+  }, []);
 
   // Initialize Exam
   useEffect(() => {
@@ -131,6 +141,90 @@ const UkomExamPage: React.FC = () => {
     initExam();
   }, [navigate]);
 
+  // WebSocket & Camera Integration
+  useEffect(() => {
+    if (loading || !peserta) return;
+
+    // Setup Camera
+    const startCamera = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        console.error("Camera access denied:", err);
+        addLog("Akses Kamera Ditolak");
+      }
+    };
+    startCamera();
+
+    // Setup WebSocket
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${protocol}//${window.location.host}`);
+    socketRef.current = socket;
+
+    socket.onopen = () => {
+      addLog("Terhubung ke Server Pengawas");
+      socket.send(JSON.stringify({
+        type: 'join',
+        sessionId,
+        role: 'participant',
+        nip: peserta.noPeserta,
+        name: peserta.nama
+      }));
+    };
+
+    // Frame Capture Interval
+    const frameInterval = setInterval(() => {
+      if (videoRef.current && canvasRef.current && socket.readyState === WebSocket.OPEN) {
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+        const context = canvas.getContext('2d');
+        if (context) {
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const frame = canvas.toDataURL('image/jpeg', 0.5);
+          socket.send(JSON.stringify({
+            type: 'camera_frame',
+            sessionId,
+            nip: peserta.noPeserta,
+            name: peserta.nama,
+            payload: frame
+          }));
+        }
+      }
+    }, 5000); // Send frame every 5 seconds
+
+    // Status Update Interval
+    const statusInterval = setInterval(() => {
+      if (socket.readyState === WebSocket.OPEN) {
+        const progress = Math.round((Object.values(answers).filter(a => a.jawaban !== '').length / questions.length) * 100) || 0;
+        socket.send(JSON.stringify({
+          type: 'exam_status',
+          sessionId,
+          nip: peserta.noPeserta,
+          name: peserta.nama,
+          payload: {
+            progress,
+            warnings: warningCount,
+            timeLeft: formatTime(timeLeft),
+            logs: logs
+          }
+        }));
+      }
+    }, 10000); // Send status every 10 seconds
+
+    return () => {
+      clearInterval(frameInterval);
+      clearInterval(statusInterval);
+      socket.close();
+      if (videoRef.current?.srcObject) {
+        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+        tracks.forEach(track => track.stop());
+      }
+    };
+  }, [loading, peserta, sessionId, questions.length, answers, warningCount, timeLeft, logs, addLog]);
+
   // Timer Logic
   useEffect(() => {
     if (loading || submitting) return;
@@ -206,9 +300,21 @@ const UkomExamPage: React.FC = () => {
       // Calculate Scores
       let twk = 0, tiu = 0, tkp = 0;
 
+      const essayResults: { soalId: string; pertanyaan: string; jawaban: string; bobotMax: number }[] = [];
+      
       questions.forEach(q => {
         const ans = answers[q.id];
         if (!ans || !ans.jawaban) return;
+
+        if (q.tipeJawaban === 'ESAI') {
+          essayResults.push({
+            soalId: q.id,
+            pertanyaan: q.pertanyaan,
+            jawaban: ans.jawaban,
+            bobotMax: parseFloat(q.bobotNilai) || 0
+          });
+          return;
+        }
 
         if (q.kategori === 'TKP') {
           // TKP: All answers have values
@@ -241,7 +347,8 @@ const UkomExamPage: React.FC = () => {
         nilaiTkp: tkp,
         totalNilai: total,
         tanggalUjian: now.toISOString().split('T')[0],
-        waktuSelesai: now.toLocaleTimeString()
+        waktuSelesai: now.toLocaleTimeString(),
+        essayAnswers: essayResults
       };
 
       await saveHasilUkom(result);
@@ -328,6 +435,10 @@ const UkomExamPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] flex flex-col font-sans select-none">
+      {/* Hidden Camera Capture */}
+      <video ref={videoRef} autoPlay playsInline muted className="hidden" />
+      <canvas ref={canvasRef} width="320" height="240" className="hidden" />
+      
       {/* Header */}
       <header className="h-20 bg-blue-600 text-white flex items-center justify-between px-8 shrink-0 shadow-lg relative z-10">
         <div className="flex items-center gap-4">
@@ -396,30 +507,42 @@ const UkomExamPage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="space-y-4">
-                  {currentAnswer.options.map((opt, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSelectAnswer(currentQuestion.id, opt.key)}
-                      className={`w-full p-6 text-left rounded-2xl border-2 transition-all flex items-start gap-5 group ${
-                        currentAnswer.jawaban === opt.key 
-                          ? 'bg-blue-50 border-blue-600 shadow-lg shadow-blue-100' 
-                          : 'bg-white border-gray-100 hover:border-blue-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 transition-colors ${
-                        currentAnswer.jawaban === opt.key 
-                          ? 'bg-blue-600 text-white' 
-                          : 'bg-gray-100 text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600'
-                      }`}>
-                        {String.fromCharCode(65 + idx)}
-                      </div>
-                      <span className={`text-sm font-bold leading-relaxed ${currentAnswer.jawaban === opt.key ? 'text-blue-900' : 'text-gray-600'}`}>
-                        {opt.text}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                {currentQuestion.tipeJawaban === 'ESAI' ? (
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Ketik Jawaban Anda:</label>
+                    <textarea 
+                      value={currentAnswer.jawaban}
+                      onChange={e => handleSelectAnswer(currentQuestion.id, e.target.value)}
+                      className="w-full p-8 bg-gray-50 border-2 border-gray-100 rounded-[2rem] text-sm font-bold focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:bg-white focus:border-blue-600 transition-all min-h-[200px]"
+                      placeholder="Tuliskan jawaban lengkap Anda di sini..."
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {currentAnswer.options.map((opt, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleSelectAnswer(currentQuestion.id, opt.key)}
+                        className={`w-full p-6 text-left rounded-2xl border-2 transition-all flex items-start gap-5 group ${
+                          currentAnswer.jawaban === opt.key 
+                            ? 'bg-blue-50 border-blue-600 shadow-lg shadow-blue-100' 
+                            : 'bg-white border-gray-100 hover:border-blue-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 transition-colors ${
+                          currentAnswer.jawaban === opt.key 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-gray-100 text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600'
+                        }`}>
+                          {String.fromCharCode(65 + idx)}
+                        </div>
+                        <span className={`text-sm font-bold leading-relaxed ${currentAnswer.jawaban === opt.key ? 'text-blue-900' : 'text-gray-600'}`}>
+                          {opt.text}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Action Bar */}

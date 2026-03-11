@@ -403,6 +403,7 @@ export interface BankSoal {
   pilihanE: string;
   jawabanBenar: string;
   bobotNilai: string;
+  tipeJawaban?: 'PILIHAN_GANDA' | 'ESAI';
 }
 
 export interface PesertaUkom {
@@ -428,6 +429,24 @@ export interface HasilUkom {
   totalNilai: number;
   tanggalUjian: string;
   waktuSelesai: string;
+  essayAnswers?: { soalId: string; pertanyaan: string; jawaban: string; nilai?: number; bobotMax: number }[];
+}
+
+export interface UkomSession {
+  id: string;
+  namaSesi: string;
+  tanggal: string;
+  waktuMulai: string;
+  waktuSelesai: string;
+  supervisorNips: string[]; // List of NIPs allowed to supervise
+  pesertaIds: string[]; // List of participant IDs
+  status: 'Draft' | 'Aktif' | 'Selesai';
+}
+
+export interface UkomSupervisor {
+  nip: string;
+  nama: string;
+  jabatan: string;
 }
 
 export interface UkomActivityLog {

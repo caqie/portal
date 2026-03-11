@@ -28,7 +28,8 @@ export const DEFAULT_GIDS = {
   KEUANGAN: '999888777',
   BANK_SOAL: '111222333',
   PESERTA_UKOM: '444555666',
-  HASIL_UKOM: '777888999'
+  HASIL_UKOM: '777888999',
+  UKOM_SESSIONS: '1122334455'
 };
 
 const getDbConfig = () => {
@@ -48,10 +49,12 @@ const getDbConfig = () => {
 
 export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELETE', data: any): Promise<boolean> => {
   const { appsScriptUrl, spreadsheetId } = getDbConfig();
-  if (!appsScriptUrl) return false;
+  if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
+  const cleanUrl = appsScriptUrl.trim();
   try {
-    const response = await fetch(appsScriptUrl, {
+    const response = await fetch(cleanUrl, {
       method: 'POST',
+      mode: 'cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ 
         module: moduleName.toUpperCase().trim(), 
@@ -293,26 +296,65 @@ export const fetchKenaikanFromSheets = () => fetchTableData<KenaikanKarir>('KENA
     return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), dari: get('DARI'), menjadi: get('MENJADI'), status: get('STATUS') } as KenaikanKarir;
 });
 
-export const uploadFileToDrive = async (fileName: string, mimeType: string, base64: string) => {
+export const uploadFileToDrive = async (fileName: string, mimeType: string, base64: string): Promise<{ success: boolean; fileUrl?: string }> => {
     const { appsScriptUrl, spreadsheetId } = getDbConfig();
+    if (!appsScriptUrl || appsScriptUrl.trim() === '') return { success: false };
+    const cleanUrl = appsScriptUrl.trim();
     try {
-        const res = await fetch(appsScriptUrl, { method: 'POST', body: JSON.stringify({ action: 'UPLOAD', spreadsheetId, payload: { fileName, mimeType, base64 } }) });
+        const res = await fetch(cleanUrl, { 
+            method: 'POST', 
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'UPLOAD', spreadsheetId, payload: { fileName, mimeType, base64 } }) 
+        });
         return await res.json();
     } catch (e) { return { success: false }; }
 };
 
 export const syncGidMap = async (): Promise<boolean> => {
     const { appsScriptUrl, spreadsheetId } = getDbConfig();
+    if (!appsScriptUrl || appsScriptUrl.trim() === '') {
+        console.warn("syncGidMap: Apps Script URL is empty.");
+        return false;
+    }
+
+    const cleanUrl = appsScriptUrl.trim();
+
+    // Try POST first (more reliable in some environments)
     try {
-        const res = await fetch(`${appsScriptUrl}?ssId=${spreadsheetId}`);
-        const data = await res.json();
-        if (data.success) {
-            localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap));
-            return true;
+        const postRes = await fetch(cleanUrl, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'GET_GID_MAP', spreadsheetId })
+        });
+        
+        if (postRes.ok) {
+            const data = await postRes.json();
+            if (data.success) {
+                localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap));
+                return true;
+            }
+        }
+    } catch (postError) {
+        console.warn(`syncGidMap POST failed for ${cleanUrl}:`, postError);
+    }
+    
+    // Fallback to GET if POST failed or action not recognized
+    try {
+        const separator = cleanUrl.includes('?') ? '&' : '?';
+        const getUrl = `${cleanUrl}${separator}ssId=${spreadsheetId}`;
+        const getRes = await fetch(getUrl, { mode: 'cors' });
+        if (getRes.ok) {
+            const data = await getRes.json();
+            if (data.success) {
+                localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap));
+                return true;
+            }
         }
         return false;
     } catch (e) {
-        console.error("syncGidMap Error:", e);
+        console.error(`syncGidMap GET failed for ${cleanUrl}:`, e);
         return false;
     }
 };
@@ -392,7 +434,8 @@ export const fetchBankSoalFromSheets = () => fetchTableData<BankSoal>('BANK_SOAL
     pilihanD: get('PILIHAND'),
     pilihanE: get('PILIHANE'),
     jawabanBenar: get('JAWABANBENAR'),
-    bobotNilai: get('BOBOTNILAI')
+    bobotNilai: get('BOBOTNILAI'),
+    tipeJawaban: get('TIPEJAWABAN') as any
   } as BankSoal;
 });
 
@@ -413,6 +456,7 @@ export const fetchPesertaUkomFromSheets = () => fetchTableData<PesertaUkom>('PES
 
 export const fetchHasilUkomFromSheets = () => fetchTableData<HasilUkom>('HASIL_UKOM', 'ukom_hasil', (cols, headers) => {
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+  const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } };
   return {
     noPeserta: get('NOPESERTA'),
     nama: get('NAMA'),
@@ -423,9 +467,28 @@ export const fetchHasilUkomFromSheets = () => fetchTableData<HasilUkom>('HASIL_U
     nilaiTkp: parseFloat(get('NILAITKP')) || 0,
     totalNilai: parseFloat(get('TOTALNILAI')) || 0,
     tanggalUjian: get('TANGGALUJIAN'),
-    waktuSelesai: get('WAKTUSELESAI')
+    waktuSelesai: get('WAKTUSELESAI'),
+    essayAnswers: getJson('ESSAYANSWERS')
   } as HasilUkom;
 });
+
+export const fetchUkomSessionsFromSheets = () => fetchTableData<any>('UKOM_SESSIONS', 'ukom_sessions', (cols, headers) => {
+  const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+  const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
+  return {
+    id: get('ID'),
+    namaSesi: get('NAMASESI'),
+    tanggal: get('TANGGAL'),
+    waktuMulai: get('WAKTUMULAI'),
+    waktuSelesai: get('WAKTUSELESAI'),
+    supervisorNips: getJson('SUPERVISORNIPS'),
+    pesertaIds: getJson('PESERTAIDS'),
+    status: get('STATUS')
+  };
+});
+
+export const saveUkomSession = (session: any) => syncTableRemote('UKOM_SESSIONS', 'SAVE', session);
+export const deleteUkomSession = (id: string) => syncTableRemote('UKOM_SESSIONS', 'DELETE', { id });
 
 export const saveHasilUkom = (hasil: HasilUkom) => syncTableRemote('HASIL_UKOM', 'SAVE', hasil);
 export const savePesertaUkom = (peserta: PesertaUkom) => syncTableRemote('PESERTA_UKOM', 'SAVE', peserta);

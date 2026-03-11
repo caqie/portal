@@ -1,16 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-// Add missing useNavigate import for handling navigation in the restricted access view
-// @ts-ignore
 import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, fetchAbsensiConfig } from '../spreadsheetService';
 import { Pegawai, AbsensiRecord, AbsensiConfig } from '../types';
 import { useAuth } from '../AuthContext';
-// @ts-ignore
 import * as faceapi from '@vladmandic/face-api';
 
 const AbsensiOnlinePage = () => {
   const { user, isSuperadmin } = useAuth();
-  // Initialize navigate for use in the restricted access view button
   const navigate = useNavigate();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [canAccess, setCanAccess] = useState(false);
@@ -38,7 +34,9 @@ const AbsensiOnlinePage = () => {
   const livenessHistory = useRef<number[]>([]);
 
   const isIpInRange = (ip: string, range: string) => {
+    if (!ip || !range) return false;
     const trimmedRange = range.trim();
+    if (!trimmedRange) return false;
     if (!trimmedRange.includes('/')) return ip === trimmedRange;
     
     try {
@@ -171,18 +169,21 @@ const AbsensiOnlinePage = () => {
 
   const loadModels = async () => {
     try {
-      const MODEL_URL = 'https://vladmandic.github.io/face-api/model/';
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-      ]);
+      // Use a reliable CDN for models
+      const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+      
+      // Load models sequentially to avoid overwhelming the browser
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+      
       setModelsLoaded(true);
       setStatus(prev => ({ ...prev, model: 'Ready' }));
       await startCamera();
     } catch (err) {
+      console.error("Model loading failed:", err);
       setStatus(prev => ({ ...prev, model: 'Error' }));
-      throw err;
+      setErrorMessage("Gagal memuat model AI biometrik. Periksa koneksi internet Anda.");
     }
   };
 
@@ -201,8 +202,21 @@ const AbsensiOnlinePage = () => {
 
   const prepareFaceMatcher = async (pegawai: Pegawai) => {
     try {
+      if (!pegawai.foto) {
+        setStatus(prev => ({ ...prev, data: 'No Photo' }));
+        return;
+      }
+      
       setStatus(prev => ({ ...prev, data: 'Syncing Face...' }));
-      const img = await faceapi.fetchImage(pegawai.foto + '?cache=none');
+      
+      // Ensure the photo URL is direct and handle potential CORS issues
+      const photoUrl = pegawai.foto.includes('drive.google.com') 
+        ? pegawai.foto.replace('file/d/', 'uc?id=').replace('/view?usp=sharing', '')
+        : pegawai.foto;
+
+      if (!photoUrl) return;
+
+      const img = await faceapi.fetchImage(photoUrl + (photoUrl.includes('?') ? '&' : '?') + 'cache=none');
       const detections = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks().withFaceDescriptor();
 
@@ -212,9 +226,12 @@ const AbsensiOnlinePage = () => {
         setStatus(prev => ({ ...prev, data: 'Verified' }));
       } else {
         setStatus(prev => ({ ...prev, data: 'Photo Invalid' }));
+        setErrorMessage("Foto profil tidak dapat diproses oleh AI. Gunakan foto wajah yang jelas.");
       }
     } catch (err) {
+      console.error("Face matcher preparation failed:", err);
       setStatus(prev => ({ ...prev, data: 'Failed' }));
+      setErrorMessage("Gagal menyinkronkan data biometrik wajah.");
     }
   };
 
@@ -309,69 +326,75 @@ const AbsensiOnlinePage = () => {
   };
 
   const handleAutoAbsensi = async () => {
-    if (isProcessing || !isNetworkValid) return;
+    if (isProcessing || !isNetworkValid || !user) return;
     setIsProcessing(true);
     
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentTimeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    const todayStr = now.toLocaleDateString('id-ID');
-    const { limitMasuk } = getScheduleRules();
+    try {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentTimeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+      const todayStr = now.toLocaleDateString('id-ID');
+      const { limitMasuk } = getScheduleRules();
 
-    const tipe: 'MASUK' | 'PULANG' = currentHour < 12 ? 'MASUK' : 'PULANG';
+      const tipe: 'MASUK' | 'PULANG' = currentHour < 12 ? 'MASUK' : 'PULANG';
 
-    const savedLogs = JSON.parse(localStorage.getItem('absensi_history_db') || '[]');
-    const alreadyCheckIn = savedLogs.find((l: any) => l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'MASUK');
-    const alreadyCheckOut = savedLogs.find((l: any) => l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'PULANG');
+      const savedLogs = JSON.parse(localStorage.getItem('absensi_history_db') || '[]');
+      const alreadyCheckIn = savedLogs.find((l: any) => l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'MASUK');
+      const alreadyCheckOut = savedLogs.find((l: any) => l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'PULANG');
 
-    if (tipe === 'MASUK' && alreadyCheckIn) {
-      speak("Maaf, Anda sudah melakukan absensi masuk hari ini.");
-      setVerificationResult({ status: 'REJECTED', message: `Data MASUK sudah tercatat pada ${alreadyCheckIn.waktu} WIB.`, type: 'MASUK' });
-      setTimeout(() => resetState(), 4000);
-      return;
+      if (tipe === 'MASUK' && alreadyCheckIn) {
+        speak("Maaf, Anda sudah melakukan absensi masuk hari ini.");
+        setVerificationResult({ status: 'REJECTED', message: `Data MASUK sudah tercatat pada ${alreadyCheckIn.waktu} WIB.`, type: 'MASUK' });
+        setTimeout(() => resetState(), 4000);
+        return;
+      }
+
+      let isLate = false;
+      if (tipe === 'MASUK') {
+          const [lH, lM, lS] = limitMasuk.split(':').map(Number);
+          const limitDate = new Date();
+          limitDate.setHours(lH, lM, lS);
+          if (now > limitDate) isLate = true;
+      }
+
+      const record: any = {
+        id: Date.now().toString(),
+        nip: currentPegawai?.nip || user?.nip,
+        nama: currentPegawai?.nama || user?.name,
+        tanggal: todayStr,
+        waktu: currentTimeStr,
+        tipe,
+        status: isLate ? 'TERLAMBAT' : 'TEPAT WAKTU',
+        lokasi: absensiConfig?.wfaNips.includes(user?.nip || '') ? 'WFA (Remote)' : 'DJKI Office Node',
+        confidence: detectionScore
+      };
+
+      let updatedLogs = [...savedLogs];
+      if (tipe === 'PULANG' && alreadyCheckOut) {
+        updatedLogs = savedLogs.map((l: any) => 
+          (l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'PULANG') ? record : l
+        );
+      } else {
+        updatedLogs = [record, ...savedLogs];
+      }
+
+      localStorage.setItem('absensi_history_db', JSON.stringify(updatedLogs));
+      loadHistory();
+      
+      speak("Terima kasih, absensi berhasil.");
+      setVerificationResult({ 
+        status: 'SUCCESS', 
+        message: `Presensi ${tipe} Berhasil`, 
+        type: tipe, 
+        late: isLate 
+      });
+
+      setTimeout(() => resetState(), 5000);
+    } catch (err) {
+      console.error("Absensi processing failed:", err);
+      setIsProcessing(false);
+      setErrorMessage("Gagal memproses data absensi.");
     }
-
-    let isLate = false;
-    if (tipe === 'MASUK') {
-        const [lH, lM, lS] = limitMasuk.split(':').map(Number);
-        const limitDate = new Date();
-        limitDate.setHours(lH, lM, lS);
-        if (now > limitDate) isLate = true;
-    }
-
-    const record: any = {
-      id: Date.now().toString(),
-      nip: currentPegawai?.nip || user?.nip,
-      nama: currentPegawai?.nama || user?.name,
-      tanggal: todayStr,
-      waktu: currentTimeStr,
-      tipe,
-      status: isLate ? 'TERLAMBAT' : 'TEPAT WAKTU',
-      lokasi: absensiConfig?.wfaNips.includes(user?.nip || '') ? 'WFA (Remote)' : 'DJKI Office Node',
-      confidence: detectionScore
-    };
-
-    let updatedLogs = [...savedLogs];
-    if (tipe === 'PULANG' && alreadyCheckOut) {
-      updatedLogs = savedLogs.map((l: any) => 
-        (l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'PULANG') ? record : l
-      );
-    } else {
-      updatedLogs = [record, ...savedLogs];
-    }
-
-    localStorage.setItem('absensi_history_db', JSON.stringify(updatedLogs));
-    loadHistory();
-    
-    speak("Terima kasih, absensi berhasil.");
-    setVerificationResult({ 
-      status: 'SUCCESS', 
-      message: `Presensi ${tipe} Berhasil`, 
-      type: tipe, 
-      late: isLate 
-    });
-
-    setTimeout(() => resetState(), 5000);
   };
 
   const resetState = () => {

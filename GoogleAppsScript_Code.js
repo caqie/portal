@@ -38,6 +38,12 @@ function doPost(e) {
     if (action === 'SAVE') return handleSave(ss, moduleName, payload);
     if (action === 'DELETE') return handleDelete(ss, moduleName, payload);
     if (action === 'GET') return handleGet(ss, moduleName);
+    if (action === 'GET_GID_MAP') {
+      var sheets = ss.getSheets();
+      var gidMap = {};
+      sheets.forEach(function(sh) { gidMap[sh.getName()] = sh.getSheetId().toString(); });
+      return createResponse({ success: true, gidMap: gidMap });
+    }
     if (action === 'GENERATE_DOC') return handleGenerateFromTemplate(payload);
 
     return createResponse({ success: false, message: "Aksi tidak dikenali." });
