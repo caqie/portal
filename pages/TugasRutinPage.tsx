@@ -97,8 +97,8 @@ const TugasRutinPage = () => {
     }
   };
 
-  const inputClass = "w-full px-5 py-3.5 bg-white border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950 shadow-sm";
-  const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";
+  const inputClass = "w-full px-5 py-3.5 bg-white border-2 border-gray-100 rounded-2xl text-[12px] font-black outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950 shadow-sm";
+  const labelClass = "text-[9px] font-black text-gray-400 ml-3 tracking-widest block mb-1.5";
 
   // --- Helper Components (Dipindahkan ke luar renderDynamicInputs untuk mencegah Remount/Focus Loss) ---
   
@@ -136,7 +136,7 @@ const TugasRutinPage = () => {
     const type = formData.jenis;
     
     // Jika jenis belum dipilih, tampilkan pesan
-    if (!type) return <div className="text-center text-gray-400 py-10 font-bold uppercase text-xs">Pilih Kategori untuk menampilkan form</div>;
+    if (!type) return <div className="text-center text-gray-400 py-10 font-bold text-xs">Pilih Kategori untuk menampilkan form</div>;
 
     switch(type) {
       case TaskType.PELANTIKAN:
@@ -365,8 +365,8 @@ const TugasRutinPage = () => {
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h3 className="text-2xl md:text-3xl font-black text-gray-950 uppercase tracking-tighter">Administrasi Rutin</h3>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-2">
+          <h3 className="text-2xl md:text-3xl font-black text-gray-950 tracking-tighter">Administrasi Rutin</h3>
+          <p className="text-[10px] text-gray-400 font-bold tracking-widest mt-2 flex items-center gap-2">
             <i className="bi bi-clipboard-check-fill text-blue-600"></i> Integrasi Laporan Bulanan Subbagian Mutasi & Gaji
           </p>
         </div>
@@ -385,7 +385,7 @@ const TugasRutinPage = () => {
                     }); 
                     setIsModalOpen(true); 
                 }} 
-                className="flex-1 md:flex-none px-10 h-14 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all"
+                className="flex-1 md:flex-none px-10 h-14 bg-blue-600 text-white rounded-2xl font-black text-[10px] shadow-2xl active:scale-95 transition-all"
             >
                 + Registrasi Log Baru
             </button>
@@ -394,42 +394,42 @@ const TugasRutinPage = () => {
       </div>
 
       <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
-        <select className="px-8 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black uppercase outline-none focus:border-blue-600 shadow-inner" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
-            {BULAN.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+        <select className="px-8 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black outline-none focus:border-blue-600 shadow-inner" value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
+            {BULAN.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
-        <select className="px-8 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black uppercase outline-none focus:border-blue-600 shadow-inner" value={filterYear} onChange={e => setFilterYear(Number(e.target.value))}>
+        <select className="px-8 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black outline-none focus:border-blue-600 shadow-inner" value={filterYear} onChange={e => setFilterYear(Number(e.target.value))}>
             {[2025, 2024, 2023].map(y => <option key={y} value={y}>{y}</option>)}
         </select>
         <div className="flex-1 flex justify-end">
-           <span className="px-6 py-4 bg-blue-50 text-blue-600 rounded-[1.8rem] text-[10px] font-black uppercase border border-blue-100">{filteredTasks.length} Catatan Periode Ini</span>
+           <span className="px-6 py-4 bg-blue-50 text-blue-600 rounded-[1.8rem] text-[10px] font-black border border-blue-100">{filteredTasks.length} Catatan Periode Ini</span>
         </div>
       </div>
 
       <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
         <div className="overflow-x-auto">
            <table className="w-full text-left">
-             <thead className="bg-[#111827] text-[8px] font-black uppercase text-gray-400 border-b border-white/5 tracking-widest">
+             <thead className="bg-[#111827] text-[8px] font-black text-gray-400 border-b border-white/5 tracking-widest">
                <tr><th className="px-10 py-6 w-72">Kategori & Waktu</th><th className="px-4 py-6">Atribut Capaian Administrasi</th><th className="px-10 py-6 text-right">Opsi</th></tr>
              </thead>
              <tbody className="divide-y divide-gray-50">
                {filteredTasks.map(t => (
                  <tr key={t.id} className="hover:bg-blue-50/5 group transition-all">
                    <td className="px-10 py-7 align-top">
-                     <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[8px] font-black rounded-lg border border-blue-100 uppercase tracking-widest w-fit">{TASK_LABELS[t.jenis] || t.jenis}</span>
-                     <p className="text-[12px] font-black text-gray-950 uppercase mt-2">{t.bulan} {t.tahun}</p>
+                     <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[8px] font-black rounded-lg border border-blue-100 tracking-widest w-fit">{TASK_LABELS[t.jenis] || t.jenis}</span>
+                     <p className="text-[12px] font-black text-gray-950 mt-2">{t.bulan} {t.tahun}</p>
                    </td>
                    <td className="px-4 py-7 align-top">
                       {t.data && Object.keys(t.data).length > 0 ? (
                          <div className="flex flex-wrap gap-2">
                             {Object.entries(t.data).map(([k, v]) => (
                                <div key={k} className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl flex flex-col">
-                                  <span className="text-[7px] font-black text-gray-400 uppercase tracking-tighter">{k.replace(/_/g, ' ')}</span>
-                                  <span className="text-[10px] font-black text-gray-800 uppercase truncate max-w-[150px]">{String(v)}</span>
+                                  <span className="text-[7px] font-black text-gray-400 tracking-tighter">{k.replace(/_/g, ' ')}</span>
+                                  <span className="text-[10px] font-black text-gray-800 truncate max-w-[150px]">{String(v)}</span>
                                </div>
                             ))}
                          </div>
                       ) : (
-                         <p className="text-[10px] font-bold text-gray-300 italic uppercase">Tidak ada data atribut spesifik</p>
+                         <p className="text-[10px] font-bold text-gray-300 italic">Tidak ada data atribut spesifik</p>
                       )}
                    </td>
                    <td className="px-10 py-7 text-right align-top">
@@ -455,7 +455,7 @@ const TugasRutinPage = () => {
                  <tr>
                     <td colSpan={3} className="py-32 text-center opacity-30">
                        <i className="bi bi-clipboard-x text-5xl mb-4 block"></i>
-                       <p className="text-[10px] font-black uppercase tracking-widest">Belum ada data untuk periode ini</p>
+                       <p className="text-[10px] font-black tracking-widest">Belum ada data untuk periode ini</p>
                     </td>
                  </tr>
                )}
@@ -471,8 +471,8 @@ const TugasRutinPage = () => {
               
               <div className="p-6 md:p-8 border-b bg-gray-50 shrink-0 flex justify-between items-center z-50 relative">
                  <div>
-                    <h4 className="text-xl font-black uppercase text-gray-900 tracking-tighter">{editingTask ? 'Perbarui Log Capaian' : 'Registrasi Laporan Rutin'}</h4>
-                    <p className="text-[9px] font-bold text-gray-400 uppercase mt-1 tracking-widest italic">Penyusunan Output Laporan Bulanan</p>
+                    <h4 className="text-xl font-black text-gray-900 tracking-tighter">{editingTask ? 'Perbarui Log Capaian' : 'Registrasi Laporan Rutin'}</h4>
+                    <p className="text-[9px] font-bold text-gray-400 mt-1 tracking-widest italic">Penyusunan Output Laporan Bulanan</p>
                  </div>
                  <button onClick={() => !syncing && setIsModalOpen(false)} className="h-12 w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white border border-gray-100 rounded-2xl shadow-sm transition-all hover:shadow-md active:scale-95">
                     <i className="bi bi-x-lg text-xl"></i>
@@ -484,7 +484,7 @@ const TugasRutinPage = () => {
                     <div>
                         <label className={labelClass}>Periode Bulan</label>
                         <select className={inputClass} value={formData.bulan} onChange={e => setFormData({...formData, bulan: e.target.value})}>
-                            {BULAN.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+                            {BULAN.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
                     </div>
                     <div>
@@ -506,12 +506,12 @@ const TugasRutinPage = () => {
                             });
                         }}
                     >
-                        {Object.entries(TASK_LABELS).sort((a,b) => a[1].localeCompare(b[1])).map(([k,v]) => <option key={k} value={k}>{v.toUpperCase()}</option>)}
+                        {Object.entries(TASK_LABELS).sort((a,b) => a[1].localeCompare(b[1])).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
                  </div>
 
                  <div className="p-8 bg-blue-50/50 rounded-[2.5rem] border-2 border-dashed border-blue-100 space-y-6">
-                    <h6 className="text-[9px] font-black text-blue-600 uppercase tracking-widest border-b pb-2 flex items-center gap-2">
+                    <h6 className="text-[9px] font-black text-blue-600 tracking-widest border-b pb-2 flex items-center gap-2">
                         <i className="bi bi-info-circle-fill"></i> Atribut Spesifik Kategori
                     </h6>
                     {renderDynamicInputs()}
@@ -519,12 +519,12 @@ const TugasRutinPage = () => {
               </form>
 
               <div className="p-6 md:p-8 bg-gray-50 border-t shrink-0 flex justify-end gap-4 z-50 relative">
-                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl text-[10px] font-black uppercase shadow-sm active:scale-95 transition-all">Batalkan</button>
+                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl text-[10px] font-black shadow-sm active:scale-95 transition-all">Batalkan</button>
                  <button 
                     type="button" // Diganti ke button karena tidak di dalam form tag submit
                     onClick={handleSave} 
                     disabled={syncing} 
-                    className="px-16 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center gap-4 active:scale-95 disabled:bg-gray-300"
+                    className="px-16 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] shadow-xl flex items-center gap-4 active:scale-95 disabled:bg-gray-300"
                  >
                     {syncing && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
                     <span>Simpan & Sinkronkan</span>

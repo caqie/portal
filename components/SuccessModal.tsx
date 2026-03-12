@@ -25,13 +25,13 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, title = "B
         <div className="h-24 w-24 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mb-6 border border-emerald-100 shadow-inner">
            <i className="bi bi-check-circle-fill text-6xl animate-bounce"></i>
         </div>
-        <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">{title}</h3>
-        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-3 leading-relaxed">
+        <h3 className="text-xl font-black text-gray-900 tracking-tight">{title}</h3>
+        <p className="text-[10px] text-gray-400 font-bold tracking-widest mt-3 leading-relaxed">
           {message}
         </p>
         <button 
           onClick={onClose}
-          className="mt-8 px-10 py-3.5 bg-[#111827] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all w-full"
+          className="mt-8 px-10 py-3.5 bg-[#111827] text-white rounded-2xl text-[10px] font-black tracking-widest shadow-xl active:scale-95 transition-all w-full"
         >
           Tutup Notifikasi
         </button>

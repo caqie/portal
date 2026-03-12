@@ -32,14 +32,14 @@ const MenuCard = ({ icon, label, description, color, onClick, badge, adminOnly =
       <div className="relative z-10 flex-1 flex flex-col justify-between">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tighter leading-tight">{label}</h4>
-            {badge && <span className="px-2 py-0.5 bg-rose-500 text-white text-[7px] font-black rounded uppercase tracking-widest">{badge}</span>}
+            <h4 className="text-base md:text-lg font-black text-gray-900 tracking-tighter leading-tight">{label}</h4>
+            {badge && <span className="px-2 py-0.5 bg-rose-500 text-white text-[7px] font-black rounded tracking-widest">{badge}</span>}
           </div>
-          <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-relaxed line-clamp-2 md:line-clamp-none">{description}</p>
+          <p className="text-[9px] md:text-[10px] text-gray-400 font-bold tracking-widest leading-relaxed line-clamp-2 md:line-clamp-none">{description}</p>
         </div>
         
         <div className="mt-6 md:mt-8 flex items-center gap-2 text-gray-300 group-hover:text-blue-600 transition-colors">
-          <span className="text-[8px] font-black uppercase tracking-[0.2em]">Buka Layanan</span>
+          <span className="text-[8px] font-black tracking-[0.2em]">Buka Layanan</span>
           <i className="bi bi-arrow-right-short text-xl group-hover:translate-x-1 transition-transform"></i>
         </div>
       </div>
@@ -71,8 +71,8 @@ const LayananKepegawaianPage = () => {
   return (
     <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
       <div className="text-center md:text-left">
-        <h3 className="text-2xl md:text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">Pusat Layanan Karir</h3>
-        <p className="text-[9px] md:text-[11px] text-gray-400 font-bold uppercase tracking-[0.3em] mt-4">Integrasi Manajemen Pengembangan & Administrasi ASN DJKI</p>
+        <h3 className="text-2xl md:text-3xl font-black text-gray-950 tracking-tighter leading-none">Pusat Layanan Karir</h3>
+        <p className="text-[9px] md:text-[11px] text-gray-400 font-bold tracking-[0.3em] mt-4">Integrasi Manajemen Pengembangan & Administrasi ASN DJKI</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
@@ -85,20 +85,20 @@ const LayananKepegawaianPage = () => {
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full -mr-20 -mt-20 blur-[120px]"></div>
         <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
           <div>
-            <span className="px-3 py-1 bg-blue-600 text-white text-[8px] font-black rounded uppercase tracking-widest">Informasi Karir</span>
-            <h4 className="text-xl md:text-2xl font-black uppercase mt-4 tracking-tight">Halo, {firstName}!</h4>
-            <p className="text-[9px] md:text-[11px] text-gray-400 font-bold uppercase mt-3 leading-relaxed">
+            <span className="px-3 py-1 bg-blue-600 text-white text-[8px] font-black rounded tracking-widest">Informasi Karir</span>
+            <h4 className="text-xl md:text-2xl font-black mt-4 tracking-tight">Halo, {firstName}!</h4>
+            <p className="text-[9px] md:text-[11px] text-gray-400 font-bold mt-3 leading-relaxed">
               Semua layanan administrasi karir Anda terpusat di sini. Pastikan data di E-Dossier selalu diperbarui.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3 md:gap-4">
              <div className="p-4 md:p-6 bg-white/5 border border-white/10 rounded-3xl">
-                <p className="text-[7px] md:text-[8px] font-black text-blue-400 uppercase mb-2">Role Anda</p>
-                <h5 className="text-xs md:sm font-black uppercase truncate">{user?.role || 'Guest'}</h5>
+                <p className="text-[7px] md:text-[8px] font-black text-blue-400 mb-2">Role Anda</p>
+                <h5 className="text-xs md:sm font-black truncate">{user?.role || 'Guest'}</h5>
              </div>
              <div className="p-4 md:p-6 bg-white/5 border border-white/10 rounded-3xl">
-                <p className="text-[7px] md:text-[8px] font-black text-emerald-400 uppercase mb-2">Status Server</p>
-                <h5 className="text-xs md:text-sm font-black uppercase">Aktif / Cloud</h5>
+                <p className="text-[7px] md:text-[8px] font-black text-emerald-400 mb-2">Status Server</p>
+                <h5 className="text-xs md:text-sm font-black">Aktif / Cloud</h5>
              </div>
           </div>
         </div>

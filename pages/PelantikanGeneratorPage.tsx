@@ -151,9 +151,9 @@ const PelantikanGeneratorPage = () => {
     pdf.save(`${docType}_Pelantikan_${formData.asnNama.replace(/\s+/g, '_')}.pdf`);
   };
 
-  const inputClass = "w-full px-5 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all";
-  const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";
-  const readOnlyClass = "w-full px-5 py-3.5 bg-gray-100 border-2 border-gray-200 rounded-2xl text-[12px] font-black uppercase outline-none text-gray-600 cursor-not-allowed";
+  const inputClass = "w-full px-5 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black outline-none focus:border-blue-600 focus:bg-white transition-all";
+  const labelClass = "text-[9px] font-black text-gray-400 ml-3 tracking-widest block mb-1.5";
+  const readOnlyClass = "w-full px-5 py-3.5 bg-gray-100 border-2 border-gray-200 rounded-2xl text-[12px] font-black outline-none text-gray-600 cursor-not-allowed";
 
   return (
     <div className="space-y-8 animate-fadeIn pb-24 text-black">

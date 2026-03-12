@@ -12,13 +12,13 @@ const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: str
       <i className={`bi ${icon} text-xl md:text-2xl`}></i>
     </div>
     <div className="min-w-0 flex-1">
-      <p className="text-[8px] md:text-[9px] text-gray-400 font-black uppercase tracking-[0.2em] truncate mb-1">{title}</p>
+      <p className="text-[8px] md:text-[9px] text-gray-400 font-black tracking-[0.2em] truncate mb-1">{title}</p>
       {loading ? (
         <div className="h-6 w-16 bg-gray-100 animate-pulse rounded-lg"></div>
       ) : (
         <div className="flex items-baseline gap-2">
            <h3 className="text-lg md:text-2xl font-black text-gray-950 tracking-tighter leading-none">{value}</h3>
-           {subtext && <span className="text-[9px] font-bold text-gray-400 uppercase">{subtext}</span>}
+           {subtext && <span className="text-[9px] font-bold text-gray-400">{subtext}</span>}
         </div>
       )}
     </div>
@@ -331,13 +331,13 @@ const Dashboard = () => {
     <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h3 className="text-2xl md:text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">Intelligence Hub DJKI</h3>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.3em] mt-3 flex items-center gap-3">
+          <h3 className="text-2xl md:text-3xl font-black text-gray-950 tracking-tighter leading-none">Intelligence Hub DJKI</h3>
+          <p className="text-[10px] text-gray-400 font-bold tracking-[0.3em] mt-3 flex items-center gap-3">
              <i className="bi bi-cpu-fill text-blue-600"></i> Real-time Analytics Dashboard
           </p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
-          <button onClick={handleDownloadFullAnalytics} className="flex-1 md:flex-none flex items-center gap-3 bg-emerald-600 p-4 px-8 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
+          <button onClick={handleDownloadFullAnalytics} className="flex-1 md:flex-none flex items-center gap-3 bg-emerald-600 p-4 px-8 rounded-2xl text-white text-[10px] font-black tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
              <i className="bi bi-file-earmark-spreadsheet-fill text-lg"></i> Download Stats
           </button>
           <button onClick={() => setIsNotifOpen(true)} className="relative flex items-center gap-4 bg-white p-4 px-8 rounded-2xl border border-gray-100 shadow-sm active:scale-95 transition-all group">
@@ -361,10 +361,10 @@ const Dashboard = () => {
 
       <div className="relative">
          <div className="absolute top-8 right-32 z-10 hidden md:block">
-            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.3em]">Jadwal Direktorat Terintegrasi</p>
+            <p className="text-[9px] font-bold text-gray-400 tracking-[0.3em]">Jadwal Direktorat Terintegrasi</p>
          </div>
          <div className="absolute top-6 right-8 z-10 hidden md:block">
-            <a href="#/kegiatan" className="px-6 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-2">
+            <a href="#/kegiatan" className="px-6 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-2">
                <i className="bi bi-gear-fill"></i>
                Kelola
             </a>
@@ -381,11 +381,11 @@ const Dashboard = () => {
 
       <div className="bg-white p-8 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden">
          <div className="mb-10">
-            <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Sebaran Pegawai Aktif per Unit Kerja</h4>
+            <h4 className="text-[12px] font-black text-gray-950 tracking-[0.3em]">Sebaran Pegawai Aktif per Unit Kerja</h4>
          </div>
          <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-               <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b">
+               <thead className="bg-gray-50 text-[8px] font-black text-gray-400 border-b">
                   <tr>
                      <th className="px-10 py-6 border-b">Unit Kerja</th>
                      <th className="px-4 py-6 border-b text-center">PNS</th>
@@ -398,7 +398,7 @@ const Dashboard = () => {
                <tbody className="divide-y divide-gray-50">
                   {unitDistribution.map((row, i) => (
                     <tr key={i} className="hover:bg-gray-50 transition-colors">
-                       <td className="px-10 py-5 font-black text-[10px] text-gray-800 uppercase leading-tight">{row.unit}</td>
+                       <td className="px-10 py-5 font-black text-[10px] text-gray-800 leading-tight">{row.unit}</td>
                        <td className="px-4 py-5 text-center font-bold text-gray-600">{row.pns}</td>
                        <td className="px-4 py-5 text-center font-bold text-gray-600">{row.cpns}</td>
                        <td className="px-4 py-5 text-center font-bold text-gray-600">{row.pppk}</td>
@@ -416,8 +416,8 @@ const Dashboard = () => {
            {/* STATISTIK GENDER */}
            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <div className="flex justify-between items-center mb-6">
-                 <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Statistik Gender</h4>
-                 <select className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterJenisGender} onChange={e => setFilterJenisGender(e.target.value)}>
+                 <h4 className="text-[12px] font-black text-gray-950 tracking-[0.3em]">Statistik Gender</h4>
+                 <select className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black outline-none focus:border-blue-600 transition-all" value={filterJenisGender} onChange={e => setFilterJenisGender(e.target.value)}>
                     <option value="Semua Jenis">Semua Jenis</option>
                     <option value="PNS">PNS</option>
                     <option value="CPNS">CPNS</option>
@@ -426,11 +426,11 @@ const Dashboard = () => {
               </div>
               <div className="grid grid-cols-2 gap-6">
                  <div className="p-6 bg-sky-50 rounded-3xl border border-sky-100">
-                    <p className="text-[9px] font-black text-sky-600 uppercase tracking-widest mb-1">Laki-laki</p>
+                    <p className="text-[9px] font-black text-sky-600 tracking-widest mb-1">Laki-laki</p>
                     <h5 className="text-3xl font-black text-sky-900">{genderStats.pria}</h5>
                  </div>
                  <div className="p-6 bg-pink-50 rounded-3xl border border-pink-100">
-                    <p className="text-[9px] font-black text-pink-600 uppercase tracking-widest mb-1">Perempuan</p>
+                    <p className="text-[9px] font-black text-pink-600 tracking-widest mb-1">Perempuan</p>
                     <h5 className="text-3xl font-black text-pink-900">{genderStats.wanita}</h5>
                  </div>
               </div>
@@ -439,8 +439,8 @@ const Dashboard = () => {
            {/* STATISTIK PENDIDIKAN */}
            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <div className="flex justify-between items-center mb-6">
-                 <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Statistik Tingkat Pendidikan</h4>
-                 <select className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterJenisEdu} onChange={e => setFilterJenisEdu(e.target.value)}>
+                 <h4 className="text-[12px] font-black text-gray-950 tracking-[0.3em]">Statistik Tingkat Pendidikan</h4>
+                 <select className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black outline-none focus:border-blue-600 transition-all" value={filterJenisEdu} onChange={e => setFilterJenisEdu(e.target.value)}>
                     <option value="Semua Jenis">Semua Jenis</option>
                     <option value="PNS">PNS</option>
                     <option value="CPNS">CPNS</option>
@@ -450,7 +450,7 @@ const Dashboard = () => {
               <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                  {educationStats.map((edu, i) => (
                     <div key={i} className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl hover:bg-blue-50 transition-colors group">
-                       <span className="text-[10px] font-black text-gray-600 uppercase group-hover:text-blue-600 transition-colors">{edu.label}</span>
+                       <span className="text-[10px] font-black text-gray-600 group-hover:text-blue-600 transition-colors">{edu.label}</span>
                        <span className="text-[12px] font-black text-gray-950">{edu.count} ASN</span>
                     </div>
                  ))}
@@ -460,8 +460,8 @@ const Dashboard = () => {
            {/* SEBARAN GOLONGAN */}
            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
               <div className="flex justify-between items-center mb-6">
-                 <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Sebaran Golongan / Ruang</h4>
-                 <select className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterJenisGrade} onChange={e => setFilterJenisGrade(e.target.value)}>
+                 <h4 className="text-[12px] font-black text-gray-950 tracking-[0.3em]">Sebaran Golongan / Ruang</h4>
+                 <select className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black outline-none focus:border-blue-600 transition-all" value={filterJenisGrade} onChange={e => setFilterJenisGrade(e.target.value)}>
                     <option value="Semua Jenis">Semua Jenis</option>
                     <option value="PNS">PNS</option>
                     <option value="CPNS">CPNS</option>
@@ -470,7 +470,7 @@ const Dashboard = () => {
               </div>
               <div className="overflow-x-auto max-h-[400px] custom-scrollbar border border-gray-50 rounded-3xl">
                 <table className="w-full text-left border-collapse">
-                    <thead className="sticky top-0 bg-gray-50 z-20 text-[8px] font-black uppercase text-gray-400">
+                    <thead className="sticky top-0 bg-gray-50 z-20 text-[8px] font-black text-gray-400">
                         <tr>
                             <th className="px-8 py-5 border-b">Golongan / Ruang</th>
                             <th className="px-6 py-5 text-right border-b text-blue-600">Total ASN</th>
@@ -486,7 +486,7 @@ const Dashboard = () => {
                     </tbody>
                     {gradeStats.length > 0 && (
                         <tfoot className="bg-blue-50/30">
-                            <tr className="font-black text-[10px] text-blue-600 uppercase">
+                            <tr className="font-black text-[10px] text-blue-600">
                                 <td className="px-8 py-4">Total Terdata</td>
                                 <td className="px-6 py-4 text-right">{gradeStats.reduce((acc, curr) => acc + curr.count, 0)}</td>
                             </tr>
@@ -502,32 +502,32 @@ const Dashboard = () => {
            <div className="flex flex-col mb-10 gap-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                  <div>
-                    <h4 className="text-[12px] font-black text-gray-950 uppercase tracking-[0.3em]">Matriks Nomenklatur Jabatan</h4>
-                    <p className="text-[8px] text-gray-400 font-bold uppercase mt-1 tracking-widest text-blue-600">Total Sebaran Nomenklatur Jabatan Terpusat</p>
+                    <h4 className="text-[12px] font-black text-gray-950 tracking-[0.3em]">Matriks Nomenklatur Jabatan</h4>
+                    <p className="text-[8px] text-gray-400 font-bold mt-1 tracking-widest text-blue-600">Total Sebaran Nomenklatur Jabatan Terpusat</p>
                  </div>
-                 <button onClick={handleExportJabatan} className="px-6 py-2.5 bg-[#111827] text-white rounded-xl text-[8px] font-black uppercase shadow-lg flex items-center gap-2 hover:bg-gray-800 transition-all active:scale-95">
+                 <button onClick={handleExportJabatan} className="px-6 py-2.5 bg-[#111827] text-white rounded-xl text-[8px] font-black shadow-lg flex items-center gap-2 hover:bg-gray-800 transition-all active:scale-95">
                     <i className="bi bi-file-earmark-spreadsheet text-sm"></i>
                     Export Excel
                  </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="space-y-1.5">
-                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Unit Kerja</label>
-                    <select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
+                    <label className="text-[8px] font-black text-gray-400 ml-2 tracking-widest">Unit Kerja</label>
+                    <select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black outline-none focus:border-blue-600" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
                        <option>Semua Unit</option>
                        {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
                     </select>
                  </div>
                  <div className="space-y-1.5">
-                    <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Cari Jabatan / Klasifikasi</label>
+                    <label className="text-[8px] font-black text-gray-400 ml-2 tracking-widest">Cari Jabatan / Klasifikasi</label>
                     <div className="relative">
                        <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
-                       <input type="text" placeholder="MISAL: FUNGSIONAL, PELAKSANA, PENYELIA..." className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black uppercase outline-none focus:border-blue-600" value={searchJabatan} onChange={e => setSearchJabatan(e.target.value)} />
+                       <input type="text" placeholder="MISAL: FUNGSIONAL, PELAKSANA, PENYELIA..." className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-[9px] font-black outline-none focus:border-blue-600" value={searchJabatan} onChange={e => setSearchJabatan(e.target.value)} />
                     </div>
                  </div>
               </div>
               <div className="space-y-2">
-                 <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest block">Filter Multi-Jenis Pegawai (Pilih beberapa sekaligus)</label>
+                 <label className="text-[8px] font-black text-gray-400 ml-2 tracking-widest block">Filter Multi-Jenis Pegawai (Pilih beberapa sekaligus)</label>
                  <div className="flex flex-wrap gap-2">
                     {[
                       { id: 'PNS', label: 'PNS' },
@@ -538,7 +538,7 @@ const Dashboard = () => {
                       <button 
                         key={btn.id} 
                         onClick={() => toggleFilterJenis(btn.id)}
-                        className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase transition-all border flex items-center gap-2 ${
+                        className={`px-4 py-2 rounded-xl text-[8px] font-black transition-all border flex items-center gap-2 ${
                           filterJenisMatrix.includes(btn.id) 
                           ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
                           : 'bg-white text-gray-400 border-gray-100 hover:border-blue-200'
@@ -549,7 +549,7 @@ const Dashboard = () => {
                       </button>
                     ))}
                     {filterJenisMatrix.length > 0 && (
-                      <button onClick={() => setFilterJenisMatrix([])} className="px-4 py-2 text-[8px] font-black text-rose-500 uppercase hover:underline flex items-center gap-1">
+                      <button onClick={() => setFilterJenisMatrix([])} className="px-4 py-2 text-[8px] font-black text-rose-500 hover:underline flex items-center gap-1">
                         <i className="bi bi-x-circle"></i> Reset Filter
                       </button>
                     )}
@@ -558,7 +558,7 @@ const Dashboard = () => {
            </div>
            <div className="overflow-x-auto max-h-[820px] flex-1 custom-scrollbar border border-gray-50 rounded-3xl">
               <table className="w-full text-left border-collapse">
-                 <thead className="sticky top-0 bg-white z-20 shadow-sm text-[8px] font-black uppercase text-gray-400">
+                 <thead className="sticky top-0 bg-white z-20 shadow-sm text-[8px] font-black text-gray-400">
                     <tr>
                        <th className="px-10 py-6 border-b">Nama Nomenklatur Jabatan</th>
                        <th className="px-4 py-6 border-b text-center">Klasifikasi</th>
@@ -569,9 +569,9 @@ const Dashboard = () => {
                  <tbody className="divide-y divide-gray-50">
                     {matrixJabatan.map((row, i) => (
                       <tr key={i} className="hover:bg-gray-50 transition-colors">
-                         <td className="px-10 py-4 font-bold text-[10px] text-gray-800 uppercase leading-tight">{row.jabatan}</td>
+                         <td className="px-10 py-4 font-bold text-[10px] text-gray-800 leading-tight">{row.jabatan}</td>
                          <td className="px-4 py-4 text-center">
-                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase border ${
+                            <span className={`px-3 py-1 rounded-full text-[8px] font-black border ${
                               row.klasifikasi === 'FUNGSIONAL' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                               row.klasifikasi === 'PELAKSANA' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
                               row.klasifikasi === 'JPT' ? 'bg-amber-50 text-amber-600 border-amber-100' :
@@ -585,7 +585,7 @@ const Dashboard = () => {
                             </span>
                          </td>
                          <td className="px-4 py-4 text-center">
-                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase border ${
+                            <span className={`px-3 py-1 rounded-full text-[8px] font-black border ${
                               row.jenis === 'PNS' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                               row.jenis === 'PPPK' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                               row.jenis === 'CPNS' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' :
@@ -601,7 +601,7 @@ const Dashboard = () => {
                       <tr>
                         <td colSpan={4} className="py-20 text-center opacity-30">
                           <i className="bi bi-search text-5xl mb-4 block"></i>
-                          <p className="text-[10px] font-black uppercase tracking-widest">Data tidak ditemukan dengan filter saat ini</p>
+                          <p className="text-[10px] font-black tracking-widest">Data tidak ditemukan dengan filter saat ini</p>
                         </td>
                       </tr>
                     )}
@@ -618,8 +618,8 @@ const Dashboard = () => {
            <div className="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-modalEnter max-h-[90vh]">
               <div className="p-8 md:p-10 bg-gray-50 border-b shrink-0 flex justify-between items-center">
                  <div>
-                    <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">Agenda Direktorat</h4>
-                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-2">
+                    <h4 className="text-2xl font-black text-gray-950 tracking-tighter">Agenda Direktorat</h4>
+                    <p className="text-[10px] font-bold text-blue-600 tracking-widest mt-2">
                        {selectedCalendarDate ? new Date(selectedCalendarDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
                     </p>
                  </div>
@@ -633,19 +633,19 @@ const Dashboard = () => {
                        <div key={i} className="p-8 bg-gray-50/50 border border-gray-100 rounded-[2.5rem] space-y-6 hover:bg-blue-50/30 transition-all group">
                           <div className="flex justify-between items-start gap-4">
                              <div className="flex-1">
-                                <h5 className="text-xl font-black text-gray-950 uppercase leading-tight group-hover:text-blue-600 transition-colors">{ev.judulKegiatan}</h5>
+                                <h5 className="text-xl font-black text-gray-950 leading-tight group-hover:text-blue-600 transition-colors">{ev.judulKegiatan}</h5>
                                 <div className="flex flex-wrap gap-4 mt-4">
-                                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase">
+                                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400">
                                       <i className="bi bi-clock-fill text-blue-600"></i>
                                       {ev.jamMulai || '00:00'} - {ev.jamSelesai || 'Selesai'}
                                    </div>
-                                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase">
+                                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400">
                                       <i className="bi bi-geo-alt-fill text-rose-600"></i>
                                       {ev.tempat || 'TBA'}
                                    </div>
                                 </div>
                              </div>
-                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase border ${
+                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black border ${
                                 ev.status === 'SELESAI' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                                 ev.status === 'BATAL' ? 'bg-rose-50 text-rose-600 border-rose-100' :
                                 'bg-blue-50 text-blue-600 border-blue-100'
@@ -656,18 +656,18 @@ const Dashboard = () => {
                           
                           <div className="grid grid-cols-2 gap-4">
                              <div className="p-4 bg-white rounded-2xl border border-gray-100">
-                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Jumlah Peserta</p>
+                                <p className="text-[8px] font-black text-gray-400 tracking-widest mb-1">Jumlah Peserta</p>
                                 <p className="text-sm font-black text-gray-900">{ev.jumlahPeserta || 0} Orang</p>
                              </div>
                              <div className="p-4 bg-white rounded-2xl border border-gray-100">
-                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Asal Peserta</p>
+                                <p className="text-[8px] font-black text-gray-400 tracking-widest mb-1">Asal Peserta</p>
                                 <p className="text-sm font-black text-gray-900 truncate">{ev.asalPeserta || '-'}</p>
                              </div>
                           </div>
 
                           {ev.laporanSingkat && (
                              <div className="space-y-2">
-                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Laporan Singkat</p>
+                                <p className="text-[8px] font-black text-gray-400 tracking-widest ml-2">Laporan Singkat</p>
                                 <div className="p-5 bg-white rounded-2xl border border-gray-100 text-[11px] text-gray-600 leading-relaxed italic">
                                    "{ev.laporanSingkat}"
                                 </div>
@@ -675,7 +675,7 @@ const Dashboard = () => {
                           )}
 
                           {ev.linkDriveFoto && (
-                             <a href={ev.linkDriveFoto} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all active:scale-[0.98]">
+                             <a href={ev.linkDriveFoto} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black tracking-widest shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all active:scale-[0.98]">
                                 <i className="bi bi-images text-lg"></i>
                                 Lihat Dokumentasi Foto
                              </a>
@@ -685,89 +685,7 @@ const Dashboard = () => {
                  ) : (
                     <div className="py-20 text-center opacity-30">
                        <i className="bi bi-calendar-x text-6xl mb-4 block"></i>
-                       <p className="text-[10px] font-black uppercase tracking-widest">Tidak ada agenda pada tanggal ini</p>
-                    </div>
-                 )}
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* CALENDAR DETAIL MODAL */}
-      {isCalendarModalOpen && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
-           <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-md" onClick={() => setIsCalendarModalOpen(false)}></div>
-           <div className="relative bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-modalEnter max-h-[90vh]">
-              <div className="p-8 md:p-10 bg-gray-50 border-b shrink-0 flex justify-between items-center">
-                 <div>
-                    <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">Agenda Direktorat</h4>
-                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-2">
-                       {selectedCalendarDate ? new Date(selectedCalendarDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
-                    </p>
-                 </div>
-                 <button onClick={() => setIsCalendarModalOpen(false)} className="h-12 w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white border border-gray-100 rounded-2xl shadow-sm transition-all hover:shadow-md active:scale-95">
-                    <i className="bi bi-x-lg text-xl"></i>
-                 </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar space-y-6 bg-white">
-                 {selectedCalendarEvents.length > 0 ? (
-                    selectedCalendarEvents.map((ev, i) => (
-                       <div key={i} className="p-8 bg-gray-50/50 border border-gray-100 rounded-[2.5rem] space-y-6 hover:bg-blue-50/30 transition-all group">
-                          <div className="flex justify-between items-start gap-4">
-                             <div className="flex-1">
-                                <h5 className="text-xl font-black text-gray-950 uppercase leading-tight group-hover:text-blue-600 transition-colors">{ev.judulKegiatan}</h5>
-                                <div className="flex flex-wrap gap-4 mt-4">
-                                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase">
-                                      <i className="bi bi-clock-fill text-blue-600"></i>
-                                      {ev.jamMulai || '00:00'} - {ev.jamSelesai || 'Selesai'}
-                                   </div>
-                                   <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase">
-                                      <i className="bi bi-geo-alt-fill text-rose-600"></i>
-                                      {ev.tempat || 'TBA'}
-                                   </div>
-                                </div>
-                             </div>
-                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase border ${
-                                ev.status === 'SELESAI' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                ev.status === 'BATAL' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                'bg-blue-50 text-blue-600 border-blue-100'
-                             }`}>
-                                {ev.status || 'TERJADWAL'}
-                             </span>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4">
-                             <div className="p-4 bg-white rounded-2xl border border-gray-100">
-                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Jumlah Peserta</p>
-                                <p className="text-sm font-black text-gray-900">{ev.jumlahPeserta || 0} Orang</p>
-                             </div>
-                             <div className="p-4 bg-white rounded-2xl border border-gray-100">
-                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Asal Peserta</p>
-                                <p className="text-sm font-black text-gray-900 truncate">{ev.asalPeserta || '-'}</p>
-                             </div>
-                          </div>
-
-                          {ev.laporanSingkat && (
-                             <div className="space-y-2">
-                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-2">Laporan Singkat</p>
-                                <div className="p-5 bg-white rounded-2xl border border-gray-100 text-[11px] text-gray-600 leading-relaxed italic">
-                                   "{ev.laporanSingkat}"
-                                </div>
-                             </div>
-                          )}
-
-                          {ev.linkDriveFoto && (
-                             <a href={ev.linkDriveFoto} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-3 w-full py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition-all active:scale-[0.98]">
-                                <i className="bi bi-images text-lg"></i>
-                                Lihat Dokumentasi Foto
-                             </a>
-                          )}
-                       </div>
-                    ))
-                 ) : (
-                    <div className="py-20 text-center opacity-30">
-                       <i className="bi bi-calendar-x text-6xl mb-4 block"></i>
-                       <p className="text-[10px] font-black uppercase tracking-widest">Tidak ada agenda pada tanggal ini</p>
+                       <p className="text-[10px] font-black tracking-widest">Tidak ada agenda pada tanggal ini</p>
                     </div>
                  )}
               </div>
@@ -784,19 +702,19 @@ const Dashboard = () => {
               <div className="p-8 md:p-10 shrink-0 bg-gray-50/50 border-b relative z-50">
                  <div className="flex items-center justify-between mb-8">
                     <div>
-                      <h4 className="text-2xl font-black uppercase text-gray-950 tracking-tighter">Personnel Monitoring</h4>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">Tindakan Administrasi Tahun {new Date().getFullYear()}</p>
+                      <h4 className="text-2xl font-black text-gray-950 tracking-tighter">Personnel Monitoring</h4>
+                      <p className="text-[10px] font-bold text-gray-400 tracking-widest mt-2">Tindakan Administrasi Tahun {new Date().getFullYear()}</p>
                     </div>
                     <button onClick={() => setIsNotifOpen(false)} className="h-12 w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white border border-gray-100 rounded-2xl shadow-sm transition-all hover:shadow-md active:scale-95">
                        <i className="bi bi-x-lg text-xl"></i>
                     </button>
                  </div>
                  <div className="flex bg-gray-200 p-1.5 rounded-2xl overflow-x-auto no-scrollbar gap-1">
-                    <button onClick={() => setNotifTab('pensiun')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-xl transition-all ${notifTab==='pensiun' ? 'bg-white text-rose-600 shadow-md' : 'text-gray-500'}`}>Pensiun ({reminders.pensiun.length})</button>
-                    <button onClick={() => setNotifTab('kgb')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-xl transition-all ${notifTab==='kgb' ? 'bg-white text-emerald-600 shadow-md' : 'text-gray-500'}`}>KGB ({reminders.kgb.length})</button>
-                    <button onClick={() => setNotifTab('pangkat')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-xl transition-all ${notifTab==='pangkat' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500'}`}>Pangkat ({reminders.pangkat.length})</button>
-                    <button onClick={() => setNotifTab('satya')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-xl transition-all ${notifTab==='satya' ? 'bg-white text-amber-600 shadow-md' : 'text-gray-500'}`}>Satya ({reminders.satya.length})</button>
-                    <button onClick={() => setNotifTab('bangkom')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black uppercase rounded-xl transition-all ${notifTab==='bangkom' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-500'}`}>Pelatihan ({reminders.bangkom.length})</button>
+                    <button onClick={() => setNotifTab('pensiun')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black rounded-xl transition-all ${notifTab==='pensiun' ? 'bg-white text-rose-600 shadow-md' : 'text-gray-500'}`}>Pensiun ({reminders.pensiun.length})</button>
+                    <button onClick={() => setNotifTab('kgb')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black rounded-xl transition-all ${notifTab==='kgb' ? 'bg-white text-emerald-600 shadow-md' : 'text-gray-500'}`}>KGB ({reminders.kgb.length})</button>
+                    <button onClick={() => setNotifTab('pangkat')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black rounded-xl transition-all ${notifTab==='pangkat' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500'}`}>Pangkat ({reminders.pangkat.length})</button>
+                    <button onClick={() => setNotifTab('satya')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black rounded-xl transition-all ${notifTab==='satya' ? 'bg-white text-amber-600 shadow-md' : 'text-gray-500'}`}>Satya ({reminders.satya.length})</button>
+                    <button onClick={() => setNotifTab('bangkom')} className={`flex-1 min-w-[100px] py-3.5 text-[9px] font-black rounded-xl transition-all ${notifTab==='bangkom' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-500'}`}>Pelatihan ({reminders.bangkom.length})</button>
                  </div>
               </div>
 
@@ -804,13 +722,13 @@ const Dashboard = () => {
                  {(reminders[notifTab] || []).map((item, i) => (
                     <div key={i} className="p-5 bg-gray-50/50 border border-gray-100 rounded-[2rem] flex items-center gap-5 hover:bg-blue-50 transition-all shadow-sm group">
                        <div className="min-w-0">
-                          <p className="text-[11px] font-black text-gray-950 uppercase truncate">{item.nama || 'Tanpa Nama'}</p>
-                          <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">{item.tmt || item.tmtTerakhir || '-'}</p>
+                          <p className="text-[11px] font-black text-gray-950 truncate">{item.nama || 'Tanpa Nama'}</p>
+                          <p className="text-[9px] font-bold text-gray-400 mt-1">{item.tmt || item.tmtTerakhir || '-'}</p>
                        </div>
-                       <span className="shrink-0 px-3 py-1 bg-white border rounded-lg text-[9px] font-black uppercase text-gray-500">{item.sisa || item.keterangan || item.pengabdian || '-'}</span>
+                       <span className="shrink-0 px-3 py-1 bg-white border rounded-lg text-[9px] font-black text-gray-500">{item.sisa || item.keterangan || item.pengabdian || '-'}</span>
                     </div>
                  ))}
-                 {(reminders[notifTab] || []).length === 0 && <div className="py-20 text-center opacity-30"><p className="text-[10px] font-black uppercase tracking-widest">Data terpantau aman</p></div>}
+                 {(reminders[notifTab] || []).length === 0 && <div className="py-20 text-center opacity-30"><p className="text-[10px] font-black tracking-widest">Data terpantau aman</p></div>}
               </div>
            </div>
         </div>

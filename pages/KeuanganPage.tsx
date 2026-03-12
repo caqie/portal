@@ -497,33 +497,45 @@ const KeuanganPage = () => {
               <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-4 tracking-widest">1. Konfigurasi Kegiatan</h5>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="col-span-full space-y-2">
-                  <label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Nama Kegiatan</label>
-                  <input type="text" placeholder="Contoh: Konsinyering Penyusunan Pola Karir ASN" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all uppercase" value={formData.namaKegiatan} onChange={e => setFormData({ ...formData, namaKegiatan: e.target.value })} />
+                  <label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Nama Kegiatan</label>
+                  <input type="text" placeholder="Contoh: Konsinyering Penyusunan Pola Karir ASN" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.namaKegiatan} onChange={e => setFormData({ ...formData, namaKegiatan: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Mata Anggaran (MAK)</label>
-                  <input type="text" placeholder="Contoh: 1597/950/058/AD/524119" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all uppercase" value={formData.mataAnggaran} onChange={e => setFormData({ ...formData, mataAnggaran: e.target.value })} />
+                  <label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Mata Anggaran (MAK)</label>
+                  <input type="text" placeholder="Contoh: 1597/950/058/AD/524119" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.mataAnggaran} onChange={e => setFormData({ ...formData, mataAnggaran: e.target.value })} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Tanggal</label>
+                    <label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Tanggal</label>
                     <input type="date" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.tanggal} onChange={e => setFormData({ ...formData, tanggal: e.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Tahun</label>
+                    <label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Tahun</label>
                     <input type="number" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.tahunAnggaran} onChange={e => setFormData({ ...formData, tahunAnggaran: e.target.value })} />
                   </div>
                 </div>
-                <SearchableSelect label="Pejabat Pembuat Komitmen (PPK)" options={pegawai.map(p => ({ value: p.nip, label: p.nama, subLabel: p.jabatan }))} value={formData.ppkNip || ''} onChange={handlePPKChange} />
-                <SearchableSelect label="Bendahara Pengeluaran" options={pegawai.map(p => ({ value: p.nip, label: p.nama, subLabel: p.jabatan }))} value={formData.bendaharaNip || ''} onChange={handleBendaharaChange} />
+                <div className="space-y-4">
+                  <SearchableSelect label="Pejabat Pembuat Komitmen (PPK)" options={pegawai.map(p => ({ value: p.nip, label: p.nama, subLabel: p.jabatan }))} value={formData.ppkNip || ''} onChange={handlePPKChange} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <input type="text" placeholder="Nama PPK (Manual)" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formData.ppkNama || ''} onChange={e => setFormData({ ...formData, ppkNama: e.target.value })} />
+                    <input type="text" placeholder="NIP PPK (Manual)" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formData.ppkNip || ''} onChange={e => setFormData({ ...formData, ppkNip: e.target.value })} />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <SearchableSelect label="Bendahara Pengeluaran" options={pegawai.map(p => ({ value: p.nip, label: p.nama, subLabel: p.jabatan }))} value={formData.bendaharaNip || ''} onChange={handleBendaharaChange} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <input type="text" placeholder="Nama Bendahara (Manual)" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formData.bendaharaNama || ''} onChange={e => setFormData({ ...formData, bendaharaNama: e.target.value })} />
+                    <input type="text" placeholder="NIP Bendahara (Manual)" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formData.bendaharaNip || ''} onChange={e => setFormData({ ...formData, bendaharaNip: e.target.value })} />
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Unit Kerja</label>
+                  <label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Unit Kerja</label>
                   <select className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.unitKerja} onChange={e => setFormData({ ...formData, unitKerja: e.target.value })}>
                     {UNIT_KERJA.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Status</label>
+                  <label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Status</label>
                   <select className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value as any })}>
                     <option>Draft</option>
                     <option>Diajukan</option>
@@ -542,41 +554,41 @@ const KeuanganPage = () => {
               <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-4 tracking-widest">2. Standar Biaya & SPD (Acuan Peserta)</h5>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <div className="space-y-6">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest border-l-4 border-blue-600 pl-3">Standar Biaya Satuan</p>
+                  <p className="text-[9px] font-black text-gray-400 ml-3 tracking-widest border-l-4 border-blue-600 pl-3">Standar Biaya Satuan</p>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Uang Harian (Rp)</label>
+                      <label className="text-[8px] font-black text-gray-400 ml-2">Uang Harian (Rp)</label>
                       <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formatRupiah(formData.configBiaya?.uangHarian)} onChange={e => updateConfigBiaya('uangHarian', parseRawValue(e.target.value))} />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Penginapan (Rp)</label>
+                      <label className="text-[8px] font-black text-gray-400 ml-2">Penginapan (Rp)</label>
                       <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formatRupiah(formData.configBiaya?.penginapan)} onChange={e => updateConfigBiaya('penginapan', parseRawValue(e.target.value))} />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Transport (Rp)</label>
+                      <label className="text-[8px] font-black text-gray-400 ml-2">Transport (Rp)</label>
                       <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formatRupiah(formData.configBiaya?.transport)} onChange={e => updateConfigBiaya('transport', parseRawValue(e.target.value))} />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Fullboard (Rp)</label>
+                      <label className="text-[8px] font-black text-gray-400 ml-2">Fullboard (Rp)</label>
                       <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formatRupiah(formData.configBiaya?.fullboard)} onChange={e => updateConfigBiaya('fullboard', parseRawValue(e.target.value))} />
                     </div>
                   </div>
                 </div>
                 <div className="space-y-6">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest border-l-4 border-emerald-600 pl-3">Standar Data SPD</p>
+                  <p className="text-[9px] font-black text-gray-400 ml-3 tracking-widest border-l-4 border-emerald-600 pl-3">Standar Data SPD</p>
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SPD (Prefix/Default)</label>
-                      <input type="text" placeholder="Contoh: SPD/001/DJKI/2024" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all uppercase" value={formData.configSpd?.nomorSpdPrefix || ''} onChange={e => updateConfigSpd('nomorSpdPrefix', e.target.value)} />
+                      <label className="text-[8px] font-black text-gray-400 ml-2">Nomor SPD (Prefix/Default)</label>
+                      <input type="text" placeholder="Contoh: SPD/001/DJKI/2024" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.configSpd?.nomorSpdPrefix || ''} onChange={e => updateConfigSpd('nomorSpdPrefix', e.target.value)} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal SPD</label>
+                        <label className="text-[8px] font-black text-gray-400 ml-2">Tanggal SPD</label>
                         <input type="date" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.configSpd?.tanggalSpd || ''} onChange={e => updateConfigSpd('tanggalSpd', e.target.value)} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tujuan Perjalanan</label>
-                        <input type="text" placeholder="Contoh: Jakarta - Bogor" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all uppercase" value={formData.configSpd?.tujuanPerjalanan || ''} onChange={e => updateConfigSpd('tujuanPerjalanan', e.target.value)} />
+                        <label className="text-[8px] font-black text-gray-400 ml-2">Tujuan Perjalanan</label>
+                        <input type="text" placeholder="Contoh: Jakarta - Bogor" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.configSpd?.tujuanPerjalanan || ''} onChange={e => updateConfigSpd('tujuanPerjalanan', e.target.value)} />
                       </div>
                     </div>
                   </div>
@@ -584,14 +596,14 @@ const KeuanganPage = () => {
               </div>
               <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex items-center gap-3">
                 <i className="bi bi-info-circle-fill text-blue-600"></i>
-                <p className="text-[9px] font-bold text-blue-800 uppercase leading-relaxed">Nilai di atas akan otomatis digunakan sebagai data awal saat Anda menambahkan peserta baru.</p>
+                <p className="text-[9px] font-bold text-blue-800 leading-relaxed">Nilai di atas akan otomatis digunakan sebagai data awal saat Anda menambahkan peserta baru.</p>
               </div>
             </div>
 
             <div className="space-y-8">
               <div className="flex justify-between items-center border-b pb-4">
                 <div className="flex flex-col">
-                  <h5 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">3. Daftar Peserta & Perincian</h5>
+                  <h5 className="text-[10px] font-black text-blue-600 tracking-widest">3. Daftar Peserta & Perincian</h5>
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => handleDownloadExcelParticipants(formData as KeuanganRecord)} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-sm hover:bg-emerald-100 transition-all">
                       <i className="bi bi-file-earmark-excel"></i> Excel Peserta
@@ -618,12 +630,12 @@ const KeuanganPage = () => {
                         <SearchableSelect label={`Peserta #${pIdx + 1}`} options={pegawai.map(x => ({ value: x.nip, label: x.nama, subLabel: x.jabatan }))} value={p.nip || ''} onChange={(nip) => handlePesertaSelect(pIdx, nip)} />
                         {!p.nip && (
                           <div className="grid grid-cols-1 gap-4">
-                            <input type="text" placeholder="Nama Lengkap (Input Manual)" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none uppercase" value={p.nama} onChange={e => updatePeserta(pIdx, 'nama', e.target.value)} />
-                            <input type="text" placeholder="Jabatan (Input Manual)" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none uppercase" value={p.jabatan} onChange={e => updatePeserta(pIdx, 'jabatan', e.target.value)} />
+                            <input type="text" placeholder="Nama Lengkap (Input Manual)" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.nama} onChange={e => updatePeserta(pIdx, 'nama', e.target.value)} />
+                            <input type="text" placeholder="Jabatan (Input Manual)" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.jabatan} onChange={e => updatePeserta(pIdx, 'jabatan', e.target.value)} />
                           </div>
                         )}
                         <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-3">Kategori</label>
+                          <label className="text-[8px] font-black text-gray-400 ml-3">Kategori</label>
                           <select className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.kategori} onChange={e => updatePeserta(pIdx, 'kategori', e.target.value)}>
                             <option>SPPD</option>
                             <option>Fullboard</option>
@@ -637,17 +649,17 @@ const KeuanganPage = () => {
                       <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
-                            <label className="text-[8px] font-black text-gray-400 uppercase ml-3">Nomor SPD</label>
-                            <input type="text" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none uppercase" value={p.nomorSpd} onChange={e => updatePeserta(pIdx, 'nomorSpd', e.target.value)} />
+                            <label className="text-[8px] font-black text-gray-400 ml-3">Nomor SPD</label>
+                            <input type="text" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.nomorSpd} onChange={e => updatePeserta(pIdx, 'nomorSpd', e.target.value)} />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[8px] font-black text-gray-400 uppercase ml-3">Tanggal SPD</label>
+                            <label className="text-[8px] font-black text-gray-400 ml-3">Tanggal SPD</label>
                             <input type="date" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.tanggalSpd} onChange={e => updatePeserta(pIdx, 'tanggalSpd', e.target.value)} />
                           </div>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-3">Tujuan Perjalanan</label>
-                          <input type="text" placeholder="Contoh: Jakarta - Bogor" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none uppercase" value={p.tujuanPerjalanan} onChange={e => updatePeserta(pIdx, 'tujuanPerjalanan', e.target.value)} />
+                          <label className="text-[8px] font-black text-gray-400 ml-3">Tujuan Perjalanan</label>
+                          <input type="text" placeholder="Contoh: Jakarta - Bogor" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.tujuanPerjalanan} onChange={e => updatePeserta(pIdx, 'tujuanPerjalanan', e.target.value)} />
                         </div>
                         <div className="flex justify-end gap-2 pt-4">
                            <button onClick={() => {
@@ -724,11 +736,11 @@ const KeuanganPage = () => {
             
             <div className="flex justify-center gap-6 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
               <div className="space-y-1 flex-1">
-                <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Kota TTD</label>
-                <input type="text" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600 transition-all uppercase" value={docCity} onChange={e => setDocCity(e.target.value)} />
+                <label className="text-[8px] font-black text-gray-400 ml-2 tracking-widest">Kota TTD</label>
+                <input type="text" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600 transition-all" value={docCity} onChange={e => setDocCity(e.target.value)} />
               </div>
               <div className="space-y-1 flex-1">
-                <label className="text-[8px] font-black text-gray-400 uppercase ml-2 tracking-widest">Tanggal Dokumen</label>
+                <label className="text-[8px] font-black text-gray-400 ml-2 tracking-widest">Tanggal Dokumen</label>
                 <input type="date" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600 transition-all" value={docDate} onChange={e => setDocDate(e.target.value)} />
               </div>
             </div>
@@ -835,7 +847,7 @@ const KeuanganPage = () => {
                   </div>
 
                   {/* BOTTOM SECTION */}
-                  <div className="mt-4 pt-4 border-t border-black grid grid-cols-2 gap-8 text-[8pt]">
+                  <div className="text-center pt-1 text-[9pt]">
                      <div className="text-center italic">
                         <p>Lunas dibayar tanggal, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                      </div>

@@ -94,9 +94,9 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     if (csvText.includes('<!DOCTYPE html>')) throw new Error("Access denied.");
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
     if (lines.length < 1) return [];
-    const headers = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').trim().toUpperCase().replace(/[\s_.]/g, ''));
+    const headers = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').replace(/""/g, '"').trim().toUpperCase().replace(/[\s_.]/g, ''));
     const result = lines.slice(1).map(line => {
-        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
+        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
         return mapper(cols, headers);
     }).filter((item): item is T => item !== null);
     if (result.length > 0) localStorage.setItem(storageKey, JSON.stringify(result));

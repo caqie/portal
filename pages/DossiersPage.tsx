@@ -180,12 +180,12 @@ const DossiersPage = () => {
 
       <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-50 bg-gray-50/30">
-          <div className="relative flex-1 max-w-md">
+              <div className="relative flex-1 max-w-md">
             <i className="bi bi-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
             <input 
               type="text" 
               placeholder="Cari Berkas, NIP, atau Nama Pegawai..." 
-              className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-2xl text-[11px] font-black uppercase outline-none focus:border-blue-600 shadow-sm"
+              className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-2xl text-[11px] font-black outline-none focus:border-blue-600 shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -255,8 +255,8 @@ const DossiersPage = () => {
                  <SearchableSelect label="Pilih Pegawai Pemilik Berkas" options={pegawaiList.map(p => ({ value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip}` }))} value={formData.nip || ''} onChange={v => setFormData({...formData, nip: v})} />
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Tanggal Dokumen</label><input type="date" className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none focus:border-blue-600 transition-all" value={formData.tanggal || ''} onChange={e => setFormData({...formData, tanggal: e.target.value})} /></div>
-                    <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Nama / Judul Berkas</label><input type="text" className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none focus:border-blue-600 transition-all uppercase" value={formData.fileName || ''} onChange={e => setFormData({...formData, fileName: e.target.value})} placeholder="Misal: SK Pangkat 2024" /></div>
+                    <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Tanggal Dokumen</label><input type="date" className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none focus:border-blue-600 transition-all" value={formData.tanggal || ''} onChange={e => setFormData({...formData, tanggal: e.target.value})} /></div>
+                    <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Nama / Judul Berkas</label><input type="text" className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none focus:border-blue-600 transition-all" value={formData.fileName || ''} onChange={e => setFormData({...formData, fileName: e.target.value})} placeholder="Misal: SK Pangkat 2024" /></div>
                  </div>
 
                  <div className={`p-8 rounded-[2.5rem] flex flex-col items-center text-center space-y-5 transition-all border-2 border-dashed ${formData.fileUrl ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50/50 border-blue-200'}`}>
@@ -273,7 +273,7 @@ const DossiersPage = () => {
                     <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,image/*" onChange={handleUploadFile} />
                  </div>
 
-                 <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest">Keterangan Tambahan (Opsional)</label><textarea rows={3} className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-bold outline-none focus:border-blue-600 resize-none transition-all" value={formData.keterangan || ''} onChange={e => setFormData({...formData, keterangan: e.target.value})} placeholder="Catatan internal tentang dokumen ini..." /></div>
+                 <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Keterangan Tambahan (Opsional)</label><textarea rows={3} className="w-full px-6 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-bold outline-none focus:border-blue-600 resize-none transition-all" value={formData.keterangan || ''} onChange={e => setFormData({...formData, keterangan: e.target.value})} placeholder="Catatan internal tentang dokumen ini..." /></div>
               </form>
               <div className="p-8 bg-gray-50 border-t flex justify-end gap-3 shrink-0">
                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-10 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">Batalkan</button>

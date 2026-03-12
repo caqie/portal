@@ -107,8 +107,8 @@ const MagangPKLPage = () => {
     );
   }, [pesertaList, searchTerm]);
 
-  const inputClass = "w-full px-5 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-900 shadow-sm";
-  const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";
+  const inputClass = "w-full px-5 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-900 shadow-sm";
+  const labelClass = "text-[9px] font-black text-gray-400 ml-3 tracking-widest block mb-1.5";
 
   return (
     <div className="space-y-8 animate-fadeIn pb-24 text-black">
@@ -128,13 +128,13 @@ const MagangPKLPage = () => {
             <i className="bi bi-arrow-left text-xl"></i>
           </button>
           <div>
-            <h3 className="text-2xl md:text-3xl font-black text-gray-900 uppercase tracking-tighter">Magang & PKL Hub</h3>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Manajemen Peserta & Generator Dokumen Terpadu</p>
+            <h3 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tighter">Magang & PKL Hub</h3>
+            <p className="text-[10px] text-gray-400 font-bold tracking-widest mt-1">Manajemen Peserta & Generator Dokumen Terpadu</p>
           </div>
         </div>
         <div className="flex gap-3">
           {activeView === 'list' && canEdit && (
-            <button onClick={() => { setFormData({ jenis: 'MAGANG', status: 'Proses', penempatan: UNIT_KERJA[0], tanggalMulai: new Date().toISOString().split('T')[0] }); setActiveView('editor'); }} className="px-10 h-14 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">
+            <button onClick={() => { setFormData({ jenis: 'MAGANG', status: 'Proses', penempatan: UNIT_KERJA[0], tanggalMulai: new Date().toISOString().split('T')[0] }); setActiveView('editor'); }} className="px-10 h-14 bg-blue-600 text-white rounded-2xl font-black text-[10px] shadow-xl active:scale-95 transition-all">
               + Tambah Peserta
             </button>
           )}
@@ -146,31 +146,31 @@ const MagangPKLPage = () => {
            <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4">
               <div className="flex-1 relative">
                 <i className="bi bi-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                <input type="text" placeholder="Cari Nama Peserta atau Institusi..." className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-xs font-black uppercase outline-none focus:border-blue-600 transition-all shadow-inner" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                <input type="text" placeholder="Cari Nama Peserta atau Institusi..." className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-xs font-black outline-none focus:border-blue-600 transition-all shadow-inner" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
               </div>
            </div>
 
            <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
               <table className="w-full text-left">
-                 <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
+                 <thead className="bg-gray-50 text-[8px] font-black text-gray-400 border-b tracking-widest">
                     <tr><th className="px-10 py-5">Peserta & Institusi</th><th className="px-4 py-5">Periode</th><th className="px-4 py-5">Penempatan</th><th className="px-4 py-5 text-center">Status</th><th className="px-10 py-5 text-right">Generator Dokumen</th></tr>
                  </thead>
                  <tbody className="divide-y divide-gray-50">
                     {filteredData.map(p => (
                       <tr key={p.id} className="hover:bg-blue-50/5 group transition-all">
                          <td className="px-10 py-6">
-                            <p className="text-[11px] font-black text-gray-950 uppercase">{p.nama}</p>
-                            <p className="text-[9px] font-bold text-blue-600 mt-1 uppercase">{p.institusi} • {p.jenis}</p>
+                            <p className="text-[11px] font-black text-gray-950">{p.nama}</p>
+                            <p className="text-[9px] font-bold text-blue-600 mt-1">{p.institusi} • {p.jenis}</p>
                          </td>
                          <td className="px-4 py-6">
-                            <p className="text-[10px] font-bold text-gray-500 uppercase">{p.tanggalMulai} s/d</p>
-                            <p className="text-[10px] font-bold text-gray-500 uppercase">{p.tanggalSelesai}</p>
+                            <p className="text-[10px] font-bold text-gray-500">{p.tanggalMulai} s/d</p>
+                            <p className="text-[10px] font-bold text-gray-500">{p.tanggalSelesai}</p>
                          </td>
                          <td className="px-4 py-6">
-                            <p className="text-[9px] font-black text-gray-800 uppercase leading-tight max-w-[200px]">{p.penempatan}</p>
+                            <p className="text-[9px] font-black text-gray-800 leading-tight max-w-[200px]">{p.penempatan}</p>
                          </td>
                          <td className="px-4 py-6 text-center">
-                            <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${p.status === 'Selesai' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{p.status}</span>
+                            <span className={`px-3 py-1 rounded-lg text-[8px] font-black border ${p.status === 'Selesai' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{p.status}</span>
                          </td>
                          <td className="px-10 py-6 text-right">
                             <div className="flex justify-end gap-2">
@@ -189,7 +189,7 @@ const MagangPKLPage = () => {
                       </tr>
                     ))}
                     {filteredData.length === 0 && (
-                       <tr><td colSpan={5} className="py-32 text-center opacity-30"><i className="bi bi-people text-5xl mb-4 block"></i><p className="text-[10px] font-black uppercase tracking-widest">Belum ada data peserta</p></td></tr>
+                       <tr><td colSpan={5} className="py-32 text-center opacity-30"><i className="bi bi-people text-5xl mb-4 block"></i><p className="text-[10px] font-black tracking-widest">Belum ada data peserta</p></td></tr>
                     )}
                  </tbody>
               </table>
@@ -202,19 +202,19 @@ const MagangPKLPage = () => {
            <form onSubmit={handleSave} className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                  <div className="space-y-6">
-                    <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-2 tracking-widest">A. Identitas Peserta</h5>
+                    <h5 className="text-[10px] font-black text-blue-600 border-b pb-2 tracking-widest">A. Identitas Peserta</h5>
                     <div><label className={labelClass}>Nama Lengkap</label><input type="text" className={inputClass} value={formData.nama || ''} onChange={e=>setFormData({...formData, nama: e.target.value})} required /></div>
                     <div><label className={labelClass}>NIM / NIS / NIK</label><input type="text" className={inputClass} value={formData.nisNim || ''} onChange={e=>setFormData({...formData, nisNim: e.target.value})} required /></div>
                     <div><label className={labelClass}>Asal Institusi / Kampus</label><input type="text" className={inputClass} value={formData.institusi || ''} onChange={e=>setFormData({...formData, institusi: e.target.value})} required /></div>
                     <div><label className={labelClass}>Jurusan / Program Studi</label><input type="text" className={inputClass} value={formData.jurusan || ''} onChange={e=>setFormData({...formData, jurusan: e.target.value})} /></div>
                  </div>
                  <div className="space-y-6">
-                    <h5 className="text-[10px] font-black text-indigo-600 uppercase border-b pb-2 tracking-widest">B. Program & Penempatan</h5>
+                    <h5 className="text-[10px] font-black text-indigo-600 border-b pb-2 tracking-widest">B. Program & Penempatan</h5>
                     <div className="grid grid-cols-2 gap-4">
                        <div><label className={labelClass}>Jenis Program</label><select className={inputClass} value={formData.jenis} onChange={e=>setFormData({...formData, jenis: e.target.value as any})}><option value="MAGANG">MAGANG</option><option value="PKL">PKL (VOKASI)</option></select></div>
                        <div><label className={labelClass}>Status</label><select className={inputClass} value={formData.status} onChange={e=>setFormData({...formData, status: e.target.value as any})}><option value="Proses">BERLANGSUNG</option><option value="Selesai">SELESAI</option></select></div>
                     </div>
-                    <div><label className={labelClass}>Unit Kerja Penempatan</label><select className={inputClass} value={formData.penempatan} onChange={e=>setFormData({...formData, penempatan: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase().substring(0,40)}...</option>)}</select></div>
+                    <div><label className={labelClass}>Unit Kerja Penempatan</label><select className={inputClass} value={formData.penempatan} onChange={e=>setFormData({...formData, penempatan: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.substring(0,40)}...</option>)}</select></div>
                     <div className="grid grid-cols-2 gap-4">
                        <div><label className={labelClass}>Tanggal Mulai</label><input type="date" className={inputClass} value={formData.tanggalMulai} onChange={e=>setFormData({...formData, tanggalMulai: e.target.value})} /></div>
                        <div><label className={labelClass}>Tanggal Selesai</label><input type="date" className={inputClass} value={formData.tanggalSelesai} onChange={e=>setFormData({...formData, tanggalSelesai: e.target.value})} /></div>
@@ -223,7 +223,7 @@ const MagangPKLPage = () => {
               </div>
 
               <div className="pt-8 border-t space-y-6">
-                 <h5 className="text-[10px] font-black text-emerald-600 uppercase border-b pb-2 tracking-widest">C. Referensi Surat & Tanda Tangan</h5>
+                 <h5 className="text-[10px] font-black text-emerald-600 border-b pb-2 tracking-widest">C. Referensi Surat & Tanda Tangan</h5>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div><label className={labelClass}>Nomor Surat (Balasan/Sertifikat)</label><input type="text" className={inputClass} value={formData.nomorSurat || ''} onChange={e=>setFormData({...formData, nomorSurat: e.target.value})} /></div>
                     <SearchableSelect label="Pejabat Penandatangan" options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: p.jabatan}))} value={formData.pjbNip || ''} onChange={v => setFormData({...formData, pjbNip: v})} />
@@ -231,8 +231,8 @@ const MagangPKLPage = () => {
               </div>
 
               <div className="pt-10 flex justify-center gap-4">
-                 <button type="button" onClick={() => setActiveView('list')} className="px-12 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black text-[10px] uppercase shadow-sm">Batal</button>
-                 <button type="submit" disabled={syncing} className="px-24 py-4 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all flex items-center gap-3">
+                 <button type="button" onClick={() => setActiveView('list')} className="px-12 py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black text-[10px] shadow-sm">Batal</button>
+                 <button type="submit" disabled={syncing} className="px-24 py-4 bg-[#111827] text-white rounded-2xl font-black text-[10px] shadow-2xl active:scale-95 transition-all flex items-center gap-3">
                     {syncing && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
                     <span>Simpan Data Peserta</span>
                  </button>
@@ -245,14 +245,14 @@ const MagangPKLPage = () => {
         <div className="animate-fadeIn space-y-10">
            <div className="bg-[#111827] p-4 flex flex-col md:flex-row justify-between items-center no-print rounded-[2rem] gap-4">
               <div className="flex gap-2 bg-gray-800 p-1 rounded-xl flex-wrap justify-center">
-                 <button onClick={() => setDocType('BALASAN')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${docType==='BALASAN'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Surat Balasan</button>
-                 <button onClick={() => setDocType('NOTA')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${docType==='NOTA'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Nota Penempatan</button>
-                 <button onClick={() => setDocType('KETERANGAN')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${docType==='KETERANGAN'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Surat Keterangan</button>
-                 <button onClick={() => setDocType('SERTIFIKAT')} className={`px-6 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${docType==='SERTIFIKAT'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Sertifikat</button>
+                 <button onClick={() => setDocType('BALASAN')} className={`px-6 py-2 rounded-lg text-[9px] font-black transition-all ${docType==='BALASAN'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Surat Balasan</button>
+                 <button onClick={() => setDocType('NOTA')} className={`px-6 py-2 rounded-lg text-[9px] font-black transition-all ${docType==='NOTA'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Nota Penempatan</button>
+                 <button onClick={() => setDocType('KETERANGAN')} className={`px-6 py-2 rounded-lg text-[9px] font-black transition-all ${docType==='KETERANGAN'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Surat Keterangan</button>
+                 <button onClick={() => setDocType('SERTIFIKAT')} className={`px-6 py-2 rounded-lg text-[9px] font-black transition-all ${docType==='SERTIFIKAT'?'bg-white text-gray-900 shadow-lg':'text-gray-400 hover:text-white'}`}>Sertifikat</button>
               </div>
               <div className="flex gap-3">
-                 <button onClick={() => setActiveView('list')} className="px-6 py-3 bg-white/10 text-white rounded-xl text-[9px] font-black uppercase hover:bg-white/20">Kembali</button>
-                 <button onClick={handleDownloadPdf} disabled={syncing} className="px-10 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-xl flex items-center gap-2 active:scale-95">
+                 <button onClick={() => setActiveView('list')} className="px-6 py-3 bg-white/10 text-white rounded-xl text-[9px] font-black hover:bg-white/20">Kembali</button>
+                 <button onClick={handleDownloadPdf} disabled={syncing} className="px-10 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black shadow-xl flex items-center gap-2 active:scale-95">
                     {syncing ? <div className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>}
                     Download PDF
                  </button>
@@ -268,14 +268,14 @@ const MagangPKLPage = () => {
                    </div>
                    <div className="flex flex-col items-center text-center relative z-10">
                       <img src={LOGO_PENGAYOMAN_URL} className="h-20 mb-6" crossOrigin="anonymous" />
-                      <h2 className="text-[12pt] font-bold uppercase tracking-[0.3em]">KEMENTERIAN HUKUM REPUBLIK INDONESIA</h2>
-                      <h3 className="text-[11pt] font-bold uppercase tracking-[0.2em] mb-10">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</h3>
+                      <h2 className="text-[12pt] font-bold tracking-[0.3em]">KEMENTERIAN HUKUM REPUBLIK INDONESIA</h2>
+                      <h3 className="text-[11pt] font-bold tracking-[0.2em] mb-10">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</h3>
                       
                       <h1 className="text-[36pt] font-serif font-bold text-blue-900 mb-2 italic">Sertifikat</h1>
-                      <p className="text-[14pt] font-bold uppercase tracking-widest mb-10">Nomor: {selectedPeserta.nomorSurat || '... / HKI.1 / 2025'}</p>
+                      <p className="text-[14pt] font-bold tracking-widest mb-10">Nomor: {selectedPeserta.nomorSurat || '... / HKI.1 / 2025'}</p>
                       
                       <p className="text-[14pt] mb-4">Diberikan Kepada :</p>
-                      <h4 className="text-[28pt] font-bold uppercase underline mb-4">{selectedPeserta.nama}</h4>
+                      <h4 className="text-[28pt] font-bold underline mb-4">{selectedPeserta.nama}</h4>
                       <p className="text-[14pt] font-bold text-gray-600 mb-10">({selectedPeserta.institusi})</p>
                       
                       <p className="text-[14pt] max-w-[200mm] leading-relaxed mx-auto">
@@ -284,8 +284,8 @@ const MagangPKLPage = () => {
 
                       <div className="mt-16 flex flex-col items-center">
                          <p className="text-[12pt]">Jakarta, {selectedPeserta.tanggalSelesai || '...'}</p>
-                         <p className="text-[12pt] font-bold mt-4 mb-20 uppercase">A.n. DIREKTUR JENDERAL KEKAYAAN INTELEKTUAL,</p>
-                         <p className="text-[13pt] font-bold uppercase underline leading-none">{selectedPeserta.pjbNama}</p>
+                         <p className="text-[12pt] font-bold mt-4 mb-20">A.n. DIREKTUR JENDERAL KEKAYAAN INTELEKTUAL,</p>
+                         <p className="text-[13pt] font-bold underline leading-none">{selectedPeserta.pjbNama}</p>
                          <p className="text-[11pt] mt-1">NIP {selectedPeserta.pjbNip}</p>
                       </div>
                    </div>
@@ -298,16 +298,16 @@ const MagangPKLPage = () => {
                   {docType === 'NOTA' ? (
                     /* NOTA DINAS: HEADER SEDERHANA (Tanpa Logo, Alamat, Garis) */
                     <div className="text-center mb-6 pt-4">
-                       <p style={{ fontSize: '12pt' }} className="uppercase leading-tight font-normal">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                        <p style={{ fontSize: '12pt' }} className="font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                       <p style={{ fontSize: '12pt' }} className="leading-tight font-normal">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                        <p style={{ fontSize: '12pt' }} className="font-bold leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
                     </div>
                   ) : (
                     /* BALASAN & KETERANGAN: KOP SURAT LENGKAP (Logo + Alamat + Garis) */
                     <div className="flex items-start gap-4 border-b-[0.5pt] border-black pb-2 mb-6 text-black">
                        <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" style={{ width: '20.04mm', height: '22.90mm' }} crossOrigin="anonymous" />
                        <div className="flex-1 text-center">
-                          <p style={{ fontSize: '12pt' }} className="uppercase leading-tight font-normal">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                          <p style={{ fontSize: '12pt' }} className="font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                          <p style={{ fontSize: '12pt' }} className="leading-tight font-normal">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                          <p style={{ fontSize: '12pt' }} className="font-bold leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
                           <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
                           <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Call Center: 152</p>
                           <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Laman: www.dgip.go.id. Pos-el: halodjki@dgip.go.id</p>
@@ -347,7 +347,7 @@ const MagangPKLPage = () => {
                            <p>Demikian kami sampaikan, atas perhatiannya diucapkan terima kasih.</p>
 
                            <div className="mt-14 ml-[55%] text-center leading-tight">
-                              <p className="font-bold uppercase mb-24">{selectedPeserta.pjbJabatan},</p>
+                              <p className="font-bold mb-24">{selectedPeserta.pjbJabatan},</p>
                               <p className="font-bold uppercase underline leading-none">{selectedPeserta.pjbNama}</p>
                               <p className="mt-1">NIP {selectedPeserta.pjbNip}</p>
                            </div>
@@ -357,12 +357,12 @@ const MagangPKLPage = () => {
                      {docType === 'NOTA' && (
                         <>
                            <div className="text-center mb-6">
-                              <h1 className="text-[12pt] font-bold uppercase">NOTA DINAS</h1>
-                              <p className="text-[11pt] font-normal mt-1 uppercase">Nomor: {selectedPeserta.nomorSurat || 'HKI.1-PR.04.01-...'}</p>
+                              <h1 className="text-[12pt] font-bold">NOTA DINAS</h1>
+                              <p className="text-[11pt] font-normal mt-1">Nomor: {selectedPeserta.nomorSurat || 'HKI.1-PR.04.01-...'}</p>
                            </div>
                            
                            <div className="grid grid-cols-[80px_10px_1fr] border-b border-black pb-4 mb-6">
-                              <span>Yth</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.penempatan}</span>
+                              <span>Yth</span><span>:</span><span className="font-bold">{selectedPeserta.penempatan}</span>
                               <span>Dari</span><span>:</span><span>Bagian Kepegawaian</span>
                               <span>Hal</span><span>:</span><span className="font-bold">Penempatan Peserta {selectedPeserta.jenis}</span>
                               <span>Tanggal</span><span>:</span><span>{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
@@ -381,7 +381,7 @@ const MagangPKLPage = () => {
                            <p>Demikian untuk menjadi maklum dan dilaksanakan.</p>
 
                            <div className="mt-14 ml-[55%] text-center leading-tight">
-                              <p className="font-bold uppercase mb-24">KEPALA BAGIAN KEPEGAWAIAN,</p>
+                              <p className="font-bold mb-24">KEPALA BAGIAN KEPEGAWAIAN,</p>
                               <p className="font-bold uppercase underline leading-none">{selectedPeserta.pjbNama}</p>
                               <p className="mt-1">NIP {selectedPeserta.pjbNip}</p>
                            </div>
@@ -391,7 +391,7 @@ const MagangPKLPage = () => {
                      {docType === 'KETERANGAN' && (
                         <>
                            <div className="text-center mb-8">
-                              <h2 className="text-[14pt] font-bold uppercase underline mb-2">SURAT KETERANGAN</h2>
+                              <h2 className="text-[14pt] font-bold underline mb-2">SURAT KETERANGAN</h2>
                               <p>Nomor: {selectedPeserta.nomorSurat || 'HKI.1-UM.01.01-...'}</p>
                            </div>
                            
@@ -402,7 +402,7 @@ const MagangPKLPage = () => {
                               <span>NIM / NIS</span><span>:</span><span>{selectedPeserta.nisNim}</span>
                               <span>Institusi</span><span>:</span><span className="uppercase">{selectedPeserta.institusi}</span>
                               <span>Jurusan</span><span>:</span><span className="uppercase">{selectedPeserta.jurusan}</span>
-                              <span>Penempatan</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.penempatan}</span>
+                              <span>Penempatan</span><span>:</span><span className="font-bold">{selectedPeserta.penempatan}</span>
                               <span>Periode</span><span>:</span><span>{selectedPeserta.tanggalMulai} s/d {selectedPeserta.tanggalSelesai}</span>
                            </div>
 
@@ -412,7 +412,7 @@ const MagangPKLPage = () => {
 
                            <div className="mt-14 ml-[55%] text-center leading-tight">
                               <p>Jakarta, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                              <p className="font-bold uppercase mt-4 mb-24">KEPALA BAGIAN KEPEGAWAIAN,</p>
+                              <p className="font-bold mt-4 mb-24">KEPALA BAGIAN KEPEGAWAIAN,</p>
                               <p className="font-bold uppercase underline leading-none">{selectedPeserta.pjbNama}</p>
                               <p className="mt-1">NIP {selectedPeserta.pjbNip}</p>
                            </div>
@@ -430,7 +430,7 @@ const MagangPKLPage = () => {
 
 const FormItem = ({ label, children }: any) => (
   <div className="space-y-1.5">
-    <label className="text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5">{label}</label>
+    <label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest block mb-1.5">{label}</label>
     {children}
   </div>
 );

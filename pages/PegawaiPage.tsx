@@ -338,11 +338,11 @@ const PegawaiPage = () => {
     reader.readAsBinaryString(file);
   };
 
-  const inputClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950";
+  const inputClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950";
   const inputNoCapsClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950";
-  const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";
-  const detailLabel = "text-[8px] font-black text-gray-400 uppercase tracking-[0.2em] block mb-1.5";
-  const detailValue = "text-[13px] font-black uppercase text-gray-900 leading-tight";
+  const labelClass = "text-[9px] font-black text-gray-400 ml-3 tracking-widest block mb-1.5";
+  const detailLabel = "text-[8px] font-black text-gray-400 tracking-[0.2em] block mb-1.5";
+  const detailValue = "text-[13px] font-black text-gray-900 leading-tight";
   const detailValueNoCaps = "text-[13px] font-black text-gray-900 leading-tight";
 
   return (

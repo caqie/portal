@@ -52,7 +52,7 @@ const SidebarItem = ({ to, icon, label, active, collapsed, onClick }: any) => (
     </div>
     
     {!collapsed && (
-      <span className="ml-4 font-bold text-[11px] uppercase tracking-[0.1em] whitespace-nowrap overflow-hidden">
+      <span className="ml-4 font-bold text-[11px] tracking-[0.1em] whitespace-nowrap overflow-hidden">
         {label}
       </span>
     )}
@@ -144,9 +144,9 @@ const AppContent = () => {
       <div className="h-32 w-32 bg-amber-100 text-amber-600 rounded-[3rem] flex items-center justify-center text-6xl mb-8 animate-bounce">
         <i className="bi bi-tools"></i>
       </div>
-      <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter mb-4">Halaman Dalam Pengembangan</h2>
+      <h2 className="text-3xl font-black text-gray-900 tracking-tighter mb-4">Halaman Dalam Pengembangan</h2>
       <p className="text-gray-500 max-w-md font-medium">Mohon maaf, halaman ini sedang dalam proses pemeliharaan atau pengembangan fitur baru. Silakan kembali lagi nanti.</p>
-      <Link to="/" className="mt-10 px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all">Kembali ke Dashboard</Link>
+      <Link to="/" className="mt-10 px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold tracking-widest shadow-xl hover:bg-blue-700 transition-all">Kembali ke Dashboard</Link>
     </div>
   );
 
@@ -155,9 +155,9 @@ const AppContent = () => {
       <div className="h-32 w-32 bg-rose-100 text-rose-600 rounded-[3rem] flex items-center justify-center text-6xl mb-8">
         <i className="bi bi-shield-lock-fill"></i>
       </div>
-      <h2 className="text-3xl font-black text-gray-900 uppercase tracking-tighter mb-4">Akses Terbatas</h2>
+      <h2 className="text-3xl font-black text-gray-900 tracking-tighter mb-4">Akses Terbatas</h2>
       <p className="text-gray-500 max-w-md font-medium">Anda tidak memiliki izin untuk mengakses halaman ini. Silakan hubungi administrator jika Anda merasa ini adalah kesalahan.</p>
-      <Link to="/" className="mt-10 px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold uppercase tracking-widest shadow-xl hover:bg-gray-800 transition-all">Kembali ke Dashboard</Link>
+      <Link to="/" className="mt-10 px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold tracking-widest shadow-xl hover:bg-gray-800 transition-all">Kembali ke Dashboard</Link>
     </div>
   );
 
@@ -203,8 +203,8 @@ const AppContent = () => {
             </Link>
             {!isCollapsed && (
               <div className="text-center transition-all duration-500 whitespace-nowrap overflow-hidden">
-                <h1 className="text-[11px] font-black text-white tracking-tighter uppercase leading-none">{systemName}</h1>
-                <p className="text-[7px] text-slate-500 mt-2 font-black uppercase tracking-[0.3em]">SDM HUB DJKI</p>
+                <h1 className="text-[11px] font-black text-white tracking-tighter leading-none">{systemName}</h1>
+                <p className="text-[7px] text-slate-500 mt-2 font-black tracking-[0.3em]">SDM HUB DJKI</p>
               </div>
             )}
           </div>
@@ -219,7 +219,7 @@ const AppContent = () => {
             
             {(hasAccess('/persuratan') || hasAccess('/tugas-rutin') || hasAccess('/kegiatan') || hasAccess('/laporan') || hasAccess('/keuangan') || hasAccess('/dossiers')) && (
               <>
-                {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Administrasi</div>}
+                {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Administrasi</div>}
                 {hasAccess('/persuratan') && <SidebarItem to="/persuratan" icon="bi-envelope-paper-fill" label="Persuratan Digital" active={location.pathname === '/persuratan'} collapsed={isCollapsed} />}
                 {hasAccess('/tugas-rutin') && <SidebarItem to="/tugas-rutin" icon="bi-clipboard2-check-fill" label="Tugas Rutin" active={location.pathname === '/tugas-rutin'} collapsed={isCollapsed} />}
                 {hasAccess('/kegiatan') && <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Kalender Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />}
@@ -229,20 +229,20 @@ const AppContent = () => {
               </>
             )}
 
-            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Kehadiran</div>}
+            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Kehadiran</div>}
             {/* Hanya tampilkan menu absensi di Mobile View */}
             {isMobileView && hasAccess('/absensi-online') && (
               <SidebarItem to="/absensi-online" icon="bi-camera-fill" label="Absensi Wajah" active={location.pathname === '/absensi-online'} collapsed={isCollapsed} />
             )}
             {hasAccess('/rekap-absensi') && <SidebarItem to="/rekap-absensi" icon="bi-clipboard-data-fill" label="Rekapitulasi" active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />}
 
-            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Uji Kompetensi</div>}
+            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Uji Kompetensi</div>}
             {hasAccess('/ukom/admin') && <SidebarItem to="/ukom/admin" icon="bi-pc-display-horizontal" label="Admin CAT" active={location.pathname === '/ukom/admin'} collapsed={isCollapsed} />}
             {hasAccess('/ukom/login') && <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian" active={location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin'} collapsed={isCollapsed} />}
 
             {(hasAccess('/settings') || hasAccess('/logs')) && (
               <>
-                {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Sistem</div>}
+                {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Sistem</div>}
                 {hasAccess('/settings') && <SidebarItem to="/settings" icon="bi-gear-wide-connected" label="Pengaturan" active={location.pathname === '/settings'} collapsed={isCollapsed} />}
                 {hasAccess('/logs') && <SidebarItem to="/logs" icon="bi-clock-history" label="Audit Logs" active={location.pathname === '/logs'} collapsed={isCollapsed} />}
               </>
@@ -250,7 +250,7 @@ const AppContent = () => {
           </nav>
 
           <div className="p-6 border-t border-white/5 shrink-0">
-             <button onClick={logout} className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-rose-600/10 text-rose-500 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all">
+             <button onClick={logout} className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-rose-600/10 text-rose-500 rounded-xl font-bold text-[10px] tracking-widest hover:bg-rose-600 hover:text-white transition-all">
                 <i className="bi bi-power"></i>
                 {!isCollapsed && <span>Logout Sistem</span>}
              </button>
@@ -264,8 +264,8 @@ const AppContent = () => {
             <div className="flex items-center gap-4">
               <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden h-10 w-10 flex items-center justify-center text-gray-400 bg-gray-50 rounded-xl"><i className="bi bi-list text-2xl"></i></button>
               <div className="hidden sm:block">
-                <h2 className="text-sm font-black text-gray-950 uppercase tracking-tight">Portal SDM DJKI</h2>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">DJKI Smart Hub 2025</p>
+                <h2 className="text-sm font-black text-gray-950 tracking-tight">Portal SDM DJKI</h2>
+                <p className="text-[10px] text-gray-400 font-bold tracking-widest">DJKI Smart Hub 2025</p>
               </div>
             </div>
             
@@ -274,13 +274,13 @@ const AppContent = () => {
                 <i className="bi bi-clock-fill text-blue-600 text-xs"></i>
                 <span className="text-[14px] font-black text-gray-950 tracking-tighter tabular-nums">{formattedTime}</span>
               </div>
-              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{formattedDate}</span>
+              <span className="text-[9px] font-black text-gray-400 tracking-widest mt-0.5">{formattedDate}</span>
             </div>
             
             <div className="flex items-center gap-6">
               <div className="hidden md:flex flex-col items-end">
-                <span className="text-[11px] font-black text-gray-950 uppercase">{user?.name}</span>
-                <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tighter">{user?.role} • NIP. {user?.nip}</span>
+                <span className="text-[11px] font-black text-gray-950">{user?.name}</span>
+                <span className="text-[9px] font-bold text-blue-600 tracking-tighter">{user?.role} • NIP. {user?.nip}</span>
               </div>
               <div className="h-12 w-12 rounded-2xl bg-gray-50 border-4 border-white shadow-xl overflow-hidden shimmer-effect">
                  {user?.foto ? <img src={user.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black">?</div>}
@@ -292,20 +292,20 @@ const AppContent = () => {
           <div className="h-10 bg-[#111827] border-y border-white/5 flex items-center overflow-hidden relative">
              <div className="bg-blue-600 h-full px-4 flex items-center gap-2 shrink-0 z-10 shadow-[5px_0_15px_rgba(0,0,0,0.3)]">
                 <i className="bi bi-megaphone-fill text-white text-xs animate-pulse"></i>
-                <span className="text-[9px] font-black text-white uppercase tracking-widest">Update</span>
+                <span className="text-[9px] font-black text-white tracking-widest">Update</span>
              </div>
              <div className="flex-1 overflow-hidden relative h-full flex items-center">
                 <div className="animate-marquee whitespace-nowrap">
-                   <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mx-10">
+                   <span className="text-[10px] font-black text-slate-300 tracking-widest mx-10">
                       {runningText}
                    </span>
-                   <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mx-10">
+                   <span className="text-[10px] font-black text-slate-300 tracking-widest mx-10">
                       {runningText}
                    </span>
                 </div>
              </div>
              <div className="bg-[#111827] h-full px-4 flex items-center gap-2 shrink-0 z-10 shadow-[-5px_0_15px_rgba(0,0,0,0.3)]">
-                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest italic">{new Date().getFullYear()} © DJKI HUB</span>
+                <span className="text-[8px] font-bold text-slate-500 tracking-widest italic">{new Date().getFullYear()} © DJKI HUB</span>
              </div>
           </div>
         </header>
@@ -351,12 +351,12 @@ const AppContent = () => {
 
           <footer className="mt-16 pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left shrink-0 pb-4">
             <div className="space-y-1">
-              <p className="text-[10px] font-black text-gray-900 uppercase tracking-widest">{systemName}</p>
-              <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Sistem Manajemen SDM DJKI Kemenkumham RI © 2025</p>
+              <p className="text-[10px] font-black text-gray-900 tracking-widest">{systemName}</p>
+              <p className="text-[8px] font-bold text-gray-400 tracking-widest">Sistem Manajemen SDM DJKI Kemenkumham RI © 2025</p>
             </div>
             <div className="flex flex-col items-center md:items-end">
-              <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Dikembangkan Oleh:</p>
-              <a href="https://caqiestudioproduction.com" target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest transition-colors flex items-center gap-2 group">
+              <p className="text-[8px] font-black text-gray-400 tracking-widest mb-1">Dikembangkan Oleh:</p>
+              <a href="https://caqiestudioproduction.com" target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-blue-600 hover:text-blue-700 tracking-widest transition-colors flex items-center gap-2 group">
                 caqiestudioproduction.com
                 <i className="bi bi-box-arrow-up-right group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
               </a>

@@ -406,7 +406,7 @@ const UkomExamPage: React.FC = () => {
   if (loading) return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-6">
       <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Menyiapkan Lembar Ujian...</p>
+      <p className="text-[10px] font-black text-gray-400 tracking-widest">Menyiapkan Lembar Ujian...</p>
     </div>
   );
   
@@ -416,14 +416,14 @@ const UkomExamPage: React.FC = () => {
         <AlertCircle className="w-10 h-10" />
       </div>
       <div className="space-y-2">
-        <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Bank Soal Kosong</h2>
+        <h2 className="text-xl font-black text-gray-900 tracking-tighter">Bank Soal Kosong</h2>
         <p className="text-sm text-gray-500 font-medium max-w-xs mx-auto">
           Belum ada soal yang tersedia untuk jenjang jabatan Anda ({peserta?.jenjang || 'Umum'}). Silakan hubungi admin.
         </p>
       </div>
       <button 
         onClick={() => navigate('/ukom/dashboard')}
-        className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-100"
+        className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs tracking-widest shadow-xl shadow-blue-100"
       >
         Kembali ke Dashboard
       </button>
@@ -446,8 +446,8 @@ const UkomExamPage: React.FC = () => {
             <ShieldAlert className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-sm font-black uppercase tracking-tighter">CAT SYSTEM DJKI</h1>
-            <p className="text-[9px] font-bold text-blue-100 uppercase tracking-widest opacity-80">{peserta?.nama} | {peserta?.noPeserta}</p>
+            <h1 className="text-sm font-black tracking-tighter">CAT SYSTEM DJKI</h1>
+            <p className="text-[9px] font-bold text-blue-100 tracking-widest opacity-80">{peserta?.nama} | {peserta?.noPeserta}</p>
           </div>
         </div>
 
@@ -459,7 +459,7 @@ const UkomExamPage: React.FC = () => {
           {!isFullscreen && (
             <button 
               onClick={enterFullscreen}
-              className="px-4 py-2 bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest animate-pulse"
+              className="px-4 py-2 bg-rose-500 text-white rounded-xl text-[9px] font-black tracking-widest animate-pulse"
             >
               Wajib Fullscreen
             </button>
@@ -482,10 +482,10 @@ const UkomExamPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-black text-sm">{currentIndex + 1}</span>
-                    <span className="px-4 py-1.5 bg-gray-100 text-gray-500 rounded-full text-[9px] font-black uppercase tracking-widest">{currentQuestion.kategori}</span>
+                    <span className="px-4 py-1.5 bg-gray-100 text-gray-500 rounded-full text-[9px] font-black tracking-widest">{currentQuestion.kategori}</span>
                   </div>
                   {currentAnswer.isRagu && (
-                    <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-50 text-amber-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-amber-100">
+                    <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-50 text-amber-600 rounded-full text-[9px] font-black tracking-widest border border-amber-100">
                       <HelpCircle className="w-3 h-3" />
                       <span>Ragu-Ragu</span>
                     </div>
@@ -509,7 +509,7 @@ const UkomExamPage: React.FC = () => {
 
                 {currentQuestion.tipeJawaban === 'ESAI' ? (
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Ketik Jawaban Anda:</label>
+                    <label className="text-[10px] font-black text-gray-400 tracking-widest ml-4">Ketik Jawaban Anda:</label>
                     <textarea 
                       value={currentAnswer.jawaban}
                       onChange={e => handleSelectAnswer(currentQuestion.id, e.target.value)}
@@ -550,7 +550,7 @@ const UkomExamPage: React.FC = () => {
                 <div className="flex items-center gap-4">
                   <button 
                     onClick={() => toggleRagu(currentQuestion.id)}
-                    className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                    className={`px-6 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all flex items-center gap-2 ${
                       currentAnswer.isRagu 
                         ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' 
                         : 'bg-white border border-gray-200 text-gray-400 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-100'
@@ -561,7 +561,7 @@ const UkomExamPage: React.FC = () => {
                   </button>
                   <button 
                     onClick={() => clearAnswer(currentQuestion.id)}
-                    className="px-6 py-3 bg-white border border-gray-200 text-gray-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all flex items-center gap-2"
+                    className="px-6 py-3 bg-white border border-gray-200 text-gray-400 rounded-xl text-[10px] font-black tracking-widest hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 transition-all flex items-center gap-2"
                   >
                     <XCircle className="w-4 h-4" />
                     <span>Kosongkan</span>
@@ -579,7 +579,7 @@ const UkomExamPage: React.FC = () => {
                   <button 
                     disabled={currentIndex === questions.length - 1}
                     onClick={() => setCurrentIndex(prev => prev + 1)}
-                    className="px-8 py-4 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-3"
+                    className="px-8 py-4 bg-blue-600 text-white rounded-xl text-[10px] font-black tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-3"
                   >
                     <span>Soal Berikutnya</span>
                     <ChevronRight className="w-5 h-5" />
@@ -593,7 +593,7 @@ const UkomExamPage: React.FC = () => {
         {/* Sidebar Navigation */}
         <aside className="w-96 bg-white border-l border-gray-100 flex flex-col shrink-0 shadow-2xl relative z-0">
           <div className="p-8 border-bottom border-gray-50">
-            <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Navigasi Soal</h3>
+            <h3 className="text-[11px] font-black text-gray-400 tracking-[0.2em] mb-6">Navigasi Soal</h3>
             <div className="grid grid-cols-5 gap-3">
               {questions.map((q, idx) => {
                 const ans = answers[q.id];
@@ -623,7 +623,7 @@ const UkomExamPage: React.FC = () => {
           </div>
 
           <div className="mt-auto p-8 space-y-4 bg-gray-50 border-t border-gray-100">
-            <div className="grid grid-cols-2 gap-4 text-[9px] font-black uppercase tracking-widest">
+            <div className="grid grid-cols-2 gap-4 text-[9px] font-black tracking-widest">
               <div className="flex items-center gap-2 text-emerald-600">
                 <div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>
                 <span>Dijawab</span>
@@ -644,7 +644,7 @@ const UkomExamPage: React.FC = () => {
                   handleSubmit();
                 }
               }}
-              className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3"
+              className="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black text-[10px] tracking-[0.2em] shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3"
             >
               <Send className="w-4 h-4" />
               <span>Selesai Ujian</span>
@@ -671,12 +671,12 @@ const UkomExamPage: React.FC = () => {
                 <ShieldAlert className="w-12 h-12" />
               </div>
               <div className="space-y-4">
-                <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Peringatan Keamanan!</h2>
+                <h2 className="text-2xl font-black text-gray-900 tracking-tighter">Peringatan Keamanan!</h2>
                 <p className="text-sm text-gray-500 font-medium leading-relaxed">
                   Anda terdeteksi meninggalkan halaman ujian. Dilarang membuka tab lain atau aplikasi lain selama ujian berlangsung.
                 </p>
                 <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100">
-                  <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Peringatan: {warningCount} / 3</p>
+                  <p className="text-[10px] font-black text-rose-600 tracking-widest">Peringatan: {warningCount} / 3</p>
                 </div>
               </div>
               <button 
@@ -684,7 +684,7 @@ const UkomExamPage: React.FC = () => {
                   setShowWarning(false);
                   enterFullscreen();
                 }}
-                className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-200"
+                className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xs tracking-widest shadow-xl shadow-blue-200"
               >
                 Saya Mengerti, Lanjutkan
               </button>
@@ -703,12 +703,12 @@ const UkomExamPage: React.FC = () => {
                 <Maximize className="w-12 h-12" />
               </div>
               <div className="space-y-4">
-                <h2 className="text-3xl font-black uppercase tracking-tighter">Mode Fullscreen Wajib</h2>
+                <h2 className="text-3xl font-black tracking-tighter">Mode Fullscreen Wajib</h2>
                 <p className="text-blue-100 text-sm font-medium opacity-80">Untuk menjaga integritas ujian, sistem mewajibkan penggunaan mode layar penuh (fullscreen).</p>
               </div>
               <button 
                 onClick={enterFullscreen}
-                className="px-12 py-5 bg-white text-blue-600 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl hover:bg-blue-50 transition-all"
+                className="px-12 py-5 bg-white text-blue-600 rounded-2xl font-black text-xs tracking-widest shadow-2xl hover:bg-blue-50 transition-all"
               >
                 Aktifkan Fullscreen
               </button>

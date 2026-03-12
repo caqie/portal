@@ -214,30 +214,30 @@ const PersuratanPage = () => {
         <>
           <div className="flex items-end bg-[#0f172a] h-14 rounded-t-3xl overflow-hidden px-4 gap-1 no-print">
              {[{id: 'SEMUA', label: 'Semua Surat'}, {id: 'SETJEN', label: 'Setjen'}, {id: 'DITJEN', label: 'Ditjen/Badan'}, {id: 'KANWIL', label: 'Kanwil'}, {id: 'UPT', label: 'UPT'}].map(t => (
-               <button key={t.id} onClick={() => setActiveKategori(t.id as any)} className={`px-8 py-3.5 text-[11px] font-black uppercase tracking-tight rounded-t-2xl transition-all relative ${activeKategori === t.id ? 'bg-white text-gray-900' : 'text-slate-400 hover:text-white'}`}>{t.label}{activeKategori === t.id && <div className="absolute -bottom-1 left-0 right-0 h-2 bg-white"></div>}</button>
+               <button key={t.id} onClick={() => setActiveKategori(t.id as any)} className={`px-8 py-3.5 text-[11px] font-black tracking-tight rounded-t-2xl transition-all relative ${activeKategori === t.id ? 'bg-white text-gray-900' : 'text-slate-400 hover:text-white'}`}>{t.label}{activeKategori === t.id && <div className="absolute -bottom-1 left-0 right-0 h-2 bg-white"></div>}</button>
              ))}
           </div>
 
           <div className="bg-white p-4 flex flex-wrap items-center gap-4 shadow-sm border-x border-b border-gray-100 no-print">
              <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
-                <button onClick={() => setQuickFilter('SEMUA')} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase flex items-center gap-2 transition-all ${quickFilter==='SEMUA'?'bg-white text-gray-950 shadow-sm':'text-gray-400'}`}>Semua <span className="bg-gray-300 text-[8px] px-1.5 rounded">{stats.all}</span></button>
-                <button className="px-4 py-2 text-[9px] font-black text-gray-400 uppercase flex items-center gap-2 hover:bg-white rounded-lg transition-all"><i className="bi bi-list-task"></i> Sifat Surat</button>
+                <button onClick={() => setQuickFilter('SEMUA')} className={`px-4 py-2 rounded-lg text-[9px] font-black flex items-center gap-2 transition-all ${quickFilter==='SEMUA'?'bg-white text-gray-950 shadow-sm':'text-gray-400'}`}>Semua <span className="bg-gray-300 text-[8px] px-1.5 rounded">{stats.all}</span></button>
+                <button className="px-4 py-2 text-[9px] font-black text-gray-400 flex items-center gap-2 hover:bg-white rounded-lg transition-all"><i className="bi bi-list-task"></i> Sifat Surat</button>
              </div>
              <div className="h-6 w-[2px] bg-gray-200"></div>
              <div className="flex gap-2">
-                <button onClick={() => setQuickFilter('ATENSI')} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${quickFilter==='ATENSI'?'bg-rose-50 text-rose-600 border-rose-200':'border-gray-100 text-gray-400'}`}>Atensi Khusus</button>
-                <button onClick={() => setQuickFilter('BELUM_BACA')} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${quickFilter==='BELUM_BACA'?'bg-emerald-50 text-emerald-600 border-emerald-200':'border-gray-100 text-gray-400'}`}>Belum Dibaca <span className={`ml-1 text-[8px] px-1.5 rounded ${quickFilter==='BELUM_BACA'?'bg-emerald-600 text-white':'bg-emerald-100 text-emerald-700'}`}>{stats.unread}</span></button>
-                <button onClick={() => setQuickFilter('BELUM_PROSES')} className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${quickFilter==='BELUM_PROSES'?'bg-indigo-50 text-indigo-600 border-indigo-200':'border-gray-100 text-gray-400'}`}>Belum Diproses <span className={`ml-1 text-[8px] px-1.5 rounded ${quickFilter==='BELUM_PROSES'?'bg-indigo-600 text-white':'bg-indigo-100 text-indigo-700'}`}>{stats.unprocessed}</span></button>
+                <button onClick={() => setQuickFilter('ATENSI')} className={`px-4 py-2 rounded-lg text-[9px] font-black border transition-all ${quickFilter==='ATENSI'?'bg-rose-50 text-rose-600 border-rose-200':'border-gray-100 text-gray-400'}`}>Atensi Khusus</button>
+                <button onClick={() => setQuickFilter('BELUM_BACA')} className={`px-4 py-2 rounded-lg text-[9px] font-black border transition-all ${quickFilter==='BELUM_BACA'?'bg-emerald-50 text-emerald-600 border-emerald-200':'border-gray-100 text-gray-400'}`}>Belum Dibaca <span className={`ml-1 text-[8px] px-1.5 rounded ${quickFilter==='BELUM_BACA'?'bg-emerald-600 text-white':'bg-emerald-100 text-emerald-700'}`}>{stats.unread}</span></button>
+                <button onClick={() => setQuickFilter('BELUM_PROSES')} className={`px-4 py-2 rounded-lg text-[9px] font-black border transition-all ${quickFilter==='BELUM_PROSES'?'bg-indigo-50 text-indigo-600 border-indigo-200':'border-gray-100 text-gray-400'}`}>Belum Diproses <span className={`ml-1 text-[8px] px-1.5 rounded ${quickFilter==='BELUM_PROSES'?'bg-indigo-600 text-white':'bg-indigo-100 text-indigo-700'}`}>{stats.unprocessed}</span></button>
              </div>
              <div className="ml-auto flex gap-2">
-               {canEdit && <button onClick={() => { setFormData({ jenisSurat: 'MASUK', prioritas: 'BIASA', status: 'DRAFT', isParaf: true, tanggalSurat: new Date().toISOString().split('T')[0] }); setActiveView('editor'); }} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg active:scale-95">+ Input Surat</button>}
+               {canEdit && <button onClick={() => { setFormData({ jenisSurat: 'MASUK', prioritas: 'BIASA', status: 'DRAFT', isParaf: true, tanggalSurat: new Date().toISOString().split('T')[0] }); setActiveView('editor'); }} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-[9px] font-black shadow-lg active:scale-95">+ Input Surat</button>}
              </div>
           </div>
           
           {/* INBOX TABLE */}
           <div className="bg-white shadow-sm overflow-hidden border border-gray-100">
              <table className="w-full text-left">
-                <thead className="bg-[#2d3436] text-[10px] font-black uppercase text-white tracking-wider">
+                <thead className="bg-[#2d3436] text-[10px] font-black text-white tracking-wider">
                    <tr>
                       <th className="px-6 py-4 w-12 text-center"></th>
                       <th className="px-6 py-4">Asal Surat</th>
@@ -253,19 +253,19 @@ const PersuratanPage = () => {
                      <tr key={s.id} className="hover:bg-blue-50/20 group transition-all">
                         <td className="px-6 py-5 text-center"><i className="bi bi-star text-gray-300 hover:text-amber-400 cursor-pointer"></i></td>
                         <td className="px-6 py-5">
-                           <p className="text-[11px] font-black text-[#2d3436] uppercase leading-tight">{s.dari || 'INTERNAL'}</p>
-                           <p className="text-[9px] font-bold text-gray-400 mt-1 uppercase">SUMBER...</p>
+                           <p className="text-[11px] font-black text-[#2d3436] leading-tight">{s.dari || 'INTERNAL'}</p>
+                           <p className="text-[9px] font-bold text-gray-400 mt-1">SUMBER...</p>
                         </td>
                         <td className="px-4 py-5"><p className="text-[10px] font-black text-gray-800">{new Date(s.tanggalSurat).toLocaleDateString('id-ID', {day: '2-digit', month: 'long'})}</p></td>
-                        <td className="px-4 py-5"><p className="text-[10px] font-black text-gray-800 uppercase">{pegawaiList.find(p=>p.nip===s.pengirimNip)?.nama?.split(' ')[0] || 'ADMIN'}</p></td>
-                        <td className="px-4 py-5"><p className="text-[11px] font-black text-[#2d3436] uppercase line-clamp-1">{s.perihal}</p></td>
+                        <td className="px-4 py-5"><p className="text-[10px] font-black text-gray-800">{pegawaiList.find(p=>p.nip===s.pengirimNip)?.nama?.split(' ')[0] || 'ADMIN'}</p></td>
+                        <td className="px-4 py-5"><p className="text-[11px] font-black text-[#2d3436] line-clamp-1">{s.perihal}</p></td>
                         <td className="px-4 py-5">
                            <div className="flex flex-col gap-1">
-                              <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase text-white w-fit ${s.prioritas === 'SANGAT_SEGERA' ? 'bg-rose-600' : 'bg-blue-600'}`}>{s.prioritas || 'BIASA'}</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[7px] font-black uppercase w-fit ${s.statusBaca === 'SUDAH' ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-white'}`}>{s.statusBaca === 'SUDAH' ? 'sudah dibaca' : 'belum dibaca'}</span>
+                              <span className={`px-2 py-0.5 rounded text-[7px] font-black text-white w-fit ${s.prioritas === 'SANGAT_SEGERA' ? 'bg-rose-600' : 'bg-blue-600'}`}>{s.prioritas || 'BIASA'}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[7px] font-black w-fit ${s.statusBaca === 'SUDAH' ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-white'}`}>{s.statusBaca === 'SUDAH' ? 'sudah dibaca' : 'belum dibaca'}</span>
                            </div>
                         </td>
-                        <td className="px-6 py-5 text-right"><button onClick={() => handleRead(s)} className="text-rose-600 text-[10px] font-black uppercase flex items-center gap-1 hover:underline"><i className="bi bi-box-arrow-up-right"></i> Lihat</button></td>
+                        <td className="px-6 py-5 text-right"><button onClick={() => handleRead(s)} className="text-rose-600 text-[10px] font-black flex items-center gap-1 hover:underline"><i className="bi bi-box-arrow-up-right"></i> Lihat</button></td>
                      </tr>
                    ))}
                 </tbody>
@@ -278,7 +278,7 @@ const PersuratanPage = () => {
       {activeView === 'editor' && (
         <div className="bg-[#b4c3d2] rounded shadow-2xl overflow-hidden animate-fadeIn border border-gray-400" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
            <div className="bg-[#212529] px-4 py-2 flex justify-between items-center text-white">
-              <h4 className="text-[13px] font-black uppercase tracking-tight">{formData.jenisSurat === 'MASUK' ? 'Distribusi Surat' : formData.jenisSurat === 'KELUAR' ? 'Surat Keluar' : 'Laporan'}</h4>
+              <h4 className="text-[13px] font-black tracking-tight">{formData.jenisSurat === 'MASUK' ? 'Distribusi Surat' : formData.jenisSurat === 'KELUAR' ? 'Surat Keluar' : 'Laporan'}</h4>
               <button onClick={()=>setActiveView('inbox')} className="text-white hover:bg-white/10 w-6 h-6 flex items-center justify-center rounded"><i className="bi bi-x-lg text-sm"></i></button>
            </div>
            
@@ -409,18 +409,18 @@ const PersuratanPage = () => {
                  {formData.jenisSurat !== 'LAPORAN' && (
                     <div className="w-full lg:w-72 space-y-3">
                        <div className="bg-white/40 p-4 border border-gray-400 rounded">
-                          <p className="text-[9px] font-black text-gray-600 uppercase mb-3 text-center border-b border-gray-400/30 pb-2">Diisi Jika perlu ada kegiatan:</p>
+                          <p className="text-[9px] font-black text-gray-600 mb-3 text-center border-b border-gray-400/30 pb-2">Diisi Jika perlu ada kegiatan:</p>
                           <div className="space-y-3">
                              <div>
-                                <label className="text-[9px] font-bold text-gray-500 uppercase ml-1">Tanggal Mulai</label>
+                                <label className="text-[9px] font-bold text-gray-500 ml-1">Tanggal Mulai</label>
                                 <input type="datetime-local" className={editorInputClass} value={formData.tanggalMulai} onChange={e=>setFormData({...formData, tanggalMulai: e.target.value})} />
                              </div>
                              <div>
-                                <label className="text-[9px] font-bold text-gray-500 uppercase ml-1">Tanggal Akhir</label>
+                                <label className="text-[9px] font-bold text-gray-500 ml-1">Tanggal Akhir</label>
                                 <input type="datetime-local" className={editorInputClass} value={formData.tanggalAkhir} onChange={e=>setFormData({...formData, tanggalAkhir: e.target.value})} />
                              </div>
                              <div>
-                                <label className="text-[9px] font-bold text-gray-500 uppercase ml-1">Lokasi</label>
+                                <label className="text-[9px] font-bold text-gray-500 ml-1">Lokasi</label>
                                 <textarea rows={2} className={`${editorInputClass} resize-none h-14`} placeholder="exp: Lokasi" value={formData.lokasi} onChange={e=>setFormData({...formData, lokasi: e.target.value})} />
                              </div>
                           </div>
@@ -432,8 +432,8 @@ const PersuratanPage = () => {
 
            {/* Footer Action */}
            <div className="bg-[#b4c3d2] p-6 border-t border-gray-400/30 flex justify-center gap-4">
-              <button onClick={()=>setActiveView('inbox')} className="px-10 py-2.5 bg-white border border-gray-400 text-gray-600 rounded text-[11px] font-black uppercase shadow-sm">Batalkan</button>
-              <button onClick={handleSave} disabled={syncing || uploading} className="px-16 py-2.5 bg-blue-700 text-white rounded text-[11px] font-black uppercase shadow-lg active:scale-95 transition-all flex items-center gap-3">
+              <button onClick={()=>setActiveView('inbox')} className="px-10 py-2.5 bg-white border border-gray-400 text-gray-600 rounded text-[11px] font-black shadow-sm">Batalkan</button>
+              <button onClick={handleSave} disabled={syncing || uploading} className="px-16 py-2.5 bg-blue-700 text-white rounded text-[11px] font-black shadow-lg active:scale-95 transition-all flex items-center gap-3">
                 {syncing ? <div className="h-3 w-3 border-2 border-white/40 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-send-fill"></i>}
                 Paraf / Kirim Surat
               </button>
@@ -448,17 +448,17 @@ const PersuratanPage = () => {
               <div className="flex gap-2">
                  <button onClick={() => setActiveView('inbox')} className="px-4 py-1.5 bg-white border border-gray-300 text-gray-900 rounded text-[10px] font-bold flex items-center gap-2 shadow-sm"><i className="bi bi-chevron-left"></i> Back</button>
                  <button onClick={() => window.print()} className="px-4 py-1.5 bg-white border border-gray-300 text-gray-900 rounded text-[10px] font-bold flex items-center gap-2 shadow-sm"><i className="bi bi-printer"></i> Cetak</button>
-                 <span className="ml-4 text-white text-[11px] font-bold uppercase py-1.5">SURAT SUDAH DITANDA TANGANI</span>
+                 <span className="ml-4 text-white text-[11px] font-bold py-1.5">SURAT SUDAH DITANDA TANGANI</span>
               </div>
-              <div className="bg-rose-600 text-white px-6 py-1.5 rounded text-[10px] font-black uppercase shadow-lg">Surat/Memo belum anda tindak lanjuti</div>
+              <div className="bg-rose-600 text-white px-6 py-1.5 rounded text-[10px] font-black shadow-lg">Surat/Memo belum anda tindak lanjuti</div>
            </div>
 
            <div className="bg-white border shadow-sm p-8 space-y-8">
               <div className="flex items-center gap-4 border-b pb-6">
                  <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-2xl shadow-inner"><i className="bi bi-person-fill"></i></div>
                  <div>
-                    <h4 className="text-sm font-bold text-gray-900 uppercase">{formData.pjbNama} , <span className="text-gray-400 font-normal">30 Januari 2026, 11:09:08</span></h4>
-                    <p className="text-[10px] text-gray-400">Kepada: <span className="text-blue-600 font-bold uppercase">{pegawaiList.find(p=>p.nip===formData.tujuan)?.nama || formData.tujuan}</span></p>
+                    <h4 className="text-sm font-bold text-gray-900">{formData.pjbNama} , <span className="text-gray-400 font-normal">30 Januari 2026, 11:09:08</span></h4>
+                    <p className="text-[10px] text-gray-400">Kepada: <span className="text-blue-600 font-bold">{pegawaiList.find(p=>p.nip===formData.tujuan)?.nama || formData.tujuan}</span></p>
                  </div>
               </div>
 
@@ -478,7 +478,7 @@ const PersuratanPage = () => {
               </div>
 
               <div className="space-y-3">
-                 <div className="bg-gray-50 p-2 border-b-2 border-gray-200 text-[10px] font-bold text-gray-600 uppercase">CATATAN / DISPOSISI :</div>
+                 <div className="bg-gray-50 p-2 border-b-2 border-gray-200 text-[10px] font-bold text-gray-600">CATATAN / DISPOSISI :</div>
                  <div className="p-4 bg-white text-[11px] text-gray-800 leading-relaxed italic">{formData.isiRingkas || 'Belum ada catatan disposisi spesifik.'}</div>
               </div>
 
@@ -489,7 +489,7 @@ const PersuratanPage = () => {
 
               <div className="flex justify-end pt-4 no-print">
                  <div className="text-right">
-                    <button onClick={handleTandaiProses} disabled={syncing || formData.statusProses==='SUDAH'} className={`px-6 py-2 rounded text-[10px] font-black uppercase shadow-lg transition-all ${formData.statusProses==='SUDAH'?'bg-emerald-600 text-white':'bg-[#f39c12] text-white hover:bg-[#e67e22]'}`}>
+                    <button onClick={handleTandaiProses} disabled={syncing || formData.statusProses==='SUDAH'} className={`px-6 py-2 rounded text-[10px] font-black shadow-lg transition-all ${formData.statusProses==='SUDAH'?'bg-emerald-600 text-white':'bg-[#f39c12] text-white hover:bg-[#e67e22]'}`}>
                       <i className="bi bi-check-all text-lg mr-2"></i> {formData.statusProses==='SUDAH' ? 'Sudah Di Proses' : 'Tandai Sudah Di Proses'}
                     </button>
                     <p className="text-[8px] text-gray-400 mt-2 font-bold italic">* tombol ini digunakan untuk surat yang tidak perlu tindak lanjut</p>
@@ -509,12 +509,12 @@ const PersuratanPage = () => {
                          {DISPOSISI_CHECKS.map(chk => (
                            <label key={chk} className="flex items-center gap-3 cursor-pointer group">
                               <input type="checkbox" checked={disposisiActions.includes(chk)} onChange={e => e.target.checked ? setDisposisiActions([...disposisiActions, chk]) : setDisposisiActions(disposisiActions.filter(a=>a!==chk))} className="w-4 h-4 accent-red-600" />
-                              <span className="text-[10px] font-bold text-gray-600 uppercase group-hover:text-red-600">{chk}</span>
+                              <span className="text-[10px] font-bold text-gray-600 group-hover:text-red-600">{chk}</span>
                            </label>
                          ))}
                       </div>
                       <div className="col-span-7 flex flex-col h-full border-l pl-8">
-                         <span className="text-[10px] font-bold text-gray-400 uppercase mb-2">Disposisi / Catatan:</span>
+                         <span className="text-[10px] font-bold text-gray-400 mb-2">Disposisi / Catatan:</span>
                          <textarea rows={6} value={disposisiCatatan} onChange={e=>setDisposisiCatatan(e.target.value)} className="w-full flex-1 p-4 bg-gray-50 border rounded text-[11px] font-bold normal-case focus:bg-white focus:border-red-600 outline-none" />
                       </div>
                    </div>
@@ -526,7 +526,7 @@ const PersuratanPage = () => {
                            <label className="flex items-center gap-2 text-[10px] font-bold"><input type="radio" name="kor" defaultChecked className="w-3 h-3" /> Tidak</label>
                         </div>
                       </div>
-                      <button onClick={handleDisposisi} disabled={syncing || !disposisiTargetNip} className="px-10 py-3 bg-rose-700 text-white rounded font-black uppercase text-[11px] shadow-xl hover:bg-rose-800 transition-all flex items-center gap-2 active:scale-95">
+                      <button onClick={handleDisposisi} disabled={syncing || !disposisiTargetNip} className="px-10 py-3 bg-rose-700 text-white rounded font-black text-[11px] shadow-xl hover:bg-rose-800 transition-all flex items-center gap-2 active:scale-95">
                          <i className="bi bi-send-check"></i> Paraf/Kirim
                       </button>
                    </div>
