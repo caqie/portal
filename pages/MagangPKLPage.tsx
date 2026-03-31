@@ -395,8 +395,16 @@ const MagangPKLPage = () => {
                               <p>Nomor: {selectedPeserta.nomorSurat || 'HKI.1-UM.01.01-...'}</p>
                            </div>
                            
-                           <p>Yang bertanda tangan di bawah ini Kepala Bagian Kepegawaian Direktorat Jenderal Kekayaan Intelektual, menerangkan dengan sesungguhnya bahwa:</p>
-                           
+                           <p>Yang bertanda tangan di bawah ini</p>
+                           <div className="ml-8 grid grid-cols-[160px_10px_1fr] gap-y-1 my-4">
+                              <span>Nama</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.nama}</span>
+                              <span>NIM / NIS</span><span>:</span><span>{selectedPeserta.nisNim}</span>
+                              <span>Institusi</span><span>:</span><span className="uppercase">{selectedPeserta.institusi}</span>
+                              <span>Jurusan</span><span>:</span><span className="uppercase">{selectedPeserta.jurusan}</span>
+                              <span>Penempatan</span><span>:</span><span className="font-bold">{selectedPeserta.penempatan}</span>
+                              <span>Periode</span><span>:</span><span>{selectedPeserta.tanggalMulai} s/d {selectedPeserta.tanggalSelesai}</span>
+                           </div>
+                           <p>menerangkan dengan sesungguhnya bahwa:</p>
                            <div className="ml-8 grid grid-cols-[160px_10px_1fr] gap-y-1 my-4">
                               <span>Nama</span><span>:</span><span className="font-bold uppercase">{selectedPeserta.nama}</span>
                               <span>NIM / NIS</span><span>:</span><span>{selectedPeserta.nisNim}</span>
