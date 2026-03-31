@@ -43,12 +43,13 @@ const getDbConfig = () => {
   }
   return {
     spreadsheetId: (savedId && savedId.trim() !== '') ? savedId : (import.meta.env.VITE_SPREADSHEET_ID || DEFAULT_SPREADSHEET_ID),
-    appsScriptUrl: (cloud.appsScriptUrl && cloud.appsScriptUrl.trim() !== '') ? cloud.appsScriptUrl : (import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL)
+    appsScriptUrl: (cloud.appsScriptUrl && cloud.appsScriptUrl.trim() !== '') ? cloud.appsScriptUrl : (import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL),
+    driveFolderId: cloud.driveFolderId || ''
   };
 };
 
 export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELETE', data: any): Promise<boolean> => {
-  const { appsScriptUrl, spreadsheetId } = getDbConfig();
+  const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
   if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
   const cleanUrl = appsScriptUrl.trim();
   try {
@@ -60,15 +61,19 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
         module: moduleName.toUpperCase().trim(), 
         action: action, 
         spreadsheetId: spreadsheetId,
+        driveFolderId: driveFolderId,
         timestamp: new Date().toISOString(), 
         payload: data 
       })
     });
-    if (!response.ok) throw new Error("Network error");
+    if (!response.ok) throw new Error(`Network error: ${response.status} ${response.statusText}`);
     const result = await response.json();
+    if (!result.success) {
+      console.error("Remote Sync Business Error:", result.message || "Unknown error");
+    }
     return result.success === true;
   } catch (error) { 
-    console.error("Remote Sync Error:", error);
+    console.error("Remote Sync Exception:", error);
     return false; 
   }
 };
@@ -297,7 +302,7 @@ export const fetchKenaikanFromSheets = () => fetchTableData<KenaikanKarir>('KENA
 });
 
 export const uploadFileToDrive = async (fileName: string, mimeType: string, base64: string): Promise<{ success: boolean; fileUrl?: string }> => {
-    const { appsScriptUrl, spreadsheetId } = getDbConfig();
+    const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
     if (!appsScriptUrl || appsScriptUrl.trim() === '') return { success: false };
     const cleanUrl = appsScriptUrl.trim();
     try {
@@ -305,10 +310,18 @@ export const uploadFileToDrive = async (fileName: string, mimeType: string, base
             method: 'POST', 
             mode: 'cors',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'UPLOAD', spreadsheetId, payload: { fileName, mimeType, base64 } }) 
+            body: JSON.stringify({ 
+                action: 'UPLOAD', 
+                spreadsheetId, 
+                driveFolderId,
+                payload: { fileName, mimeType, base64 } 
+            }) 
         });
         return await res.json();
-    } catch (e) { return { success: false }; }
+    } catch (e) { 
+        console.error("Upload Error:", e);
+        return { success: false }; 
+    }
 };
 
 export const syncGidMap = async (): Promise<boolean> => {

@@ -241,26 +241,56 @@ const KeuanganPage = () => {
   };
 
   const handleDownloadPdf = async () => {
-    if (!pdfRef.current) return;
-    setLoading(true);
-    try {
-      const canvas = await html2canvas(pdfRef.current, { scale: 3, useCORS: true, backgroundColor: "#ffffff" });
-      const isKuitansi = previewType === 'kuitansi';
-      
-      const pdf = new jsPDF({ 
-        orientation: isKuitansi ? 'landscape' : 'portrait', 
-        unit: 'mm', 
-        format: isKuitansi ? 'a5' : 'a4' 
-      });
+  if (!pdfRef.current) return;
+  setLoading(true);
+  
+  try {
+    const isKuitansi = previewType === 'kuitansi';
+    
+    const canvas = await html2canvas(pdfRef.current, { 
+      scale: 3, // Supaya hasil scan tajam/HD
+      useCORS: true, 
+      logging: false,
+      backgroundColor: "#ffffff"
+    });
 
-      const imgWidth = isKuitansi ? 210 : 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
-      const p = formData.peserta?.[selectedPesertaIdx];
-      pdf.save(`${previewType.toUpperCase()}_${p?.nama?.replace(/\s+/g, '_')}.pdf`);
-    } catch (e) { alert("Gagal cetak PDF."); } finally { setLoading(false); }
-  };
+    const imgData = canvas.toDataURL('image/png');
+    
+    // Inisialisasi PDF A5 Landscape
+    const pdf = new jsPDF({ 
+      orientation: 'landscape', 
+      unit: 'mm', 
+      format: 'a5' 
+    });
+
+    const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+    const pdfHeight = pdf.internal.pageSize.getHeight(); // 148mm
+
+    // Hitung Rasio agar tidak gepeng
+    const imgProps = pdf.getImageProperties(imgData);
+    const ratio = imgProps.width / imgProps.height;
+    
+    // Hitung tinggi berdasarkan lebar PDF agar proporsional
+    let finalWidth = pdfWidth;
+    let finalHeight = pdfWidth / ratio;
+
+    // Jika setelah dihitung tingginya masih lebih dari kertas A5, kecilkan berdasarkan tinggi
+    if (finalHeight > pdfHeight) {
+      finalHeight = pdfHeight;
+      finalWidth = pdfHeight * ratio;
+    }
+
+    // Masukkan ke PDF di posisi tengah (0,0 atau dengan margin kecil)
+    pdf.addImage(imgData, 'PNG', 0, 0, finalWidth, finalHeight);
+    
+    pdf.save(`Kuitansi_${currentPeserta?.nama || 'Dokumen'}.pdf`);
+  } catch (e) {
+    console.error(e);
+    alert("Gagal cetak!");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleDownloadExcelParticipants = (record: KeuanganRecord) => {
     if (!record.peserta || record.peserta.length === 0) {
@@ -746,121 +776,118 @@ const KeuanganPage = () => {
             </div>
           </div>
 
-          <div className="flex justify-center">
-            <div ref={pdfRef} className="bg-white shadow-2xl p-[1cm_1.5cm] font-sans text-black leading-tight overflow-hidden" style={{ 
-              width: '210mm', 
-              height: previewType === 'kuitansi' ? '148.5mm' : 'auto',
-              minHeight: previewType === 'kuitansi' ? '148.5mm' : '297mm' 
-            }}>
-              
-              {previewType === 'kuitansi' && (
-                <div className="space-y-3 text-[10pt]">
-                  {/* HEADER KUITANSI */}
-                  
-                    <div className="text-right text-[6pt] italic">
-                      <p>LAMPIRAN</p>
-                      <p>PMK NO. 190/PMK.05/2012</p>
-                      <p>TENTANG TATA CARA PEMBAYARAN DALAM RANGKA </p>
-                      <p>PELAKSANAAN ANGGARAN PENDAPATAN BELANJA NEGARA</p>
-                    </div>
-                  
-                  <div className="flex justify-between items-start border-b border-black pb-1 mb-2">
-                  {/* INFO BLOCK */}
-                  
-                    <div className="grid grid-cols-[100px_5px_1fr] items-center">
-                       <span>Transaction ID</span><span>:</span><span>{formData.id}</span>
-                    </div>
-                    <div className="text-left text-[8pt] ">
-                    <div className="grid grid-cols-[100px_5px_1fr] items-center">
-                       <span>Tahun Anggaran</span><span>:</span><span>{formData.tahunAnggaran}</span>
-                    </div>
-                    <div className="grid grid-cols-[100px_5px_1fr] items-center">
-                       <span>Nomor Bukti</span><span>:</span><span>-</span>
-                    </div>
-                    <div className="grid grid-cols-[100px_5px_1fr] items-center">
-                       <span>Mata Anggaran</span><span>:</span><span>{formData.mataAnggaran}</span>
-                    </div>
-                    </div>
-                  </div>
-                 
+        
 
-                   {/* TITLE */}
-                  <div className="text-center pt-1">
-                    <h2 className="text-[9pt] font-bold underline uppercase">KUITANSI / BUKTI PEMBAYARAN</h2>
-                  </div>
+                    <div className="bg-gray-100 p-4 overflow-auto flex justify-center">
+                      <div 
+                        ref={pdfRef} 
+                        className="bg-white shadow-lg p-6"
+                        style={{ 
+                          width: "210mm",   // Standar lebar A5 Landscape
+                          minHeight: "148mm", 
+                          boxSizing: "border-box" 
+                        }}
+                      >
+                      {previewType === "kuitansi" && (
+                        <div className="border-[1.5pt] border-black text-[9pt] leading-tight h-full flex flex-col p-0">
+                          {/* HEADER SECTION */}
+                          <div className="border-b-[1.5pt] border-black p-3 flex justify-between items-start">
+                            <div className="font-bold">
+                              Transaction ID : RE-SEK/{formData.tahunAnggaran}/IV/0103
+                            </div>
+                            <div className="grid grid-cols-[100px_5px_1fr] gap-x-1 text-[9pt]">
+                              <span>Tahun Anggaran</span><span>:</span><span>{formData.tahunAnggaran}</span>
+                              <span>Nomor Bukti</span><span>:</span><span>{selectedPesertaIdx + 1}</span>
+                              <span>Mata Anggaran</span><span>:</span><span className="break-all">{formData.mataAnggaran}</span>
+                            </div>
+                          </div>
 
-                  {/* BODY */}
-                  <div className="space-y-1.0 text-[8pt]">
-                    <div className="grid grid-cols-[140px_10px_1fr]">
-                      <span className="font-bold">Sudah terima dari</span>
-                      <span>:</span>
-                      <span>Kuasa Pengguna Anggaran / Pejabat Pembuat Komitmen Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum dan HAM RI</span>
-                    </div>
-                    <div className="grid grid-cols-[140px_10px_1fr] items-center">
-                      <span className="font-bold">Jumlah uang</span>
-                      <span>:</span>
-                      <span className="font-bold">Rp {formatCurrency(currentPeserta?.totalJumlah || 0).replace('Rp', '').trim()}</span>
-                    </div>
-                    <div className="grid grid-cols-[140px_10px_1fr] items-center">
-                      <span>Terbilang</span>
-                      <span>:</span>
-                      <span className="italic font-bold propercase text-[8pt]"> {terbilang(currentPeserta?.totalJumlah || 0)} RUPIAH </span>
-                    </div>
-                    <div className="grid grid-cols-[140px_10px_1fr]">
-                      <span>Untuk pembayaran</span>
-                      <span>:</span>
-                      <span>Biaya Perjalanan dinas dalam rangka <span className="font-bold ropercase">{formData.namaKegiatan}</span></span>
-                    </div>
-                    <div className="grid grid-cols-[140px_10px_1fr]">
-                      <span>Berdasarkan SPD</span>
-                      <span>:</span>
-                      <span>Sekretaris Direktorat Jenderal Kekayaan Intelektual</span>
-                    </div>
-                    <div className="grid grid-cols-[140px_10px_1fr] items-center">
-                      <span>Nomor / Tanggal</span>
-                      <span>:</span>
-                      <span>{currentPeserta?.nomorSpd || '-'} / {currentPeserta?.tanggalSpd || '-'}</span>
-                    </div>
-                    <div className="grid grid-cols-[140px_10px_1fr]">
-                      <span>Untuk Perjalanan Dinas</span>
-                      <span>:</span>
-                      <span>{currentPeserta?.tujuanPerjalanan || '-'}</span>
-                    </div>
-                  </div>
+                          {/* TITLE */}
+                          <div className="py-4 text-center">
+                            <h2 className="text-[10pt] font-bold underline tracking-widest">KUITANSI / BUKTI PEMBAYARAN</h2>
+                          </div>
 
-                  {/* SIGNATURES */}
-                  <div className="grid grid-cols-2 gap-8 pt-4 text-[8pt]">
-                    <div className="text-center space-y-12">
-                      <p>a.n Kuasa Pengguna Anggaran<br/>Pejabat Pembuat Komitmen</p>
-                      <div className="space-y-0.5">
-                        <p className="font-bold underline uppercase">{formData.ppkNama}</p>
-                        <p>NIP {formData.ppkNip}</p>
-                      </div>
-                    </div>
-                    <div className="text-center space-y-12">
-                      <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Yang Menerima</p>
-                      <div className="space-y-0.5">
-                        <p className="font-bold underline uppercase">{currentPeserta?.nama || '-'}</p>
-                        <p>NIP {currentPeserta?.nip || '-'}</p>
-                      </div>
-                    </div>
-                  </div>
+                          {/* CONTENT SECTION */}
+                          <div className="px-6 space-y-3 flex-1">
+                            <div className="grid grid-cols-[140px_5px_1fr] gap-x-2 items-start">
+                              <span>Sudah terima dari</span><span>:</span>
+                              <span>Kuasa Pengguna Anggaran / Pejabat Pembuat Komitmen Satker DJKI</span>
+                            </div>
 
-                  {/* BOTTOM SECTION */}
-                  <div className="text-center pt-1 text-[9pt]">
-                     <div className="text-center italic">
-                        <p>Lunas dibayar tanggal, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                     </div>
-                     <div className="text-center space-y-12">
-                        <p className="font-bold">Bendahara Pengeluaran</p>
-                        <div className="space-y-0.5">
-                          <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
-                          <p>NIP {formData.bendaharaNip}</p>
+                            <div className="grid grid-cols-[140px_5px_1fr] gap-x-2 items-center">
+                              <span>Jumlah Uang</span><span>:</span>
+                              <span className="font-bold text-[9pt] bg-gray-100 px-2 py-1 border border-black inline-block">
+                                {formatCurrency(currentPeserta?.totalJumlah || 0)}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-[140px_5px_1fr] gap-x-2 items-start italic">
+                              <span>Terbilang</span><span>:</span>
+                              <span className="font-semibold">"{terbilang(currentPeserta?.totalJumlah || 0)} Rupiah"</span>
+                            </div>
+
+                            <div className="grid grid-cols-[140px_5px_1fr] gap-x-2 items-start">
+                              <span className="shrink-0">Untuk Pembayaran</span><span>:</span>
+                              <span className="leading-normal">
+                                Biaya {formData.namaKegiatan} {currentPeserta?.tujuanPerjalanan} pada tanggal {currentPeserta?.tanggalSpd 
+                                  ? new Date(currentPeserta.tanggalSpd).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) 
+                                  : '-'}. 
+                                Berdasarkan Surat Keputusan/SPD Nomor: {currentPeserta?.nomorSpd}.
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* SIGNATURE AREA */}
+                          <div className="mt-2 border-t-[1.5pt] border-black">
+                            {/* Penerima Section (Right Aligned) */}
+                            <div className="flex justify-end p-4">
+                              <div className="text-center w-[250px] space-y-12">
+                                <div>
+                                  <p>{docCity}, {new Date(docDate).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"})}</p>
+                                  <p className="font-bold">Yang Menerima,</p>
+                                </div>
+                                <div>
+                                  <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
+                                  <p>NIP. {currentPeserta?.nip}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Official Signatures Grid */}
+                            <div className="grid grid-cols-2 border-t border-black text-[8.5pt]">
+                              <div className="border-r border-black p-4 text-center space-y-10">
+                                <div>
+                                  <p className="italic">Setuju dibebankan pada mata anggaran berkenaan</p>
+                                  <p>a.n. Kuasa Pengguna Anggaran</p>
+                                  <p className="font-bold">Pejabat Pembuat Komitmen</p>
+                                </div>
+                                <div>
+                                  <p className="font-bold underline uppercase">{formData.ppkNama}</p>
+                                  <p>NIP. {formData.ppkNip}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="p-4 text-center space-y-10">
+                                <div>
+                                  <p className="italic">Lunas dibayar tanggal {new Date(docDate).toLocaleDateString("id-ID", {day:"numeric",month:"long",year:"numeric"})}</p>
+                                  <p className="font-bold">Bendahara Pengeluaran</p>
+                                </div>
+                                <div>
+                                  <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
+                                  <p>NIP. {formData.bendaharaNip}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="border-t border-black p-2 text-center text-[8pt]">
+                              <p className="font-bold">Barang/pekerjaan telah diterima dengan baik oleh </p>
+                              <p> Pejabat yang bertanggungjawab</p>
+                              <div className="mt-6">( ............................................................ )</div>
+                            </div>
+                          </div>
                         </div>
-                     </div>
-                  </div>
-                </div>
-              )}
+                      )}
+                     
 
               {previewType === 'rincian' && (
                 <div className="space-y-8 text-[10pt]">

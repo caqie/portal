@@ -33,8 +33,9 @@ function doPost(e) {
     var payload = data.payload;
     var ssId = data.spreadsheetId; 
     var ss = getSpreadsheet(ssId);
+    var driveFolderId = data.driveFolderId || FOLDER_ID_DATABASE;
 
-    if (action === 'UPLOAD') return handleUpload(payload);
+    if (action === 'UPLOAD') return handleUpload(payload, driveFolderId);
     if (action === 'SAVE') return handleSave(ss, moduleName, payload);
     if (action === 'DELETE') return handleDelete(ss, moduleName, payload);
     if (action === 'GET') return handleGet(ss, moduleName);
@@ -44,19 +45,28 @@ function doPost(e) {
       sheets.forEach(function(sh) { gidMap[sh.getName()] = sh.getSheetId().toString(); });
       return createResponse({ success: true, gidMap: gidMap });
     }
-    if (action === 'GENERATE_DOC') return handleGenerateFromTemplate(payload);
+    if (action === 'GENERATE_DOC') return handleGenerateFromTemplate(payload, driveFolderId);
 
     return createResponse({ success: false, message: "Aksi tidak dikenali." });
   } catch (err) { return createResponse({ success: false, message: "POST Error: " + err.toString() }); }
 }
 
-function handleGenerateFromTemplate(payload) {
+function handleGenerateFromTemplate(payload, driveFolderId) {
   try {
     var templateId = payload.templateId;
     var fileName = payload.fileName || "Surat_Baru_" + Date.now();
     var replacements = payload.data; 
     var templateFile = DriveApp.getFileById(templateId);
-    var folder = DriveApp.getFolderById(FOLDER_ID_DATABASE);
+    
+    // Check if folder ID is valid
+    var folder;
+    if (driveFolderId && driveFolderId !== "PASTE_YOUR_FOLDER_ID_HERE") {
+      folder = DriveApp.getFolderById(driveFolderId);
+    } else {
+      // Fallback to same folder as template
+      folder = templateFile.getParents().next();
+    }
+
     var newFile = templateFile.makeCopy(fileName, folder);
     var doc = DocumentApp.openById(newFile.getId());
     var body = doc.getBody();
@@ -159,23 +169,57 @@ function handleSave(ss, moduleName, payload) {
 function handleDelete(ss, moduleName, payload) {
   try {
     var sheet = findSheetByName(ss, moduleName);
-    if (!sheet) return createResponse({ success: false });
+    if (!sheet) return createResponse({ success: false, message: "Sheet not found" });
+    
     var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return createResponse({ success: true, message: "Sheet empty" });
+    
     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     var keyIndex = -1;
-    var searchKey = String(payload.id || payload.nip || "").trim();
-    for (var h = 0; h < headers.length; h++) {
-      var n = headers[h].toString().toLowerCase().trim();
-      if (n === 'id' || n === 'nip') { keyIndex = h; break; }
-    }
-    var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getDisplayValues();
-    for (var i = displayValues.length - 1; i >= 1; i--) {
-      if (String(displayValues[i][0]).trim() === searchKey) {
-        sheet.deleteRow(i + 1);
+    var searchKey = "";
+
+    // Tentukan kolom mana yang akan digunakan untuk pencarian
+    if (payload.id) {
+      searchKey = String(payload.id).trim();
+      for (var h = 0; h < headers.length; h++) {
+        if (headers[h].toString().toLowerCase().trim() === 'id') {
+          keyIndex = h;
+          break;
+        }
       }
     }
-    return createResponse({ success: true });
-  } catch (e) { return createResponse({ success: false }); }
+    
+    // Jika ID tidak ditemukan atau tidak ada, coba NIP
+    if (keyIndex === -1 && payload.nip) {
+      searchKey = String(payload.nip).trim();
+      for (var h = 0; h < headers.length; h++) {
+        if (headers[h].toString().toLowerCase().trim() === 'nip') {
+          keyIndex = h;
+          break;
+        }
+      }
+    }
+
+    if (keyIndex === -1 || searchKey === "") {
+      return createResponse({ success: false, message: "No valid ID or NIP provided for deletion" });
+    }
+
+    var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getDisplayValues();
+    var deletedCount = 0;
+    
+    // Hapus dari bawah ke atas agar index tidak bergeser
+    for (var i = displayValues.length - 1; i >= 1; i--) {
+      if (displayValues[i][0].toString().trim() === searchKey) {
+        sheet.deleteRow(i + 1);
+        deletedCount++;
+      }
+    }
+    
+    return createResponse({ success: true, deletedCount: deletedCount });
+  } catch (e) { 
+    console.log("Error in handleDelete: " + e.toString());
+    return createResponse({ success: false, message: e.toString() }); 
+  }
 }
 
 function getSpreadsheet(ssId) {
@@ -212,9 +256,15 @@ function getOrCreateSheet(ss, moduleName, payload) {
   return sheet;
 }
 
-function handleUpload(payload) {
+function handleUpload(payload, driveFolderId) {
   try {
-    var folder = DriveApp.getFolderById(FOLDER_ID_DATABASE);
+    var folder;
+    if (driveFolderId && driveFolderId !== "PASTE_YOUR_FOLDER_ID_HERE") {
+      folder = DriveApp.getFolderById(driveFolderId);
+    } else {
+      // Fallback to root or a default folder if possible, but DriveApp.getRootFolder() is safer
+      folder = DriveApp.getRootFolder();
+    }
     var bytes = Utilities.base64Decode(payload.base64.split(",")[1]);
     var blob = Utilities.newBlob(bytes, payload.mimeType, payload.fileName);
     var file = folder.createFile(blob);

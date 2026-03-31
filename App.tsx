@@ -78,10 +78,31 @@ const AppContent = () => {
   };
 
   useEffect(() => { 
+    // Suppress Vite WebSocket error from console to avoid user confusion
+    const originalError = console.error;
+    console.error = (...args) => {
+      if (args[0] && typeof args[0] === 'string' && args[0].includes('[vite] failed to connect to websocket')) {
+        return;
+      }
+      originalError.apply(console, args);
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (event.reason && event.reason.message === 'WebSocket closed without opened.') {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
     syncGidMap(); 
     loadSystemConfig();
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      console.error = originalError;
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
   }, []);
 
   useEffect(() => {

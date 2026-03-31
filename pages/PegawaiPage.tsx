@@ -232,12 +232,22 @@ const PegawaiPage = () => {
     e.preventDefault();
     if (!formData.nip || !formData.nama) return alert("NIP dan Nama wajib diisi.");
     setSyncing(true);
-    const success = await syncTableRemote('PEGAWAI', 'SAVE', formData);
+    
+    // Generate ID for new records
+    const payload = {
+      ...formData,
+      id: formData.id || `PEG-${formData.nip}-${Date.now()}`,
+      updatedAt: new Date().toISOString()
+    };
+
+    const success = await syncTableRemote('PEGAWAI', 'SAVE', payload);
     if (success) {
       setSuccessMsg(`Data ${formData.nama} berhasil disinkronkan ke database cloud.`);
       await loadData();
       setIsModalOpen(false);
       setShowSuccess(true);
+    } else {
+      alert("Gagal menyimpan data ke server.");
     }
     setSyncing(false);
   };
@@ -351,11 +361,16 @@ const PegawaiPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => !syncing && setIsConfirmOpen(false)} onConfirm={async () => {
            if(pegawaiToDelete) {
              setSyncing(true);
-             await syncTableRemote('PEGAWAI', 'DELETE', { nip: pegawaiToDelete.nip });
-             setPegawaiList(prev => prev.filter(p => p.nip !== pegawaiToDelete.nip));
-             setIsConfirmOpen(false);
-             if (selectedPegawai?.nip === pegawaiToDelete.nip) {
-               setSelectedPegawai(null);
+             const ok = await syncTableRemote('PEGAWAI', 'DELETE', { id: pegawaiToDelete.id, nip: pegawaiToDelete.nip });
+             if (ok) {
+               logActivity('DELETE', 'Pegawai', `Hapus data pegawai: ${pegawaiToDelete.nama}`);
+               await loadData();
+               setIsConfirmOpen(false);
+               if (selectedPegawai?.nip === pegawaiToDelete.nip) {
+                 setSelectedPegawai(null);
+               }
+             } else {
+               alert("Gagal menghapus data dari server.");
              }
              setSyncing(false);
            }
