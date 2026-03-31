@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogIn, User, Calendar, AlertCircle, ShieldCheck, Users } from 'lucide-react';
+import { LogIn, User, Calendar, AlertCircle, ShieldCheck, Users, ArrowLeft } from 'lucide-react';
 import { fetchPesertaUkomFromSheets, fetchUsersFromSheets } from '../spreadsheetService';
 import { PesertaUkom, AdminUser } from '../types';
 import { useAuth } from '../AuthContext';
@@ -16,7 +16,7 @@ const UkomLoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,14 +74,28 @@ const UkomLoginPage: React.FC = () => {
     }
   };
 
+  const handleBackToMain = () => {
+    navigate('/');
+  };
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-6 font-sans">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 font-sans">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl shadow-blue-100 border border-blue-50 overflow-hidden"
       >
         <div className="bg-blue-600 p-10 text-center text-white relative overflow-hidden">
+          {/* Tombol Kembali hanya muncul jika user adalah Admin/Editor yang sudah login di sistem utama */}
+          {isAuthenticated && (
+            <button 
+              onClick={handleBackToMain}
+              className="absolute top-6 left-6 h-10 w-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center hover:bg-white/30 transition-all z-20"
+              title="Kembali ke Portal Utama"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
           <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
             <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle,white_0%,transparent_70%)]"></div>
           </div>

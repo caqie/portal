@@ -86,6 +86,9 @@ const AppContent = () => {
   const location = useLocation();
   const { user, logout, isSuperadmin, canEdit, isAuthenticated } = useAuth();
 
+  // Mode Ujian Terisolasi (Strict Mode)
+  const isUkomStrict = window.location.pathname.includes('ukomdjki') || window.location.search.includes('portal=ukom');
+
   const loadSystemConfig = async () => {
     const config = await fetchSystemConfig();
     setSystemConfig(config);
@@ -159,8 +162,24 @@ const AppContent = () => {
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem('portal_last_path', location.pathname + location.search);
-  }, [location.pathname, location.search]);
+    if (!isUkomStrict) {
+      sessionStorage.setItem('portal_last_path', location.pathname + location.search);
+    }
+  }, [location.pathname, location.search, isUkomStrict]);
+
+  if (isUkomStrict) {
+    return (
+      <div className="h-screen w-full bg-gray-50 overflow-hidden">
+        <Routes>
+          <Route path="/ukom/login" element={<UkomLoginPage />} />
+          <Route path="/ukom/dashboard" element={<UkomDashboardPage />} />
+          <Route path="/ukom/exam" element={<UkomExamPage />} />
+          <Route path="/ukom/supervisor" element={<UkomSupervisorPage />} />
+          <Route path="*" element={<Navigate to="/ukom/login" replace />} />
+        </Routes>
+      </div>
+    );
+  }
 
   if (!isAuthenticated && !location.pathname.startsWith('/ukom') && location.pathname !== '/login') return <Navigate to="/login" replace />;
   if (location.pathname === '/login' && isAuthenticated) return <Navigate to="/" replace />;
@@ -424,15 +443,19 @@ const AppContent = () => {
 };
 
 const App = () => {
+  const isUkomStrict = window.location.pathname.includes('ukomdjki') || window.location.search.includes('portal=ukom');
   let initialPath = sessionStorage.getItem('portal_last_path') || '/';
   
-  // Cek apakah ada permintaan akses langsung (untuk tab baru)
-  const directAccess = localStorage.getItem('portal_direct_access');
-  if (directAccess) {
-    initialPath = directAccess;
-    localStorage.removeItem('portal_direct_access');
-    // Update session storage juga agar refresh di tab baru tetap di halaman tersebut
-    sessionStorage.setItem('portal_last_path', initialPath);
+  if (isUkomStrict) {
+    initialPath = '/ukom/login';
+  } else {
+    // Cek apakah ada permintaan akses langsung (untuk tab baru)
+    const directAccess = localStorage.getItem('portal_direct_access');
+    if (directAccess) {
+      initialPath = directAccess;
+      localStorage.removeItem('portal_direct_access');
+      sessionStorage.setItem('portal_last_path', initialPath);
+    }
   }
   
   return (
