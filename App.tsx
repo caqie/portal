@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // @ts-ignore
-import { HashRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './AuthContext';
 import Dashboard from './pages/Dashboard';
 import PegawaiPage from './pages/PegawaiPage';
@@ -143,6 +143,10 @@ const AppContent = () => {
     window.addEventListener('storage_updated', sync);
     return () => window.removeEventListener('storage_updated', sync);
   }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('portal_last_path', location.pathname + location.search);
+  }, [location.pathname, location.search]);
 
   if (!isAuthenticated && !location.pathname.startsWith('/ukom') && location.pathname !== '/login') return <Navigate to="/login" replace />;
   if (location.pathname === '/login' && isAuthenticated) return <Navigate to="/" replace />;
@@ -406,12 +410,14 @@ const AppContent = () => {
 };
 
 const App = () => {
+  const initialPath = sessionStorage.getItem('portal_last_path') || '/';
+  
   return (
-    <HashRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <AuthProvider>
         <AppContent />
       </AuthProvider>
-    </HashRouter>
+    </MemoryRouter>
   );
 };
 
