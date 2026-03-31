@@ -416,6 +416,8 @@ export interface PesertaUkom {
   fotoUrl?: string;
   password?: string;
   statusUjian: 'Belum' | 'Sudah';
+  isLocked?: boolean;
+  unlockPassword?: string;
 }
 
 export interface HasilUkom {

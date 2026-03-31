@@ -463,7 +463,9 @@ export const fetchPesertaUkomFromSheets = () => fetchTableData<PesertaUkom>('PES
     unitKerja: get('UNITKERJA'),
     fotoUrl: get('FOTOURL') || get('FOTO'),
     password: get('PASSWORD'),
-    statusUjian: get('STATUSUJIAN') as any
+    statusUjian: get('STATUSUJIAN') as any,
+    isLocked: get('ISLOCKED') === 'TRUE',
+    unlockPassword: get('UNLOCKPASSWORD')
   } as PesertaUkom;
 });
 
@@ -505,6 +507,8 @@ export const deleteUkomSession = (id: string) => syncTableRemote('UKOM_SESSIONS'
 
 export const saveHasilUkom = (hasil: HasilUkom) => syncTableRemote('HASIL_UKOM', 'SAVE', hasil);
 export const savePesertaUkom = (peserta: PesertaUkom) => syncTableRemote('PESERTA_UKOM', 'SAVE', peserta);
+export const lockPesertaUkom = (noPeserta: string) => syncTableRemote('PESERTA_UKOM', 'SAVE', { noPeserta, isLocked: true });
+export const unlockPesertaUkom = (noPeserta: string, unlockPassword: string) => syncTableRemote('PESERTA_UKOM', 'SAVE', { noPeserta, isLocked: false, unlockPassword });
 export const deletePesertaUkom = (noPeserta: string) => syncTableRemote('PESERTA_UKOM', 'DELETE', { id: noPeserta, noPeserta });
 export const saveBankSoalBulk = (soalList: BankSoal[]) => syncTableRemote('BANK_SOAL', 'SAVE', soalList);
 export const saveBankSoal = (soal: BankSoal) => syncTableRemote('BANK_SOAL', 'SAVE', soal);

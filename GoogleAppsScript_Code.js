@@ -10,7 +10,7 @@
  * - Template Engine: Mendukung pembuatan dokumen dari Google Docs template.
  */
 
-var FOLDER_ID_DATABASE = "PASTE_YOUR_FOLDER_ID_HERE"; 
+var FOLDER_ID_DATABASE = "19OkO6ZAMnTXaxy-58ntHRVNI85W-u23O"; 
 
 function doGet(e) {
   try {

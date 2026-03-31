@@ -27,7 +27,9 @@ import {
   Clock,
   ShieldCheck,
   Monitor,
-  ExternalLink
+  ExternalLink,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { PesertaUkom, HasilUkom, BankSoal, Pegawai, UkomSession, UkomSupervisor } from '../types';
@@ -43,7 +45,8 @@ import {
   saveUkomSession,
   deleteUkomSession,
   deleteBankSoal,
-  saveHasilUkom
+  saveHasilUkom,
+  unlockPesertaUkom
 } from '../spreadsheetService';
 
 const PASSING_GRADE = {
@@ -99,6 +102,9 @@ const UkomAdminPage: React.FC = () => {
   const [showPesertaModal, setShowPesertaModal] = useState(false);
   const [showSoalModal, setShowSoalModal] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [selectedPesertaForUnlock, setSelectedPesertaForUnlock] = useState<PesertaUkom | null>(null);
+  const [unlockPasswordInput, setUnlockPasswordInput] = useState('');
   const [editingPeserta, setEditingPeserta] = useState<PesertaUkom | null>(null);
   const [editingSoal, setEditingSoal] = useState<BankSoal | null>(null);
   const [editingSession, setEditingSession] = useState<UkomSession | null>(null);
@@ -164,6 +170,29 @@ const UkomAdminPage: React.FC = () => {
       setSessions(sess);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnlockPeserta = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPesertaForUnlock || !unlockPasswordInput) return;
+    
+    setLoading(true);
+    try {
+      const success = await unlockPesertaUkom(selectedPesertaForUnlock.noPeserta, unlockPasswordInput);
+      if (success) {
+        alert(`Peserta ${selectedPesertaForUnlock.nama} berhasil dibuka kuncinya. Berikan password unlock ini kepada peserta: ${unlockPasswordInput}`);
+        setShowUnlockModal(false);
+        setUnlockPasswordInput('');
+        loadData();
+      } else {
+        alert('Gagal membuka kunci peserta.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan saat membuka kunci peserta.');
     } finally {
       setLoading(false);
     }
@@ -825,10 +854,17 @@ const UkomAdminPage: React.FC = () => {
                     <tr key={i} className="hover:bg-blue-50/30 transition-colors group">
                       <td className="px-8 py-6 text-xs font-bold text-gray-400">#{i + 1}</td>
                       <td className="px-8 py-6">
-                        <div>
-                          <p className="text-sm font-black text-gray-900">{p.nama}</p>
-                          <p className="text-[10px] font-mono font-bold text-gray-400">{p.noPeserta}</p>
-                          <p className="text-[9px] font-bold text-blue-600 uppercase mt-1">{p.jabatanFungsional}</p>
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <p className="text-sm font-black text-gray-900">{p.nama}</p>
+                            <p className="text-[10px] font-mono font-bold text-gray-400">{p.noPeserta}</p>
+                            <p className="text-[9px] font-bold text-blue-600 uppercase mt-1">{p.jabatanFungsional}</p>
+                          </div>
+                          {p.isLocked && (
+                            <div className="p-2 bg-rose-50 text-rose-500 rounded-lg" title="Akun Terkunci">
+                              <Lock className="w-3 h-3" />
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-8 py-6">
@@ -870,6 +906,19 @@ const UkomAdminPage: React.FC = () => {
                           >
                             <RefreshCw className="w-4 h-4" />
                           </button>
+                          {p.isLocked && (
+                            <button 
+                              onClick={() => {
+                                setSelectedPesertaForUnlock(p);
+                                setUnlockPasswordInput(Math.random().toString(36).substring(2, 8).toUpperCase());
+                                setShowUnlockModal(true);
+                              }}
+                              className="p-3 bg-white border border-gray-200 text-emerald-500 rounded-xl hover:bg-emerald-50 transition-all"
+                              title="Buka Kunci Akun"
+                            >
+                              <Unlock className="w-4 h-4" />
+                            </button>
+                          )}
                           <button 
                             onClick={() => handleDeletePeserta(p.noPeserta)}
                             className="p-3 bg-white border border-gray-200 text-gray-400 rounded-xl hover:text-rose-600 hover:border-rose-100 transition-all"
@@ -1545,6 +1594,55 @@ const UkomAdminPage: React.FC = () => {
         <div className="fixed inset-0 bg-blue-950/80 backdrop-blur-sm z-[300] flex flex-col items-center justify-center gap-6">
           <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
           <p className="text-white font-black uppercase tracking-widest text-xs">Sedang Mengunggah Soal...</p>
+        </div>
+      )}
+
+      {/* Unlock Modal */}
+      {showUnlockModal && selectedPesertaForUnlock && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-gray-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden"
+          >
+            <div className="p-8 bg-emerald-600 text-white">
+              <h2 className="text-xl font-black uppercase tracking-tighter">Buka Kunci Peserta</h2>
+              <p className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-1">Setel password baru untuk membuka akses</p>
+            </div>
+            <form onSubmit={handleUnlockPeserta} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Nama Peserta</label>
+                <p className="px-6 py-4 bg-gray-50 rounded-2xl text-sm font-black text-gray-900">{selectedPesertaForUnlock.nama}</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Password Unlock Baru</label>
+                <input 
+                  type="text"
+                  required
+                  value={unlockPasswordInput}
+                  onChange={e => setUnlockPasswordInput(e.target.value.toUpperCase())}
+                  className="w-full px-6 py-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-sm font-black text-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                />
+                <p className="text-[9px] text-gray-400 italic ml-4">Berikan password ini kepada peserta untuk login kembali.</p>
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button 
+                  type="button"
+                  onClick={() => setShowUnlockModal(false)}
+                  className="flex-1 py-4 bg-gray-100 text-gray-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 py-4 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Buka Kunci'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
         </div>
       )}
     </div>

@@ -80,16 +80,31 @@ const AppContent = () => {
   useEffect(() => { 
     // Suppress Vite WebSocket error from console to avoid user confusion
     const originalError = console.error;
+    const originalWarn = console.warn;
+
     console.error = (...args) => {
-      if (args[0] && typeof args[0] === 'string' && args[0].includes('[vite] failed to connect to websocket')) {
+      const msg = args[0] && typeof args[0] === 'string' ? args[0] : '';
+      if (msg.includes('[vite] failed to connect to websocket') || msg.includes('WebSocket closed without opened.')) {
         return;
       }
       originalError.apply(console, args);
     };
 
+    console.warn = (...args) => {
+      const msg = args[0] && typeof args[0] === 'string' ? args[0] : '';
+      if (msg.includes('[vite] failed to connect to websocket') || msg.includes('WebSocket closed without opened.')) {
+        return;
+      }
+      originalWarn.apply(console, args);
+    };
+
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      if (event.reason && event.reason.message === 'WebSocket closed without opened.') {
+      const reason = event.reason;
+      const message = reason?.message || (typeof reason === 'string' ? reason : reason?.toString() || '');
+      if (message.includes('WebSocket closed without opened.') || 
+          message.includes('[vite] failed to connect to websocket')) {
         event.preventDefault();
+        event.stopPropagation();
       }
     };
 
@@ -101,6 +116,7 @@ const AppContent = () => {
     return () => {
       clearInterval(timer);
       console.error = originalError;
+      console.warn = originalWarn;
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
   }, []);

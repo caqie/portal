@@ -11,6 +11,8 @@ const UkomLoginPage: React.FC = () => {
   const [loginMode, setLoginMode] = useState<'PESERTA' | 'PENGAWAS'>('PESERTA');
   const [noPeserta, setNoPeserta] = useState('');
   const [password, setPassword] = useState('');
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [isLocked, setIsLocked] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -30,6 +32,20 @@ const UkomLoginPage: React.FC = () => {
         );
 
         if (peserta) {
+          if (peserta.isLocked) {
+            setIsLocked(true);
+            if (!unlockPassword) {
+              setError('Akun Anda terkunci karena pelanggaran keamanan. Silakan masukkan Password Buka Kunci dari Admin.');
+              setLoading(false);
+              return;
+            }
+            if (peserta.unlockPassword !== unlockPassword) {
+              setError('Password Buka Kunci tidak valid.');
+              setLoading(false);
+              return;
+            }
+          }
+
           if (peserta.statusUjian === 'Sudah') {
             setError('Anda sudah mengikuti ujian ini.');
           } else {
@@ -151,6 +167,27 @@ const UkomLoginPage: React.FC = () => {
                 <p className="text-[9px] text-gray-400 italic ml-4">Gunakan Password yang diberikan atau Tanggal Lahir (YYYY-MM-DD)</p>
               )}
             </div>
+
+            {isLocked && loginMode === 'PESERTA' && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="space-y-2"
+              >
+                <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest ml-4">Password Buka Kunci (Admin)</label>
+                <div className="relative">
+                  <ShieldCheck className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-rose-500" />
+                  <input 
+                    type="password" 
+                    value={unlockPassword}
+                    onChange={e => setUnlockPassword(e.target.value)}
+                    placeholder="Masukkan Password Buka Kunci"
+                    className="w-full pl-14 pr-6 py-4 bg-rose-50 border border-rose-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:bg-white transition-all"
+                    required
+                  />
+                </div>
+              </motion.div>
+            )}
           </div>
 
           <button 

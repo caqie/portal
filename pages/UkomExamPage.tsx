@@ -15,7 +15,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { BankSoal, PesertaUkom, HasilUkom } from '../types';
-import { fetchBankSoalFromSheets, saveHasilUkom, savePesertaUkom } from '../spreadsheetService';
+import { fetchBankSoalFromSheets, saveHasilUkom, savePesertaUkom, lockPesertaUkom } from '../spreadsheetService';
 
 interface AnswerState {
   [soalId: string]: {
@@ -247,6 +247,29 @@ const UkomExamPage: React.FC = () => {
     };
   }, [loading, submitting, peserta]);
 
+  const handleLockout = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      if (peserta) {
+        await lockPesertaUkom(peserta.noPeserta);
+        addLog("AKUN TERKUNCI - PELANGGARAN KEAMANAN");
+        
+        // Cleanup
+        localStorage.removeItem(`ukom_answers_${peserta.noPeserta}`);
+        localStorage.removeItem(`ukom_time_${peserta.noPeserta}`);
+        localStorage.removeItem(`ukom_questions_${peserta.noPeserta}`);
+        sessionStorage.removeItem('ukom_peserta');
+        
+        alert('Akun Anda telah TERKUNCI karena terdeteksi melakukan pelanggaran keamanan (meninggalkan halaman ujian sebanyak 3 kali). Silakan hubungi Admin untuk membuka kunci akun Anda.');
+        navigate('/ukom/login');
+      }
+    } catch (err) {
+      console.error(err);
+      navigate('/ukom/login');
+    }
+  };
+
   // Security: Fullscreen & Tab Switch
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -254,7 +277,7 @@ const UkomExamPage: React.FC = () => {
         setWarningCount(prev => {
           const next = prev + 1;
           if (next >= 3) {
-            handleSubmit();
+            handleLockout();
           } else {
             setShowWarning(true);
           }
@@ -434,9 +457,23 @@ const UkomExamPage: React.FC = () => {
   const currentAnswer = answers[currentQuestion.id];
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] flex flex-col font-sans select-none">
-      {/* Hidden Camera Capture */}
-      <video ref={videoRef} autoPlay playsInline muted className="hidden" />
+    <div className="min-h-screen bg-[#F1F5F9] flex flex-col font-sans select-none relative">
+      {/* Participant Video Feed Overlay */}
+      <div className="fixed bottom-8 left-8 w-48 h-36 bg-black rounded-3xl overflow-hidden shadow-2xl border-4 border-white z-50 group hover:scale-110 transition-transform">
+        <video 
+          ref={videoRef} 
+          autoPlay 
+          playsInline 
+          muted 
+          className="w-full h-full object-cover mirror" 
+          style={{ transform: 'scaleX(-1)' }}
+        />
+        <div className="absolute top-3 left-3 flex items-center gap-2">
+          <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse"></div>
+          <span className="text-[8px] font-black text-white uppercase tracking-widest drop-shadow-md">Live Proctoring</span>
+        </div>
+      </div>
+
       <canvas ref={canvasRef} width="320" height="240" className="hidden" />
       
       {/* Header */}
