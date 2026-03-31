@@ -37,27 +37,41 @@ import { DEFAULT_LOGO, APP_ROUTES } from './constants';
 import { syncGidMap, fetchSystemConfig } from './spreadsheetService';
 import { SystemConfig } from './types';
 
-const SidebarItem = ({ to, icon, label, active, collapsed, onClick }: any) => (
-  <Link 
-    to={to} 
-    onClick={onClick}
-    className={`flex items-center px-4 py-3.5 transition-all duration-300 group relative rounded-xl mx-3 mb-1 ${active ? 'bg-blue-600/10 text-blue-50' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-  >
-    {active && (
-      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-500 rounded-r-full shadow-[0_0_12px_rgba(59,130,246,0.8)]"></div>
-    )}
-    
-    <div className={`flex items-center justify-center ${collapsed ? 'w-full' : 'w-6'} transition-all`}>
-      <i className={`bi ${icon} ${active ? 'text-blue-500' : 'text-inherit'} ${collapsed ? 'text-2xl' : 'text-lg'} transition-transform group-hover:scale-110`}></i>
-    </div>
-    
-    {!collapsed && (
-      <span className="ml-4 font-bold text-[11px] tracking-[0.1em] whitespace-nowrap overflow-hidden">
-        {label}
-      </span>
-    )}
-  </Link>
-);
+const SidebarItem = ({ to, icon, label, active, collapsed, onClick, target }: any) => {
+  const handleClick = (e: React.MouseEvent) => {
+    if (target === '_blank') {
+      e.preventDefault();
+      // Simpan path tujuan ke localStorage agar tab baru tahu harus buka apa
+      localStorage.setItem('portal_direct_access', to);
+      window.open(window.location.origin, '_blank');
+    } else if (onClick) {
+      onClick(e);
+    }
+  };
+
+  return (
+    <Link 
+      to={to} 
+      onClick={handleClick}
+      target={target}
+      className={`flex items-center px-4 py-3.5 transition-all duration-300 group relative rounded-xl mx-3 mb-1 ${active ? 'bg-blue-600/10 text-blue-50' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+    >
+      {active && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-500 rounded-r-full shadow-[0_0_12px_rgba(59,130,246,0.1)]"></div>
+      )}
+      
+      <div className={`flex items-center justify-center ${collapsed ? 'w-full' : 'w-6'} transition-all`}>
+        <i className={`bi ${icon} ${active ? 'text-blue-500' : 'text-inherit'} ${collapsed ? 'text-2xl' : 'text-lg'} transition-transform group-hover:scale-110`}></i>
+      </div>
+      
+      {!collapsed && (
+        <span className="ml-4 font-bold text-[11px] tracking-[0.1em] whitespace-nowrap overflow-hidden">
+          {label}
+        </span>
+      )}
+    </Link>
+  );
+};
 
 const AppContent = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
@@ -279,7 +293,7 @@ const AppContent = () => {
 
             {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Uji Kompetensi</div>}
             {hasAccess('/ukom/admin') && <SidebarItem to="/ukom/admin" icon="bi-pc-display-horizontal" label="Admin CAT" active={location.pathname === '/ukom/admin'} collapsed={isCollapsed} />}
-            {hasAccess('/ukom/login') && <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian" active={location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin'} collapsed={isCollapsed} />}
+            {hasAccess('/ukom/login') && <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian" active={location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin'} collapsed={isCollapsed} target="_blank" />}
 
             {(hasAccess('/settings') || hasAccess('/logs')) && (
               <>
@@ -410,7 +424,16 @@ const AppContent = () => {
 };
 
 const App = () => {
-  const initialPath = sessionStorage.getItem('portal_last_path') || '/';
+  let initialPath = sessionStorage.getItem('portal_last_path') || '/';
+  
+  // Cek apakah ada permintaan akses langsung (untuk tab baru)
+  const directAccess = localStorage.getItem('portal_direct_access');
+  if (directAccess) {
+    initialPath = directAccess;
+    localStorage.removeItem('portal_direct_access');
+    // Update session storage juga agar refresh di tab baru tetap di halaman tersebut
+    sessionStorage.setItem('portal_last_path', initialPath);
+  }
   
   return (
     <MemoryRouter initialEntries={[initialPath]}>
