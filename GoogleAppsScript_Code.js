@@ -155,8 +155,24 @@ function handleSave(ss, moduleName, payload) {
       var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getDisplayValues();
       for (var i = 1; i < displayValues.length; i++) {
         if (displayValues[i][0].toString().trim() === targetKey) {
-          sheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
-          return createResponse({ success: true, message: "Updated." });
+          var rowNum = i + 1;
+          // PERBAIKAN: Update hanya kolom yang ada di payload untuk menjaga ArrayFormula
+          payloadKeys.forEach(function(key) {
+            var keyLower = key.toLowerCase().replace(/[\s_]/g, '');
+            var colIdx = -1;
+            for (var h = 0; h < headers.length; h++) {
+              if (headers[h].toString().toLowerCase().replace(/[\s_]/g, '') === keyLower) {
+                colIdx = h;
+                break;
+              }
+            }
+            if (colIdx > -1) {
+              var val = payload[key];
+              var finalVal = (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
+              sheet.getRange(rowNum, colIdx + 1).setValue(finalVal);
+            }
+          });
+          return createResponse({ success: true, message: "Updated (Sparse)." });
         }
       }
     }

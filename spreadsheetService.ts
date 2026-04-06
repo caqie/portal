@@ -505,6 +505,24 @@ export const fetchUkomSessionsFromSheets = () => fetchTableData<any>('UKOM_SESSI
 export const saveUkomSession = (session: any) => syncTableRemote('UKOM_SESSIONS', 'SAVE', session);
 export const deleteUkomSession = (id: string) => syncTableRemote('UKOM_SESSIONS', 'DELETE', { id });
 
+export const savePegawai = async (pegawai: Partial<Pegawai>): Promise<boolean> => {
+  // Filter out fields that are typically calculated by ArrayFormula in the spreadsheet
+  // to prevent overwriting formulas with static values.
+  const calculatedFields = [
+    'pangkat', 'jenisJabatan', 'klasifikasiJabatan', 'masaKerja', 
+    'masaKerjaGolongan', 'masaKerjaPensiun', 'usia', 'tglPensiun', 
+    'tmtPensiun', 'tmtPensiunDisplay', 'usiaPensiun', 'bup', 
+    'sisaMasaKerja', 'keteranganPensiun', 'tmtCpns'
+  ];
+  
+  const payload = { ...pegawai };
+  calculatedFields.forEach(field => {
+    delete (payload as any)[field];
+  });
+  
+  return syncTableRemote('PEGAWAI', 'SAVE', payload);
+};
+
 export const saveHasilUkom = (hasil: HasilUkom) => syncTableRemote('HASIL_UKOM', 'SAVE', hasil);
 export const savePesertaUkom = (peserta: PesertaUkom) => syncTableRemote('PESERTA_UKOM', 'SAVE', peserta);
 export const lockPesertaUkom = (noPeserta: string) => syncTableRemote('PESERTA_UKOM', 'SAVE', { noPeserta, isLocked: true });

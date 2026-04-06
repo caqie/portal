@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pegawai, Dossier } from '../types';
-import { fetchPegawaiFromSheets, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { normalizeUnitName, UNIT_KERJA, PANGKAT_MAP, DEFAULT_LOGO } from '../constants';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
@@ -123,6 +123,26 @@ const PegawaiPage = () => {
     });
   }, [pegawaiList, searchTerm, filterUnit, filterJenis, minAge, maxAge]);
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      'Aktif': 0,
+      'Tidak Aktif': 0,
+      'Pensiun': 0,
+      'Tugas Belajar': 0
+    };
+    
+    filteredPegawai.forEach(p => {
+      const status = p.status || 'Aktif';
+      if (counts[status] !== undefined) {
+        counts[status]++;
+      } else {
+        counts[status] = (counts[status] || 0) + 1;
+      }
+    });
+    
+    return counts;
+  }, [filteredPegawai]);
+
   const filteredDossiers = useMemo(() => {
     if (!selectedPegawai) return [];
     return dossierList.filter(d => d.nip === selectedPegawai.nip);
@@ -131,8 +151,13 @@ const PegawaiPage = () => {
   const handleExportExcel = (type: 'SHARE' | 'FULL') => {
     const wb = XLSX.utils.book_new();
     
+    // Filter data for export: exclude 'Tidak Aktif' and 'Pensiun' if not searching
+    const exportPegawai = searchTerm.trim() === '' 
+      ? filteredPegawai.filter(p => p.status !== 'Tidak Aktif' && p.status !== 'Pensiun')
+      : filteredPegawai;
+
     if (type === 'SHARE') {
-      const data = filteredPegawai.map((p, index) => ({
+      const data = exportPegawai.map((p, index) => ({
         'No': index + 1,
         'NIP': p.nip,
         'NAMA': p.nama,
@@ -145,7 +170,7 @@ const PegawaiPage = () => {
       XLSX.utils.book_append_sheet(wb, ws, "Daftar Pegawai");
     } else {
       // Sheet 1: Semua Pegawai
-      const allData = filteredPegawai.map(p => ({ ...p }));
+      const allData = exportPegawai.map(p => ({ ...p }));
       const wsAll = XLSX.utils.json_to_sheet(allData);
       XLSX.utils.book_append_sheet(wb, wsAll, "Semua Pegawai");
 
@@ -162,7 +187,7 @@ const PegawaiPage = () => {
 
       // Sheets 2-8: Per Unit Kerja (hanya jika ada data atau jika tidak sedang difilter)
       UNIT_KERJA.forEach(unit => {
-        const unitData = filteredPegawai.filter(p => normalizeUnitName(p.unitKerja) === unit).map(p => ({ ...p }));
+        const unitData = exportPegawai.filter(p => normalizeUnitName(p.unitKerja) === unit).map(p => ({ ...p }));
         if (unitData.length > 0) {
           const wsUnit = XLSX.utils.json_to_sheet(unitData);
           const sheetName = UNIT_SHEET_NAMES[unit] || unit.substring(0, 31);
@@ -240,7 +265,7 @@ const PegawaiPage = () => {
       updatedAt: new Date().toISOString()
     };
 
-    const success = await syncTableRemote('PEGAWAI', 'SAVE', payload);
+    const success = await savePegawai(payload);
     if (success) {
       setSuccessMsg(`Data ${formData.nama} berhasil disinkronkan ke database cloud.`);
       await loadData();
@@ -327,7 +352,7 @@ const PegawaiPage = () => {
           });
 
           if (payload.nip) {
-            const ok = await syncTableRemote('PEGAWAI', 'SAVE', payload);
+            const ok = await savePegawai(payload);
             if (ok) successCount++;
           }
           setImportProgress(prev => ({ ...prev, current: i + 1 }));
@@ -382,7 +407,25 @@ const PegawaiPage = () => {
             <h3 className="text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">Database ASN DJKI</h3>
             <span className="px-4 py-1.5 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg shadow-blue-600/20">{filteredPegawai.length} Pegawai</span>
           </div>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-2"><i className="bi bi-shield-check text-blue-600"></i> Terintegrasi dengan Cloud Google Spreadsheet</p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+              <span className="text-[9px] font-black uppercase tracking-wider">Aktif: {statusCounts['Aktif'] || 0}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 rounded-lg border border-amber-100">
+              <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+              <span className="text-[9px] font-black uppercase tracking-wider">Tugas Belajar: {statusCounts['Tugas Belajar'] || 0}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-50 text-rose-600 rounded-lg border border-rose-100">
+              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+              <span className="text-[9px] font-black uppercase tracking-wider">Tidak Aktif: {statusCounts['Tidak Aktif'] || 0}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-gray-50 text-gray-600 rounded-lg border border-gray-100">
+              <span className="w-1.5 h-1.5 bg-gray-500 rounded-full"></span>
+              <span className="text-[9px] font-black uppercase tracking-wider">Pensiun: {statusCounts['Pensiun'] || 0}</span>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-3 flex items-center gap-2"><i className="bi bi-shield-check text-blue-600"></i> Terintegrasi dengan Cloud Google Spreadsheet</p>
         </div>
         <div className="flex flex-wrap gap-2">
            <input type="file" ref={importExcelInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />

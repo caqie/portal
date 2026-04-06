@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Pegawai, RiwayatPendidikan, RiwayatJabatan, RiwayatPangkat, RiwayatPelatihan, Keluarga, Dossier } from '../types';
-import { fetchPegawaiFromSheets, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import { UNIT_KERJA, PANGKAT_MAP } from '../constants';
@@ -23,6 +23,8 @@ const ProfilePegawaiPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [activeTab, setActiveTab] = useState<'identitas' | 'keluarga' | 'pendidikan' | 'jabatan' | 'pangkat' | 'pelatihan' | 'dossier'>('identitas');
+  
+  const [isEditing, setIsEditing] = useState(false);
   
   const [isAddDossierOpen, setIsAddDossierOpen] = useState(false);
   const [dossierFormData, setDossierFormData] = useState<Partial<Dossier>>({ fileName: '', keterangan: '' });
@@ -60,11 +62,12 @@ const ProfilePegawaiPage = () => {
   const handleSave = async () => {
     if (!pegawai) return;
     setSyncing(true);
-    const success = await syncTableRemote('PEGAWAI', 'SAVE', pegawai);
+    const success = await savePegawai(pegawai);
     if (success) {
       logActivity('UPDATE', 'Pegawai', `Update profil lengkap pegawai: ${pegawai.nama} (NIP: ${pegawai.nip})`);
       setSuccessMsg("Profil pegawai berhasil diperbarui.");
       setShowSuccess(true);
+      setIsEditing(false);
       loadData();
     } else {
       alert("Gagal menyimpan data.");
@@ -223,10 +226,22 @@ const ProfilePegawaiPage = () => {
             Cetak DRH
           </button>
           {(canEdit || isSuperadmin) && (
-            <button onClick={handleSave} disabled={syncing} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center gap-3 active:scale-95 transition-all">
-              {syncing ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-check-fill"></i>}
-              Simpan Perubahan
-            </button>
+            !isEditing ? (
+              <button onClick={() => setIsEditing(true)} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center gap-3 active:scale-95 transition-all">
+                <i className="bi bi-pencil-square"></i>
+                Edit Profil
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={() => setIsEditing(false)} className="px-8 py-4 bg-gray-100 text-gray-500 rounded-2xl font-black text-[10px] uppercase active:scale-95 transition-all">
+                  Batal
+                </button>
+                <button onClick={handleSave} disabled={syncing} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center gap-3 active:scale-95 transition-all">
+                  {syncing ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-check-fill"></i>}
+                  Simpan Perubahan
+                </button>
+              </div>
+            )
           )}
         </div>
       </div>
@@ -296,57 +311,85 @@ const ProfilePegawaiPage = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                      <label className={labelClass}>Nama Lengkap</label>
-                      <input type="text" className={inputClass} value={pegawai.nama} onChange={e => updateField('nama', e.target.value)} />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <label className={labelClass}>Nama Lengkap</label>
+                        {isEditing ? (
+                          <input type="text" className={inputClass} value={pegawai.nama} onChange={e => updateField('nama', e.target.value)} />
+                        ) : (
+                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.nama || '-'}</div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <label className={labelClass}>NIK (No. KTP)</label>
+                        {isEditing ? (
+                          <input type="text" className={inputClass} value={pegawai.nik || ''} onChange={e => updateField('nik', e.target.value)} />
+                        ) : (
+                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.nik || '-'}</div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <label className={labelClass}>Jenis Kelamin</label>
+                        {isEditing ? (
+                          <select className={inputClass} value={pegawai.gender} onChange={e => updateField('gender', e.target.value)}>
+                            <option value="L">Laki-laki</option>
+                            <option value="P">Perempuan</option>
+                          </select>
+                        ) : (
+                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <label className={labelClass}>Tempat Lahir</label>
+                        {isEditing ? (
+                          <input type="text" className={inputClass} value={pegawai.tempatLahir || ''} onChange={e => updateField('tempatLahir', e.target.value)} />
+                        ) : (
+                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tempatLahir || '-'}</div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <label className={labelClass}>Tanggal Lahir</label>
+                        {isEditing ? (
+                          <input type="date" className={inputNoCapsClass} value={pegawai.tanggalLahir || ''} onChange={e => updateField('tanggalLahir', e.target.value)} />
+                        ) : (
+                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tanggalLahir || '-'}</div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <label className={labelClass}>Agama</label>
+                        {isEditing ? (
+                          <select className={inputClass} value={pegawai.agama || ''} onChange={e => updateField('agama', e.target.value)}>
+                            <option value="">Pilih Agama</option>
+                            <option value="Islam">Islam</option>
+                            <option value="Kristen">Kristen</option>
+                            <option value="Katolik">Katolik</option>
+                            <option value="Hindu">Hindu</option>
+                            <option value="Budha">Budha</option>
+                            <option value="Konghucu">Konghucu</option>
+                          </select>
+                        ) : (
+                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.agama || '-'}</div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <label className={labelClass}>Status Perkawinan</label>
+                        {isEditing ? (
+                          <select className={inputClass} value={pegawai.statusPerkawinan || ''} onChange={e => updateField('statusPerkawinan', e.target.value)}>
+                            <option value="">Pilih Status</option>
+                            <option value="Belum Kawin">Belum Kawin</option>
+                            <option value="Kawin">Kawin</option>
+                            <option value="Cerai Hidup">Cerai Hidup</option>
+                            <option value="Cerai Mati">Cerai Mati</option>
+                          </select>
+                        ) : (
+                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.statusPerkawinan || '-'}</div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <label className={labelClass}>Usia</label>
+                        <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.usia || '-'}</div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className={labelClass}>NIK (No. KTP)</label>
-                      <input type="text" className={inputClass} value={pegawai.nik || ''} onChange={e => updateField('nik', e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className={labelClass}>Jenis Kelamin</label>
-                      <select className={inputClass} value={pegawai.gender} onChange={e => updateField('gender', e.target.value)}>
-                        <option value="L">Laki-laki</option>
-                        <option value="P">Perempuan</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className={labelClass}>Tempat Lahir</label>
-                      <input type="text" className={inputClass} value={pegawai.tempatLahir || ''} onChange={e => updateField('tempatLahir', e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className={labelClass}>Tanggal Lahir</label>
-                      <input type="date" className={inputNoCapsClass} value={pegawai.tanggalLahir || ''} onChange={e => updateField('tanggalLahir', e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <label className={labelClass}>Agama</label>
-                      <select className={inputClass} value={pegawai.agama || ''} onChange={e => updateField('agama', e.target.value)}>
-                        <option value="">Pilih Agama</option>
-                        <option value="Islam">Islam</option>
-                        <option value="Kristen">Kristen</option>
-                        <option value="Katolik">Katolik</option>
-                        <option value="Hindu">Hindu</option>
-                        <option value="Budha">Budha</option>
-                        <option value="Konghucu">Konghucu</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className={labelClass}>Status Perkawinan</label>
-                      <select className={inputClass} value={pegawai.statusPerkawinan || ''} onChange={e => updateField('statusPerkawinan', e.target.value)}>
-                        <option value="">Pilih Status</option>
-                        <option value="Belum Kawin">Belum Kawin</option>
-                        <option value="Kawin">Kawin</option>
-                        <option value="Cerai Hidup">Cerai Hidup</option>
-                        <option value="Cerai Mati">Cerai Mati</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className={labelClass}>Usia</label>
-                      <input type="text" className={inputClass} value={pegawai.usia || ''} readOnly placeholder="Otomatis" />
-                    </div>
-                  </div>
                 </div>
 
                 {/* B. Data Kepegawaian */}
@@ -362,92 +405,164 @@ const ProfilePegawaiPage = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <label className={labelClass}>NIP Baru</label>
-                      <input type="text" className={inputClass} value={pegawai.nip} disabled />
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.nip}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Jenis Pegawai</label>
-                      <select className={inputClass} value={pegawai.jenisPegawai || ''} onChange={e => updateField('jenisPegawai', e.target.value)}>
-                        <option value="PNS">PNS</option>
-                        <option value="CPNS">CPNS</option>
-                        <option value="PPPK">PPPK</option>
-                        <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
-                      </select>
+                      {isEditing ? (
+                        <select className={inputClass} value={pegawai.jenisPegawai || ''} onChange={e => updateField('jenisPegawai', e.target.value)}>
+                          <option value="PNS">PNS</option>
+                          <option value="CPNS">CPNS</option>
+                          <option value="PPPK">PPPK</option>
+                          <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
+                        </select>
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.jenisPegawai || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Status Pegawai</label>
-                      <select className={inputClass} value={pegawai.status || ''} onChange={e => updateField('status', e.target.value)}>
-                        <option value="Aktif">AKTIF</option>
-                        <option value="Tidak Aktif">TIDAK AKTIF</option>
-                        <option value="Pensiun">PENSIUN</option>
-                        <option value="Tugas Belajar">TUGAS BELAJAR</option>
-                      </select>
+                      {isEditing ? (
+                        <select className={inputClass} value={pegawai.status || ''} onChange={e => updateField('status', e.target.value)}>
+                          <option value="Aktif">AKTIF</option>
+                          <option value="Tidak Aktif">TIDAK AKTIF</option>
+                          <option value="Pensiun">PENSIUN</option>
+                          <option value="Tugas Belajar">TUGAS BELAJAR</option>
+                        </select>
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.status || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2 col-span-full">
                       <label className={labelClass}>Nama Jabatan</label>
-                      <input type="text" className={inputClass} value={pegawai.jabatan || ''} onChange={e => updateField('jabatan', e.target.value)} />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.jabatan || ''} onChange={e => updateField('jabatan', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.jabatan || '-'}</div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>Jenis Jabatan</label>
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.jenisJabatan || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Klasifikasi Jabatan</label>
-                      <input type="text" className={inputClass} value={pegawai.klasifikasiJabatan || ''} onChange={e => updateField('klasifikasiJabatan', e.target.value)} />
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.klasifikasiJabatan || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Eselon</label>
-                      <select className={inputClass} value={pegawai.eselon || '-'} onChange={e => updateField('eselon', e.target.value)}>
-                        <option value="-">-</option>
-                        <option value="I.a">I.a</option>
-                        <option value="I.b">I.b</option>
-                        <option value="II.a">II.a</option>
-                        <option value="II.b">II.b</option>
-                        <option value="III.a">III.a</option>
-                        <option value="IV.a">IV.a</option>
-                      </select>
+                      {isEditing ? (
+                        <select className={inputClass} value={pegawai.eselon || '-'} onChange={e => updateField('eselon', e.target.value)}>
+                          <option value="-">-</option>
+                          <option value="I.a">I.a</option>
+                          <option value="I.b">I.b</option>
+                          <option value="II.a">II.a</option>
+                          <option value="II.b">II.b</option>
+                          <option value="III.a">III.a</option>
+                          <option value="IV.a">IV.a</option>
+                        </select>
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.eselon || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>TMT Jabatan</label>
-                      <input type="date" className={inputNoCapsClass} value={pegawai.tmtJabatan || ''} onChange={e => updateField('tmtJabatan', e.target.value)} />
+                      {isEditing ? (
+                        <input type="date" className={inputNoCapsClass} value={pegawai.tmtJabatan || ''} onChange={e => updateField('tmtJabatan', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tmtJabatan || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2 col-span-full">
                       <label className={labelClass}>Unit Kerja</label>
-                      <select className={inputClass} value={pegawai.unitKerja || ''} onChange={e => updateField('unitKerja', e.target.value)}>
-                        {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
-                      </select>
+                      {isEditing ? (
+                        <select className={inputClass} value={pegawai.unitKerja || ''} onChange={e => updateField('unitKerja', e.target.value)}>
+                          {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
+                        </select>
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.unitKerja || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Nama Bagian</label>
-                      <input type="text" className={inputClass} value={pegawai.bagian || ''} onChange={e => updateField('bagian', e.target.value)} />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.bagian || ''} onChange={e => updateField('bagian', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.bagian || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Nama Sub Bagian / Tim</label>
-                      <input type="text" className={inputClass} value={pegawai.subBagian || ''} onChange={e => updateField('subBagian', e.target.value)} />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.subBagian || ''} onChange={e => updateField('subBagian', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.subBagian || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Golongan / Ruang</label>
-                      <select className={inputClass} value={pegawai.golRuang || ''} onChange={e => {
-                        const gol = e.target.value;
-                        setPegawai({ ...pegawai, golRuang: gol, pangkat: PANGKAT_MAP[gol] || '' });
-                      }}>
-                        {Object.keys(PANGKAT_MAP).map(g => <option key={g} value={g}>{g}</option>)}
-                      </select>
+                      {isEditing ? (
+                        <select className={inputClass} value={pegawai.golRuang || ''} onChange={e => {
+                          const gol = e.target.value;
+                          setPegawai({ ...pegawai, golRuang: gol, pangkat: PANGKAT_MAP[gol] || '' });
+                        }}>
+                          {Object.keys(PANGKAT_MAP).map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.golRuang || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Pangkat</label>
-                      <input type="text" className={inputClass} value={pegawai.pangkat || ''} readOnly />
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.pangkat || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>TMT Pangkat</label>
-                      <input type="date" className={inputNoCapsClass} value={pegawai.tmtPangkat || ''} onChange={e => updateField('tmtPangkat', e.target.value)} />
+                      {isEditing ? (
+                        <input type="date" className={inputNoCapsClass} value={pegawai.tmtPangkat || ''} onChange={e => updateField('tmtPangkat', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tmtPangkat || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>TMT CPNS</label>
-                      <input type="date" className={inputNoCapsClass} value={pegawai.tmtCpns || ''} onChange={e => updateField('tmtCpns', e.target.value)} />
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tmtCpns || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Masa Kerja (Thn Bln)</label>
-                      <input type="text" className={inputClass} value={pegawai.masaKerja || ''} onChange={e => updateField('masaKerja', e.target.value)} placeholder="Contoh: 10 THN 2 BLN" />
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.masaKerja || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Tgl Pensiun</label>
-                      <input type="text" className={inputClass} value={pegawai.tglPensiun || ''} readOnly />
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tglPensiun || '-'}</div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>TMT Pensiun</label>
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tmtPensiun || '-'}</div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>Usia Pensiun</label>
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.usiaPensiun || '-'}</div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>BUP</label>
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.bup || '-'}</div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>MK Golongan</label>
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.masaKerjaGolongan || '-'}</div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>MK Pensiun</label>
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.masaKerjaPensiun || '-'}</div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>Usia</label>
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.usia || '-'}</div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>Sisa Masa Kerja</label>
+                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.sisaMasaKerja || '-'}</div>
                     </div>
                   </div>
                 </div>
@@ -465,15 +580,27 @@ const ProfilePegawaiPage = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className={labelClass}>No. HP / WhatsApp</label>
-                      <input type="text" className={inputClass} value={pegawai.noHp || ''} onChange={e => updateField('noHp', e.target.value)} />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.noHp || ''} onChange={e => updateField('noHp', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.noHp || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Email Personal / Dinas</label>
-                      <input type="email" className={inputNoCapsClass} value={pegawai.email || ''} onChange={e => updateField('email', e.target.value)} />
+                      {isEditing ? (
+                        <input type="email" className={inputNoCapsClass} value={pegawai.email || ''} onChange={e => updateField('email', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.email || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2 col-span-full">
                       <label className={labelClass}>Alamat Lengkap Sesuai Domisili</label>
-                      <textarea className={`${inputClass} min-h-[100px] resize-none`} value={pegawai.alamat || ''} onChange={e => updateField('alamat', e.target.value)} placeholder="Masukkan alamat lengkap..." />
+                      {isEditing ? (
+                        <textarea className={`${inputClass} min-h-[100px] resize-none`} value={pegawai.alamat || ''} onChange={e => updateField('alamat', e.target.value)} placeholder="Masukkan alamat lengkap..." />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[100px] flex items-start pt-4 select-all">{pegawai.alamat || '-'}</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -491,31 +618,59 @@ const ProfilePegawaiPage = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <label className={labelClass}>Nomor NPWP</label>
-                      <input type="text" className={inputClass} value={pegawai.npwp || ''} onChange={e => updateField('npwp', e.target.value)} />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.npwp || ''} onChange={e => updateField('npwp', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.npwp || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Nomor BPJS Kesehatan</label>
-                      <input type="text" className={inputClass} value={pegawai.noBpjs || ''} onChange={e => updateField('noBpjs', e.target.value)} />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.noBpjs || ''} onChange={e => updateField('noBpjs', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.noBpjs || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>No. Karis / Karsu</label>
-                      <input type="text" className={inputClass} value={pegawai.noKarisKarsu || ''} onChange={e => updateField('noKarisKarsu', e.target.value)} />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.noKarisKarsu || ''} onChange={e => updateField('noKarisKarsu', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.noKarisKarsu || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Nomor Tapera</label>
-                      <input type="text" className={inputClass} value={pegawai.noTapera || ''} onChange={e => updateField('noTapera', e.target.value)} />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.noTapera || ''} onChange={e => updateField('noTapera', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.noTapera || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Nomor Karpeg</label>
-                      <input type="text" className={inputClass} value={pegawai.noKarpeg || ''} onChange={e => updateField('noKarpeg', e.target.value)} />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.noKarpeg || ''} onChange={e => updateField('noKarpeg', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.noKarpeg || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Pendidikan Terakhir</label>
-                      <input type="text" className={inputClass} value={pegawai.pendidikan || ''} onChange={e => updateField('pendidikan', e.target.value)} placeholder="Contoh: S1 / S2" />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.pendidikan || ''} onChange={e => updateField('pendidikan', e.target.value)} placeholder="Contoh: S1 / S2" />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.pendidikan || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2 col-span-2">
                       <label className={labelClass}>Jurusan Pendidikan</label>
-                      <input type="text" className={inputClass} value={pegawai.jurusan || ''} onChange={e => updateField('jurusan', e.target.value)} />
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.jurusan || ''} onChange={e => updateField('jurusan', e.target.value)} />
+                      ) : (
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.jurusan || '-'}</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -532,44 +687,68 @@ const ProfilePegawaiPage = () => {
                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Data pasangan dan anak</p>
                     </div>
                   </div>
-                  <button onClick={() => addHistoryItem('keluarga')} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-emerald-100">
-                    <i className="bi bi-plus-lg"></i> Tambah Anggota
-                  </button>
+                  {isEditing && (
+                    <button onClick={() => addHistoryItem('keluarga')} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-emerald-100">
+                      <i className="bi bi-plus-lg"></i> Tambah Anggota
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-4">
                   {(pegawai.keluarga || []).map((k, idx) => (
                     <div key={idx} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative group">
-                      <button onClick={() => removeHistoryItem('keluarga', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
-                        <i className="bi bi-trash3"></i>
-                      </button>
+                      {isEditing && (
+                        <button onClick={() => removeHistoryItem('keluarga', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                          <i className="bi bi-trash3"></i>
+                        </button>
+                      )}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Hubungan</label>
-                          <select className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={k.hubungan} onChange={e => updateHistoryItem('keluarga', idx, 'hubungan', e.target.value)}>
-                            <option value="">Pilih</option>
-                            <option value="Suami">Suami</option>
-                            <option value="Istri">Istri</option>
-                            <option value="Anak">Anak</option>
-                            <option value="Ayah">Ayah</option>
-                            <option value="Ibu">Ibu</option>
-                          </select>
+                          {isEditing ? (
+                            <select className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={k.hubungan} onChange={e => updateHistoryItem('keluarga', idx, 'hubungan', e.target.value)}>
+                              <option value="">Pilih</option>
+                              <option value="Suami">Suami</option>
+                              <option value="Istri">Istri</option>
+                              <option value="Anak">Anak</option>
+                              <option value="Ayah">Ayah</option>
+                              <option value="Ibu">Ibu</option>
+                            </select>
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.hubungan || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Lengkap</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.nama} onChange={e => updateHistoryItem('keluarga', idx, 'nama', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.nama} onChange={e => updateHistoryItem('keluarga', idx, 'nama', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.nama || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tempat Lahir</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.tempatLahir} onChange={e => updateHistoryItem('keluarga', idx, 'tempatLahir', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.tempatLahir} onChange={e => updateHistoryItem('keluarga', idx, 'tempatLahir', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.tempatLahir || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal Lahir</label>
-                          <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={k.tanggalLahir} onChange={e => updateHistoryItem('keluarga', idx, 'tanggalLahir', e.target.value)} />
+                          {isEditing ? (
+                            <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={k.tanggalLahir} onChange={e => updateHistoryItem('keluarga', idx, 'tanggalLahir', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.tanggalLahir || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pekerjaan</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.pekerjaan} onChange={e => updateHistoryItem('keluarga', idx, 'pekerjaan', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.pekerjaan} onChange={e => updateHistoryItem('keluarga', idx, 'pekerjaan', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.pekerjaan || '-'}</div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -591,46 +770,70 @@ const ProfilePegawaiPage = () => {
                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Pendidikan formal</p>
                     </div>
                   </div>
-                  <button onClick={() => addHistoryItem('riwayatPendidikan')} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-indigo-100">
-                    <i className="bi bi-plus-lg"></i> Tambah Pendidikan
-                  </button>
+                  {isEditing && (
+                    <button onClick={() => addHistoryItem('riwayatPendidikan')} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-indigo-100">
+                      <i className="bi bi-plus-lg"></i> Tambah Pendidikan
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-4">
                   {(pegawai.riwayatPendidikan || []).map((p, idx) => (
                     <div key={idx} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative group">
-                      <button onClick={() => removeHistoryItem('riwayatPendidikan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
-                        <i className="bi bi-trash3"></i>
-                      </button>
+                      {isEditing && (
+                        <button onClick={() => removeHistoryItem('riwayatPendidikan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                          <i className="bi bi-trash3"></i>
+                        </button>
+                      )}
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jenjang</label>
-                          <select className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.jenjang} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jenjang', e.target.value)}>
-                            <option value="">Pilih</option>
-                            <option value="SD">SD</option>
-                            <option value="SMP">SMP</option>
-                            <option value="SMA/SMK">SMA/SMK</option>
-                            <option value="D3">D3</option>
-                            <option value="D4/S1">D4/S1</option>
-                            <option value="S2">S2</option>
-                            <option value="S3">S3</option>
-                          </select>
+                          {isEditing ? (
+                            <select className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.jenjang} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jenjang', e.target.value)}>
+                              <option value="">Pilih</option>
+                              <option value="SD">SD</option>
+                              <option value="SMP">SMP</option>
+                              <option value="SMA/SMK">SMA/SMK</option>
+                              <option value="D3">D3</option>
+                              <option value="D4/S1">D4/S1</option>
+                              <option value="S2">S2</option>
+                              <option value="S3">S3</option>
+                            </select>
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jenjang || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Sekolah / Universitas</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.institusi} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'institusi', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.institusi} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'institusi', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.institusi || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tahun Lulus</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahunLulus} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'tahunLulus', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahunLulus} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'tahunLulus', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tahunLulus || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jurusan</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.jurusan} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jurusan', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.jurusan} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jurusan', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jurusan || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Ijazah</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorIjazah} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'nomorIjazah', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorIjazah} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'nomorIjazah', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorIjazah || '-'}</div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -649,40 +852,67 @@ const ProfilePegawaiPage = () => {
                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Perjalanan karir</p>
                     </div>
                   </div>
-                  <button onClick={() => addHistoryItem('riwayatJabatan')} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-blue-100">
-                    <i className="bi bi-plus-lg"></i> Tambah Jabatan
-                  </button>
+                  {isEditing && (
+                    <button onClick={() => addHistoryItem('riwayatJabatan')} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-blue-100">
+                      <i className="bi bi-plus-lg"></i> Tambah Jabatan
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-4">
                   {(pegawai.riwayatJabatan || []).map((j, idx) => (
                     <div key={idx} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative group">
-                      <button onClick={() => removeHistoryItem('riwayatJabatan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
-                        <i className="bi bi-trash3"></i>
-                      </button>
+                      {isEditing && (
+                        <button onClick={() => removeHistoryItem('riwayatJabatan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                          <i className="bi bi-trash3"></i>
+                        </button>
+                      )}
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Jabatan</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.namaJabatan} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'namaJabatan', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.namaJabatan} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'namaJabatan', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.namaJabatan || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Unit Kerja</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.unitKerja} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'unitKerja', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.unitKerja} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'unitKerja', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.unitKerja || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">TMT Jabatan</label>
-                          <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={j.tmtJabatan} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tmtJabatan', e.target.value)} />
+                          {isEditing ? (
+                            <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={j.tmtJabatan} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tmtJabatan', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.tmtJabatan || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.nomorSk} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'nomorSk', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.nomorSk} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'nomorSk', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.nomorSk || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal SK</label>
-                          <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={j.tanggalSk} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tanggalSk', e.target.value)} />
+                          {isEditing ? (
+                            <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={j.tanggalSk} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tanggalSk', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.tanggalSk || '-'}</div>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
+                  {(pegawai.riwayatJabatan || []).length === 0 && (
+                    <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-[2.5rem] text-gray-400 font-bold uppercase text-[10px] tracking-widest">Belum ada riwayat jabatan</div>
+                  )}
                 </div>
               </div>
             )}
@@ -697,40 +927,67 @@ const ProfilePegawaiPage = () => {
                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Kenaikan pangkat</p>
                     </div>
                   </div>
-                  <button onClick={() => addHistoryItem('riwayatPangkat')} className="px-6 py-3 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-amber-100">
-                    <i className="bi bi-plus-lg"></i> Tambah Pangkat
-                  </button>
+                  {isEditing && (
+                    <button onClick={() => addHistoryItem('riwayatPangkat')} className="px-6 py-3 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-amber-100">
+                      <i className="bi bi-plus-lg"></i> Tambah Pangkat
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-4">
                   {(pegawai.riwayatPangkat || []).map((p, idx) => (
                     <div key={idx} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative group">
-                      <button onClick={() => removeHistoryItem('riwayatPangkat', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
-                        <i className="bi bi-trash3"></i>
-                      </button>
+                      {isEditing && (
+                        <button onClick={() => removeHistoryItem('riwayatPangkat', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                          <i className="bi bi-trash3"></i>
+                        </button>
+                      )}
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Gol. Ruang</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.golRuang} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'golRuang', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.golRuang} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'golRuang', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.golRuang || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pangkat</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.pangkat} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'pangkat', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.pangkat} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'pangkat', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.pangkat || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">TMT Pangkat</label>
-                          <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tmtPangkat} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tmtPangkat', e.target.value)} />
+                          {isEditing ? (
+                            <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tmtPangkat} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tmtPangkat', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tmtPangkat || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSk} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'nomorSk', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSk} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'nomorSk', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSk || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal SK</label>
-                          <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tanggalSk} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tanggalSk', e.target.value)} />
+                          {isEditing ? (
+                            <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tanggalSk} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tanggalSk', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tanggalSk || '-'}</div>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
+                  {(pegawai.riwayatPangkat || []).length === 0 && (
+                    <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-[2.5rem] text-gray-400 font-bold uppercase text-[10px] tracking-widest">Belum ada riwayat pangkat</div>
+                  )}
                 </div>
               </div>
             )}
@@ -745,40 +1002,67 @@ const ProfilePegawaiPage = () => {
                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Diklat & Workshop</p>
                     </div>
                   </div>
-                  <button onClick={() => addHistoryItem('riwayatPelatihan')} className="px-6 py-3 bg-purple-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-purple-100">
-                    <i className="bi bi-plus-lg"></i> Tambah Pelatihan
-                  </button>
+                  {isEditing && (
+                    <button onClick={() => addHistoryItem('riwayatPelatihan')} className="px-6 py-3 bg-purple-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-purple-100">
+                      <i className="bi bi-plus-lg"></i> Tambah Pelatihan
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-4">
                   {(pegawai.riwayatPelatihan || []).map((p, idx) => (
                     <div key={idx} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative group">
-                      <button onClick={() => removeHistoryItem('riwayatPelatihan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
-                        <i className="bi bi-trash3"></i>
-                      </button>
+                      {isEditing && (
+                        <button onClick={() => removeHistoryItem('riwayatPelatihan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                          <i className="bi bi-trash3"></i>
+                        </button>
+                      )}
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Pelatihan</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.namaPelatihan} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'namaPelatihan', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.namaPelatihan} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'namaPelatihan', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.namaPelatihan || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Penyelenggara</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.penyelenggara} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'penyelenggara', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.penyelenggara} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'penyelenggara', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.penyelenggara || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tahun</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahun} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'tahun', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahun} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'tahun', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tahun || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Durasi</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.durasi} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'durasi', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.durasi} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'durasi', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.durasi || '-'}</div>
+                          )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Sertifikat</label>
-                          <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSertifikat} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'nomorSertifikat', e.target.value)} />
+                          {isEditing ? (
+                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSertifikat} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'nomorSertifikat', e.target.value)} />
+                          ) : (
+                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSertifikat || '-'}</div>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
+                  {(pegawai.riwayatPelatihan || []).length === 0 && (
+                    <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-[2.5rem] text-gray-400 font-bold uppercase text-[10px] tracking-widest">Belum ada riwayat pelatihan</div>
+                  )}
                 </div>
               </div>
             )}
@@ -793,7 +1077,7 @@ const ProfilePegawaiPage = () => {
                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Arsip dokumen digital pegawai</p>
                     </div>
                   </div>
-                  {canEdit && (
+                  {isEditing && (
                     <button onClick={() => setIsAddDossierOpen(true)} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-blue-100">
                       <i className="bi bi-cloud-arrow-up-fill"></i> Tambah Berkas
                     </button>
