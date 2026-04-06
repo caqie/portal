@@ -1,6 +1,6 @@
 {
-  "name": "Portal SDM - DJKI Kemenkum RI",
-  "description": "Sistem manajemen komprehensif berbasis React untuk Direktorat Jenderal Kekayaan Intelektual (DJKI) Kementerian Hukum RI, menampilkan pelacakan pegawai, manajemen tugas rutin, laporan bulanan, dan pengarsipan berkas dengan wawasan cerdas berbasis Gemini AI.",
+  "name": "Portal SDM DJKI - CAT System",
+  "description": "Platform manajemen SDM terintegrasi dengan sistem Computer Assisted Test (CAT) untuk Uji Kompetensi Pegawai DJKI Kemenkumham RI, dikembangkan oleh CaqieStudio.",
   "requestFramePermissions": [
     "camera",
     "geolocation"
