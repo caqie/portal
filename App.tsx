@@ -260,7 +260,7 @@ const AppContent = () => {
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[110] lg:hidden animate-fadeIn" onClick={() => setIsSidebarOpen(false)}></div>
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-[120] bg-[#0f172a] transition-all duration-500 lg:relative lg:translate-x-0 border-r border-white/5 flex-shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-24' : 'w-72'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-[120] bg-[#0f172a] transition-all duration-500 lg:relative lg:translate-x-0 border-r border-white/5 flex-shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-20 md:w-24' : 'w-64 md:w-72'}`}>
         <div className="flex flex-col h-full relative">
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)} 
@@ -269,21 +269,21 @@ const AppContent = () => {
             <i className={`bi ${isCollapsed ? 'bi-chevron-right' : 'bi-chevron-left'} text-[10px]`}></i>
           </button>
 
-          <div className={`pt-10 pb-8 flex flex-col items-center ${isCollapsed ? 'px-2' : 'px-8'}`}>
-            <Link to="/" className={`relative transition-all duration-500 ${isCollapsed ? 'w-14 h-14' : 'w-24 h-24'} mb-4 active:scale-95 group`}>
-                <div className="w-full h-full bg-white rounded-2xl p-2.5 border-4 border-white ring-1 ring-white/10 shadow-2xl flex items-center justify-center overflow-hidden shimmer-effect">
+          <div className={`pt-8 md:pt-10 pb-6 md:pb-8 flex flex-col items-center ${isCollapsed ? 'px-2' : 'px-6 md:px-8'}`}>
+            <Link to="/" className={`relative transition-all duration-500 ${isCollapsed ? 'w-12 h-12 md:w-14 md:h-14' : 'w-20 h-20 md:w-24 md:h-24'} mb-3 md:mb-4 active:scale-95 group`}>
+                <div className="w-full h-full bg-white rounded-xl md:rounded-2xl p-2 md:p-2.5 border-2 md:border-4 border-white ring-1 ring-white/10 shadow-2xl flex items-center justify-center overflow-hidden shimmer-effect">
                    <img src={systemLogo || DEFAULT_LOGO} className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-110" />
                 </div>
             </Link>
             {!isCollapsed && (
               <div className="text-center transition-all duration-500 whitespace-nowrap overflow-hidden">
-                <h1 className="text-[11px] font-black text-white tracking-tighter leading-none">{systemName}</h1>
-                <p className="text-[7px] text-slate-500 mt-2 font-black tracking-[0.3em]">SDM HUB DJKI</p>
+                <h1 className="text-[10px] md:text-[11px] font-black text-white tracking-tighter leading-none">{systemName}</h1>
+                <p className="text-[6px] md:text-[7px] text-slate-500 mt-1.5 md:mt-2 font-black tracking-[0.3em]">SDM HUB DJKI</p>
               </div>
             )}
           </div>
           
-          <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar space-y-0.5 pb-20">
+          <nav className="flex-1 mt-2 md:mt-4 overflow-y-auto no-scrollbar space-y-0.5 pb-20">
             {hasAccess('/') && <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard" active={location.pathname === '/'} collapsed={isCollapsed} />}
             {hasAccess('/pegawai') && <SidebarItem to="/pegawai" icon="bi-person-vcard-fill" label="Database Pegawai" active={location.pathname === '/pegawai'} collapsed={isCollapsed} />}
             
@@ -334,12 +334,12 @@ const AppContent = () => {
 
       <main className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
         <header className="bg-white border-b border-gray-100 shrink-0 z-[100]">
-          <div className="h-20 flex items-center justify-between px-8">
-            <div className="flex items-center gap-4">
-              <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden h-10 w-10 flex items-center justify-center text-gray-400 bg-gray-50 rounded-xl"><i className="bi bi-list text-2xl"></i></button>
+          <div className="h-16 md:h-20 flex items-center justify-between px-4 md:px-8">
+            <div className="flex items-center gap-3 md:gap-4">
+              <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden h-9 w-9 md:h-10 md:w-10 flex items-center justify-center text-gray-400 bg-gray-50 rounded-xl shrink-0"><i className="bi bi-list text-xl md:text-2xl"></i></button>
               <div className="hidden sm:block">
-                <h2 className="text-sm font-black text-gray-950 tracking-tight">Portal SDM DJKI</h2>
-                <p className="text-[10px] text-gray-400 font-bold tracking-widest">DJKI Smart Hub 2025</p>
+                <h2 className="text-xs md:text-sm font-black text-gray-950 tracking-tight">Portal SDM DJKI</h2>
+                <p className="text-[8px] md:text-[10px] text-gray-400 font-bold tracking-widest">DJKI Smart Hub 2025</p>
               </div>
             </div>
             
@@ -351,86 +351,88 @@ const AppContent = () => {
               <span className="text-[9px] font-black text-gray-400 tracking-widest mt-0.5">{formattedDate}</span>
             </div>
             
-            <div className="flex items-center gap-6">
-              <div className="hidden md:flex flex-col items-end">
-                <span className="text-[11px] font-black text-gray-950">{user?.name}</span>
-                <span className="text-[9px] font-bold text-blue-600 tracking-tighter">{user?.role} • NIP. {user?.nip}</span>
+            <div className="flex items-center gap-2 md:gap-6">
+              <div className="flex flex-col items-end">
+                <span className="text-[9px] md:text-[11px] font-black text-gray-950 truncate max-w-[100px] md:max-w-none">{user?.name}</span>
+                <span className="text-[7px] md:text-[9px] font-bold text-blue-600 tracking-tighter uppercase">{user?.role}</span>
               </div>
-              <div className="h-12 w-12 rounded-2xl bg-gray-50 border-4 border-white shadow-xl overflow-hidden shimmer-effect">
-                 {user?.foto ? <img src={user.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black">?</div>}
+              <div className="h-9 w-9 md:h-12 md:w-12 rounded-lg md:rounded-2xl bg-gray-50 border-2 md:border-4 border-white shadow-xl overflow-hidden shimmer-effect shrink-0">
+                 {user?.foto ? <img src={user.foto} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black text-xs md:text-base">?</div>}
               </div>
             </div>
           </div>
           
           {/* RUNNING TEXT TICKER */}
-          <div className="h-10 bg-[#111827] border-y border-white/5 flex items-center overflow-hidden relative">
-             <div className="bg-blue-600 h-full px-4 flex items-center gap-2 shrink-0 z-10 shadow-[5px_0_15px_rgba(0,0,0,0.3)]">
-                <i className="bi bi-megaphone-fill text-white text-xs animate-pulse"></i>
-                <span className="text-[9px] font-black text-white tracking-widest">Update</span>
+          <div className="h-8 md:h-10 bg-[#111827] border-y border-white/5 flex items-center overflow-hidden relative">
+             <div className="bg-blue-600 h-full px-3 md:px-4 flex items-center gap-1.5 md:gap-2 shrink-0 z-10 shadow-[5px_0_15px_rgba(0,0,0,0.3)]">
+                <i className="bi bi-megaphone-fill text-white text-[10px] md:text-xs animate-pulse"></i>
+                <span className="text-[7px] md:text-[9px] font-black text-white tracking-widest uppercase">Update</span>
              </div>
              <div className="flex-1 overflow-hidden relative h-full flex items-center">
                 <div className="animate-marquee whitespace-nowrap">
-                   <span className="text-[10px] font-black text-slate-300 tracking-widest mx-10">
+                   <span className="text-[8px] md:text-[10px] font-black text-slate-300 tracking-widest mx-6 md:mx-10">
                       {runningText}
                    </span>
-                   <span className="text-[10px] font-black text-slate-300 tracking-widest mx-10">
+                   <span className="text-[8px] md:text-[10px] font-black text-slate-300 tracking-widest mx-6 md:mx-10">
                       {runningText}
                    </span>
                 </div>
              </div>
-             <div className="bg-[#111827] h-full px-4 flex items-center gap-2 shrink-0 z-10 shadow-[-5px_0_15px_rgba(0,0,0,0.3)]">
+             <div className="hidden sm:flex bg-[#111827] h-full px-4 items-center gap-2 shrink-0 z-10 shadow-[-5px_0_15px_rgba(0,0,0,0.3)]">
                 <span className="text-[8px] font-bold text-slate-500 tracking-widest italic">{new Date().getFullYear()} © DJKI HUB</span>
              </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-8 lg:p-12 custom-scrollbar relative flex flex-col">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 custom-scrollbar relative flex flex-col">
           <div className="flex-1">
             {isMaintenance ? (
               <MaintenanceView />
             ) : isDenied ? (
               <AccessDeniedView />
             ) : (
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/pegawai" element={<PegawaiPage />} />
-                <Route path="/pegawai/:nip" element={<ProfilePegawaiPage />} />
-                <Route path="/layanan" element={<LayananKepegawaianPage />} />
-                <Route path="/tugas-rutin" element={<TugasRutinPage />} />
-                <Route path="/kegiatan" element={<KegiatanPage />} />
-                <Route path="/laporan" element={<LaporanPage />} />
-                <Route path="/keuangan" element={<KeuanganPage />} />
-                <Route path="/dossiers" element={<DossiersPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/logs" element={<ActivityLogPage />} />
-                <Route path="/absensi-online" element={<AbsensiOnlinePage />} />
-                <Route path="/rekap-absensi" element={<RekapAbsensiPage />} />
-                <Route path="/skp" element={<SKPPage />} />
-                <Route path="/pak" element={<PAKPage />} />
-                <Route path="/anjab-abk" element={<ABKAnjabPage />} />
-                <Route path="/pelantikan-gen" element={<PelantikanGeneratorPage />} />
-                <Route path="/spmt-spp" element={<SpmtSppPage />} />
-                <Route path="/kgb-gen" element={<KGBGeneratorPage />} />
-                <Route path="/pensiun" element={<PensiunPage />} />
-                <Route path="/kenaikan-pangkat" element={<KenaikanPangkatPage />} />
-                <Route path="/satya-lencana" element={<SatyaLencanaPage />} />
-                <Route path="/magang-pkl" element={<MagangPKLPage />} />
-                <Route path="/persuratan" element={<PersuratanPage />} />
-                <Route path="/pengembangan" element={< PengembanganPage />} />
-                <Route path="/ukom/admin" element={<UkomAdminPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+              <div className="max-w-[1600px] mx-auto w-full">
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/pegawai" element={<PegawaiPage />} />
+                  <Route path="/pegawai/:nip" element={<ProfilePegawaiPage />} />
+                  <Route path="/layanan" element={<LayananKepegawaianPage />} />
+                  <Route path="/tugas-rutin" element={<TugasRutinPage />} />
+                  <Route path="/kegiatan" element={<KegiatanPage />} />
+                  <Route path="/laporan" element={<LaporanPage />} />
+                  <Route path="/keuangan" element={<KeuanganPage />} />
+                  <Route path="/dossiers" element={<DossiersPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/logs" element={<ActivityLogPage />} />
+                  <Route path="/absensi-online" element={<AbsensiOnlinePage />} />
+                  <Route path="/rekap-absensi" element={<RekapAbsensiPage />} />
+                  <Route path="/skp" element={<SKPPage />} />
+                  <Route path="/pak" element={<PAKPage />} />
+                  <Route path="/anjab-abk" element={<ABKAnjabPage />} />
+                  <Route path="/pelantikan-gen" element={<PelantikanGeneratorPage />} />
+                  <Route path="/spmt-spp" element={<SpmtSppPage />} />
+                  <Route path="/kgb-gen" element={<KGBGeneratorPage />} />
+                  <Route path="/pensiun" element={<PensiunPage />} />
+                  <Route path="/kenaikan-pangkat" element={<KenaikanPangkatPage />} />
+                  <Route path="/satya-lencana" element={<SatyaLencanaPage />} />
+                  <Route path="/magang-pkl" element={<MagangPKLPage />} />
+                  <Route path="/persuratan" element={<PersuratanPage />} />
+                  <Route path="/pengembangan" element={< PengembanganPage />} />
+                  <Route path="/ukom/admin" element={<UkomAdminPage />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </div>
             )}
           </div>
 
-          <footer className="mt-16 pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left shrink-0 pb-4">
+          <footer className="mt-12 md:mt-16 pt-6 md:pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left shrink-0 pb-4">
             <div className="space-y-1">
-              <p className="text-[10px] font-black text-gray-900 tracking-widest">{systemName}</p>
-              <p className="text-[8px] font-bold text-gray-400 tracking-widest">Sistem Manajemen SDM DJKI Kemenkumham RI © 2025</p>
+              <p className="text-[9px] md:text-[10px] font-black text-gray-900 tracking-widest uppercase">{systemName}</p>
+              <p className="text-[7px] md:text-[8px] font-bold text-gray-400 tracking-widest uppercase">Sistem Manajemen SDM DJKI Kemenkumham RI © 2025</p>
             </div>
             <div className="flex flex-col items-center md:items-end">
-              <p className="text-[8px] font-black text-gray-400 tracking-widest mb-1">Dikembangkan Oleh:</p>
-              <a href="https://caqiestudioproduction.com" target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-blue-600 hover:text-blue-700 tracking-widest transition-colors flex items-center gap-2 group">
+              <p className="text-[7px] md:text-[8px] font-black text-gray-400 tracking-widest mb-1 uppercase">Dikembangkan Oleh:</p>
+              <a href="https://caqiestudioproduction.com" target="_blank" rel="noopener noreferrer" className="text-[8px] md:text-[9px] font-black text-blue-600 hover:text-blue-700 tracking-widest transition-colors flex items-center gap-2 group uppercase">
                 caqiestudioproduction.com
                 <i className="bi bi-box-arrow-up-right group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
               </a>

@@ -79,8 +79,8 @@ const LoginPage = () => {
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-600/10 rounded-full -mr-48 -mt-48 blur-[120px]"></div>
       <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-indigo-600/10 rounded-full -ml-48 -mb-48 blur-[120px]"></div>
       
-      <div className="w-full max-w-[440px] animate-fadeIn pb-20 sm:pb-0 relative z-10">
-        <div className="bg-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.08)] p-6 sm:p-10 border border-white/60 relative overflow-hidden backdrop-blur-md">
+      <div className="w-full max-w-[440px] animate-fadeIn pb-10 sm:pb-0 relative z-10">
+        <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.08)] p-6 sm:p-10 border border-white/60 relative overflow-hidden backdrop-blur-md">
           
           {/* AKSEN WATERMARK ATAS KARTU */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-blue-600">
@@ -96,17 +96,17 @@ const LoginPage = () => {
 
           <div className="text-center mb-6 sm:mb-10 relative">
             <div className="group relative inline-block">
-              <div className="inline-flex items-center justify-center h-24 w-24 sm:h-28 sm:w-28 bg-white rounded-[2rem] shadow-xl mb-4 transition-all duration-500 group-hover:scale-105 group-hover:shadow-2xl overflow-hidden p-3 border border-gray-50 shimmer-effect relative z-10">
+              <div className="inline-flex items-center justify-center h-20 w-20 sm:h-28 sm:w-28 bg-white rounded-[1.5rem] sm:rounded-[2rem] shadow-xl mb-4 transition-all duration-500 group-hover:scale-105 group-hover:shadow-2xl overflow-hidden p-2.5 sm:p-3 border border-gray-50 shimmer-effect relative z-10">
                 {systemLogo ? (
                   <img src={systemLogo} className="h-full w-full object-contain relative z-10" alt="Logo" />
                 ) : (
-                  <i className="bi bi-shield-lock-fill text-3xl sm:text-4xl text-blue-600 relative z-10"></i>
+                  <i className="bi bi-shield-lock-fill text-2xl sm:text-4xl text-blue-600 relative z-10"></i>
                 )}
               </div>
               <div className="absolute -inset-2 bg-blue-500/5 rounded-[2.5rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             </div>
             
-            <h1 className="text-xl sm:text-2xl font-black text-gray-950 uppercase tracking-tight leading-none mt-2">
+            <h1 className="text-lg sm:text-2xl font-black text-gray-950 uppercase tracking-tight leading-none mt-2">
               {systemName.split(' ')[0]} <span className="text-blue-600">{systemName.split(' ').slice(1).join(' ')}</span>
             </h1>
             <p className="text-[7px] sm:text-[9px] font-black text-gray-400 uppercase tracking-[0.4em] mt-3">DJKI • KEMENKUM RI</p>
@@ -122,7 +122,7 @@ const LoginPage = () => {
                   required
                   inputMode="numeric"
                   placeholder="Masukkan 18 digit NIP"
-                  className="w-full pl-11 pr-4 py-3.5 sm:py-4 bg-gray-50/50 border border-gray-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 text-[13px] sm:text-sm font-black text-gray-950 transition-all shadow-sm placeholder:text-gray-300 placeholder:font-normal"
+                  className="w-full pl-11 pr-4 py-3 sm:py-4 bg-gray-50/50 border border-gray-200 rounded-xl sm:rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 text-[12px] sm:text-sm font-black text-gray-950 transition-all shadow-sm placeholder:text-gray-300 placeholder:font-normal"
                   value={nip}
                   onChange={(e) => setNip(e.target.value)}
                 />
@@ -137,7 +137,7 @@ const LoginPage = () => {
                   type="password" 
                   required
                   placeholder="••••••••"
-                  className="w-full pl-11 pr-4 py-3.5 sm:py-4 bg-gray-50/50 border border-gray-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 text-[13px] sm:text-sm font-black text-gray-950 transition-all shadow-sm placeholder:text-gray-300"
+                  className="w-full pl-11 pr-4 py-3 sm:py-4 bg-gray-50/50 border border-gray-200 rounded-xl sm:rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 text-[12px] sm:text-sm font-black text-gray-950 transition-all shadow-sm placeholder:text-gray-300"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -154,7 +154,7 @@ const LoginPage = () => {
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full py-4 sm:py-4.5 bg-blue-600 text-white rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-[0.2em] shadow-xl shadow-blue-600/30 hover:bg-blue-700 active:scale-95 transition-all disabled:bg-gray-400 flex items-center justify-center space-x-3 mt-2"
+              className="w-full py-3.5 sm:py-4.5 bg-blue-600 text-white rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-[0.2em] shadow-xl shadow-blue-600/30 hover:bg-blue-700 active:scale-95 transition-all disabled:bg-gray-400 flex items-center justify-center space-x-3 mt-2"
             >
               {loading ? (
                 <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -167,12 +167,12 @@ const LoginPage = () => {
             </button>
           </form>
 
-          <div className="mt-8 sm:mt-10 pt-6 sm:pt-8 border-t border-gray-100 text-center">
+          <div className="mt-6 sm:mt-10 pt-6 sm:pt-8 border-t border-gray-100 text-center">
             <p className="text-[7px] sm:text-[8px] font-black text-gray-400 uppercase tracking-widest leading-relaxed">SISTEM INFORMASI SDM TERPADU<br/>KEMENTERIAN HUKUM RI</p>
           </div>
         </div>
         
-        <div className="text-center mt-8 space-y-2 px-2">
+        <div className="text-center mt-6 sm:mt-8 space-y-2 px-2">
             <p className="text-[8px] sm:text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] leading-relaxed">© 2025 DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL • KEMENKUM RI</p>
             <a href="https://caqiestudioproduction.com" target="_blank" rel="noopener noreferrer" className="block text-[7px] sm:text-[8px] font-black text-blue-500 hover:text-blue-700 uppercase tracking-[0.1em] transition-colors">
                 Powered by caqiestudioproduction.com

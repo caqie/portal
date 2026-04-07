@@ -36,20 +36,139 @@ const ProfilePegawaiPage = () => {
     loadData();
   }, [nip]);
 
+  const formatDateForInput = (dateStr: string | undefined): string => {
+    if (!dateStr) return '';
+    const cleanDate = dateStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) return cleanDate;
+    const parts = cleanDate.split(/[-/]/);
+    if (parts.length === 3) {
+      if (parts[0].length <= 2 && parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    }
+    try {
+      const d = new Date(cleanDate);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    } catch (e) {}
+    return '';
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
       const [pData, dData] = await Promise.all([fetchPegawaiFromSheets(), fetchDossiersFromSheets()]);
       const found = pData.find(p => p.nip === nip);
       if (found) {
-        setPegawai({
+        // Enrich data
+        const enriched: Pegawai = {
           ...found,
           riwayatPendidikan: found.riwayatPendidikan || [],
           riwayatJabatan: found.riwayatJabatan || [],
           riwayatPangkat: found.riwayatPangkat || [],
           riwayatPelatihan: found.riwayatPelatihan || [],
           keluarga: found.keluarga || []
-        });
+        };
+
+        // Helper for calculating years and months
+        const getDiffYMD = (dateStr: string) => {
+          if (!dateStr) return null;
+          const start = new Date(dateStr);
+          if (isNaN(start.getTime())) return null;
+          const today = new Date();
+          let years = today.getFullYear() - start.getFullYear();
+          let months = today.getMonth() - start.getMonth();
+          if (months < 0) {
+            years--;
+            months += 12;
+          }
+          return { years, months };
+        };
+
+        // 1. Calculate Age (Usia)
+        if ((!enriched.usia || enriched.usia === '-') && enriched.tanggalLahir) {
+          const diff = getDiffYMD(formatDateForInput(enriched.tanggalLahir));
+          if (diff) enriched.usia = `${diff.years} Thn ${diff.months} Bln`;
+        }
+
+        // 2. Calculate MK Golongan
+        if ((!enriched.masaKerjaGolongan || enriched.masaKerjaGolongan === '-') && enriched.tmtPangkat) {
+          const diff = getDiffYMD(formatDateForInput(enriched.tmtPangkat));
+          if (diff) enriched.masaKerjaGolongan = `${diff.years} Thn ${diff.months} Bln`;
+        }
+
+        // 3. Calculate MK Pensiun / Masa Kerja Total
+        if ((!enriched.masaKerjaPensiun || enriched.masaKerjaPensiun === '-') && enriched.tmtCpns) {
+          const diff = getDiffYMD(formatDateForInput(enriched.tmtCpns));
+          if (diff) enriched.masaKerjaPensiun = `${diff.years} Thn ${diff.months} Bln`;
+        }
+
+        // 4. Infer Jenis Jabatan
+        if (!enriched.jenisJabatan || enriched.jenisJabatan === '-') {
+          if (enriched.eselon && enriched.eselon !== '-') {
+            enriched.jenisJabatan = 'STRUKTURAL';
+          } else if (enriched.jabatan?.toUpperCase().includes('AHLI') || enriched.jabatan?.toUpperCase().includes('FUNGSIONAL')) {
+            enriched.jenisJabatan = 'FUNGSIONAL';
+          } else {
+            enriched.jenisJabatan = 'PELAKSANA';
+          }
+        }
+
+        // 5. Retirement Info (BUP, Usia Pensiun, Tgl Pensiun)
+        if (!enriched.bup || enriched.bup === '-') {
+          const isHighLevel = enriched.eselon && enriched.eselon !== '-' && enriched.eselon !== '';
+          const isFungsionalAhli = enriched.jabatan?.toUpperCase().includes('MADYA') || enriched.jabatan?.toUpperCase().includes('UTAMA');
+          enriched.bup = (isHighLevel || isFungsionalAhli) ? '60' : '58';
+        }
+        
+        if (!enriched.usiaPensiun || enriched.usiaPensiun === '-') {
+          enriched.usiaPensiun = enriched.bup;
+        }
+
+        if (enriched.tanggalLahir && enriched.bup) {
+          try {
+            const birth = new Date(formatDateForInput(enriched.tanggalLahir));
+            if (!isNaN(birth.getTime())) {
+              const bupYears = parseInt(enriched.bup);
+              const retirementDate = new Date(birth.getFullYear() + bupYears, birth.getMonth() + 1, 1);
+              
+              if (!enriched.tglPensiun || enriched.tglPensiun === '-') {
+                enriched.tglPensiun = retirementDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+              }
+              
+              if (!enriched.tmtPensiun || enriched.tmtPensiun === '-') {
+                enriched.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
+              }
+              
+              // Calculate Sisa Masa Kerja
+              const today = new Date();
+              let checkDate = retirementDate;
+              if (enriched.tmtPensiun && enriched.tmtPensiun !== '-') {
+                const tmtDate = new Date(formatDateForInput(enriched.tmtPensiun));
+                if (!isNaN(tmtDate.getTime())) {
+                  checkDate = tmtDate;
+                }
+              }
+
+              let diffYears = checkDate.getFullYear() - today.getFullYear();
+              let diffMonths = checkDate.getMonth() - today.getMonth();
+              if (diffMonths < 0) {
+                diffYears--;
+                diffMonths += 12;
+              }
+              
+              if (diffYears >= 0 && (diffYears > 0 || diffMonths >= 0)) {
+                enriched.sisaMasaKerja = `${diffYears} Thn ${diffMonths} Bln`;
+              } else {
+                enriched.sisaMasaKerja = 'Pensiun';
+                // Automatically set status to Pensiun if it's currently Aktif or Tugas Belajar
+                if (enriched.status === 'Aktif' || enriched.status === 'Tugas Belajar') {
+                  enriched.status = 'Pensiun';
+                }
+              }
+            }
+          } catch (e) {}
+        }
+
+        setPegawai(enriched);
         setDossiers(dData.filter(d => d.nip === nip));
       }
     } catch (e) {
@@ -208,35 +327,35 @@ const ProfilePegawaiPage = () => {
     <div className="space-y-8 animate-fadeIn pb-24 text-black">
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} message={successMsg} />
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="flex items-center gap-6">
-          <button onClick={() => navigate('/pegawai')} className="h-12 w-12 bg-white border border-gray-100 text-gray-400 rounded-2xl flex items-center justify-center hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 md:mb-12">
+        <div className="flex items-center gap-4 md:gap-6 w-full lg:w-auto">
+          <button onClick={() => navigate('/pegawai')} className="h-10 w-10 md:h-12 md:w-12 bg-white border border-gray-100 text-gray-400 rounded-xl md:rounded-2xl flex items-center justify-center hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm shrink-0">
             <i className="bi bi-arrow-left"></i>
           </button>
-          <div>
-            <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Profil Lengkap Pegawai</h3>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 flex items-center gap-2">
+          <div className="min-w-0">
+            <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter truncate">Profil Lengkap Pegawai</h3>
+            <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 flex items-center gap-2 truncate">
               <i className="bi bi-person-badge-fill text-blue-600"></i> {pegawai.nama} • NIP. {pegawai.nip}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={handleCetakDRH} disabled={syncing} className="px-8 py-4 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg flex items-center gap-3 active:scale-95 transition-all">
+        <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+          <button onClick={handleCetakDRH} disabled={syncing} className="flex-1 lg:flex-none px-6 md:px-8 py-3 md:py-4 bg-gray-900 text-white rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-all">
             {syncing ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>}
             Cetak DRH
           </button>
           {(canEdit || isSuperadmin) && (
             !isEditing ? (
-              <button onClick={() => setIsEditing(true)} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center gap-3 active:scale-95 transition-all">
+              <button onClick={() => setIsEditing(true)} className="flex-1 lg:flex-none px-6 md:px-8 py-3 md:py-4 bg-blue-600 text-white rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center justify-center gap-3 active:scale-95 transition-all">
                 <i className="bi bi-pencil-square"></i>
                 Edit Profil
               </button>
             ) : (
-              <div className="flex gap-2">
-                <button onClick={() => setIsEditing(false)} className="px-8 py-4 bg-gray-100 text-gray-500 rounded-2xl font-black text-[10px] uppercase active:scale-95 transition-all">
+              <div className="flex gap-2 w-full lg:w-auto">
+                <button onClick={() => setIsEditing(false)} className="flex-1 lg:flex-none px-6 md:px-8 py-3 md:py-4 bg-gray-100 text-gray-500 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase active:scale-95 transition-all">
                   Batal
                 </button>
-                <button onClick={handleSave} disabled={syncing} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center gap-3 active:scale-95 transition-all">
+                <button onClick={handleSave} disabled={syncing} className="flex-1 lg:flex-none px-6 md:px-8 py-3 md:py-4 bg-blue-600 text-white rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center justify-center gap-3 active:scale-95 transition-all">
                   {syncing ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-check-fill"></i>}
                   Simpan Perubahan
                 </button>
@@ -246,47 +365,47 @@ const ProfilePegawaiPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
         {/* Sidebar Info */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm text-center space-y-6">
+        <div className="lg:col-span-3 space-y-4 md:space-y-6">
+          <div className="bg-white p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] border border-gray-100 shadow-sm text-center space-y-4 md:space-y-6">
             <div className="relative inline-block">
-              <div className="h-40 w-40 rounded-[2rem] bg-gray-50 border-8 border-white shadow-2xl overflow-hidden mx-auto">
+              <div className="h-32 w-32 md:h-40 md:w-40 rounded-2xl md:rounded-[2rem] bg-gray-50 border-4 md:border-8 border-white shadow-2xl overflow-hidden mx-auto">
                 {pegawai.foto ? <img src={pegawai.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-gray-300 text-4xl font-black">?</div>}
               </div>
               {(canEdit || isSuperadmin) && (
-                <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-2 -right-2 h-10 w-10 bg-blue-600 text-white rounded-xl shadow-lg flex items-center justify-center border-4 border-white hover:scale-110 transition-all">
-                  <i className="bi bi-camera-fill text-xs"></i>
+                <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 h-8 w-8 md:h-10 md:w-10 bg-blue-600 text-white rounded-lg md:rounded-xl shadow-lg flex items-center justify-center border-2 md:border-4 border-white hover:scale-110 transition-all">
+                  <i className="bi bi-camera-fill text-[10px] md:text-xs"></i>
                 </button>
               )}
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleUploadPhoto} />
-              {uploading && <div className="absolute inset-0 bg-blue-600/50 rounded-[2rem] flex items-center justify-center"><div className="h-8 w-8 border-4 border-white/30 border-t-white rounded-full animate-spin"></div></div>}
+              {uploading && <div className="absolute inset-0 bg-blue-600/50 rounded-2xl md:rounded-[2rem] flex items-center justify-center"><div className="h-6 w-6 md:h-8 md:w-8 border-2 md:border-4 border-white/30 border-t-white rounded-full animate-spin"></div></div>}
             </div>
             <div>
-              <h4 className="font-black text-gray-900 uppercase tracking-tight leading-tight">{pegawai.nama}</h4>
-              <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mt-2">{pegawai.jabatan}</p>
-              <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-1">{pegawai.unitKerja}</p>
+              <h4 className="font-black text-gray-900 uppercase tracking-tight leading-tight text-sm md:text-base">{pegawai.nama}</h4>
+              <p className="text-[8px] md:text-[9px] font-black text-blue-600 uppercase tracking-widest mt-1.5 md:mt-2">{pegawai.jabatan}</p>
+              <p className="text-[7px] md:text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-1">{pegawai.unitKerja}</p>
             </div>
-            <div className="pt-6 border-t border-gray-50 flex flex-col gap-2">
+            <div className="pt-4 md:pt-6 border-t border-gray-50 flex flex-col gap-2">
                <span className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase ${pegawai.status === 'Aktif' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>{pegawai.status}</span>
                <span className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[8px] font-black uppercase">{pegawai.golRuang} • {pegawai.pangkat}</span>
             </div>
           </div>
 
-          <nav className="bg-white p-4 rounded-[2rem] border border-gray-100 shadow-sm space-y-1">
+          <nav className="bg-white p-2 md:p-4 rounded-2xl md:rounded-[2rem] border border-gray-100 shadow-sm flex lg:flex-col overflow-x-auto lg:overflow-x-visible no-scrollbar gap-1">
             {[
-              { id: 'identitas', label: 'Identitas Diri', icon: 'bi-person-fill' },
-              { id: 'keluarga', label: 'Informasi Keluarga', icon: 'bi-people-fill' },
-              { id: 'pendidikan', label: 'Riwayat Pendidikan', icon: 'bi-mortarboard-fill' },
-              { id: 'jabatan', label: 'Riwayat Jabatan', icon: 'bi-briefcase-fill' },
-              { id: 'pangkat', label: 'Riwayat Pangkat', icon: 'bi-award-fill' },
-              { id: 'pelatihan', label: 'Riwayat Pelatihan', icon: 'bi-journal-check' },
-              { id: 'dossier', label: 'Digital Dossier', icon: 'bi-folder-fill' },
+              { id: 'identitas', label: 'Identitas', icon: 'bi-person-fill' },
+              { id: 'keluarga', label: 'Keluarga', icon: 'bi-people-fill' },
+              { id: 'pendidikan', label: 'Pendidikan', icon: 'bi-mortarboard-fill' },
+              { id: 'jabatan', label: 'Jabatan', icon: 'bi-briefcase-fill' },
+              { id: 'pangkat', label: 'Pangkat', icon: 'bi-award-fill' },
+              { id: 'pelatihan', label: 'Pelatihan', icon: 'bi-journal-check' },
+              { id: 'dossier', label: 'Dossier', icon: 'bi-folder-fill' },
             ].map(tab => (
               <button 
                 key={tab.id} 
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`w-full flex items-center gap-4 px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-gray-400 hover:bg-gray-50'}`}
+                className={`flex items-center gap-3 md:gap-4 px-4 md:px-6 py-3 md:py-4 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap lg:w-full ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'text-gray-400 hover:bg-gray-50'}`}
               >
                 <i className={`bi ${tab.icon} ${activeTab === tab.id ? 'text-white' : 'text-gray-300'}`}></i>
                 {tab.label}
@@ -297,27 +416,27 @@ const ProfilePegawaiPage = () => {
 
         {/* Main Content */}
         <div className="lg:col-span-9">
-          <div className="bg-white p-10 md:p-12 rounded-[3.5rem] border border-gray-100 shadow-sm min-h-[600px]">
+          <div className="bg-white p-6 md:p-10 lg:p-12 rounded-3xl md:rounded-[3.5rem] border border-gray-100 shadow-sm min-h-[500px] md:min-h-[600px]">
             
             {activeTab === 'identitas' && (
-              <div className="space-y-12 animate-fadeIn">
+              <div className="space-y-8 md:space-y-12 animate-fadeIn">
                 {/* A. Identitas Pribadi */}
-                <div className="space-y-6">
+                <div className="space-y-4 md:space-y-6">
                   <div className="flex items-center gap-4 border-b border-gray-50 pb-4">
-                    <div className="h-10 w-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-lg"><i className="bi bi-person-fill"></i></div>
+                    <div className="h-8 w-8 md:h-10 md:w-10 bg-blue-50 text-blue-600 rounded-lg md:rounded-xl flex items-center justify-center text-base md:text-lg"><i className="bi bi-person-fill"></i></div>
                     <div>
-                      <h4 className="text-md font-black text-gray-900 uppercase tracking-tight">A. Identitas Pribadi</h4>
-                      <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Informasi dasar kependudukan</p>
+                      <h4 className="text-sm md:text-md font-black text-gray-900 uppercase tracking-tight">A. Identitas Pribadi</h4>
+                      <p className="text-[7px] md:text-[8px] font-bold text-gray-400 uppercase tracking-widest">Informasi dasar kependudukan</p>
                     </div>
                   </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                       <div className="space-y-2">
                         <label className={labelClass}>Nama Lengkap</label>
                         {isEditing ? (
                           <input type="text" className={inputClass} value={pegawai.nama} onChange={e => updateField('nama', e.target.value)} />
                         ) : (
-                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.nama || '-'}</div>
+                          <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.nama || '-'}</div>
                         )}
                       </div>
                       <div className="space-y-2">
@@ -325,7 +444,7 @@ const ProfilePegawaiPage = () => {
                         {isEditing ? (
                           <input type="text" className={inputClass} value={pegawai.nik || ''} onChange={e => updateField('nik', e.target.value)} />
                         ) : (
-                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.nik || '-'}</div>
+                          <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.nik || '-'}</div>
                         )}
                       </div>
                       <div className="space-y-2">
@@ -393,19 +512,19 @@ const ProfilePegawaiPage = () => {
                 </div>
 
                 {/* B. Data Kepegawaian */}
-                <div className="space-y-6">
+                <div className="space-y-4 md:space-y-6">
                   <div className="flex items-center gap-4 border-b border-gray-50 pb-4">
-                    <div className="h-10 w-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-lg"><i className="bi bi-briefcase-fill"></i></div>
+                    <div className="h-8 w-8 md:h-10 md:w-10 bg-indigo-50 text-indigo-600 rounded-lg md:rounded-xl flex items-center justify-center text-base md:text-lg"><i className="bi bi-briefcase-fill"></i></div>
                     <div>
-                      <h4 className="text-md font-black text-gray-900 uppercase tracking-tight">B. Data Kepegawaian</h4>
-                      <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Informasi karir dan jabatan</p>
+                      <h4 className="text-sm md:text-md font-black text-gray-900 uppercase tracking-tight">B. Data Kepegawaian</h4>
+                      <p className="text-[7px] md:text-[8px] font-bold text-gray-400 uppercase tracking-widest">Informasi karir dan jabatan</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                     <div className="space-y-2">
                       <label className={labelClass}>NIP Baru</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.nip}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.nip}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Jenis Pegawai</label>
@@ -417,7 +536,7 @@ const ProfilePegawaiPage = () => {
                           <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
                         </select>
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.jenisPegawai || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.jenisPegawai || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -430,7 +549,7 @@ const ProfilePegawaiPage = () => {
                           <option value="Tugas Belajar">TUGAS BELAJAR</option>
                         </select>
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.status || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.status || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2 col-span-full">
@@ -438,16 +557,16 @@ const ProfilePegawaiPage = () => {
                       {isEditing ? (
                         <input type="text" className={inputClass} value={pegawai.jabatan || ''} onChange={e => updateField('jabatan', e.target.value)} />
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.jabatan || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.jabatan || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Jenis Jabatan</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.jenisJabatan || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.jenisJabatan || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Klasifikasi Jabatan</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.klasifikasiJabatan || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.klasifikasiJabatan || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Eselon</label>
@@ -462,7 +581,7 @@ const ProfilePegawaiPage = () => {
                           <option value="IV.a">IV.a</option>
                         </select>
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.eselon || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.eselon || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -470,7 +589,7 @@ const ProfilePegawaiPage = () => {
                       {isEditing ? (
                         <input type="date" className={inputNoCapsClass} value={pegawai.tmtJabatan || ''} onChange={e => updateField('tmtJabatan', e.target.value)} />
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tmtJabatan || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.tmtJabatan || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2 col-span-full">
@@ -480,7 +599,7 @@ const ProfilePegawaiPage = () => {
                           {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
                         </select>
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.unitKerja || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.unitKerja || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -488,7 +607,7 @@ const ProfilePegawaiPage = () => {
                       {isEditing ? (
                         <input type="text" className={inputClass} value={pegawai.bagian || ''} onChange={e => updateField('bagian', e.target.value)} />
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.bagian || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.bagian || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -496,7 +615,7 @@ const ProfilePegawaiPage = () => {
                       {isEditing ? (
                         <input type="text" className={inputClass} value={pegawai.subBagian || ''} onChange={e => updateField('subBagian', e.target.value)} />
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.subBagian || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.subBagian || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -509,75 +628,75 @@ const ProfilePegawaiPage = () => {
                           {Object.keys(PANGKAT_MAP).map(g => <option key={g} value={g}>{g}</option>)}
                         </select>
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.golRuang || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.golRuang || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Pangkat</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.pangkat || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.pangkat || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>TMT Pangkat</label>
                       {isEditing ? (
                         <input type="date" className={inputNoCapsClass} value={pegawai.tmtPangkat || ''} onChange={e => updateField('tmtPangkat', e.target.value)} />
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tmtPangkat || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.tmtPangkat || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>TMT CPNS</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tmtCpns || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.tmtCpns || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Masa Kerja (Thn Bln)</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.masaKerja || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.masaKerja || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Tgl Pensiun</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tglPensiun || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.tglPensiun || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>TMT Pensiun</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.tmtPensiun || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.tmtPensiun || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Usia Pensiun</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.usiaPensiun || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.usiaPensiun || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>BUP</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.bup || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.bup || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>MK Golongan</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.masaKerjaGolongan || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.masaKerjaGolongan || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>MK Pensiun</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.masaKerjaPensiun || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.masaKerjaPensiun || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Usia</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.usia || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.usia || '-'}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Sisa Masa Kerja</label>
-                      <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.sisaMasaKerja || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.sisaMasaKerja || '-'}</div>
                     </div>
                   </div>
                 </div>
 
                 {/* C. Kontak & Domisili */}
-                <div className="space-y-6">
+                <div className="space-y-4 md:space-y-6">
                   <div className="flex items-center gap-4 border-b border-gray-50 pb-4">
-                    <div className="h-10 w-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-lg"><i className="bi bi-geo-alt-fill"></i></div>
+                    <div className="h-8 w-8 md:h-10 md:w-10 bg-emerald-50 text-emerald-600 rounded-lg md:rounded-xl flex items-center justify-center text-base md:text-lg"><i className="bi bi-geo-alt-fill"></i></div>
                     <div>
-                      <h4 className="text-md font-black text-gray-900 uppercase tracking-tight">C. Kontak & Domisili</h4>
-                      <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Informasi komunikasi dan alamat</p>
+                      <h4 className="text-sm md:text-md font-black text-gray-900 uppercase tracking-tight">C. Kontak & Domisili</h4>
+                      <p className="text-[7px] md:text-[8px] font-bold text-gray-400 uppercase tracking-widest">Informasi komunikasi dan alamat</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div className="space-y-2">
                       <label className={labelClass}>No. HP / WhatsApp</label>
                       {isEditing ? (
@@ -678,17 +797,17 @@ const ProfilePegawaiPage = () => {
             )}
 
             {activeTab === 'keluarga' && (
-              <div className="space-y-8 animate-fadeIn">
-                <div className="flex justify-between items-center border-b border-gray-50 pb-6">
+              <div className="space-y-6 md:space-y-8 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-xl"><i className="bi bi-people-fill"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-emerald-50 text-emerald-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-people-fill"></i></div>
                     <div>
-                      <h4 className="text-lg font-black text-gray-900 uppercase tracking-tight">Informasi Keluarga</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Data pasangan dan anak</p>
+                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Informasi Keluarga</h4>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Data pasangan dan anak</p>
                     </div>
                   </div>
                   {isEditing && (
-                    <button onClick={() => addHistoryItem('keluarga')} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-emerald-100">
+                    <button onClick={() => addHistoryItem('keluarga')} className="w-full sm:w-auto px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-emerald-100">
                       <i className="bi bi-plus-lg"></i> Tambah Anggota
                     </button>
                   )}
@@ -696,17 +815,17 @@ const ProfilePegawaiPage = () => {
 
                 <div className="space-y-4">
                   {(pegawai.keluarga || []).map((k, idx) => (
-                    <div key={idx} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative group">
+                    <div key={idx} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                       {isEditing && (
-                        <button onClick={() => removeHistoryItem('keluarga', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                        <button onClick={() => removeHistoryItem('keluarga', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
                           <i className="bi bi-trash3"></i>
                         </button>
                       )}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Hubungan</label>
                           {isEditing ? (
-                            <select className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={k.hubungan} onChange={e => updateHistoryItem('keluarga', idx, 'hubungan', e.target.value)}>
+                            <select className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={k.hubungan} onChange={e => updateHistoryItem('keluarga', idx, 'hubungan', e.target.value)}>
                               <option value="">Pilih</option>
                               <option value="Suami">Suami</option>
                               <option value="Istri">Istri</option>
@@ -715,63 +834,63 @@ const ProfilePegawaiPage = () => {
                               <option value="Ibu">Ibu</option>
                             </select>
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.hubungan || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.hubungan || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Lengkap</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.nama} onChange={e => updateHistoryItem('keluarga', idx, 'nama', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.nama} onChange={e => updateHistoryItem('keluarga', idx, 'nama', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.nama || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.nama || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tempat Lahir</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.tempatLahir} onChange={e => updateHistoryItem('keluarga', idx, 'tempatLahir', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.tempatLahir} onChange={updateHistoryItem('keluarga', idx, 'tempatLahir', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.tempatLahir || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.tempatLahir || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal Lahir</label>
                           {isEditing ? (
-                            <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={k.tanggalLahir} onChange={e => updateHistoryItem('keluarga', idx, 'tanggalLahir', e.target.value)} />
+                            <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={k.tanggalLahir} onChange={e => updateHistoryItem('keluarga', idx, 'tanggalLahir', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.tanggalLahir || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.tanggalLahir || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pekerjaan</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.pekerjaan} onChange={e => updateHistoryItem('keluarga', idx, 'pekerjaan', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.pekerjaan} onChange={e => updateHistoryItem('keluarga', idx, 'pekerjaan', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.pekerjaan || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.pekerjaan || '-'}</div>
                           )}
                         </div>
                       </div>
                     </div>
                   ))}
                   {(pegawai.keluarga || []).length === 0 && (
-                    <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-[2.5rem] text-gray-400 font-bold uppercase text-[10px] tracking-widest">Belum ada data keluarga</div>
+                    <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-100 rounded-3xl md:rounded-[2.5rem] text-gray-400 font-bold uppercase text-[9px] md:text-[10px] tracking-widest">Belum ada data keluarga</div>
                   )}
                 </div>
               </div>
             )}
 
             {activeTab === 'pendidikan' && (
-              <div className="space-y-8 animate-fadeIn">
-                <div className="flex justify-between items-center border-b border-gray-50 pb-6">
+              <div className="space-y-6 md:space-y-8 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-xl"><i className="bi bi-mortarboard-fill"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-indigo-50 text-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-mortarboard-fill"></i></div>
                     <div>
-                      <h4 className="text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pendidikan</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Pendidikan formal</p>
+                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pendidikan</h4>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Pendidikan formal</p>
                     </div>
                   </div>
                   {isEditing && (
-                    <button onClick={() => addHistoryItem('riwayatPendidikan')} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-indigo-100">
+                    <button onClick={() => addHistoryItem('riwayatPendidikan')} className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-indigo-100">
                       <i className="bi bi-plus-lg"></i> Tambah Pendidikan
                     </button>
                   )}
@@ -779,17 +898,17 @@ const ProfilePegawaiPage = () => {
 
                 <div className="space-y-4">
                   {(pegawai.riwayatPendidikan || []).map((p, idx) => (
-                    <div key={idx} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative group">
+                    <div key={idx} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                       {isEditing && (
-                        <button onClick={() => removeHistoryItem('riwayatPendidikan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                        <button onClick={() => removeHistoryItem('riwayatPendidikan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
                           <i className="bi bi-trash3"></i>
                         </button>
                       )}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jenjang</label>
                           {isEditing ? (
-                            <select className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.jenjang} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jenjang', e.target.value)}>
+                            <select className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.jenjang} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jenjang', e.target.value)}>
                               <option value="">Pilih</option>
                               <option value="SD">SD</option>
                               <option value="SMP">SMP</option>
@@ -800,39 +919,39 @@ const ProfilePegawaiPage = () => {
                               <option value="S3">S3</option>
                             </select>
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jenjang || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jenjang || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Sekolah / Universitas</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.institusi} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'institusi', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.institusi} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'institusi', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.institusi || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.institusi || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tahun Lulus</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahunLulus} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'tahunLulus', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahunLulus} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'tahunLulus', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tahunLulus || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tahunLulus || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jurusan</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.jurusan} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jurusan', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.jurusan} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jurusan', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jurusan || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jurusan || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Ijazah</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorIjazah} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'nomorIjazah', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorIjazah} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'nomorIjazah', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorIjazah || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorIjazah || '-'}</div>
                           )}
                         </div>
                       </div>
@@ -843,242 +962,242 @@ const ProfilePegawaiPage = () => {
             )}
 
             {activeTab === 'jabatan' && (
-              <div className="space-y-8 animate-fadeIn">
-                <div className="flex justify-between items-center border-b border-gray-50 pb-6">
+              <div className="space-y-6 md:space-y-8 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-xl"><i className="bi bi-briefcase-fill"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-briefcase-fill"></i></div>
                     <div>
-                      <h4 className="text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Jabatan</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Perjalanan karir</p>
+                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Jabatan</h4>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Perjalanan karir</p>
                     </div>
                   </div>
                   {isEditing && (
-                    <button onClick={() => addHistoryItem('riwayatJabatan')} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-blue-100">
+                    <button onClick={() => addHistoryItem('riwayatJabatan')} className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-blue-100">
                       <i className="bi bi-plus-lg"></i> Tambah Jabatan
                     </button>
                   )}
                 </div>
                 <div className="space-y-4">
                   {(pegawai.riwayatJabatan || []).map((j, idx) => (
-                    <div key={idx} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative group">
+                    <div key={idx} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                       {isEditing && (
-                        <button onClick={() => removeHistoryItem('riwayatJabatan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                        <button onClick={() => removeHistoryItem('riwayatJabatan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
                           <i className="bi bi-trash3"></i>
                         </button>
                       )}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Jabatan</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.namaJabatan} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'namaJabatan', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.namaJabatan} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'namaJabatan', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.namaJabatan || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.namaJabatan || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Unit Kerja</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.unitKerja} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'unitKerja', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.unitKerja} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'unitKerja', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.unitKerja || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.unitKerja || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">TMT Jabatan</label>
                           {isEditing ? (
-                            <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={j.tmtJabatan} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tmtJabatan', e.target.value)} />
+                            <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={j.tmtJabatan} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tmtJabatan', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.tmtJabatan || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.tmtJabatan || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.nomorSk} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'nomorSk', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.nomorSk} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'nomorSk', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.nomorSk || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.nomorSk || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal SK</label>
                           {isEditing ? (
-                            <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={j.tanggalSk} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tanggalSk', e.target.value)} />
+                            <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={j.tanggalSk} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tanggalSk', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.tanggalSk || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.tanggalSk || '-'}</div>
                           )}
                         </div>
                       </div>
                     </div>
                   ))}
                   {(pegawai.riwayatJabatan || []).length === 0 && (
-                    <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-[2.5rem] text-gray-400 font-bold uppercase text-[10px] tracking-widest">Belum ada riwayat jabatan</div>
+                    <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-100 rounded-3xl md:rounded-[2.5rem] text-gray-400 font-bold uppercase text-[9px] md:text-[10px] tracking-widest">Belum ada riwayat jabatan</div>
                   )}
                 </div>
               </div>
             )}
 
             {activeTab === 'pangkat' && (
-              <div className="space-y-8 animate-fadeIn">
-                <div className="flex justify-between items-center border-b border-gray-50 pb-6">
+              <div className="space-y-6 md:space-y-8 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center text-xl"><i className="bi bi-award-fill"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-amber-50 text-amber-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-award-fill"></i></div>
                     <div>
-                      <h4 className="text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pangkat</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Kenaikan pangkat</p>
+                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pangkat</h4>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Kenaikan pangkat</p>
                     </div>
                   </div>
                   {isEditing && (
-                    <button onClick={() => addHistoryItem('riwayatPangkat')} className="px-6 py-3 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-amber-100">
+                    <button onClick={() => addHistoryItem('riwayatPangkat')} className="w-full sm:w-auto px-6 py-3 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-amber-100">
                       <i className="bi bi-plus-lg"></i> Tambah Pangkat
                     </button>
                   )}
                 </div>
                 <div className="space-y-4">
                   {(pegawai.riwayatPangkat || []).map((p, idx) => (
-                    <div key={idx} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative group">
+                    <div key={idx} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                       {isEditing && (
-                        <button onClick={() => removeHistoryItem('riwayatPangkat', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                        <button onClick={() => removeHistoryItem('riwayatPangkat', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
                           <i className="bi bi-trash3"></i>
                         </button>
                       )}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Gol. Ruang</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.golRuang} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'golRuang', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.golRuang} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'golRuang', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.golRuang || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.golRuang || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pangkat</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.pangkat} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'pangkat', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.pangkat} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'pangkat', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.pangkat || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.pangkat || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">TMT Pangkat</label>
                           {isEditing ? (
-                            <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tmtPangkat} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tmtPangkat', e.target.value)} />
+                            <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tmtPangkat} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tmtPangkat', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tmtPangkat || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tmtPangkat || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSk} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'nomorSk', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSk} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'nomorSk', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSk || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSk || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal SK</label>
                           {isEditing ? (
-                            <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tanggalSk} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tanggalSk', e.target.value)} />
+                            <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tanggalSk} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tanggalSk', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tanggalSk || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tanggalSk || '-'}</div>
                           )}
                         </div>
                       </div>
                     </div>
                   ))}
                   {(pegawai.riwayatPangkat || []).length === 0 && (
-                    <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-[2.5rem] text-gray-400 font-bold uppercase text-[10px] tracking-widest">Belum ada riwayat pangkat</div>
+                    <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-100 rounded-3xl md:rounded-[2.5rem] text-gray-400 font-bold uppercase text-[9px] md:text-[10px] tracking-widest">Belum ada riwayat pangkat</div>
                   )}
                 </div>
               </div>
             )}
 
             {activeTab === 'pelatihan' && (
-              <div className="space-y-8 animate-fadeIn">
-                <div className="flex justify-between items-center border-b border-gray-50 pb-6">
+              <div className="space-y-6 md:space-y-8 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center text-xl"><i className="bi bi-journal-check"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-purple-50 text-purple-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-journal-check"></i></div>
                     <div>
-                      <h4 className="text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pelatihan</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Diklat & Workshop</p>
+                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pelatihan</h4>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Diklat & Workshop</p>
                     </div>
                   </div>
                   {isEditing && (
-                    <button onClick={() => addHistoryItem('riwayatPelatihan')} className="px-6 py-3 bg-purple-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-purple-100">
+                    <button onClick={() => addHistoryItem('riwayatPelatihan')} className="w-full sm:w-auto px-6 py-3 bg-purple-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-purple-100">
                       <i className="bi bi-plus-lg"></i> Tambah Pelatihan
                     </button>
                   )}
                 </div>
                 <div className="space-y-4">
                   {(pegawai.riwayatPelatihan || []).map((p, idx) => (
-                    <div key={idx} className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative group">
+                    <div key={idx} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                       {isEditing && (
-                        <button onClick={() => removeHistoryItem('riwayatPelatihan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm opacity-0 group-hover:opacity-100 transition-all">
+                        <button onClick={() => removeHistoryItem('riwayatPelatihan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
                           <i className="bi bi-trash3"></i>
                         </button>
                       )}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Pelatihan</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.namaPelatihan} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'namaPelatihan', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.namaPelatihan} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'namaPelatihan', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.namaPelatihan || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.namaPelatihan || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Penyelenggara</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.penyelenggara} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'penyelenggara', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.penyelenggara} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'penyelenggara', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.penyelenggara || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.penyelenggara || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tahun</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahun} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'tahun', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahun} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'tahun', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tahun || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tahun || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Durasi</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.durasi} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'durasi', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.durasi} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'durasi', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.durasi || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.durasi || '-'}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Sertifikat</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSertifikat} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'nomorSertifikat', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSertifikat} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'nomorSertifikat', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSertifikat || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSertifikat || '-'}</div>
                           )}
                         </div>
                       </div>
                     </div>
                   ))}
                   {(pegawai.riwayatPelatihan || []).length === 0 && (
-                    <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-[2.5rem] text-gray-400 font-bold uppercase text-[10px] tracking-widest">Belum ada riwayat pelatihan</div>
+                    <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-100 rounded-3xl md:rounded-[2.5rem] text-gray-400 font-bold uppercase text-[9px] md:text-[10px] tracking-widest">Belum ada riwayat pelatihan</div>
                   )}
                 </div>
               </div>
             )}
 
             {activeTab === 'dossier' && (
-              <div className="space-y-8 animate-fadeIn">
-                <div className="flex justify-between items-center border-b border-gray-50 pb-6">
+              <div className="space-y-6 md:space-y-8 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-xl"><i className="bi bi-folder-fill"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-folder-fill"></i></div>
                     <div>
-                      <h4 className="text-lg font-black text-gray-900 uppercase tracking-tight">Digital Dossier</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Arsip dokumen digital pegawai</p>
+                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Digital Dossier</h4>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Arsip dokumen digital pegawai</p>
                     </div>
                   </div>
                   {isEditing && (
-                    <button onClick={() => setIsAddDossierOpen(true)} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-lg shadow-blue-100">
+                    <button onClick={() => setIsAddDossierOpen(true)} className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-blue-100">
                       <i className="bi bi-cloud-arrow-up-fill"></i> Tambah Berkas
                     </button>
                   )}
@@ -1086,18 +1205,18 @@ const ProfilePegawaiPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {dossiers.map(d => (
-                    <div key={d.id} onClick={() => d.fileUrl && window.open(d.fileUrl, '_blank')} className="p-6 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-blue-300 transition-all cursor-pointer group flex items-center gap-5">
-                      <div className="h-14 w-14 bg-white rounded-2xl flex items-center justify-center text-blue-600 text-3xl shadow-sm"><i className="bi bi-file-earmark-pdf-fill"></i></div>
+                    <div key={d.id} onClick={() => d.fileUrl && window.open(d.fileUrl, '_blank')} className="p-5 md:p-6 bg-gray-50 border border-gray-100 rounded-2xl md:rounded-[2.5rem] hover:bg-white hover:border-blue-300 transition-all cursor-pointer group flex items-center gap-4 md:gap-5">
+                      <div className="h-12 w-12 md:h-14 md:w-14 bg-white rounded-xl md:rounded-2xl flex items-center justify-center text-blue-600 text-2xl md:text-3xl shadow-sm shrink-0"><i className="bi bi-file-earmark-pdf-fill"></i></div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-black uppercase truncate text-gray-950">{d.fileName}</p>
-                        <p className="text-[8px] font-bold text-gray-400 mt-1 uppercase">{d.tanggal}</p>
+                        <p className="text-[10px] md:text-[11px] font-black uppercase truncate text-gray-950">{d.fileName}</p>
+                        <p className="text-[7px] md:text-[8px] font-bold text-gray-400 mt-1 uppercase">{d.tanggal}</p>
                       </div>
                     </div>
                   ))}
                   {dossiers.length === 0 && (
-                    <div className="col-span-full py-20 text-center opacity-30">
-                      <i className="bi bi-folder-x text-5xl mb-4 block"></i>
-                      <p className="text-[10px] font-black uppercase tracking-widest">Belum ada dokumen terunggah</p>
+                    <div className="col-span-full py-16 md:py-20 text-center opacity-30">
+                      <i className="bi bi-folder-x text-4xl md:text-5xl mb-4 block"></i>
+                      <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Belum ada dokumen terunggah</p>
                     </div>
                   )}
                 </div>
