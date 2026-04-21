@@ -4,7 +4,7 @@ import { Pegawai, Dossier } from '../types';
 import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, findPegawaiByNip } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
-import { normalizeUnitName, UNIT_KERJA, PANGKAT_MAP, DEFAULT_LOGO } from '../constants';
+import { normalizeUnitName, UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, DEFAULT_LOGO, BANK_LIST } from '../constants';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -795,6 +795,30 @@ const PegawaiPage = () => {
                           <div><label className={labelClass}>Jenis Kelamin</label><select className={inputClass} value={formData.gender || 'L'} onChange={e => setFormData({...formData, gender: e.target.value as any})}><option value="L">LAKI-LAKI</option><option value="P">PEREMPUAN</option></select></div>
                           <div><label className={labelClass}>Tempat Lahir</label><input type="text" className={inputClass} value={formData.tempatLahir || ''} onChange={e => setFormData({...formData, tempatLahir: e.target.value})} /></div>
                           <div><label className={labelClass}>Tanggal Lahir</label><input type="date" className={inputNoCapsClass} value={formData.tanggalLahir || ''} onChange={e => setFormData({...formData, tanggalLahir: e.target.value})} /></div>
+                          <div><label className={labelClass}>Nama Bank</label>
+                            <select 
+                              className={inputClass} 
+                              value={BANK_LIST.includes(formData.namaBank || '') ? (formData.namaBank || '') : (formData.namaBank ? 'LAINNYA' : '')} 
+                              onChange={e => setFormData({...formData, namaBank: e.target.value})}
+                            >
+                              <option value="">- PILIH BANK -</option>
+                              {BANK_LIST.map(b => <option key={b} value={b}>{b}</option>)}
+                              <option value="LAINNYA">LAINNYA (KETIK MANUAL)</option>
+                            </select>
+                          </div>
+                          <div><label className={labelClass}>No. Rekening Gaji</label><input type="text" className={inputClass} value={formData.noRekeningGaji || ''} onChange={e => setFormData({...formData, noRekeningGaji: e.target.value})} /></div>
+                          {(formData.namaBank === 'LAINNYA' || (formData.namaBank && !BANK_LIST.includes(formData.namaBank))) && (
+                            <div className="col-span-full animate-fadeIn">
+                              <label className={labelClass}>Ketik Nama Bank Lainnya</label>
+                              <input 
+                                type="text" 
+                                className={inputClass} 
+                                placeholder="Contoh: BANK SUMUT" 
+                                value={BANK_LIST.includes(formData.namaBank || '') ? '' : formData.namaBank}
+                                onChange={e => setFormData({...formData, namaBank: e.target.value.toUpperCase()})} 
+                              />
+                            </div>
+                          )}
                        </div>
                        <div className="md:col-span-4 bg-gray-50 p-6 md:p-8 rounded-3xl md:rounded-[3rem] border border-gray-100 flex flex-col items-center text-center">
                           <div className="h-36 w-36 md:h-44 md:w-44 bg-white rounded-3xl md:rounded-[3rem] border-4 border-white shadow-xl overflow-hidden mb-4 md:mb-6 relative group">
@@ -820,9 +844,70 @@ const PegawaiPage = () => {
                         <div><label className={labelClass}>Klasifikasi Jabatan (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.klasifikasiJabatan || '-'} /></div>
                        <div><label className={labelClass}>TMT Jabatan</label><input type="date" className={inputNoCapsClass} value={formData.tmtJabatan || ''} onChange={e => setFormData({...formData, tmtJabatan: e.target.value})} /></div>
                        <div><label className={labelClass}>Eselon (Jika Ada)</label><select className={inputClass} value={formData.eselon || '-'} onChange={e => setFormData({...formData, eselon: e.target.value})}><option value="-">-</option><option value="I.a">I.a</option><option value="I.b">I.b</option><option value="II.a">II.a</option><option value="II.b">II.b</option><option value="III.a">III.a</option><option value="IV.a">IV.a</option></select></div>
-                       <div className="sm:col-span-2"><label className={labelClass}>Unit Kerja Utama</label><select className={inputClass} value={formData.unitKerja || UNIT_KERJA[0]} onChange={e => setFormData({...formData, unitKerja: e.target.value})}>{UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}</select></div>
-                       <div className="sm:col-span-2"><label className={labelClass}>Nama Bagian</label><input type="text" className={inputClass} value={formData.bagian || ''} onChange={e => setFormData({...formData, bagian: e.target.value})} /></div>
-                       <div className="sm:col-span-2"><label className={labelClass}>Nama Sub Bagian / Tim</label><input type="text" className={inputClass} value={formData.subBagian || ''} onChange={e => setFormData({...formData, subBagian: e.target.value})} /></div>
+                       <div className="sm:col-span-2">
+                           <label className={labelClass}>Unit Kerja Utama</label>
+                           <select 
+                               className={inputClass} 
+                               value={formData.unitKerja || UNIT_KERJA[0]} 
+                               onChange={e => {
+                                   const unit = e.target.value;
+                                   const bagians = Object.keys(ORGANISASI_STRUCTURE[unit] || {});
+                                   const firstBagian = bagians[0] || '';
+                                   const subs = (ORGANISASI_STRUCTURE[unit] && firstBagian) ? ORGANISASI_STRUCTURE[unit][firstBagian] : [];
+                                   const firstSub = subs[0] || '';
+                                   
+                                   setFormData({
+                                       ...formData, 
+                                       unitKerja: unit,
+                                       bagian: firstBagian,
+                                       subBagian: firstSub
+                                   });
+                               }}
+                           >
+                               {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
+                           </select>
+                       </div>
+                       <div className="sm:col-span-2">
+                           <label className={labelClass}>Nama Bagian</label>
+                           <select 
+                               className={inputClass} 
+                               value={formData.bagian || ''} 
+                               onChange={e => {
+                                   const bagian = e.target.value;
+                                   const unit = formData.unitKerja || UNIT_KERJA[0];
+                                   const subs = (ORGANISASI_STRUCTURE[unit] && bagian) ? ORGANISASI_STRUCTURE[unit][bagian] : [];
+                                   const firstSub = subs[0] || '';
+                                   
+                                   setFormData({
+                                       ...formData, 
+                                       bagian: bagian,
+                                       subBagian: firstSub
+                                   });
+                               }}
+                           >
+                               <option value="">- PILIH BAGIAN -</option>
+                               {formData.unitKerja && ORGANISASI_STRUCTURE[formData.unitKerja] ? 
+                                   Object.keys(ORGANISASI_STRUCTURE[formData.unitKerja]).map(b => (
+                                       <option key={b} value={b}>{b.toUpperCase()}</option>
+                                   )) : null
+                               }
+                           </select>
+                       </div>
+                       <div className="sm:col-span-2">
+                           <label className={labelClass}>Nama Sub Bagian / Tim</label>
+                           <select 
+                               className={inputClass} 
+                               value={formData.subBagian || ''} 
+                               onChange={e => setFormData({...formData, subBagian: e.target.value})}
+                           >
+                               <option value="">- PILIH SUB BAGIAN / TIM -</option>
+                               {formData.unitKerja && formData.bagian && ORGANISASI_STRUCTURE[formData.unitKerja]?.[formData.bagian] ? 
+                                   ORGANISASI_STRUCTURE[formData.unitKerja][formData.bagian].map(s => (
+                                       <option key={s} value={s}>{s.toUpperCase()}</option>
+                                   )) : null
+                               }
+                           </select>
+                       </div>
                     </div>
                  </section>
 
@@ -861,7 +946,7 @@ const PegawaiPage = () => {
                        <div><label className={labelClass}>Nomor NPWP</label><input type="text" className={inputClass} value={formData.npwp || ''} onChange={e => setFormData({...formData, npwp: e.target.value})} /></div>
                        <div><label className={labelClass}>Nomor BPJS Kesehatan</label><input type="text" className={inputClass} value={formData.noBpjs || ''} onChange={e => setFormData({...formData, noBpjs: e.target.value})} /></div>
                        <div><label className={labelClass}>No. Karis / Karsu</label><input type="text" className={inputClass} value={formData.noKarisKarsu || ''} onChange={e => setFormData({...formData, noKarisKarsu: e.target.value})} /></div>
-                        <div><label className={labelClass}>Nomor Tapera</label><input type="text" className={inputClass} value={formData.noTapera || ''} onChange={e => setFormData({...formData, noTapera: e.target.value})} /></div>
+                        <div><label className={labelClass}>Nomor Tapera</label><input type="text" className={inputClass} value={formData.noTAPERA || ''} onChange={e => setFormData({...formData, noTAPERA: e.target.value})} /></div>
                        <div className="sm:col-span-2 md:col-span-3"><label className={labelClass}>Alamat Lengkap Domisili</label><textarea rows={3} className={`${inputNoCapsClass} h-20 md:h-24 resize-none`} value={formData.alamat || ''} onChange={e => setFormData({...formData, alamat: e.target.value})} placeholder="Masukkan alamat lengkap sesuai KTP/Domisili saat ini..." /></div>
                        <div><label className={labelClass}>Jenjang Pendidikan Terakhir</label><input type="text" className={inputClass} value={formData.pendidikan || ''} onChange={e => setFormData({...formData, pendidikan: e.target.value})} placeholder="exp: S1 / S2 / D3" /></div>
                        <div className="sm:col-span-2"><label className={labelClass}>Program Studi / Jurusan</label><input type="text" className={inputClass} value={formData.jurusan || ''} onChange={e => setFormData({...formData, jurusan: e.target.value})} /></div>
