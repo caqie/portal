@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Pegawai, RiwayatPendidikan, RiwayatJabatan, RiwayatPangkat, RiwayatPelatihan, Keluarga, Dossier } from '../types';
 import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
+import { getPhotoUrl } from '../lib/photoUtils';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import { UNIT_KERJA, PANGKAT_MAP } from '../constants';
 import SuccessModal from '../components/SuccessModal';
@@ -22,6 +23,10 @@ const ProfilePegawaiPage = () => {
   const [uploading, setUploading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [showPhotoPreview, setShowPhotoPreview] = useState(false);
+  const [tempPhotoFile, setTempPhotoFile] = useState<File | null>(null);
+  const [tempPhotoPreview, setTempPhotoPreview] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'identitas' | 'keluarga' | 'pendidikan' | 'jabatan' | 'pangkat' | 'pelatihan' | 'dossier'>('identitas');
   
   const [isEditing, setIsEditing] = useState(false);
@@ -216,20 +221,47 @@ const ProfilePegawaiPage = () => {
     }
   };
 
-  const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !pegawai) return;
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Ukuran file terlalu besar. Maksimal 2MB.");
+        return;
+      }
+      setTempPhotoFile(file);
+      setTempPhotoPreview(URL.createObjectURL(file));
+      setIsPhotoModalOpen(true);
+    }
+  };
+
+  const handleUploadPhoto = async () => {
+    if (!tempPhotoFile || !pegawai) return;
     setUploading(true);
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
-      const res = await uploadFileToDrive(`FOTO_${pegawai.nip}_${Date.now()}`, file.type, base64);
+      const res = await uploadFileToDrive(`FOTO_${pegawai.nip}_${Date.now()}`, tempPhotoFile.type, base64);
       if (res.success && res.fileUrl) {
-        updateField('foto', res.fileUrl);
+        const updatedPegawai = { ...pegawai, foto: res.fileUrl };
+        setPegawai(updatedPegawai);
+        
+        // Auto-save the record to ensure the photo link is persisted
+        await savePegawai(updatedPegawai);
+        
+        logActivity('UPDATE', 'Pegawai', `Update foto profil pegawai: ${pegawai.nama} (NIP: ${pegawai.nip})`);
+        
+        setIsPhotoModalOpen(false);
+        if (tempPhotoPreview) URL.revokeObjectURL(tempPhotoPreview);
+        setTempPhotoFile(null);
+        setTempPhotoPreview('');
+        setSuccessMsg("Foto profil berhasil diperbarui dan tersimpan.");
+        setShowSuccess(true);
+      } else {
+        alert(res.message || "Gagal mengunggah foto. Pastikan koneksi internet stabil dan ukuran file tidak terlalu besar.");
       }
       setUploading(false);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(tempPhotoFile);
   };
 
   const handleSaveDossier = async (e: React.FormEvent) => {
@@ -370,16 +402,23 @@ const ProfilePegawaiPage = () => {
         <div className="lg:col-span-3 space-y-4 md:space-y-6">
           <div className="bg-white p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] border border-gray-100 shadow-sm text-center space-y-4 md:space-y-6">
             <div className="relative inline-block">
-              <div className="h-32 w-32 md:h-40 md:w-40 rounded-2xl md:rounded-[2rem] bg-gray-50 border-4 md:border-8 border-white shadow-2xl overflow-hidden mx-auto">
-                {pegawai.foto ? <img src={pegawai.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-gray-300 text-4xl font-black">?</div>}
+              <div 
+                className={`h-32 w-32 md:h-40 md:w-40 rounded-2xl md:rounded-[2rem] bg-gray-50 border-4 md:border-8 border-white shadow-2xl overflow-hidden mx-auto relative group ${!isEditing && pegawai.foto ? 'cursor-pointer' : ''}`}
+                onClick={() => !isEditing && pegawai.foto && setShowPhotoPreview(true)}
+              >
+                {pegawai.foto ? (
+                  <img src={getPhotoUrl(pegawai.foto)} className="h-full w-full object-cover transition-transform group-hover:scale-105" alt="Profile" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-gray-300 text-4xl font-black">?</div>
+                )}
+                {isEditing && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+                    <i className="bi bi-camera-fill text-white text-2xl"></i>
+                  </div>
+                )}
               </div>
-              {(canEdit || isSuperadmin) && (
-                <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 h-8 w-8 md:h-10 md:w-10 bg-blue-600 text-white rounded-lg md:rounded-xl shadow-lg flex items-center justify-center border-2 md:border-4 border-white hover:scale-110 transition-all">
-                  <i className="bi bi-camera-fill text-[10px] md:text-xs"></i>
-                </button>
-              )}
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleUploadPhoto} />
-              {uploading && <div className="absolute inset-0 bg-blue-600/50 rounded-2xl md:rounded-[2rem] flex items-center justify-center"><div className="h-6 w-6 md:h-8 md:w-8 border-2 md:border-4 border-white/30 border-t-white rounded-full animate-spin"></div></div>}
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handlePhotoFileChange} />
+              {uploading && <div className="absolute inset-x-0 bottom-0 top-0 bg-blue-600/50 rounded-2xl md:rounded-[2rem] flex items-center justify-center z-20"><div className="h-6 w-6 md:h-8 md:w-8 border-2 md:border-4 border-white/30 border-t-white rounded-full animate-spin"></div></div>}
             </div>
             <div>
               <h4 className="font-black text-gray-900 uppercase tracking-tight leading-tight text-sm md:text-base">{pegawai.nama}</h4>
@@ -848,7 +887,7 @@ const ProfilePegawaiPage = () => {
                         <div className="space-y-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tempat Lahir</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.tempatLahir} onChange={updateHistoryItem('keluarga', idx, 'tempatLahir', e.target.value)} />
+                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.tempatLahir} onChange={e => updateHistoryItem('keluarga', idx, 'tempatLahir', e.target.value)} />
                           ) : (
                             <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.tempatLahir || '-'}</div>
                           )}
@@ -1379,6 +1418,72 @@ const ProfilePegawaiPage = () => {
             </div>
          </div>
       </div>
+
+      {isPhotoModalOpen && (
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-sm" onClick={() => !uploading && setIsPhotoModalOpen(false)}></div>
+          <div className="relative bg-white w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden animate-modalEnter border border-white/20">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h4 className="text-lg font-black uppercase text-gray-950 tracking-tighter">Ganti Foto Profil</h4>
+              <button onClick={() => setIsPhotoModalOpen(false)} className="h-8 w-8 flex items-center justify-center text-gray-400 hover:text-rose-500">
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <div className="p-8 flex flex-col items-center">
+              <div className="h-40 w-40 rounded-[2rem] border-4 border-blue-50 shadow-inner overflow-hidden mb-8">
+                <img src={tempPhotoPreview} className="h-full w-full object-cover" alt="Preview" />
+              </div>
+              <div className="space-y-3 w-full">
+                <button 
+                  onClick={handleUploadPhoto} 
+                  disabled={uploading}
+                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all text-center"
+                >
+                  {uploading ? (
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    <><i className="bi bi-cloud-arrow-up-fill"></i> Upload Sekarang</>
+                  )}
+                </button>
+                <button 
+                  onClick={() => setIsPhotoModalOpen(false)} 
+                  disabled={uploading}
+                  className="w-full py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-[10px] uppercase active:scale-95 transition-all text-center"
+                >
+                  Batalkan
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Photo Preview Modal */}
+      {showPhotoPreview && pegawai.foto && (
+        <div className="fixed inset-0 z-[5000] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowPhotoPreview(false)}></div>
+          <div className="relative max-w-4xl w-full h-full flex items-center justify-center pointer-events-none p-4 md:p-12">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setShowPhotoPreview(false); }} 
+              className="absolute top-4 right-4 md:top-10 md:right-10 h-12 w-12 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center backdrop-blur-xl transition-all active:scale-95 pointer-events-auto"
+            >
+              <i className="bi bi-x-lg text-xl font-bold"></i>
+            </button>
+            <div className="bg-white/5 border border-white/10 p-2 md:p-3 rounded-[2rem] md:rounded-[3rem] shadow-2xl pointer-events-auto animate-modalEnter max-h-full">
+              <img 
+                src={getPhotoUrl(pegawai.foto)} 
+                className="max-w-full max-h-[70vh] md:max-h-[80vh] object-contain rounded-2xl md:rounded-[2.5rem] shadow-2xl" 
+                alt="Full Profile" 
+                referrerPolicy="no-referrer"
+              />
+              <div className="mt-4 md:mt-6 text-center text-white pb-2">
+                <h5 className="font-black uppercase tracking-tight text-base md:text-xl">{pegawai.nama}</h5>
+                <p className="text-[9px] md:text-[10px] uppercase font-bold tracking-[0.3em] text-white/50 mt-1">NIP. {pegawai.nip}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
