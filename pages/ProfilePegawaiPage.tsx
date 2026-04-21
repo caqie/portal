@@ -5,7 +5,7 @@ import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFrom
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
-import { UNIT_KERJA, PANGKAT_MAP } from '../constants';
+import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, BANK_LIST } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 // @ts-ignore
 import html2canvas from 'html2canvas';
@@ -330,6 +330,27 @@ const ProfilePegawaiPage = () => {
     setPegawai({ ...pegawai, [field]: list });
   };
 
+  const handleUploadHistoryFile = async (
+    field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatPelatihan',
+    idx: number,
+    file: File
+  ) => {
+    if (!pegawai) return;
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      const res = await uploadFileToDrive(`HIST_${field.toUpperCase()}_${pegawai.nip}_${Date.now()}`, file.type, base64);
+      if (res.success && res.fileUrl) {
+        updateHistoryItem(field, idx, 'fileUrl', res.fileUrl);
+      } else {
+        alert("Gagal mengunggah file.");
+      }
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const removeHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatPelatihan' | 'keluarga', idx: number) => {
     if (!pegawai) return;
     const list = (pegawai[field] || []).filter((_, i) => i !== idx);
@@ -547,6 +568,42 @@ const ProfilePegawaiPage = () => {
                         <label className={labelClass}>Usia</label>
                         <div className="px-6 py-4 bg-gray-100 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.usia || '-'}</div>
                       </div>
+                      <div className="space-y-2">
+                        <label className={labelClass}>Nomor Rekening Gaji</label>
+                        {isEditing ? (
+                          <input type="text" className={inputClass} value={pegawai.noRekeningGaji || ''} onChange={e => updateField('noRekeningGaji', e.target.value)} />
+                        ) : (
+                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.noRekeningGaji || '-'}</div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <label className={labelClass}>Nama Bank</label>
+                        {isEditing ? (
+                          <select 
+                            className={inputClass} 
+                            value={BANK_LIST.includes(pegawai.namaBank || '') ? (pegawai.namaBank || '') : (pegawai.namaBank ? 'LAINNYA' : '')} 
+                            onChange={e => updateField('namaBank', e.target.value)}
+                          >
+                            <option value="">- PILIH BANK -</option>
+                            {BANK_LIST.map(b => <option key={b} value={b}>{b}</option>)}
+                            <option value="LAINNYA">LAINNYA</option>
+                          </select>
+                        ) : (
+                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.namaBank || '-'}</div>
+                        )}
+                      </div>
+                      {isEditing && (pegawai.namaBank === 'LAINNYA' || (pegawai.namaBank && !BANK_LIST.includes(pegawai.namaBank))) && (
+                        <div className="space-y-2 animate-fadeIn">
+                          <label className={labelClass}>Ketik Nama Bank Lainnya</label>
+                          <input 
+                            type="text" 
+                            className={inputClass} 
+                            placeholder="Contoh: BANK BPD DIY" 
+                            value={BANK_LIST.includes(pegawai.namaBank || '') ? '' : pegawai.namaBank}
+                            onChange={e => setPegawai({ ...pegawai, namaBank: e.target.value.toUpperCase() })} 
+                          />
+                        </div>
+                      )}
                     </div>
                 </div>
 
@@ -634,7 +691,24 @@ const ProfilePegawaiPage = () => {
                     <div className="space-y-2 col-span-full">
                       <label className={labelClass}>Unit Kerja</label>
                       {isEditing ? (
-                        <select className={inputClass} value={pegawai.unitKerja || ''} onChange={e => updateField('unitKerja', e.target.value)}>
+                        <select 
+                           className={inputClass} 
+                           value={pegawai.unitKerja || ''} 
+                           onChange={e => {
+                             const unit = e.target.value;
+                             const bagians = Object.keys(ORGANISASI_STRUCTURE[unit] || {});
+                             const firstBagian = bagians[0] || '';
+                             const subs = (ORGANISASI_STRUCTURE[unit] && firstBagian) ? ORGANISASI_STRUCTURE[unit][firstBagian] : [];
+                             const firstSub = subs[0] || '';
+                             
+                             setPegawai({
+                               ...pegawai,
+                               unitKerja: unit,
+                               bagian: firstBagian,
+                               subBagian: firstSub
+                             });
+                           }}
+                         >
                           {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
                         </select>
                       ) : (
@@ -644,7 +718,29 @@ const ProfilePegawaiPage = () => {
                     <div className="space-y-2">
                       <label className={labelClass}>Nama Bagian</label>
                       {isEditing ? (
-                        <input type="text" className={inputClass} value={pegawai.bagian || ''} onChange={e => updateField('bagian', e.target.value)} />
+                        <select 
+                           className={inputClass} 
+                           value={pegawai.bagian || ''} 
+                           onChange={e => {
+                             const bagian = e.target.value;
+                             const unit = pegawai.unitKerja || UNIT_KERJA[0];
+                             const subs = (ORGANISASI_STRUCTURE[unit] && bagian) ? ORGANISASI_STRUCTURE[unit][bagian] : [];
+                             const firstSub = subs[0] || '';
+                             
+                             setPegawai({
+                               ...pegawai,
+                               bagian: bagian,
+                               subBagian: firstSub
+                             });
+                           }}
+                         >
+                           <option value="">- PILIH BAGIAN -</option>
+                           {pegawai.unitKerja && ORGANISASI_STRUCTURE[pegawai.unitKerja] ? 
+                             Object.keys(ORGANISASI_STRUCTURE[pegawai.unitKerja]).map(b => (
+                               <option key={b} value={b}>{b.toUpperCase()}</option>
+                             )) : null
+                           }
+                         </select>
                       ) : (
                         <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.bagian || '-'}</div>
                       )}
@@ -652,7 +748,18 @@ const ProfilePegawaiPage = () => {
                     <div className="space-y-2">
                       <label className={labelClass}>Nama Sub Bagian / Tim</label>
                       {isEditing ? (
-                        <input type="text" className={inputClass} value={pegawai.subBagian || ''} onChange={e => updateField('subBagian', e.target.value)} />
+                        <select 
+                           className={inputClass} 
+                           value={pegawai.subBagian || ''} 
+                           onChange={e => updateField('subBagian', e.target.value)}
+                         >
+                           <option value="">- PILIH SUB BAGIAN / TIM -</option>
+                           {pegawai.unitKerja && pegawai.bagian && ORGANISASI_STRUCTURE[pegawai.unitKerja]?.[pegawai.bagian] ? 
+                             ORGANISASI_STRUCTURE[pegawai.unitKerja][pegawai.bagian].map(s => (
+                               <option key={s} value={s}>{s.toUpperCase()}</option>
+                             )) : null
+                           }
+                         </select>
                       ) : (
                         <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.subBagian || '-'}</div>
                       )}
@@ -799,11 +906,19 @@ const ProfilePegawaiPage = () => {
                       )}
                     </div>
                     <div className="space-y-2">
+                       <label className={labelClass}>Nomor Rekening Gaji</label>
+                       {isEditing ? (
+                         <input type="text" className={inputClass} value={pegawai.noRekeningGaji || ''} onChange={e => updateField('noRekeningGaji', e.target.value)} placeholder="Masukkan No. Rekening..." />
+                       ) : (
+                         <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.noRekeningGaji || '-'}</div>
+                       )}
+                    </div>
+                    <div className="space-y-2">
                       <label className={labelClass}>Nomor Tapera</label>
                       {isEditing ? (
-                        <input type="text" className={inputClass} value={pegawai.noTapera || ''} onChange={e => updateField('noTapera', e.target.value)} />
+                        <input type="text" className={inputClass} value={pegawai.noTAPERA || ''} onChange={e => updateField('noTAPERA', e.target.value)} />
                       ) : (
-                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.noTapera || '-'}</div>
+                        <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.noTAPERA || '-'}</div>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -993,6 +1108,26 @@ const ProfilePegawaiPage = () => {
                             <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorIjazah || '-'}</div>
                           )}
                         </div>
+                        <div className="space-y-1 md:col-span-2">
+                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload Ijazah (PDF)</label>
+                           <div className="flex items-center gap-3">
+                              {p.fileUrl ? (
+                                 <button onClick={() => window.open(p.fileUrl, '_blank')} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all">Lihat PDF</button>
+                              ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                              {isEditing && (
+                                 <button onClick={() => {
+                                    const input = document.createElement('input');
+                                    input.type = 'file';
+                                    input.accept = 'application/pdf';
+                                    input.onchange = (e: any) => {
+                                       const file = e.target.files[0];
+                                       if (file) handleUploadHistoryFile('riwayatPendidikan', idx, file);
+                                    };
+                                    input.click();
+                                 }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-indigo-600 hover:text-indigo-600 transition-all">Ganti File</button>
+                              )}
+                           </div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1064,6 +1199,26 @@ const ProfilePegawaiPage = () => {
                           ) : (
                             <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.tanggalSk || '-'}</div>
                           )}
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload SK Jabatan (PDF)</label>
+                           <div className="flex items-center gap-3">
+                              {j.fileUrl ? (
+                                 <button onClick={() => window.open(j.fileUrl, '_blank')} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase border border-blue-100 hover:bg-blue-600 hover:text-white transition-all">Lihat SK</button>
+                              ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                              {isEditing && (
+                                 <button onClick={() => {
+                                    const input = document.createElement('input');
+                                    input.type = 'file';
+                                    input.accept = 'application/pdf';
+                                    input.onchange = (e: any) => {
+                                       const file = e.target.files[0];
+                                       if (file) handleUploadHistoryFile('riwayatJabatan', idx, file);
+                                    };
+                                    input.click();
+                                 }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-blue-600 hover:text-blue-600 transition-all">Ganti File</button>
+                              )}
+                           </div>
                         </div>
                       </div>
                     </div>
@@ -1140,6 +1295,26 @@ const ProfilePegawaiPage = () => {
                             <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tanggalSk || '-'}</div>
                           )}
                         </div>
+                        <div className="space-y-1 md:col-span-2">
+                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload SK Pangkat (PDF)</label>
+                           <div className="flex items-center gap-3">
+                              {p.fileUrl ? (
+                                 <button onClick={() => window.open(p.fileUrl, '_blank')} className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase border border-amber-100 hover:bg-amber-600 hover:text-white transition-all">Lihat SK</button>
+                              ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                              {isEditing && (
+                                 <button onClick={() => {
+                                    const input = document.createElement('input');
+                                    input.type = 'file';
+                                    input.accept = 'application/pdf';
+                                    input.onchange = (e: any) => {
+                                       const file = e.target.files[0];
+                                       if (file) handleUploadHistoryFile('riwayatPangkat', idx, file);
+                                    };
+                                    input.click();
+                                 }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-amber-600 hover:text-amber-600 transition-all">Ganti File</button>
+                              )}
+                           </div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1214,6 +1389,26 @@ const ProfilePegawaiPage = () => {
                           ) : (
                             <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSertifikat || '-'}</div>
                           )}
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload Sertifikat (PDF)</label>
+                           <div className="flex items-center gap-3">
+                              {p.fileUrl ? (
+                                 <button onClick={() => window.open(p.fileUrl, '_blank')} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-[9px] font-black uppercase border border-purple-100 hover:bg-purple-600 hover:text-white transition-all">Lihat PDF</button>
+                              ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                              {isEditing && (
+                                 <button onClick={() => {
+                                    const input = document.createElement('input');
+                                    input.type = 'file';
+                                    input.accept = 'application/pdf';
+                                    input.onchange = (e: any) => {
+                                       const file = e.target.files[0];
+                                       if (file) handleUploadHistoryFile('riwayatPelatihan', idx, file);
+                                    };
+                                    input.click();
+                                 }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-purple-600 hover:text-purple-600 transition-all">Ganti File</button>
+                              )}
+                           </div>
                         </div>
                       </div>
                     </div>
@@ -1391,6 +1586,7 @@ const ProfilePegawaiPage = () => {
                         <tr><td className="w-[180px] py-1">1. Nomor NPWP</td><td className="w-4 py-1 text-center">:</td><td className="py-1">{pegawai.npwp || '-'}</td></tr>
                         <tr><td className="py-1">2. Nomor BPJS Kes.</td><td className="py-1 text-center">:</td><td className="py-1">{pegawai.noBpjs || '-'}</td></tr>
                         <tr><td className="py-1">3. No. Karis / Karsu</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{pegawai.noKarisKarsu || '-'}</td></tr>
+                        <tr><td className="py-1">4. Rekening Gaji</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{pegawai.namaBank || '-'} - {pegawai.noRekeningGaji || '-'}</td></tr>
                      </tbody>
                   </table>
                </section>
