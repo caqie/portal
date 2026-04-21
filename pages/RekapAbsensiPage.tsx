@@ -74,8 +74,8 @@ const RekapAbsensiPage = () => {
         </div>
 
         {/* TABLE VIEW */}
-        <div className="overflow-hidden rounded-[2rem] border border-gray-50 shadow-inner">
-           <table className="w-full text-left">
+        <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+          <table className="min-w-[1000px] w-full text-left">
               <thead className="bg-gray-50 text-[10px] font-black uppercase text-gray-400 border-b tracking-[0.2em]">
                  <tr>
                     <th className="px-10 py-6">Informasi Pegawai</th>

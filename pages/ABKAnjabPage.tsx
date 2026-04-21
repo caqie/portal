@@ -17,81 +17,81 @@ import { jsPDF } from 'jspdf';
 // MASTER DATA JABATAN SESUAI PERMINTAAN USER (PermenPANRB 41/2018 + SIASN)
 const MASTER_JABATAN = [
   // 1. ARSIPARIS
-  { label: "ARSIPARIS PELAKSANA", code: "2.02.01.01", class: "5", type: "JF" },
-  { label: "ARSIPARIS PELAKSANA LANJUTAN", code: "2.02.01.02", class: "6", type: "JF" },
-  { label: "ARSIPARIS PERTAMA", code: "2.02.01.03", class: "8", type: "JF" },
-  { label: "ARSIPARIS MUDA", code: "2.02.01.04", class: "9", type: "JF" },
-  { label: "ARSIPARIS MADYA", code: "2.02.01.05", class: "11", type: "JF" },
+  { label: "ARSIPARIS PELAKSANA", code: "2.02.01.01", class: "5", type: "JF", minEducation: "D-III Kearsipan / Bidang Terkait" },
+  { label: "ARSIPARIS PELAKSANA LANJUTAN", code: "2.02.01.02", class: "6", type: "JF", minEducation: "D-III Kearsipan / Bidang Terkait" },
+  { label: "ARSIPARIS PERTAMA", code: "2.02.01.03", class: "8", type: "JF", minEducation: "S-1 Kearsipan / Ilmu Informasi / Perpustakaan" },
+  { label: "ARSIPARIS MUDA", code: "2.02.01.04", class: "9", type: "JF", minEducation: "S-1 Kearsipan / Ilmu Informasi / Perpustakaan" },
+  { label: "ARSIPARIS MADYA", code: "2.02.01.05", class: "11", type: "JF", minEducation: "S-1 Kearsipan / Ilmu Informasi / Perpustakaan" },
   
   // 2. PRANATA KOMPUTER
-  { label: "PRANATA KOMPUTER PELAKSANA", code: "2.03.01.01", class: "6", type: "JF" },
-  { label: "PRANATA KOMPUTER PERTAMA", code: "2.03.01.02", class: "8", type: "JF" },
-  { label: "PRANATA KOMPUTER MUDA", code: "2.03.01.03", class: "9", type: "JF" },
-  { label: "PRANATA KOMPUTER MADYA", code: "2.03.01.04", class: "11", type: "JF" },
+  { label: "PRANATA KOMPUTER PELAKSANA", code: "2.03.01.01", class: "6", type: "JF", minEducation: "D-III Teknik Informatika / Sistem Informasi" },
+  { label: "PRANATA KOMPUTER PERTAMA", code: "2.03.01.02", class: "8", type: "JF", minEducation: "S-1 Teknik Informatika / Sistem Informasi / Ilmu Komputer" },
+  { label: "PRANATA KOMPUTER MUDA", code: "2.03.01.03", class: "9", type: "JF", minEducation: "S-1 Teknik Informatika / Sistem Informasi / Ilmu Komputer" },
+  { label: "PRANATA KOMPUTER MADYA", code: "2.03.01.04", class: "11", type: "JF", minEducation: "S-1 Teknik Informatika / Sistem Informasi / Ilmu Komputer" },
   
   // 3. PEMERIKSA KEKAYAAN INTELEKTUAL (PATEN)
-  { label: "PEMERIKSA PATEN PERTAMA", code: "2.16.01.01", class: "9", type: "JF" },
-  { label: "PEMERIKSA PATEN MUDA", code: "2.16.01.02", class: "10", type: "JF" },
-  { label: "PEMERIKSA PATEN MADYA", code: "2.16.01.03", class: "12", type: "JF" },
-  { label: "PEMERIKSA PATEN UTAMA", code: "2.16.01.04", class: "14", type: "JF" },
+  { label: "PEMERIKSA PATEN PERTAMA", code: "2.16.01.01", class: "9", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
+  { label: "PEMERIKSA PATEN MUDA", code: "2.16.01.02", class: "10", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
+  { label: "PEMERIKSA PATEN MADYA", code: "2.16.01.03", class: "12", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
+  { label: "PEMERIKSA PATEN UTAMA", code: "2.16.01.04", class: "14", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
   
   // 4. PEMERIKSA KEKAYAAN INTELEKTUAL (MEREK)
-  { label: "PEMERIKSA MEREK PERTAMA", code: "2.16.02.01", class: "9", type: "JF" },
-  { label: "PEMERIKSA MEREK MUDA", code: "2.16.02.02", class: "10", type: "JF" },
-  { label: "PEMERIKSA MEREK MADYA", code: "2.16.02.03", class: "12", type: "JF" },
-  { label: "PEMERIKSA MEREK UTAMA", code: "2.16.02.04", class: "14", type: "JF" },
+  { label: "PEMERIKSA MEREK PERTAMA", code: "2.16.02.01", class: "9", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
+  { label: "PEMERIKSA MEREK MUDA", code: "2.16.02.02", class: "10", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
+  { label: "PEMERIKSA MEREK MADYA", code: "2.16.02.03", class: "12", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
+  { label: "PEMERIKSA MEREK UTAMA", code: "2.16.02.04", class: "14", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
   
   // 5. PEMERIKSA KEKAYAAN INTELEKTUAL (DESAIN INDUSTRI)
-  { label: "PEMERIKSA DESAIN INDUSTRI PERTAMA", code: "2.16.03.01", class: "9", type: "JF" },
-  { label: "PEMERIKSA DESAIN INDUSTRI MUDA", code: "2.16.03.02", class: "10", type: "JF" },
-  { label: "PEMERIKSA DESAIN INDUSTRI MADYA", code: "2.16.03.03", class: "12", type: "JF" },
+  { label: "PEMERIKSA DESAIN INDUSTRI PERTAMA", code: "2.16.03.01", class: "9", type: "JF", minEducation: "S-1 Desain Produk / Seni Rupa / Teknik" },
+  { label: "PEMERIKSA DESAIN INDUSTRI MUDA", code: "2.16.03.02", class: "10", type: "JF", minEducation: "S-1 Desain Produk / Seni Rupa / Teknik" },
+  { label: "PEMERIKSA DESAIN INDUSTRI MADYA", code: "2.16.03.03", class: "12", type: "JF", minEducation: "S-1 Desain Produk / Seni Rupa / Teknik" },
   
   // 6. ANALIS KEKAYAAN INTELEKTUAL
-  { label: "ANALIS KI AHLI PERTAMA", code: "2.16.04.01", class: "9", type: "JF" },
-  { label: "ANALIS KI AHLI MUDA", code: "2.16.04.02", class: "10", type: "JF" },
-  { label: "ANALIS KI AHLI MADYA", code: "2.16.04.03", class: "12", type: "JF" },
-  { label: "ANALIS KI AHLI UTAMA", code: "2.16.04.04", class: "14", type: "JF" },
+  { label: "ANALIS KI AHLI PERTAMA", code: "2.16.04.01", class: "9", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
+  { label: "ANALIS KI AHLI MUDA", code: "2.16.04.02", class: "10", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
+  { label: "ANALIS KI AHLI MADYA", code: "2.16.04.03", class: "12", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
+  { label: "ANALIS KI AHLI UTAMA", code: "2.16.04.04", class: "14", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
   
   // 7. ANALIS HUKUM
-  { label: "ANALIS HUKUM PERTAMA", code: "2.05.01.01", class: "9", type: "JF" },
-  { label: "ANALIS HUKUM MUDA", code: "2.05.01.02", class: "10", type: "JF" },
-  { label: "ANALIS HUKUM MADYA", code: "2.05.01.03", class: "12", type: "JF" },
+  { label: "ANALIS HUKUM PERTAMA", code: "2.05.01.01", class: "9", type: "JF", minEducation: "S-1 Hukum" },
+  { label: "ANALIS HUKUM MUDA", code: "2.05.01.02", class: "10", type: "JF", minEducation: "S-1 Hukum" },
+  { label: "ANALIS HUKUM MADYA", code: "2.05.01.03", class: "12", type: "JF", minEducation: "S-1 Hukum" },
   
   // 8. ANALIS KEBIJAKAN
-  { label: "ANALIS KEBIJAKAN PERTAMA", code: "2.06.01.01", class: "9", type: "JF" },
-  { label: "ANALIS KEBIJAKAN MUDA", code: "2.06.01.02", class: "10", type: "JF" },
-  { label: "ANALIS KEBIJAKAN MADYA", code: "2.06.01.03", class: "12", type: "JF" },
+  { label: "ANALIS KEBIJAKAN PERTAMA", code: "2.06.01.01", class: "9", type: "JF", minEducation: "S-1 Semua Jurusan" },
+  { label: "ANALIS KEBIJAKAN MUDA", code: "2.06.01.02", class: "10", type: "JF", minEducation: "S-1 Semua Jurusan" },
+  { label: "ANALIS KEBIJAKAN MADYA", code: "2.06.01.03", class: "12", type: "JF", minEducation: "S-1 Semua Jurusan" },
   
   // 9. PRANATA HUMAS
-  { label: "PRANATA HUMAS PERTAMA", code: "2.08.01.01", class: "9", type: "JF" },
-  { label: "PRANATA HUMAS MUDA", code: "2.08.01.02", class: "10", type: "JF" },
-  { label: "PRANATA HUMAS MADYA", code: "2.08.01.03", class: "12", type: "JF" },
+  { label: "PRANATA HUMAS PERTAMA", code: "2.08.01.01", class: "9", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
+  { label: "PRANATA HUMAS MUDA", code: "2.08.01.02", class: "10", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
+  { label: "PRANATA HUMAS MADYA", code: "2.08.01.03", class: "12", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
   
   // 10. PUSTAKAWAN
-  { label: "PUSTAKAWAN MUDA", code: "2.02.02.02", class: "9", type: "JF" },
-  { label: "PUSTAKAWAN MADYA", code: "2.02.02.03", class: "11", type: "JF" },
+  { label: "PUSTAKAWAN MUDA", code: "2.02.02.02", class: "9", type: "JF", minEducation: "S-1 Perpustakaan / Ilmu Informasi" },
+  { label: "PUSTAKAWAN MADYA", code: "2.02.02.03", class: "11", type: "JF", minEducation: "S-1 Perpustakaan / Ilmu Informasi" },
   
   // 11. PENYULUH HUKUM
-  { label: "PENYULUH HUKUM PERTAMA", code: "2.05.02.01", class: "9", type: "JF" },
-  { label: "PENYULUH HUKUM MUDA", code: "2.05.02.02", class: "10", type: "JF" },
-  { label: "PENYULUH HUKUM MADYA", code: "2.05.02.03", class: "12", type: "JF" },
+  { label: "PENYULUH HUKUM PERTAMA", code: "2.05.02.01", class: "9", type: "JF", minEducation: "S-1 Hukum" },
+  { label: "PENYULUH HUKUM MUDA", code: "2.05.02.02", class: "10", type: "JF", minEducation: "S-1 Hukum" },
+  { label: "PENYULUH HUKUM MADYA", code: "2.05.02.03", class: "12", type: "JF", minEducation: "S-1 Hukum" },
   
   // B. JABATAN PELAKSANA
-  { label: "PENGOLAH DATA DAN INFORMASI", code: "4.01.01", class: "6", type: "JFU" },
-  { label: "PENGADMINISTRASI PERKANTORAN", code: "4.01.02", class: "5", type: "JFU" },
-  { label: "PENGELOLA DATA KEPEGAWAIAN", code: "4.01.03", class: "6", type: "JFU" },
-  { label: "PENGELOLA UMUM OPERASIONAL", code: "4.01.04", class: "6", type: "JFU" },
-  { label: "PENGELOLA LAYANAN OPERASIONAL", code: "4.01.05", class: "6", type: "JFU" },
-  { label: "OPERATOR LAYANAN OPERASIONAL", code: "4.01.06", class: "5", type: "JFU" },
-  { label: "SEKRETARIS PIMPINAN", code: "4.01.07", class: "7", type: "JFU" },
+  { label: "PENGOLAH DATA DAN INFORMASI", code: "4.01.01", class: "6", type: "JFU", minEducation: "D-III Teknik Informatika / Manajemen" },
+  { label: "PENGADMINISTRASI PERKANTORAN", code: "4.01.02", class: "5", type: "JFU", minEducation: "SMA / SMK / D-III Perkantoran" },
+  { label: "PENGELOLA DATA KEPEGAWAIAN", code: "4.01.03", class: "6", type: "JFU", minEducation: "D-III Kepegawaian / Manajemen / Administrasi" },
+  { label: "PENGELOLA UMUM OPERASIONAL", code: "4.01.04", class: "6", type: "JFU", minEducation: "D-III Semua Jurusan" },
+  { label: "PENGELOLA LAYANAN OPERASIONAL", code: "4.01.05", class: "6", type: "JFU", minEducation: "D-III Semua Jurusan" },
+  { label: "OPERATOR LAYANAN OPERASIONAL", code: "4.01.06", class: "5", type: "JFU", minEducation: "SMA / SMK Sederajat" },
+  { label: "SEKRETARIS PIMPINAN", code: "4.01.07", class: "7", type: "JFU", minEducation: "D-III Sekretaris / Administrasi Perkantoran" },
   
   // C. JABATAN PIMPINAN TINGGI & ADMINISTRATOR
-  { label: "DIREKTUR JENDERAL", code: "1.01.01", class: "17", type: "JPT" },
-  { label: "DIREKTUR", code: "1.01.02", class: "16", type: "JPT" },
-  { label: "SEKRETARIS DIREKTORAT JENDERAL", code: "1.02.01", class: "15", type: "JPT" },
-  { label: "KEPALA BAGIAN", code: "1.03.01", class: "14", type: "ADM" },
-  { label: "KEPALA SUBDIREKTORAT", code: "1.04.01", class: "13", type: "ADM" },
-  { label: "KEPALA SUBBAGIAN", code: "1.05.01", class: "9", type: "ADM" }
+  { label: "DIREKTUR JENDERAL", code: "1.01.01", class: "17", type: "JPT", minEducation: "S-2 / S-3 Hukum / Manajemen / Kebijakan Publik" },
+  { label: "DIREKTUR", code: "1.01.02", class: "16", type: "JPT", minEducation: "S-2 / S-3 Hukum / Manajemen / Kebijakan Publik" },
+  { label: "SEKRETARIS DIREKTORAT JENDERAL", code: "1.02.01", class: "15", type: "JPT", minEducation: "S-2 / S-3 Hukum / Manajemen / Kebijakan Publik" },
+  { label: "KEPALA BAGIAN", code: "1.03.01", class: "14", type: "ADM", minEducation: "S-1 / S-2 Hukum / Manajemen / Administrasi" },
+  { label: "KEPALA SUBDIREKTORAT", code: "1.04.01", class: "13", type: "ADM", minEducation: "S-1 / S-2 Hukum / Manajemen / Administrasi" },
+  { label: "KEPALA SUBBAGIAN", code: "1.05.01", class: "9", type: "ADM", minEducation: "S-1 Hukum / Manajemen / Administrasi" }
 ];
 
 const ABKAnjabPage = () => {
@@ -103,7 +103,7 @@ const ABKAnjabPage = () => {
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [activeView, setActiveView] = useState<'list' | 'editor' | 'preview'>('list');
+  const [activeView, setActiveView] = useState<'list' | 'editor' | 'preview' | 'master'>('list');
   const [modalTab, setModalTab] = useState<'identitas' | 'kualifikasi' | 'uraian' | 'atribut' | 'syarat' | 'hasil'>('identitas');
   
   const [showSuccess, setShowSuccess] = useState(false);
@@ -292,6 +292,11 @@ const ABKAnjabPage = () => {
           </div>
         </div>
         <div className="flex gap-2">
+          {activeView === 'list' && (
+             <button onClick={() => setActiveView('master')} className="h-14 px-8 bg-white border-2 border-gray-900 text-gray-900 rounded-2xl font-black text-[10px] uppercase shadow-sm active:scale-95 transition-all flex items-center gap-2">
+                <i className="bi bi-journal-text text-lg"></i> Standar Jabatan
+             </button>
+          )}
           {activeView === 'list' && canEdit && (
              <button onClick={() => { setEditingId(null); setActiveView('editor'); setModalTab('identitas'); }} className="h-14 px-10 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">+ Susun Analisis Jabatan</button>
           )}
@@ -337,6 +342,44 @@ const ABKAnjabPage = () => {
                  ))}
               </tbody>
            </table>
+        </div>
+      ) : activeView === 'master' ? (
+        <div className="animate-fadeIn space-y-6">
+           <div className="flex items-center justify-between px-6">
+              <h4 className="text-lg font-black text-gray-900 uppercase tracking-tighter">Daftar Standar Jabatan & Kualifikasi</h4>
+              <button onClick={() => setActiveView('list')} className="px-6 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-[9px] font-black uppercase hover:bg-gray-200 transition-all">Kembali ke Monitoring</button>
+           </div>
+           <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden">
+              <table className="w-full text-left">
+                 <thead className="bg-gray-50 text-[9px] font-black uppercase text-gray-600 border-b tracking-widest">
+                    <tr>
+                       <th className="px-10 py-6">Nama Jabatan</th>
+                       <th className="px-4 py-6 text-center">Kelas</th>
+                       <th className="px-4 py-6 text-center">Jenis</th>
+                       <th className="px-10 py-6">Kualifikasi Pendidikan Minimal</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-50">
+                    {MASTER_JABATAN.map((m, idx) => (
+                       <tr key={idx} className="hover:bg-blue-50/5 transition-all">
+                          <td className="px-10 py-6">
+                             <p className="text-[11px] font-black text-gray-950 uppercase leading-none">{m.label}</p>
+                             <p className="text-[8px] font-bold text-gray-400 uppercase mt-1.5 tracking-widest">{m.code}</p>
+                          </td>
+                          <td className="px-4 py-6 text-center">
+                             <span className="h-8 w-8 inline-flex items-center justify-center bg-gray-900 text-white rounded-lg text-[11px] font-black">{m.class}</span>
+                          </td>
+                          <td className="px-4 py-6 text-center">
+                             <span className={`px-2 py-1 rounded-md text-[8px] font-black border ${m.type === 'JF' ? 'bg-blue-50 text-blue-600 border-blue-100' : m.type === 'JPT' ? 'bg-purple-50 text-purple-600 border-purple-100' : 'bg-gray-50 text-gray-600 border-gray-100'}`}>{m.type}</span>
+                          </td>
+                          <td className="px-10 py-6">
+                             <p className="text-[10px] font-bold text-gray-700 uppercase leading-relaxed">{(m as any).minEducation || '-'}</p>
+                          </td>
+                       </tr>
+                    ))}
+                 </tbody>
+              </table>
+           </div>
         </div>
       ) : activeView === 'editor' ? (
         <div className="max-w-7xl mx-auto bg-white rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col min-h-[850px] animate-modalEnter">

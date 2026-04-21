@@ -361,8 +361,8 @@ const UkomSupervisorPage: React.FC = () => {
               })}
             </div>
           ) : (
-            <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
-              <table className="w-full text-left border-collapse">
+            <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+              <table className="min-w-[800px] w-full text-left border-collapse">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     <th className="px-8 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Peserta</th>

@@ -757,8 +757,8 @@ const UkomAdminPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto -mx-8 px-8">
+            <table className="min-w-[1200px] w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/50">
                   <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">

@@ -505,8 +505,8 @@ const Dashboard = () => {
          <div className="mb-4 md:mb-10">
             <h4 className="text-[9px] md:text-[12px] font-black text-gray-950 tracking-[0.2em] md:tracking-[0.3em] uppercase">Sebaran Pegawai Aktif per Unit Kerja</h4>
          </div>
-         <div className="overflow-x-auto -mx-4 px-4 md:-mx-5 md:px-5">
-            <table className="w-full text-left border-collapse min-w-[600px]">
+         <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+            <table className="w-full text-left border-collapse min-w-[800px]">
                <thead className="bg-gray-50 text-[7px] md:text-[8px] font-black text-gray-400 border-b">
                   <tr>
                      <th className="px-4 md:px-10 py-3 md:py-6 border-b">Unit Kerja</th>
@@ -591,7 +591,7 @@ const Dashboard = () => {
                  </select>
               </div>
               <div className="overflow-x-auto max-h-[400px] custom-scrollbar border border-gray-50 rounded-2xl md:rounded-3xl">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse min-w-[500px]">
                     <thead className="sticky top-0 bg-gray-50 z-20 text-[8px] font-black text-gray-400">
                         <tr>
                             <th className="px-6 md:px-8 py-4 md:py-5 border-b">Golongan / Ruang</th>

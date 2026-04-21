@@ -191,8 +191,8 @@ const DossiersPage = () => {
             />
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto -mx-6 px-6">
+          <table className="min-w-[900px] w-full text-left">
             <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
               <tr>
                 <th className="px-10 py-5">Tanggal Upload</th>

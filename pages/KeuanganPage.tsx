@@ -778,10 +778,10 @@ const KeuanganPage = () => {
 
         
 
-                    <div className="bg-gray-100 p-4 overflow-auto flex justify-center">
+                    <div className="bg-gray-100 p-4 overflow-auto">
                       <div 
                         ref={pdfRef} 
-                        className="bg-white shadow-lg p-6"
+                        className="bg-white shadow-lg p-6 mx-auto"
                         style={{ 
                           width: "210mm",   // Standar lebar A5 Landscape
                           minHeight: "148mm", 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
-import { fetchPegawaiFromSheets, fetchSKPFromSheets, syncTableRemote } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, fetchSKPFromSheets, syncTableRemote, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai, SKPRecord, HasilKerjaRow, PerilakuKerjaRow } from '../types';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO } from '../constants';
@@ -123,7 +123,7 @@ const SKPPage = () => {
         setSelectedSKP(payload);
         setActiveView('preview');
         setShowSuccess(true);
-        logActivity('CREATE', 'SKP', `Terbitkan SKP: ${payload.namaPegawai}`);
+        logActivity(formData.id ? 'UPDATE' : 'CREATE', 'SKP', `Terbitkan SKP: ${payload.namaPegawai}`);
       }
     } catch (e) { alert("Gagal menyimpan ke database cloud."); } finally { setSyncing(false); }
   };
@@ -131,26 +131,71 @@ const SKPPage = () => {
   const handleDownloadPdf = async () => {
     if (!pdfRef.current) return;
     setSyncing(true);
-    const canvas = await html2canvas(pdfRef.current, { scale: 2.5, useCORS: true });
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const imgWidth = 210;
-    const pageHeight = 297;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
+    try {
+      const canvas = await html2canvas(pdfRef.current, { scale: 2.5, useCORS: true });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const imgWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
 
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft >= 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
-    }
 
-    pdf.save(`SKP_${formData.namaPegawai?.replace(/\s+/g, '_')}_${formData.tahun}.pdf`);
-    setSyncing(false);
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`SKP_${formData.namaPegawai?.replace(/\s+/g, '_')}_${formData.tahun}.pdf`);
+    } catch (e) {
+      alert("Gagal cetak PDF.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSaveToDossier = async () => {
+    if (!pdfRef.current || !formData.nip) return;
+    setSyncing(true);
+    try {
+      const canvas = await html2canvas(pdfRef.current, { scale: 2.5, useCORS: true });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+      const pdfBase64 = pdf.output('datauristring');
+      
+      const fileName = `SKP_${formData.namaPegawai?.replace(/\s+/g, '_')}_${formData.tahun}_${Date.now()}.pdf`;
+      const res = await uploadFileToDrive(fileName, 'application/pdf', pdfBase64);
+      
+      if (res.success && res.fileUrl) {
+        const payload = {
+          id: `DOS-${Date.now()}`,
+          nip: formData.nip,
+          namaPegawai: formData.namaPegawai,
+          tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+          keterangan: `Dokumen Hasil Evaluasi Kinerja (SKP) Tahun ${formData.tahun}`,
+          fileName: fileName,
+          fileUrl: res.fileUrl
+        };
+        const ok = await syncTableRemote('DOSSIER', 'SAVE', payload);
+        if (ok) {
+          logActivity('CREATE', 'DOSSIER', `Simpan SKP ke Dossier: ${formData.namaPegawai}`);
+          alert("Dokumen SKP berhasil disimpan ke E-Dossier Pegawai.");
+        }
+      } else {
+        alert("Gagal mengunggah file ke Drive.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Gagal menyimpan ke Dossier.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const activeRecord = selectedSKP || formData;
@@ -345,6 +390,16 @@ const SKPPage = () => {
          <div className="animate-fadeIn space-y-10">
             <div className="flex justify-end gap-3 no-print px-6">
                <button onClick={() => setActiveView('editor')} className="px-8 py-4 bg-white text-gray-500 border border-gray-200 rounded-2xl text-[11px] font-black uppercase">Edit Kembali</button>
+               {canEdit && (
+                 <button onClick={handleSaveToDossier} disabled={syncing} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-2 shadow-xl active:scale-95 transition-all">
+                   {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-folder-fill"></i>} Simpan ke Dossier
+                 </button>
+               )}
+               {canEdit && (
+                 <button onClick={handleSave} disabled={syncing} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-2 shadow-xl active:scale-95 transition-all">
+                   {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-arrow-up-fill"></i>} Simpan
+                 </button>
+               )}
                <button onClick={handleDownloadPdf} className="px-10 py-4 bg-gray-950 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-3 shadow-xl active:scale-95 transition-all"><i className="bi bi-file-earmark-pdf-fill"></i> Download PDF (5 Hal)</button>
             </div>
             

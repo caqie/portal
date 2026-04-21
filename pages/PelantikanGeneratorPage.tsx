@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
-import { fetchPegawaiFromSheets } from '../spreadsheetService'; // Asumsi path ini benar
+import { fetchPegawaiFromSheets, syncTableRemote, fetchPelantikanFromSheets, uploadFileToDrive } from '../spreadsheetService'; // Asumsi path ini benar
 import { Pegawai } from '../types'; // Asumsi path ini benar
 import { useAuth } from '../AuthContext';
 import SearchableSelect from '../components/SearchableSelect';
 import SuccessModal from '../components/SuccessModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -79,15 +80,20 @@ const getOathTexts = (agama: string) => {
 
 const PelantikanGeneratorPage = () => {
   const navigate = useNavigate();
-  const { logActivity, canEdit } = useAuth();
+  const { logActivity, canEdit, isSuperadmin } = useAuth();
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
+  const [historyList, setHistoryList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<'editor' | 'preview'>('editor');
+  const [syncing, setSyncing] = useState(false);
+  const [activeView, setActiveView] = useState<'list' | 'editor' | 'preview'>('list');
   const [docType, setDocType] = useState<'BA' | 'PAKTA'>('BA');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
 
-  const [formData, setFormData] = useState<any>({
+  const initialFormData = {
     nomor: 'HKI.1-KP.03.04-',
     hari: 'Rabu',
     tanggal: new Date().toISOString().split('T')[0],
@@ -102,17 +108,26 @@ const PelantikanGeneratorPage = () => {
     tanggalSk: '',
     kataPelantikan: '',
     penutupKataPelantikan: ''
-  });
+  };
+
+  const [formData, setFormData] = useState<any>(initialFormData);
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const p = await fetchPegawaiFromSheets();
-      setPegawaiList(p);
-      setLoading(false);
-    };
-    load();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [p, h] = await Promise.all([fetchPegawaiFromSheets(), fetchPelantikanFromSheets()]);
+      setPegawaiList(p);
+      setHistoryList(h || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleASNSelect = (nip: string) => {
     const p = pegawaiList.find(x => x.nip === nip);
@@ -132,23 +147,121 @@ const PelantikanGeneratorPage = () => {
     }
   };
 
+  const handleSave = async () => {
+    if (!formData.asnNip) return alert("Pilih pegawai terlebih dahulu");
+    setSyncing(true);
+    const payload = {
+      id: editingId || `PEL-${Date.now()}`,
+      nomor: formData.nomor,
+      asnNip: formData.asnNip,
+      type: docType,
+      data: JSON.stringify(formData)
+    };
+
+    const ok = await syncTableRemote('PELANTIKAN', 'SAVE', payload);
+    if (ok) {
+      logActivity(editingId ? 'UPDATE' : 'CREATE', 'Pelantikan', `Simpan Dokumen Pelantikan: ${formData.asnNama}`);
+      await loadData();
+      setShowSuccess(true);
+      setActiveView('list');
+    }
+    setSyncing(false);
+  };
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+    setSyncing(true);
+    const ok = await syncTableRemote('PELANTIKAN', 'DELETE', { id: itemToDelete.id });
+    if (ok) {
+      logActivity('DELETE', 'Pelantikan', `Hapus Dokumen Pelantikan ID: ${itemToDelete.id}`);
+      await loadData();
+      setIsConfirmOpen(false);
+    }
+    setSyncing(false);
+  };
+
+  const handleEdit = (item: any) => {
+    try {
+      const data = JSON.parse(item.data);
+      setFormData(data);
+      setEditingId(item.id);
+      setDocType(item.type || 'BA');
+      setActiveView('editor');
+    } catch (e) {
+      console.error("Error parsing data", e);
+      alert("Gagal memuat data untuk diedit");
+    }
+  };
+
   const handleDownloadPdf = async () => {
     if (!pdfRef.current) return;
-    
-    // PAKTA uses Landscape (330x210), BA uses Portrait (210x330) - F4 Folio
-    const isLandscape = docType === 'PAKTA';
-    const pdfWidth = isLandscape ? 330 : 210;
-    const pdfHeight = isLandscape ? 210 : 330;
+    setSyncing(true);
+    try {
+        // PAKTA uses Landscape (330x210), BA uses Portrait (210x330) - F4 Folio
+        const isLandscape = docType === 'PAKTA';
+        const pdfWidth = isLandscape ? 330 : 210;
+        const pdfHeight = isLandscape ? 210 : 330;
 
-    const canvas = await html2canvas(pdfRef.current, { scale: 3, useCORS: true });
-    const pdf = new jsPDF({ 
-        orientation: isLandscape ? 'landscape' : 'portrait', 
-        unit: 'mm', 
-        format: [pdfWidth, pdfHeight] 
-    });
-    
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`${docType}_Pelantikan_${formData.asnNama.replace(/\s+/g, '_')}.pdf`);
+        const canvas = await html2canvas(pdfRef.current, { scale: 3, useCORS: true });
+        const pdf = new jsPDF({ 
+            orientation: isLandscape ? 'landscape' : 'portrait', 
+            unit: 'mm', 
+            format: [pdfWidth, pdfHeight] 
+        });
+        
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`${docType}_Pelantikan_${formData.asnNama.replace(/\s+/g, '_')}.pdf`);
+    } catch (e) {
+        alert("Gagal cetak PDF.");
+    } finally {
+        setSyncing(false);
+    }
+  };
+
+  const handleSaveToDossier = async () => {
+    if (!pdfRef.current || !formData.asnNip) return;
+    setSyncing(true);
+    try {
+      const isLandscape = docType === 'PAKTA';
+      const pdfWidth = isLandscape ? 330 : 210;
+      const pdfHeight = isLandscape ? 210 : 330;
+
+      const canvas = await html2canvas(pdfRef.current, { scale: 3, useCORS: true });
+      const pdf = new jsPDF({ 
+          orientation: isLandscape ? 'landscape' : 'portrait', 
+          unit: 'mm', 
+          format: [pdfWidth, pdfHeight] 
+      });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pdfBase64 = pdf.output('datauristring');
+      
+      const fileName = `${docType}_Pelantikan_${formData.asnNama.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      const res = await uploadFileToDrive(fileName, 'application/pdf', pdfBase64);
+      
+      if (res.success && res.fileUrl) {
+        const payload = {
+          id: `DOS-${Date.now()}`,
+          nip: formData.asnNip,
+          namaPegawai: formData.asnNama,
+          tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+          keterangan: `Dokumen ${docType} Pelantikan / Pakta Integritas`,
+          fileName: fileName,
+          fileUrl: res.fileUrl
+        };
+        const ok = await syncTableRemote('DOSSIER', 'SAVE', payload);
+        if (ok) {
+          logActivity('CREATE', 'DOSSIER', `Simpan Pelantikan ke Dossier: ${formData.asnNama}`);
+          alert("Dokumen pelantikan berhasil disimpan ke E-Dossier Pegawai.");
+        }
+      } else {
+        alert("Gagal mengunggah file ke Drive.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Gagal menyimpan ke Dossier.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const inputClass = "w-full px-5 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black outline-none focus:border-blue-600 focus:bg-white transition-all";
@@ -158,21 +271,82 @@ const PelantikanGeneratorPage = () => {
   return (
     <div className="space-y-8 animate-fadeIn pb-24 text-black">
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} />
+      <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={handleDelete} loading={syncing} />
       
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/layanan')} className="h-12 w-12 bg-white border border-gray-100 text-gray-400 rounded-2xl flex items-center justify-center hover:text-blue-600 shadow-sm transition-all">
+          <button onClick={() => activeView === 'list' ? navigate('/layanan') : setActiveView('list')} className="h-12 w-12 bg-white border border-gray-100 text-gray-400 rounded-2xl flex items-center justify-center hover:text-blue-600 shadow-sm transition-all">
              <i className="bi bi-arrow-left text-xl"></i>
           </button>
-          <h3 className="text-2xl font-black text-gray-900 uppercase">BA Pelantikan & Pakta Integritas</h3>
+          <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">BA Pelantikan & Pakta Integritas</h3>
         </div>
-        <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm">
-           <button onClick={() => setDocType('BA')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase ${docType === 'BA' ? 'bg-[#111827] text-white' : 'text-gray-400'}`}>Berita Acara</button>
-           <button onClick={() => setDocType('PAKTA')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase ${docType === 'PAKTA' ? 'bg-[#111827] text-white' : 'text-gray-400'}`}>Pakta Integritas</button>
+        <div className="flex gap-2">
+          {activeView === 'list' && canEdit && (
+            <button onClick={() => { setFormData(initialFormData); setEditingId(null); setActiveView('editor'); }} className="px-10 h-14 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">+ Buat Dokumen Baru</button>
+          )}
+          {activeView !== 'list' && (
+            <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm">
+               <button onClick={() => setDocType('BA')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase ${docType === 'BA' ? 'bg-[#111827] text-white' : 'text-gray-400'}`}>Berita Acara</button>
+               <button onClick={() => setDocType('PAKTA')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase ${docType === 'PAKTA' ? 'bg-[#111827] text-white' : 'text-gray-400'}`}>Pakta Integritas</button>
+            </div>
+          )}
         </div>
       </div>
 
-      {activeView === 'editor' ? (
+      {activeView === 'list' ? (
+        <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
+           <table className="w-full text-left">
+              <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
+                 <tr>
+                    <th className="px-10 py-6">Pegawai</th>
+                    <th className="px-4 py-6">Nomor Dokumen</th>
+                    <th className="px-4 py-6 text-center">Jenis</th>
+                    <th className="px-10 py-6 text-right">Opsi</th>
+                 </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                 {historyList.map(h => {
+                    const p = pegawaiList.find(x => x.nip === h.asnNip);
+                    return (
+                       <tr key={h.id} className="hover:bg-blue-50/5 group transition-all">
+                          <td className="px-10 py-6">
+                             <p className="text-[12px] font-black text-gray-950 uppercase">{p?.nama || 'Unknown'}</p>
+                             <p className="text-[9px] font-mono text-blue-600">NIP. {h.asnNip}</p>
+                          </td>
+                          <td className="px-4 py-6">
+                             <p className="text-[11px] font-black text-gray-700 uppercase">{h.nomor}</p>
+                          </td>
+                          <td className="px-4 py-6 text-center">
+                             <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${h.type === 'PAKTA' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{h.type || 'BA'}</span>
+                          </td>
+                          <td className="px-10 py-6 text-right">
+                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                <button onClick={() => { 
+                                   try {
+                                      const data = JSON.parse(h.data);
+                                      setFormData(data);
+                                      setDocType(h.type || 'BA');
+                                      setActiveView('preview');
+                                   } catch(e) { alert("Gagal memuat pratinjau"); }
+                                }} className="h-9 px-4 bg-gray-900 text-white rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-lg"><i className="bi bi-file-earmark-pdf"></i> PDF</button>
+                                {canEdit && (
+                                   <button onClick={() => handleEdit(h)} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl shadow-sm flex items-center justify-center hover:bg-amber-500 hover:text-white transition-all"><i className="bi bi-pencil-fill"></i></button>
+                                )}
+                                {isSuperadmin && (
+                                   <button onClick={() => { setItemToDelete(h); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl shadow-sm flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all"><i className="bi bi-trash-fill"></i></button>
+                                )}
+                             </div>
+                          </td>
+                       </tr>
+                    );
+                 })}
+                 {historyList.length === 0 && !loading && (
+                    <tr><td colSpan={4} className="py-32 text-center opacity-30"><i className="bi bi-file-earmark-text text-5xl mb-4 block"></i><p className="text-[10px] font-black uppercase tracking-widest">Belum ada riwayat dokumen</p></td></tr>
+                 )}
+              </tbody>
+           </table>
+        </div>
+      ) : activeView === 'editor' ? (
         <div className="max-w-6xl mx-auto bg-white p-10 md:p-14 rounded-[3.5rem] border border-gray-100 shadow-sm space-y-12 animate-modalEnter">
            <SearchableSelect label="Pilih Pegawai Yang Dilantik" options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.jabatan}`}))} value={formData.asnNip} onChange={handleASNSelect} />
            
@@ -220,8 +394,12 @@ const PelantikanGeneratorPage = () => {
               </div>
            </div>
 
-           <div className="pt-10 border-t flex justify-center">
-              <button onClick={() => setActiveView('preview')} className="px-24 py-5 bg-[#111827] text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-2xl active:scale-95 transition-all">Pratinjau Dokumen F4</button>
+           <div className="pt-10 border-t flex justify-center gap-4">
+              <button onClick={() => setActiveView('preview')} className="px-12 py-5 bg-white border border-gray-200 text-gray-400 rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-sm active:scale-95 transition-all">Pratinjau Dokumen</button>
+              <button onClick={handleSave} disabled={syncing} className="px-24 py-5 bg-[#111827] text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-3">
+                 {syncing && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
+                 <span>Simpan Dokumen</span>
+              </button>
            </div>
         </div>
       ) : (
@@ -230,6 +408,16 @@ const PelantikanGeneratorPage = () => {
            {/* 1. BUTTONS */}
            <div className="flex gap-4 z-10 bg-white/80 backdrop-blur p-2 rounded-xl shadow-sm">
               <button onClick={() => setActiveView('editor')} className="px-6 py-2 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 rounded-xl font-bold uppercase text-[10px] transition-all">Kembali ke Editor</button>
+              {canEdit && (
+                <button onClick={handleSaveToDossier} disabled={syncing} className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold uppercase text-[10px] flex items-center gap-2 transition-all">
+                   {syncing ? <div className="h-3 w-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-folder-fill"></i>} Simpan ke Dossier
+                </button>
+              )}
+              {canEdit && (
+                <button onClick={handleSave} disabled={syncing} className="px-6 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl font-bold uppercase text-[10px] flex items-center gap-2 shadow-lg transition-all">
+                   {syncing ? <div className="h-3 w-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-arrow-up-fill"></i>} Simpan
+                </button>
+              )}
               <button onClick={handleDownloadPdf} className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold uppercase text-[10px] transition-all">Download PDF</button>
            </div>
            
