@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
-import { fetchPegawaiFromSheets, syncTableRemote, getRetirementDetails } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, syncTableRemote, getRetirementDetails, fetchPensiunFromSheets, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai } from '../types';
 import { useAuth } from '../AuthContext';
 import { UNIT_KERJA, normalizeUnitName } from '../constants';
@@ -19,10 +19,13 @@ const PensiunPage = () => {
   const navigate = useNavigate();
   const { logActivity, canEdit, isSuperadmin } = useAuth();
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
+  const [savedDpcpList, setSavedDpcpList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [activeView, setActiveView] = useState<'list' | 'editor' | 'preview'>('list');
+  const [activeView, setActiveView] = useState<'list' | 'editor' | 'preview' | 'table'>('list');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
@@ -33,6 +36,7 @@ const PensiunPage = () => {
   const pdfRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState<any>({
+    id: undefined,
     tglDibuat: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
     instansiInduk: 'KEMENTERIAN HUKUM',
     provinsi: 'DKI JAKARTA',
@@ -59,7 +63,9 @@ const PensiunPage = () => {
     mkSebelumPnsTahun: '0',
     mkSebelumPnsBulan: '0',
     alamatSekarang: '',
-    alamatPensiun: ''
+    alamatPensiun: '',
+    istriSuami: [],
+    anak: []
   });
 
   useEffect(() => { loadData(); }, []);
@@ -67,9 +73,53 @@ const PensiunPage = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const p = await fetchPegawaiFromSheets();
+      const [p, s] = await Promise.all([fetchPegawaiFromSheets(), fetchPensiunFromSheets()]);
       setPegawaiList(p);
+      setSavedDpcpList(s || []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
+  };
+
+  const handleSave = async () => {
+    if (!formData.nip) return alert("Pilih pegawai terlebih dahulu");
+    setSyncing(true);
+    const payload = {
+      id: formData.id || `DPCP-${formData.nip}-${Date.now()}`,
+      nip: formData.nip,
+      namaPegawai: formData.namaPegawai,
+      data: JSON.stringify(formData)
+    };
+    try {
+      const ok = await syncTableRemote('PENSIUN', 'SAVE', payload);
+      if (ok) {
+        await loadData();
+        setActiveView('table');
+        setShowSuccess(true);
+        logActivity(formData.id ? 'UPDATE' : 'CREATE', 'PENSIUN', `Simpan DPCP: ${formData.namaPegawai}`);
+      }
+    } catch (e) { alert("Gagal menyimpan data."); } finally { setSyncing(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+    setSyncing(true);
+    try {
+      const ok = await syncTableRemote('PENSIUN', 'DELETE', { id: itemToDelete.id });
+      if (ok) {
+        setSavedDpcpList(prev => prev.filter(i => i.id !== itemToDelete.id));
+        setIsConfirmOpen(false);
+        logActivity('DELETE', 'PENSIUN', `Hapus DPCP: ${itemToDelete.namaPegawai}`);
+      }
+    } catch (e) { alert("Gagal menghapus data."); } finally { setSyncing(false); }
+  };
+
+  const handleEdit = (record: any) => {
+    try {
+      const data = JSON.parse(record.data);
+      setFormData({ ...data, id: record.id });
+      setActiveView('editor');
+    } catch (e) {
+      console.error("Error parsing DPCP data", e);
+    }
   };
 
   const retiringCandidates = useMemo(() => {
@@ -179,11 +229,54 @@ const PensiunPage = () => {
   const handleDownloadPdf = async () => {
     if (!pdfRef.current) return;
     setSyncing(true);
-    const canvas = await html2canvas(pdfRef.current, { scale: 2.2, useCORS: true });
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 297, 210);
-    pdf.save(`DPCP_${formData.namaPegawai.replace(/\s+/g, '_')}.pdf`);
-    setSyncing(false);
+    try {
+      const canvas = await html2canvas(pdfRef.current, { scale: 2.2, useCORS: true });
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 297, 210);
+      pdf.save(`DPCP_${formData.namaPegawai.replace(/\s+/g, '_')}.pdf`);
+    } catch (e) {
+      alert("Gagal cetak PDF.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSaveToDossier = async () => {
+    if (!pdfRef.current || !formData.nip) return;
+    setSyncing(true);
+    try {
+      const canvas = await html2canvas(pdfRef.current, { scale: 2.2, useCORS: true });
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 297, 210);
+      const pdfBase64 = pdf.output('datauristring');
+      
+      const fileName = `DPCP_${formData.namaPegawai.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      const res = await uploadFileToDrive(fileName, 'application/pdf', pdfBase64);
+      
+      if (res.success && res.fileUrl) {
+        const payload = {
+          id: `DOS-${Date.now()}`,
+          nip: formData.nip,
+          namaPegawai: formData.namaPegawai,
+          tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+          keterangan: `Dokumen DPCP (Pensiun) Otomatis`,
+          fileName: fileName,
+          fileUrl: res.fileUrl
+        };
+        const ok = await syncTableRemote('DOSSIER', 'SAVE', payload);
+        if (ok) {
+          logActivity('CREATE', 'DOSSIER', `Simpan DPCP ke Dossier: ${formData.namaPegawai}`);
+          alert("Dokumen berhasil disimpan ke E-Dossier Pegawai.");
+        }
+      } else {
+        alert("Gagal mengunggah file ke Drive.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Gagal menyimpan ke Dossier.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";
@@ -192,10 +285,11 @@ const PensiunPage = () => {
   return (
     <div className="space-y-8 animate-fadeIn pb-24 text-black">
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} />
+      <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={handleDelete} />
       
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
         <div className="flex items-center gap-4">
-           <button onClick={() => activeView === 'list' ? navigate('/layanan') : setActiveView('list')} className="h-12 w-12 bg-white border border-gray-100 text-gray-400 rounded-2xl flex items-center justify-center hover:text-blue-600 shadow-sm transition-all">
+           <button onClick={() => activeView === 'list' || activeView === 'table' ? navigate('/layanan') : setActiveView('table')} className="h-12 w-12 bg-white border border-gray-100 text-gray-400 rounded-2xl flex items-center justify-center hover:text-blue-600 shadow-sm transition-all">
              <i className="bi bi-arrow-left text-xl"></i>
            </button>
            <div>
@@ -205,49 +299,51 @@ const PensiunPage = () => {
              </p>
            </div>
         </div>
-        <div className="flex gap-2">
-           {activeView === 'list' ? (
-             <button onClick={() => {
-                const calculateAge = (birthDateStr: string) => {
-                  if (!birthDateStr) return 0;
-                  const birthDate = new Date(birthDateStr);
-                  const today = new Date();
-                  let age = today.getFullYear() - birthDate.getFullYear();
-                  const m = today.getMonth() - birthDate.getMonth();
-                  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-                  return age;
-                };
-
-                const exportData = retiringCandidates.map(p => {
-                  return {
-                    'NIP': p.nip,
-                    'NAMA': p.nama,
-                    'JABATAN': p.jabatan,
-                    'unit kerja': p.unitKerja,
-                    'TMT_JABATAN': p.tmtJabatan || '-',
-                    'GOL_RUANG': p.golRuang,
-                    'TANGGAL_LAHIR': p.tanggalLahir,
-                    'GENDER': p.gender === 'L' ? 'Laki-laki' : 'Perempuan',
-                    'Usia': p.usia || '-',
-                    'Tgl Pensiun': p.tglPensiun || '-',
-                    'TMT Pensiun': p.tmtPensiunDisplay || '-',
-                    'Usia Pensiun': p.bup || '-',
-                    'Sisa Masa Kerja': p.sisaMasaKerja || '-'
-                  };
-                });
-
-                const ws = XLSX.utils.json_to_sheet(exportData);
-                const wb = XLSX.utils.book_new(); 
-                XLSX.utils.book_append_sheet(wb, ws, "Calon Pensiun");
-                XLSX.writeFile(wb, `Data_Pensiun_DJKI_${new Date().getFullYear()}.xlsx`);
-             }} className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-[9px] uppercase shadow-lg flex items-center gap-2">
-                <i className="bi bi-file-earmark-spreadsheet-fill"></i> Ekspor Excel
-             </button>
-           ) : (
-             <button onClick={() => setActiveView('list')} className="px-8 py-3 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black text-[10px] uppercase shadow-sm">Batal</button>
-           )}
+        <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100">
+           <button onClick={() => setActiveView('list')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'list' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>Monitoring</button>
+           <button onClick={() => setActiveView('table')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'table' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}>Arsip DPCP</button>
         </div>
       </div>
+
+      {activeView === 'table' && (
+        <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
+           <table className="w-full text-left">
+              <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
+                 <tr><th className="px-10 py-5">Nama Pegawai</th><th className="px-4 py-5">NIP</th><th className="px-10 py-5 text-right">Opsi</th></tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                 {savedDpcpList.map(p => (
+                    <tr key={p.id} className="hover:bg-blue-50/5 group transition-all">
+                       <td className="px-10 py-5">
+                          <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{p.namaPegawai}</p>
+                       </td>
+                       <td className="px-4 py-5 text-[10px] font-mono text-blue-600 font-bold uppercase">NIP. {p.nip}</td>
+                       <td className="px-10 py-5 text-right">
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                             <button onClick={() => { 
+                                try {
+                                  const data = JSON.parse(p.data);
+                                  setFormData({ ...data, id: p.id });
+                                  setActiveView('preview');
+                                } catch(e) {}
+                             }} className="h-9 px-6 rounded-xl bg-gray-950 text-white text-[9px] font-black uppercase shadow-lg">Detail</button>
+                             {canEdit && (
+                               <button onClick={() => handleEdit(p)} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl flex items-center justify-center hover:bg-amber-50 shadow-sm transition-all"><i className="bi bi-pencil-fill"></i></button>
+                             )}
+                             {isSuperadmin && (
+                               <button onClick={() => { setItemToDelete(p); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-50 shadow-sm transition-all"><i className="bi bi-trash-fill"></i></button>
+                             )}
+                          </div>
+                       </td>
+                    </tr>
+                 ))}
+                 {savedDpcpList.length === 0 && !loading && (
+                   <tr><td colSpan={3} className="py-32 text-center text-gray-300 font-black uppercase text-[10px] tracking-widest">Belum ada arsip DPCP</td></tr>
+                 )}
+              </tbody>
+           </table>
+        </div>
+      )}
 
       {activeView === 'list' && (
         <div className="space-y-6">
@@ -421,6 +517,12 @@ const PensiunPage = () => {
                 }
               }} className="px-12 py-5 bg-white border border-gray-200 text-gray-400 rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-sm active:scale-95 transition-all">Reset Form</button>
               <button onClick={() => setActiveView('preview')} className="px-24 py-5 bg-[#111827] text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-2xl active:scale-95 transition-all">Pratinjau Dokumen BKN</button>
+              {canEdit && (
+                <button onClick={handleSave} disabled={syncing} className="px-12 py-5 bg-emerald-600 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-2">
+                  {syncing && <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>}
+                  Simpan ke Arsip
+                </button>
+              )}
            </div>
         </div>
       )}
@@ -428,7 +530,17 @@ const PensiunPage = () => {
       {activeView === 'preview' && (
         <div className="animate-fadeIn space-y-10">
            <div className="flex justify-end gap-3 no-print px-6">
-              <button onClick={() => setActiveView('editor')} className="px-8 py-4 bg-white text-gray-500 border border-gray-200 rounded-2xl text-[11px] font-black uppercase">Edit Data</button>
+              <button onClick={() => setActiveView('editor')} className="px-8 py-4 bg-white text-gray-500 border border-gray-200 rounded-2xl text-[11px] font-black uppercase shadow-sm">Edit Data</button>
+              {canEdit && (
+                <button onClick={handleSaveToDossier} disabled={syncing} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-2 shadow-xl active:scale-95">
+                  {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-folder-fill"></i>} Simpan ke E-Dossier
+                </button>
+              )}
+              {canEdit && (
+                <button onClick={handleSave} disabled={syncing} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-2 shadow-xl active:scale-95">
+                  {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-arrow-up-fill"></i>} Simpan
+                </button>
+              )}
               <button onClick={handleDownloadPdf} disabled={syncing} className="px-10 py-4 bg-gray-950 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-3 shadow-xl active:scale-95">
                  {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>} Download PDF
               </button>
