@@ -1,16 +1,25 @@
 
 /**
- * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 5.0.0)
+ * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 5.1.2 - FINAL STABLE)
  * ----------------------------------------------------------------
  * Fitur Utama:
- * - Sinkronisasi Dinamis: Otomatis menambah kolom baru jika ada field baru di aplikasi.
- * - Multi-Key Support: Mendukung update berdasarkan 'ID' (KGB, Dossier) atau 'NIP' (Pegawai).
- * - Object Serialization: Mendukung penyimpanan data kompleks (Array/Object) dalam format JSON.
- * - File Management: Integrasi upload file ke Google Drive.
- * - Template Engine: Mendukung pembuatan dokumen dari Google Docs template.
+ * - Smart Sync: Otomatis menambah kolom baru dan cerdas dalam pencocokan NIP/ID.
+ * - Secure Upload: Upload ke folder spesifik dengan URL Direct yang stabil.
+ * - Sparse Update: Mengupdate baris tanpa merusak ArrayFormula di kolom lain.
+ * - Setup Helper: Mempermudah aktivasi izin (Authorization).
  */
 
 var FOLDER_ID_DATABASE = "19OkO6ZAMnTXaxy-58ntHRVNI85W-u23O"; 
+
+/**
+ * FUNGSI SETUP: JALANKAN INI PERTAMA KALI DI EDITOR
+ * Untuk memberikan izin akses Drive, Spreadsheet, dan Doc.
+ */
+function setup() {
+  DriveApp.getRootFolder();
+  SpreadsheetApp.getActiveSpreadsheet();
+  console.log("Izin berhasil diberikan! Sekarang silakan lakukan Deploy > New Version.");
+}
 
 function doGet(e) {
   try {
@@ -47,7 +56,7 @@ function doPost(e) {
     }
     if (action === 'GENERATE_DOC') return handleGenerateFromTemplate(payload, driveFolderId);
 
-    return createResponse({ success: false, message: "Aksi tidak dikenali." });
+    return createResponse({ success: false, message: "Aksi '" + action + "' tidak dikenali." });
   } catch (err) { return createResponse({ success: false, message: "POST Error: " + err.toString() }); }
 }
 
@@ -58,13 +67,11 @@ function handleGenerateFromTemplate(payload, driveFolderId) {
     var replacements = payload.data; 
     var templateFile = DriveApp.getFileById(templateId);
     
-    // Check if folder ID is valid
     var folder;
     if (driveFolderId && driveFolderId !== "PASTE_YOUR_FOLDER_ID_HERE") {
       folder = DriveApp.getFolderById(driveFolderId);
     } else {
-      // Fallback to same folder as template
-      folder = templateFile.getParents().next();
+      folder = DriveApp.getFolderById(FOLDER_ID_DATABASE);
     }
 
     var newFile = templateFile.makeCopy(fileName, folder);
@@ -90,7 +97,6 @@ function handleGet(ss, moduleName) {
       headers.forEach(function(h, i) {
         var val = row[i];
         try {
-          // Coba parse jika string terlihat seperti JSON (Array/Object)
           if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
             obj[h] = JSON.parse(val);
           } else {
@@ -109,7 +115,7 @@ function handleGet(ss, moduleName) {
 function handleSave(ss, moduleName, payload) {
   try {
     var sheet = getOrCreateSheet(ss, moduleName, payload);
-    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var headers = sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getValues()[0];
     var payloadKeys = Object.keys(payload);
     
     payloadKeys.forEach(function(key) {
@@ -125,38 +131,35 @@ function handleSave(ss, moduleName, payload) {
 
     var lastRow = sheet.getLastRow();
     var keyIndex = -1;
-    
-    // PERBAIKAN: Prioritaskan ID sebagai key untuk Dossier agar tidak tertumpuk di NIP yang sama
     var targetKey = "";
+    var isNipMatching = false;
+
     if (payload.id) {
        targetKey = payload.id.toString().trim();
     } else if (payload.nip) {
        targetKey = payload.nip.toString().replace(/\D/g, '').trim();
+       isNipMatching = true;
     }
     
     for (var h = 0; h < headers.length; h++) {
-      var hName = headers[h].toString().toLowerCase().trim();
-      // Jika payload punya ID, gunakan kolom ID sebagai acuan update
-      if (payload.id && hName === 'id') { keyIndex = h; break; }
-      // Jika tidak punya ID (hanya NIP), gunakan NIP (misal modul Pegawai)
-      if (!payload.id && hName === 'nip') { keyIndex = h; break; }
+      var hName = headers[h].toString().toLowerCase().replace(/[\s_]/g, '');
+      if (hName === 'id') {
+        keyIndex = h;
+        if (payload.id) break; 
+      }
+      if (hName === 'nip' && keyIndex === -1) {
+        keyIndex = h;
+      }
     }
 
-    var rowData = headers.map(function(h) {
-      var headerClean = h.toString().toLowerCase().replace(/[\s_]/g, '');
-      var key = Object.keys(payload).find(function(k) {
-        return k.toLowerCase().replace(/[\s_]/g, '') === headerClean;
-      });
-      var val = key ? payload[key] : "";
-      return (typeof val === 'object') ? JSON.stringify(val) : val;
-    });
-
     if (keyIndex > -1 && targetKey !== "" && lastRow > 1) {
-      var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getDisplayValues();
+      var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getValues();
       for (var i = 1; i < displayValues.length; i++) {
-        if (displayValues[i][0].toString().trim() === targetKey) {
+        var cellValue = displayValues[i][0].toString().trim();
+        if (isNipMatching) cellValue = cellValue.replace(/\D/g, '');
+
+        if (cellValue === targetKey) {
           var rowNum = i + 1;
-          // PERBAIKAN: Update hanya kolom yang ada di payload untuk menjaga ArrayFormula
           payloadKeys.forEach(function(key) {
             var keyLower = key.toLowerCase().replace(/[\s_]/g, '');
             var colIdx = -1;
@@ -172,10 +175,19 @@ function handleSave(ss, moduleName, payload) {
               sheet.getRange(rowNum, colIdx + 1).setValue(finalVal);
             }
           });
-          return createResponse({ success: true, message: "Updated (Sparse)." });
+          return createResponse({ success: true, message: "Updated." });
         }
       }
     }
+
+    var rowData = headers.map(function(h) {
+      var headerClean = h.toString().toLowerCase().replace(/[\s_]/g, '');
+      var key = Object.keys(payload).find(function(k) {
+        return k.toLowerCase().replace(/[\s_]/g, '') === headerClean;
+      });
+      var val = key ? payload[key] : "";
+      return (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
+    });
 
     sheet.appendRow(rowData);
     return createResponse({ success: true, message: "Added." });
@@ -193,49 +205,72 @@ function handleDelete(ss, moduleName, payload) {
     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     var keyIndex = -1;
     var searchKey = "";
+    var isNip = false;
 
-    // Tentukan kolom mana yang akan digunakan untuk pencarian
     if (payload.id) {
       searchKey = String(payload.id).trim();
-      for (var h = 0; h < headers.length; h++) {
-        if (headers[h].toString().toLowerCase().trim() === 'id') {
-          keyIndex = h;
-          break;
-        }
-      }
+    } else if (payload.nip) {
+      searchKey = String(payload.nip).replace(/\D/g, '').trim();
+      isNip = true;
     }
-    
-    // Jika ID tidak ditemukan atau tidak ada, coba NIP
-    if (keyIndex === -1 && payload.nip) {
-      searchKey = String(payload.nip).trim();
-      for (var h = 0; h < headers.length; h++) {
-        if (headers[h].toString().toLowerCase().trim() === 'nip') {
-          keyIndex = h;
-          break;
-        }
+
+    for (var h = 0; h < headers.length; h++) {
+      var hName = headers[h].toString().toLowerCase().replace(/[\s_]/g, '');
+      if (hName === 'id') {
+        keyIndex = h;
+        if (payload.id) break;
+      }
+      if (hName === 'nip' && keyIndex === -1) {
+        keyIndex = h;
       }
     }
 
     if (keyIndex === -1 || searchKey === "") {
-      return createResponse({ success: false, message: "No valid ID or NIP provided for deletion" });
+      return createResponse({ success: false, message: "No valid ID or NIP provided" });
     }
 
-    var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getDisplayValues();
+    var dataValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getValues();
     var deletedCount = 0;
-    
-    // Hapus dari bawah ke atas agar index tidak bergeser
-    for (var i = displayValues.length - 1; i >= 1; i--) {
-      if (displayValues[i][0].toString().trim() === searchKey) {
+    for (var i = dataValues.length - 1; i >= 1; i--) {
+      var val = dataValues[i][0].toString().trim();
+      if (isNip) val = val.replace(/\D/g, '');
+
+      if (val === searchKey) {
         sheet.deleteRow(i + 1);
         deletedCount++;
       }
     }
-    
     return createResponse({ success: true, deletedCount: deletedCount });
   } catch (e) { 
-    console.log("Error in handleDelete: " + e.toString());
     return createResponse({ success: false, message: e.toString() }); 
   }
+}
+
+function handleUpload(payload, driveFolderId) {
+  try {
+    var folder;
+    var targetFolderId = (driveFolderId && driveFolderId !== "PASTE_YOUR_FOLDER_ID_HERE") ? driveFolderId : FOLDER_ID_DATABASE;
+    
+    try {
+      folder = DriveApp.getFolderById(targetFolderId);
+    } catch (err) {
+      return createResponse({ 
+        success: false, 
+        message: "Drive Access Error. Pastikan ID Folder benar dan Admin sudah klik 'Run setup'. Detail: " + err.toString() 
+      });
+    }
+
+    var base64Data = payload.base64;
+    var bytes = Utilities.base64Decode(base64Data.includes(",") ? base64Data.split(",")[1] : base64Data);
+    var blob = Utilities.newBlob(bytes, payload.mimeType || "image/jpeg", payload.fileName || "FILE_" + Date.now());
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return createResponse({ 
+      success: true, 
+      fileUrl: "https://drive.google.com/uc?id=" + file.getId(),
+      fileId: file.getId()
+    });
+  } catch (e) { return createResponse({ success: false, message: "UPLOAD_ERROR: " + e.toString() }); }
 }
 
 function getSpreadsheet(ssId) {
@@ -265,26 +300,9 @@ function getOrCreateSheet(ss, moduleName, payload) {
     sheet = ss.insertSheet(moduleName.toUpperCase());
     var headers = Object.keys(payload);
     if (headers.length > 0) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers.map(function(h){return h.toUpperCase();})]);
       sheet.setFrozenRows(1);
     }
   }
   return sheet;
-}
-
-function handleUpload(payload, driveFolderId) {
-  try {
-    var folder;
-    if (driveFolderId && driveFolderId !== "PASTE_YOUR_FOLDER_ID_HERE") {
-      folder = DriveApp.getFolderById(driveFolderId);
-    } else {
-      // Fallback to root or a default folder if possible, but DriveApp.getRootFolder() is safer
-      folder = DriveApp.getRootFolder();
-    }
-    var bytes = Utilities.base64Decode(payload.base64.split(",")[1]);
-    var blob = Utilities.newBlob(bytes, payload.mimeType, payload.fileName);
-    var file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    return createResponse({ success: true, fileUrl: "https://lh3.googleusercontent.com/d/" + file.getId() });
-  } catch (e) { return createResponse({ success: false, message: e.toString() }); }
 }
