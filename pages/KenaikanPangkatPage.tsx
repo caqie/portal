@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
-import { fetchPegawaiFromSheets, syncTableRemote, fetchKenaikanFromSheets } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, syncTableRemote, fetchKenaikanFromSheets, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai, KenaikanKarir } from '../types';
 import { useAuth } from '../AuthContext';
 import { UNIT_KERJA, PANGKAT_MAP, DEFAULT_TEMPLATE_LOGO } from '../constants';
@@ -22,7 +22,10 @@ const KenaikanPangkatPage = () => {
   const [history, setHistory] = useState<KenaikanKarir[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [activeView, setActiveView] = useState<'list' | 'editor' | 'preview'>('list');
+  const [activeView, setActiveView] = useState<'list' | 'editor' | 'preview' | 'monitoring'>('list');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString());
+  const [filterMonth, setFilterMonth] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [selectedKenaikan, setSelectedKenaikan] = useState<any | null>(null);
   
@@ -130,6 +133,52 @@ const KenaikanPangkatPage = () => {
     }
   };
 
+  const handleSaveToDossier = async () => {
+    if (!pdfRef.current || !formData.nip) return;
+    setSyncing(true);
+    try {
+      const canvas = await html2canvas(pdfRef.current, { 
+          scale: 2.5, 
+          useCORS: true, 
+          backgroundColor: "#ffffff",
+          windowWidth: pdfRef.current.scrollWidth,
+          windowHeight: pdfRef.current.scrollHeight
+      });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
+      const pdfBase64 = pdf.output('datauristring');
+      
+      const fileName = `Nota_Dinas_KP_${formData.namaPegawai?.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      const res = await uploadFileToDrive(fileName, 'application/pdf', pdfBase64);
+      
+      if (res.success && res.fileUrl) {
+        const payload = {
+          id: `DOS-${Date.now()}`,
+          nip: formData.nip,
+          namaPegawai: formData.namaPegawai,
+          tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+          keterangan: `Nota Dinas Usulan Kenaikan Pangkat`,
+          fileName: fileName,
+          fileUrl: res.fileUrl
+        };
+        const ok = await syncTableRemote('DOSSIER', 'SAVE', payload);
+        if (ok) {
+          logActivity('CREATE', 'DOSSIER', `Simpan Nota KP ke Dossier: ${formData.namaPegawai}`);
+          alert("Nota Dinas berhasil disimpan ke E-Dossier Pegawai.");
+        }
+      } else {
+        alert("Gagal mengunggah file ke Drive.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Gagal menyimpan ke Dossier.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const record = selectedKenaikan || formData;
   const pSubjek = pegawaiList.find(p => p.nip === record.nip);
   const pPenandatangan = pegawaiList.find(p => p.nip === record.pjbNip);
@@ -163,6 +212,7 @@ const KenaikanPangkatPage = () => {
         </div>
         <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm">
            <button onClick={() => setActiveView('list')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'list' ? 'bg-[#111827] text-white shadow-lg' : 'text-gray-400'}`}>Arsip Usulan</button>
+           <button onClick={() => setActiveView('monitoring')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'monitoring' ? 'bg-[#111827] text-white shadow-lg' : 'text-gray-400'}`}>Monitoring KP</button>
            {canEdit && (
              <button onClick={() => { setFormData({...formData, id: undefined, nip: ''}); setActiveView('editor'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'editor' ? 'bg-[#111827] text-white shadow-lg' : 'text-gray-400'}`}>Buat Usulan</button>
            )}
@@ -197,6 +247,9 @@ const KenaikanPangkatPage = () => {
                       <td className="px-10 py-5 text-right">
                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                             <button onClick={() => { setSelectedKenaikan(h); setFormData(h); setActiveView('preview'); }} className="h-9 px-5 bg-gray-950 text-white rounded-xl text-[9px] font-black uppercase shadow-lg">Lihat Nota</button>
+                            {canEdit && (
+                              <button onClick={() => { setFormData(h); setActiveView('editor'); }} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl flex items-center justify-center hover:bg-amber-50 shadow-sm transition-all"><i className="bi bi-pencil-fill"></i></button>
+                            )}
                             {isSuperadmin && (
                               <button onClick={() => { setItemToDelete(h); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all"><i className="bi bi-trash-fill"></i></button>
                             )}
@@ -206,6 +259,122 @@ const KenaikanPangkatPage = () => {
                  ))}
               </tbody>
            </table>
+        </div>
+      )}
+
+      {activeView === 'monitoring' && (
+        <div className="space-y-6 animate-fadeIn">
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+              <div className="md:col-span-2 relative">
+                 <i className="bi bi-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                 <input 
+                    type="text" 
+                    placeholder="CARI NAMA ATAU NIP PEGAWAI..." 
+                    className="w-full pl-12 pr-5 py-3.5 bg-gray-50 border-none rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-2 ring-blue-600/20 transition-all"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                 />
+              </div>
+              <div>
+                 <select 
+                    className="w-full px-5 py-3.5 bg-gray-50 border-none rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-2 ring-blue-600/20 transition-all"
+                    value={filterYear}
+                    onChange={e => setFilterYear(e.target.value)}
+                 >
+                    {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                       <option key={y} value={y}>{y}</option>
+                    ))}
+                 </select>
+              </div>
+              <div>
+                 <select 
+                    className="w-full px-5 py-3.5 bg-gray-50 border-none rounded-2xl text-[11px] font-black uppercase outline-none focus:ring-2 ring-blue-600/20 transition-all"
+                    value={filterMonth}
+                    onChange={e => setFilterMonth(e.target.value)}
+                 >
+                    <option value="">SEMUA BULAN</option>
+                    <option value="01">JANUARI</option>
+                    <option value="02">FEBRUARI</option>
+                    <option value="03">MARET</option>
+                    <option value="04">APRIL</option>
+                    <option value="05">MEI</option>
+                    <option value="06">JUNI</option>
+                    <option value="07">JULI</option>
+                    <option value="08">AGUSTUS</option>
+                    <option value="09">SEPTEMBER</option>
+                    <option value="10">OKTOBER</option>
+                    <option value="11">NOVEMBER</option>
+                    <option value="12">DESEMBER</option>
+                 </select>
+              </div>
+           </div>
+
+           <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden">
+              <table className="w-full text-left">
+                 <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
+                    <tr>
+                       <th className="px-10 py-5">Pegawai</th>
+                       <th className="px-4 py-5">Pangkat / Golongan</th>
+                       <th className="px-4 py-5 text-center">TMT Pangkat</th>
+                       <th className="px-4 py-5 text-center">Estimasi KP Berikutnya</th>
+                       <th className="px-10 py-5 text-right">Aksi</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-50">
+                    {pegawaiList.filter(p => {
+                       if (!p.tmtPangkat) return false;
+                       const tmtDate = new Date(p.tmtPangkat);
+                       const nextKpDate = new Date(tmtDate);
+                       nextKpDate.setFullYear(tmtDate.getFullYear() + 4);
+                       
+                       const matchesSearch = p.nama.toLowerCase().includes(searchQuery.toLowerCase()) || p.nip.includes(searchQuery);
+                       const matchesYear = nextKpDate.getFullYear().toString() === filterYear;
+                       const matchesMonth = filterMonth === '' || (nextKpDate.getMonth() + 1).toString().padStart(2, '0') === filterMonth;
+                       
+                       return matchesSearch && matchesYear && matchesMonth;
+                    }).map(p => {
+                       const tmtDate = new Date(p.tmtPangkat!);
+                       const nextKpDate = new Date(tmtDate);
+                       nextKpDate.setFullYear(tmtDate.getFullYear() + 4);
+                       const nextKpStr = nextKpDate.toISOString().split('T')[0];
+
+                       return (
+                          <tr key={p.id} className="hover:bg-blue-50/5 group transition-all">
+                             <td className="px-10 py-6">
+                                <p className="text-[11px] font-black text-gray-950 uppercase leading-none">{p.nama}</p>
+                                <p className="text-[9px] font-mono text-blue-600 font-bold uppercase mt-1.5 tracking-tighter">NIP. {p.nip}</p>
+                             </td>
+                             <td className="px-4 py-6">
+                                <p className="text-[10px] font-black text-gray-900 uppercase">{p.pangkat || '-'}</p>
+                                <p className="text-[8px] font-bold text-gray-400 uppercase mt-1">{p.golRuang || '-'}</p>
+                             </td>
+                             <td className="px-4 py-6 text-center">
+                                <p className="text-[11px] font-black text-gray-900 uppercase">{p.tmtPangkat}</p>
+                             </td>
+                             <td className="px-4 py-6 text-center">
+                                <div className="inline-flex flex-col items-center">
+                                   <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black border border-blue-100 uppercase">{nextKpStr}</span>
+                                   <p className="text-[7px] font-bold text-gray-400 uppercase mt-1">Periode {nextKpDate.toLocaleDateString('id-ID', {month: 'long'})}</p>
+                                </div>
+                             </td>
+                             <td className="px-10 py-6 text-right">
+                                <button 
+                                   onClick={() => {
+                                      handleASNSelect(p.nip);
+                                      setFormData((prev: any) => ({ ...prev, tmtUsulan: nextKpStr }));
+                                      setActiveView('editor');
+                                   }}
+                                   className="h-9 px-5 bg-gray-900 text-white rounded-xl text-[9px] font-black uppercase shadow-lg hover:bg-blue-600 transition-all"
+                                >
+                                   Proses Usulan
+                                </button>
+                             </td>
+                          </tr>
+                       );
+                    }).slice(0, 50)}
+                 </tbody>
+              </table>
+           </div>
         </div>
       )}
 
@@ -248,6 +417,16 @@ const KenaikanPangkatPage = () => {
         <div className="animate-fadeIn space-y-10">
            <div className="flex justify-end gap-3 no-print px-6">
               <button onClick={() => setActiveView('editor')} className="px-8 py-4 bg-white text-gray-900 border border-gray-200 rounded-2xl text-[11px] font-black uppercase shadow-sm">Edit Data</button>
+              {canEdit && (
+                <button onClick={handleSaveToDossier} disabled={syncing} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-2 shadow-xl active:scale-95 transition-all">
+                  {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-folder-fill"></i>} Simpan ke E-Dossier
+                </button>
+              )}
+              {canEdit && (
+                <button onClick={handleSave} disabled={syncing} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-2 shadow-xl active:scale-95 transition-all">
+                  {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-arrow-up-fill"></i>} Simpan
+                </button>
+              )}
               <button onClick={handleDownloadPdf} className="px-12 py-4 bg-gray-950 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-3 shadow-xl active:scale-95 transition-all"><i className="bi bi-file-earmark-pdf-fill"></i> Download PDF (F4)</button>
            </div>
            <div className="bg-gray-200 py-10 flex justify-center overflow-x-auto no-scrollbar">
