@@ -28,6 +28,16 @@ const PengembanganPage = () => {
   
   const [filterYear, setFilterYear] = useState<number>(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
+
+  const years = useMemo(() => {
+    const current = new Date().getFullYear();
+    const result = [];
+    for (let i = -5; i <= 5; i++) {
+      result.push(current + i);
+    }
+    // Urutkan dari yang terbaru (depan) ke terlama (belakang)
+    return result.sort((a, b) => b - a);
+  }, []);
   
   const certInputRef = useRef<HTMLInputElement>(null);
 
@@ -158,7 +168,7 @@ const PengembanganPage = () => {
            <button onClick={() => setActiveTab('riwayat')} className={`px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all ${activeTab === 'riwayat' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400'}`}>Riwayat Lengkap</button>
         </div>
         <select className="px-8 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black uppercase outline-none focus:border-blue-600 shadow-inner" value={filterYear} onChange={e => setFilterYear(Number(e.target.value))}>
-            {[2025, 2024, 2023].map(y => <option key={y} value={y}>TAHUN {y}</option>)}
+            {years.map(y => <option key={y} value={y}>TAHUN {y}</option>)}
         </select>
       </div>
 
