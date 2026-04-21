@@ -113,7 +113,7 @@ const LaporanPage = () => {
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
 
-      while (heightLeft >= 0) {
+      while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
@@ -151,13 +151,13 @@ const LaporanPage = () => {
         <div>
           <h3 className="text-2xl font-black text-gray-900 uppercase">Nota Dinas Laporan Bulanan</h3>
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-2">
-            <i className="bi bi-file-earmark-bar-graph text-blue-600"></i> Format Standar Naskah Dinas (F4)
+            <i className="bi bi-file-earmark-bar-graph text-blue-600"></i> Format Standar Naskah Dinas (A4)
           </p>
         </div>
         <div className="flex gap-3">
           <button onClick={handleDownloadPdf} disabled={loading} className="px-10 py-4 bg-gray-950 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
             {loading ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill text-lg"></i>} 
-            Cetak PDF (F4)
+            Cetak PDF (A4)
           </button>
         </div>
       </div>
