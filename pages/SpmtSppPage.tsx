@@ -32,6 +32,8 @@ const SpmtSppPage = () => {
   const [activeView, setActiveView] = useState<'list' | 'editor' | 'preview'>('list');
   const [showSuccess, setShowSuccess] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<SpmtSppRecord | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<SpmtSppRecord | null>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
 
   const defaultMenimbang = "Dalam rangka meningkatkan kinerja Direktorat Hak Cipta dan Desain Industri Direktorat Jenderal Kekayaan Intelektual dengan mengoptimalkan potensi para pegawai, maka dipandang perlu memerintahkan kepada pegawai di bawah ini untuk melaksanakan tugas di posisi yang baru.";
@@ -77,14 +79,29 @@ const SpmtSppPage = () => {
   const handleSave = async () => {
     if (!formData.pegawaiNip || !formData.nomor) return alert("Nomor dan Pegawai wajib diisi.");
     setSyncing(true);
-    const newRecord: SpmtSppRecord = { ...formData as SpmtSppRecord, id: `TND-${Date.now()}` };
+    const newRecord: SpmtSppRecord = { 
+      ...formData as SpmtSppRecord, 
+      id: formData.id || `TND-${Date.now()}` 
+    };
     const ok = await syncTableRemote('SPMT_SPP', 'SAVE', newRecord);
     if (ok) {
-      logActivity('CREATE', 'TND', `Buat ${formData.type}: ${formData.nomor}`);
+      logActivity(formData.id ? 'UPDATE' : 'CREATE', 'TND', `Buat/Update ${formData.type}: ${formData.nomor}`);
       setSelectedRecord(newRecord);
       setActiveView('preview');
       setShowSuccess(true);
       await loadInitialData();
+    }
+    setSyncing(false);
+  };
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+    setSyncing(true);
+    const ok = await syncTableRemote('SPMT_SPP', 'DELETE', { id: itemToDelete.id });
+    if (ok) {
+      logActivity('DELETE', 'TND', `Hapus Dokumen: ${itemToDelete.id}`);
+      await loadInitialData();
+      setIsConfirmOpen(false);
     }
     setSyncing(false);
   };
@@ -145,6 +162,7 @@ const SpmtSppPage = () => {
   return (
     <div className="space-y-8 animate-fadeIn pb-24 text-black">
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} />
+      <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={handleDelete} loading={syncing} />
       
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
         <div className="flex items-center gap-4">
@@ -177,7 +195,17 @@ const SpmtSppPage = () => {
                          <p className="text-[9px] font-mono text-gray-400">NIP. {h.pegawaiNip}</p>
                       </td>
                       <td className="px-4 py-5 text-center font-black text-[10px] text-emerald-600 tracking-widest">VERIFIED</td>
-                      <td className="px-10 py-5 text-right"><button onClick={() => { setSelectedRecord(h); setActiveView('preview'); }} className="h-9 px-6 bg-gray-950 text-white rounded-xl text-[9px] font-black uppercase opacity-0 group-hover:opacity-100 transition-all shadow-lg">Lihat Dokumen</button></td>
+                                             <td className="px-10 py-5 text-right">
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                             <button onClick={() => { setSelectedRecord(h); setActiveView('preview'); }} className="h-9 px-6 bg-gray-950 text-white rounded-xl text-[9px] font-black uppercase shadow-lg">Lihat</button>
+                             {canEdit && (
+                               <button onClick={() => { setFormData(h); setActiveView('editor'); }} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl flex items-center justify-center hover:bg-amber-50 shadow-sm transition-all"><i className="bi bi-pencil-fill"></i></button>
+                             )}
+                             {isSuperadmin && (
+                               <button onClick={() => { setItemToDelete(h); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-50 shadow-sm transition-all"><i className="bi bi-trash-fill"></i></button>
+                             )}
+                          </div>
+                       </td>
                    </tr>
                  ))}
               </tbody>
@@ -294,10 +322,12 @@ const SpmtSppPage = () => {
                         <div className="mb-4">
                            <p className="font-bold mb-2">Kepada :</p>
                            <table className="w-full ml-8">
-                              <tr><td className="w-40 py-0.5 align-top">Nama</td><td className="w-2 align-top">:</td><td className="font-bold uppercase align-top">{peg?.nama || '-'}</td></tr>
-                              <tr><td className="w-40 py-0.5 align-top">NIP</td><td className="w-2 align-top">:</td><td className="align-top">{peg?.nip || '-'}</td></tr>
-                              <tr><td className="w-40 py-0.5 align-top">Golongan</td><td className="w-2 align-top">:</td><td className="align-top">{peg?.golongan || '-'}</td></tr>
-                              <tr><td className="w-40 py-0.5 align-top">Jabatan</td><td className="w-2 align-top">:</td><td className="align-top uppercase">{peg?.jabatan || '-'}</td></tr>
+                              <tbody>
+                                 <tr><td className="w-40 py-0.5 align-top">Nama</td><td className="w-2 align-top">:</td><td className="font-bold uppercase align-top">{peg?.nama || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">NIP</td><td className="w-2 align-top">:</td><td className="align-top">{peg?.nip || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">Golongan</td><td className="w-2 align-top">:</td><td className="align-top">{peg?.golongan || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">Jabatan</td><td className="w-2 align-top">:</td><td className="align-top uppercase">{peg?.jabatan || '-'}</td></tr>
+                              </tbody>
                            </table>
                         </div>
 
@@ -327,20 +357,24 @@ const SpmtSppPage = () => {
                         <p className="mb-2">Yang bertanda tangan dibawah ini:</p>
                         <div className="mb-4 ml-8">
                            <table className="w-full">
-                              <tr><td className="w-40 py-0.5 align-top">Nama</td><td className="w-2 align-top">:</td><td className="font-bold uppercase align-top">{pjb?.nama || '-'}</td></tr>
-                              <tr><td className="w-40 py-0.5 align-top">NIP</td><td className="w-2 align-top">:</td><td className="align-top">{pjb?.nip || '-'}</td></tr>
-                              <tr><td className="w-40 py-0.5 align-top">Pangkat/Gol.Ruang</td><td className="w-2 align-top">:</td><td className="align-top">{pjb?.pangkat || '-'}</td></tr>
-                              <tr><td className="w-40 py-0.5 align-top">Jabatan</td><td className="w-2 align-top">:</td><td className="align-top uppercase">{pjb?.jabatan || '-'}</td></tr>
+                              <tbody>
+                                 <tr><td className="w-40 py-0.5 align-top">Nama</td><td className="w-2 align-top">:</td><td className="font-bold uppercase align-top">{pjb?.nama || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">NIP</td><td className="w-2 align-top">:</td><td className="align-top">{pjb?.nip || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">Pangkat/Gol.Ruang</td><td className="w-2 align-top">:</td><td className="align-top">{pjb?.pangkat || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">Jabatan</td><td className="w-2 align-top">:</td><td className="align-top uppercase">{pjb?.jabatan || '-'}</td></tr>
+                              </tbody>
                            </table>
                         </div>
 
                         <p className="mb-2">Menyatakan dengan sesungguhnya, bahwa Pegawai Negeri Sipil yang tersebut dibawah ini:</p>
                         <div className="mb-4 ml-8">
                            <table className="w-full">
-                              <tr><td className="w-40 py-0.5 align-top">Nama</td><td className="w-2 align-top">:</td><td className="font-bold uppercase align-top">{peg?.nama || '-'}</td></tr>
-                              <tr><td className="w-40 py-0.5 align-top">NIP</td><td className="w-2 align-top">:</td><td className="align-top">{peg?.nip || '-'}</td></tr>
-                              <tr><td className="w-40 py-0.5 align-top">Golongan</td><td className="w-2 align-top">:</td><td className="align-top">{peg?.golongan || '-'}</td></tr>
-                              <tr><td className="w-40 py-0.5 align-top">Jabatan</td><td className="w-2 align-top">:</td><td className="align-top uppercase">{peg?.jabatan || '-'}</td></tr>
+                              <tbody>
+                                 <tr><td className="w-40 py-0.5 align-top">Nama</td><td className="w-2 align-top">:</td><td className="font-bold uppercase align-top">{peg?.nama || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">NIP</td><td className="w-2 align-top">:</td><td className="align-top">{peg?.nip || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">Golongan</td><td className="w-2 align-top">:</td><td className="align-top">{peg?.golongan || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">Jabatan</td><td className="w-2 align-top">:</td><td className="align-top uppercase">{peg?.jabatan || '-'}</td></tr>
+                              </tbody>
                            </table>
                         </div>
 
