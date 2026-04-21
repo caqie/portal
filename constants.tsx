@@ -21,6 +21,59 @@ export const UNIT_KERJA = [
   'Direktorat Penegakan Hukum'
 ];
 
+export const BANK_LIST = [
+  'BANK MANDIRI', 'BRI', 'BNI', 'BCA', 'BSI (BANK SYARIAH INDONESIA)', 'BTN', 'BANK CIMB NIAGA', 'BANK DANAMON', 'BANK PERMATA', 'BANK OCBC NISP'
+];
+
+export const ORGANISASI_STRUCTURE: Record<string, Record<string, string[]>> = {
+  'Sekretariat Direktorat Jenderal Kekayaan Intelektual': {
+    'Bagian Umum': ['Subbagian Tata Usaha', 'Subbagian Protokol dan Rumah Tangga', 'Subbagian Pengelolaan BMN', 'Subbagian Layanan Pengadaan'],
+    'Bagian Kepegawaian': ['Subbagian Mutasi dan Pengembangan', 'Subbagian Administrasi Kepegawaian', 'Subbagian Disiplin dan Kesejahteraan'],
+    'Bagian Keuangan': ['Subbagian Pelaksanaan Anggaran', 'Subbagian Perbendaharaan', 'Subbagian Akuntansi dan Pelaporan'],
+    'Bagian Program dan Pelaporan': ['Subbagian Penyusunan Program', 'Subbagian Evaluasi dan Pelaporan']
+  },
+  'Direktorat Hak Cipta dan Desain Industri': {
+    'Subdirektorat Permohonan dan Publikasi': ['Seksi Permohonan', 'Seksi Publikasi'],
+    'Subdirektorat Pelayanan Hukum dan Lembaga Manajemen Kolektif': ['Seksi Pelayanan Hukum', 'Seksi Lembaga Manajemen Kolektif'],
+    'Subdirektorat Hak Cipta': ['Seksi Hak Cipta I', 'Seksi Hak Cipta II'],
+    'Subdirektorat Desain Industri': ['Seksi Desain Industri I', 'Seksi Desain Industri II'],
+    'Bagian Tata Usaha': ['Pelaksana Tata Usaha']
+  },
+  'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang': {
+    'Subdirektorat Permohonan dan Publikasi Paten': ['Seksi Permohonan', 'Seksi Publikasi'],
+    'Subdirektorat Pemeriksaan Paten I': ['Tim Pemeriksa I', 'Tim Pemeriksa II'],
+    'Subdirektorat Pemeriksaan Paten II': ['Tim Pemeriksa III', 'Tim Pemeriksa IV'],
+    'Subdirektorat Administrasi dan Pelayanan Hukum': ['Seksi Administrasi', 'Seksi Pelayanan Hukum'],
+    'Bagian Tata Usaha': ['Pelaksana Tata Usaha']
+  },
+  'Direktorat Merek dan Indikasi Geografis': {
+    'Subdirektorat Permohonan dan Publikasi Merek': ['Seksi Permohonan', 'Seksi Publikasi'],
+    'Subdirektorat Pemeriksaan Merek': ['Tim Pemeriksa Merek I', 'Tim Pemeriksa Merek II'],
+    'Subdirektorat Indikasi Geografis': ['Seksi Indikasi Geografis I', 'Seksi Indikasi Geografis II'],
+    'Subdirektorat Administrasi dan Pelayanan Hukum': ['Seksi Administrasi', 'Seksi Pelayanan Hukum'],
+    'Bagian Tata Usaha': ['Pelaksana Tata Usaha']
+  },
+  'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi': {
+    'Subdirektorat Kerja Sama Luar Negeri': ['Seksi Kerja Sama Multi Lateral', 'Seksi Kerja Sama Bilateral'],
+    'Subdirektorat Kerja Sama Dalam Negeri': ['Seksi Kerja Sama Instansi Pemerintah', 'Seksi Kerja Sama Non Pemerintah'],
+    'Subdirektorat Pemberdayaan KI': ['Seksi Pemberdayaan I', 'Seksi Pemberdayaan II'],
+    'Subdirektorat Edukasi': ['Seksi Edukasi I', 'Seksi Edukasi II'],
+    'Bagian Tata Usaha': ['Pelaksana Tata Usaha']
+  },
+  'Direktorat Teknologi Informasi Kekayaan Intelektual': {
+    'Subdirektorat Pengembangan Sistem Informasi': ['Seksi Sistem Informasi I', 'Seksi Sistem Informasi II'],
+    'Subdirektorat Infrastruktur TIK': ['Seksi Infrastruktur I', 'Seksi Infrastruktur II'],
+    'Subdirektorat Manajemen Data dan Informasi': ['Seksi Manajemen Data', 'Seksi Layanan Informasi'],
+    'Bagian Tata Usaha': ['Pelaksana Tata Usaha']
+  },
+  'Direktorat Penegakan Hukum': {
+    'Subdirektorat Pencegahan dan Penyelesaian Sengketa': ['Seksi Pencegahan', 'Seksi Penyelesaian Sengketa'],
+    'Subdirektorat Penyidikan': ['Seksi Penyidikan I', 'Seksi Penyidikan II'],
+    'Subdirektorat Pemantauan dan Pengawasan': ['Seksi Pemantauan', 'Seksi Pengawasan'],
+    'Bagian Tata Usaha': ['Pelaksana Tata Usaha']
+  }
+};
+
 export const normalizeUnitName = (rawUnit: string): string => {
   const cleaned = (rawUnit || '').toLowerCase().trim();
   if (!cleaned) return 'LAINNYA';
