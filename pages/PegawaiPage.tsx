@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pegawai, Dossier } from '../types';
-import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, findPegawaiByNip } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
+import { getPhotoUrl } from '../lib/photoUtils';
 import { normalizeUnitName, UNIT_KERJA, PANGKAT_MAP, DEFAULT_LOGO } from '../constants';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
@@ -25,6 +26,7 @@ const PegawaiPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
   const [filterJenis, setFilterJenis] = useState('Semua Jenis');
+  const [filterStatus, setFilterStatus] = useState('Semua Status');
   const [minAge, setMinAge] = useState<string>('');
   const [maxAge, setMaxAge] = useState<string>('');
   
@@ -41,11 +43,17 @@ const PegawaiPage = () => {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [pegawaiToDelete, setPegawaiToDelete] = useState<Pegawai | null>(null);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [bulkPhotoProgress, setBulkPhotoProgress] = useState({ current: 0, total: 0, active: false });
+  
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [tempPhotoFile, setTempPhotoFile] = useState<File | null>(null);
+  const [tempPhotoPreview, setTempPhotoPreview] = useState<string>('');
   
   const drhRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dossierFileInputRef = useRef<HTMLInputElement>(null);
   const importExcelInputRef = useRef<HTMLInputElement>(null);
+  const bulkPhotoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -154,6 +162,7 @@ const PegawaiPage = () => {
       const match = searchStr.includes(term);
       const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
       const jenisMatch = filterJenis === 'Semua Jenis' || (p.jenisPegawai || '').toUpperCase() === filterJenis.toUpperCase();
+      const statusMatch = filterStatus === 'Semua Status' || (p.status || 'Aktif') === filterStatus;
       
       // Age calculation
       let ageMatch = true;
@@ -177,29 +186,49 @@ const PegawaiPage = () => {
         }
       }
 
+      return match && unitMatch && jenisMatch && ageMatch && statusMatch;
+    });
+  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterStatus, minAge, maxAge]);
+
+  const filteredForCounts = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    const min = minAge ? parseInt(minAge) : 0;
+    const max = maxAge ? parseInt(maxAge) : 200;
+
+    return pegawaiList.filter(p => {
+      const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
+      const match = searchStr.includes(term);
+      const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
+      const jenisMatch = filterJenis === 'Semua Jenis' || (p.jenisPegawai || '').toUpperCase() === filterJenis.toUpperCase();
+      
+      let ageMatch = true;
+      if (minAge || maxAge) {
+        const birthDateStr = formatDateForInput(p.tanggalLahir);
+        if (birthDateStr) {
+          const birthDate = new Date(birthDateStr);
+          if (!isNaN(birthDate.getTime())) {
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+            ageMatch = age >= min && age <= max;
+          } else ageMatch = false;
+        } else ageMatch = false;
+      }
       return match && unitMatch && jenisMatch && ageMatch;
     });
   }, [pegawaiList, searchTerm, filterUnit, filterJenis, minAge, maxAge]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
-      'Aktif': 0,
-      'Tidak Aktif': 0,
-      'Pensiun': 0,
-      'Tugas Belajar': 0
+      'Aktif': 0, 'Tidak Aktif': 0, 'Pensiun': 0, 'Tugas Belajar': 0
     };
-    
-    filteredPegawai.forEach(p => {
+    filteredForCounts.forEach(p => {
       const status = p.status || 'Aktif';
-      if (counts[status] !== undefined) {
-        counts[status]++;
-      } else {
-        counts[status] = (counts[status] || 0) + 1;
-      }
+      if (counts[status] !== undefined) counts[status]++;
     });
-    
     return counts;
-  }, [filteredPegawai]);
+  }, [filteredForCounts]);
 
   const filteredDossiers = useMemo(() => {
     if (!selectedPegawai) return [];
@@ -257,18 +286,95 @@ const PegawaiPage = () => {
     XLSX.writeFile(wb, `Data_Pegawai_DJKI_${type}_${Date.now()}.xlsx`);
   };
 
-  const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleUploadPhoto = async () => {
+    if (!tempPhotoFile) return;
     setUploading(true);
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
-      const res = await uploadFileToDrive(`FOTO_${formData.nip || 'NEW'}_${Date.now()}`, file.type, base64);
-      if (res.success && res.fileUrl) setFormData(prev => ({ ...prev, foto: res.fileUrl }));
+      const res = await uploadFileToDrive(`FOTO_${formData.nip || 'NEW'}_${Date.now()}`, tempPhotoFile.type, base64);
+      if (res.success && res.fileUrl) {
+        setFormData(prev => ({ ...prev, foto: res.fileUrl }));
+        setIsPhotoModalOpen(false);
+        if (tempPhotoPreview) URL.revokeObjectURL(tempPhotoPreview);
+        setTempPhotoFile(null);
+        setTempPhotoPreview('');
+        setSuccessMsg("Foto profil berhasil diunggah ke sistem.");
+        setShowSuccess(true);
+      } else {
+        alert(res.message || "Gagal mengunggah foto. Pastikan koneksi internet stabil dan ukuran file tidak terlalu besar.");
+      }
       setUploading(false);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(tempPhotoFile);
+  };
+
+  const handleBulkPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileList = Array.from(files);
+    setBulkPhotoProgress({ current: 0, total: fileList.length, active: true });
+    setSyncing(true);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        setBulkPhotoProgress(prev => ({ ...prev, current: i + 1 }));
+
+        const nipFromFileName = file.name.split('.')[0].replace(/\D/g, '');
+        if (nipFromFileName.length < 8) {
+            failCount++;
+            continue;
+        }
+
+        try {
+            const pegawai = await findPegawaiByNip(nipFromFileName);
+            if (!pegawai) {
+                failCount++;
+                continue;
+            }
+
+            const base64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(file);
+            });
+
+            const res = await uploadFileToDrive(`FOTO_BULK_${nipFromFileName}_${Date.now()}`, file.type, base64);
+            if (res.success && res.fileUrl) {
+                const updatedPegawai = { ...pegawai, foto: res.fileUrl };
+                await savePegawai(updatedPegawai);
+                successCount++;
+            } else {
+                failCount++;
+            }
+        } catch (err) {
+            failCount++;
+        }
+    }
+
+    setSyncing(false);
+    setBulkPhotoProgress({ current: 0, total: 0, active: false });
+    setSuccessMsg(`Bulk Upload Selesai: ${successCount} Berhasil, ${failCount} Gagal.`);
+    setShowSuccess(true);
+    loadData();
+    if (bulkPhotoInputRef.current) bulkPhotoInputRef.current.value = '';
+  };
+
+  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Ukuran file terlalu besar. Maksimal 2MB.");
+        return;
+      }
+      setTempPhotoFile(file);
+      setTempPhotoPreview(URL.createObjectURL(file));
+      setIsPhotoModalOpen(true);
+    }
   };
 
   const handleSaveDossier = async (e: React.FormEvent) => {
@@ -487,19 +593,36 @@ const PegawaiPage = () => {
         </div>
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full lg:w-auto">
            <input type="file" ref={importExcelInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
+           <input type="file" ref={bulkPhotoInputRef} className="hidden" accept="image/*" multiple onChange={handleBulkPhotoUpload} />
            {canEdit && (
              <button 
                onClick={() => importExcelInputRef.current?.click()} 
                disabled={syncing}
                className="h-10 md:h-14 px-3 md:px-6 bg-blue-50 text-blue-600 border border-blue-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
              >
-               {syncing && importProgress.total > 0 ? (
+               {syncing && importProgress.total > 0 && !bulkPhotoProgress.active ? (
                  <div className="flex items-center gap-2">
                    <div className="h-3 w-3 md:h-4 md:w-4 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div>
                    <span>{importProgress.current}/{importProgress.total}</span>
                  </div>
                ) : (
                  <><i className="bi bi-file-earmark-arrow-up-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Import</span><span className="xs:hidden">Imp</span></>
+               )}
+             </button>
+           )}
+           {canEdit && (
+             <button 
+               onClick={() => bulkPhotoInputRef.current?.click()} 
+               disabled={syncing}
+               className="h-10 md:h-14 px-3 md:px-6 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-rose-600 hover:text-white transition-all flex items-center justify-center gap-2"
+             >
+               {bulkPhotoProgress.active ? (
+                 <div className="flex items-center gap-2">
+                   <div className="h-3 w-3 md:h-4 md:w-4 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin"></div>
+                   <span>{bulkPhotoProgress.current}/{bulkPhotoProgress.total}</span>
+                 </div>
+               ) : (
+                 <><i className="bi bi-images text-base md:text-lg"></i> <span className="hidden xs:inline">Bulk Foto</span><span className="xs:hidden">Bulk</span></>
                )}
              </button>
            )}
@@ -525,6 +648,13 @@ const PegawaiPage = () => {
               <option value="CPNS">CPNS</option>
               <option value="PPPK">PPPK</option>
               <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
+          </select>
+          <select className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+              <option>Semua Status</option>
+              <option value="Aktif">AKTIF</option>
+              <option value="Tidak Aktif">TIDAK AKTIF</option>
+              <option value="Pensiun">PENSIUN</option>
+              <option value="Tugas Belajar">TUGAS BELAJAR</option>
           </select>
           <div className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-2 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem]">
             <span className="text-[7px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Usia:</span>
@@ -553,7 +683,7 @@ const PegawaiPage = () => {
            <div key={`${p.nip}-${i}`} onClick={() => navigate(`/pegawai/${p.nip}`)} className="bg-white p-3 md:p-7 rounded-xl md:rounded-[3rem] border border-gray-100 shadow-sm group hover:shadow-2xl transition-all cursor-pointer relative overflow-hidden">
               <div className="flex items-center gap-3 md:gap-6">
                  <div className="h-12 w-12 md:h-20 md:w-20 rounded-lg md:rounded-[1.8rem] bg-blue-50 overflow-hidden border-2 md:border-4 border-white shadow-xl group-hover:scale-105 transition-transform shrink-0">
-                    {p.foto ? <img src={p.foto} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black text-lg md:text-3xl">{p.nama.charAt(0)}</div>}
+                    {p.foto ? <img src={getPhotoUrl(p.foto)} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black text-lg md:text-3xl">{p.nama.charAt(0)}</div>}
                  </div>
                  <div className="min-w-0 flex-1">
                     <h4 className="text-[10px] md:text-[13px] font-black text-gray-950 truncate leading-tight uppercase">{p.nama}</h4>
@@ -668,11 +798,16 @@ const PegawaiPage = () => {
                        </div>
                        <div className="md:col-span-4 bg-gray-50 p-6 md:p-8 rounded-3xl md:rounded-[3rem] border border-gray-100 flex flex-col items-center text-center">
                           <div className="h-36 w-36 md:h-44 md:w-44 bg-white rounded-3xl md:rounded-[3rem] border-4 border-white shadow-xl overflow-hidden mb-4 md:mb-6 relative group">
-                             {formData.foto ? <img src={formData.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 text-3xl md:text-4xl font-black bg-blue-50/50">?</div>}
-                             {uploading && <div className="absolute inset-0 bg-blue-600/80 flex items-center justify-center text-white"><div className="h-5 w-5 md:h-6 md:w-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div></div>}
+                             {formData.foto ? <img src={getPhotoUrl(formData.foto)} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 text-3xl md:text-4xl font-black bg-blue-50/50">?</div>}
+                             <div 
+                               className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                               onClick={() => fileInputRef.current?.click()}
+                             >
+                               <i className="bi bi-camera-fill text-white text-3xl"></i>
+                             </div>
                           </div>
-                          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="px-6 md:px-8 py-2 md:py-3 bg-blue-600 text-white rounded-xl text-[8px] md:text-[9px] font-black uppercase shadow-lg">Ganti Foto Profil</button>
-                          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleUploadPhoto} />
+                          <button type="button" onClick={() => fileInputRef.current?.click()} className="px-6 md:px-8 py-2 md:py-3 bg-blue-600 text-white rounded-xl text-[8px] md:text-[9px] font-black uppercase shadow-lg hover:bg-blue-700 transition-colors">Ganti Foto Profil</button>
+                          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handlePhotoFileChange} />
                        </div>
                     </div>
                  </section>
@@ -745,6 +880,44 @@ const PegawaiPage = () => {
         </div>
       )}
 
+      {isPhotoModalOpen && (
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-sm" onClick={() => !uploading && setIsPhotoModalOpen(false)}></div>
+          <div className="relative bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden animate-modalEnter border border-white/20">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h4 className="text-lg font-black uppercase text-gray-950 tracking-tighter">Pratinjau Foto Profil</h4>
+              <button onClick={() => setIsPhotoModalOpen(false)} className="h-8 w-8 flex items-center justify-center text-gray-400 hover:text-rose-500">
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <div className="p-8 flex flex-col items-center">
+              <div className="h-48 w-48 rounded-[2rem] border-4 border-blue-50 shadow-inner overflow-hidden mb-8">
+                <img src={tempPhotoPreview} className="h-full w-full object-cover" alt="Preview" />
+              </div>
+              <div className="space-y-3 w-full">
+                <button 
+                  onClick={handleUploadPhoto} 
+                  disabled={uploading}
+                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all"
+                >
+                  {uploading ? (
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    <><i className="bi bi-cloud-arrow-up-fill"></i> Upload Sekarang</>
+                  )}
+                </button>
+                <button 
+                  onClick={() => setIsPhotoModalOpen(false)} 
+                  disabled={uploading}
+                  className="w-full py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-[10px] uppercase active:scale-95 transition-all"
+                >
+                  Batalkan
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
