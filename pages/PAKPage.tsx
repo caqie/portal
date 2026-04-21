@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
-import { fetchPegawaiFromSheets, fetchPAKFromSheets, syncTableRemote } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, fetchPAKFromSheets, syncTableRemote, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai, PAKRecord } from '../types';
 import { useAuth } from '../AuthContext';
 import { AK_KOEFISIEN, PREDIKAT_MULTIPLIER } from '../constants';
@@ -177,7 +177,7 @@ const PAKPage = () => {
         setSelectedPAK(payload);
         setActiveView('preview');
         setShowSuccess(true);
-        logActivity('CREATE', 'PAK', `Terbitkan PAK: ${payload.namaPegawai}`);
+        logActivity(formData.id ? 'UPDATE' : 'CREATE', 'PAK', `Terbitkan PAK: ${payload.namaPegawai}`);
       }
     } catch (e) { alert("Gagal sinkronisasi data."); } finally { setSyncing(false); }
   };
@@ -185,11 +185,54 @@ const PAKPage = () => {
   const handleDownloadPdf = async () => {
     if (!pdfRef.current) return;
     setSyncing(true);
-    const canvas = await html2canvas(pdfRef.current, { scale: 2.2, useCORS: true });
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 330);
-    pdf.save(`PAK_KONVERSI_${formData.namaPegawai?.replace(/\s+/g, '_')}.pdf`);
-    setSyncing(false);
+    try {
+      const canvas = await html2canvas(pdfRef.current, { scale: 2.2, useCORS: true });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 330);
+      pdf.save(`PAK_KONVERSI_${formData.namaPegawai?.replace(/\s+/g, '_')}.pdf`);
+    } catch (e) {
+      alert("Gagal cetak PDF.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSaveToDossier = async () => {
+    if (!pdfRef.current || !formData.nip) return;
+    setSyncing(true);
+    try {
+      const canvas = await html2canvas(pdfRef.current, { scale: 2.2, useCORS: true });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [210, 330] });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 330);
+      const pdfBase64 = pdf.output('datauristring');
+      
+      const fileName = `PAK_KONVERSI_${formData.namaPegawai?.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      const res = await uploadFileToDrive(fileName, 'application/pdf', pdfBase64);
+      
+      if (res.success && res.fileUrl) {
+        const payload = {
+          id: `DOS-${Date.now()}`,
+          nip: formData.nip,
+          namaPegawai: formData.namaPegawai,
+          tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+          keterangan: `Penetapan Angka Kredit (PAK) Berbasis SKP`,
+          fileName: fileName,
+          fileUrl: res.fileUrl
+        };
+        const ok = await syncTableRemote('DOSSIER', 'SAVE', payload);
+        if (ok) {
+          logActivity('CREATE', 'DOSSIER', `Simpan PAK ke Dossier: ${formData.namaPegawai}`);
+          alert("Dokumen PAK berhasil disimpan ke E-Dossier Pegawai.");
+        }
+      } else {
+        alert("Gagal mengunggah file ke Drive.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Gagal menyimpan ke Dossier.");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const activeRecord = selectedPAK || formData;
@@ -245,7 +288,17 @@ const PAKPage = () => {
                        </td>
                        <td className="px-4 py-5 text-[10px] font-bold text-gray-500">{p.nomor}</td>
                        <td className="px-4 py-5 text-center font-black text-blue-600">{Number(p.jumlahKredit || 0).toFixed(3)}</td>
-                       <td className="px-10 py-5 text-right"><button onClick={() => { setSelectedPAK(p); setActiveView('preview'); }} className="h-9 px-6 rounded-xl bg-gray-950 text-white text-[9px] font-black uppercase shadow-lg">Detail</button></td>
+                       <td className="px-10 py-5 text-right">
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                             <button onClick={() => { setSelectedPAK(p); setActiveView('preview'); }} className="h-9 px-6 rounded-xl bg-gray-950 text-white text-[9px] font-black uppercase shadow-lg">Detail</button>
+                             {canEdit && (
+                               <button onClick={() => { setFormData(p); setActiveView('editor'); setEditorStep('profil'); }} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl flex items-center justify-center hover:bg-amber-50 shadow-sm transition-all"><i className="bi bi-pencil-fill"></i></button>
+                             )}
+                             {isSuperadmin && (
+                               <button onClick={() => { setPakToDelete(p); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-50 shadow-sm transition-all"><i className="bi bi-trash-fill"></i></button>
+                             )}
+                          </div>
+                       </td>
                     </tr>
                  ))}
                  {pakList.length === 0 && !loading && (
@@ -352,6 +405,16 @@ const PAKPage = () => {
         <div className="animate-fadeIn space-y-10">
            <div className="flex justify-end gap-3 no-print px-6">
               <button onClick={() => setActiveView('editor')} className="px-8 py-4 bg-white text-gray-500 border border-gray-200 rounded-2xl text-[11px] font-black uppercase">Edit Data</button>
+              {canEdit && (
+                <button onClick={handleSaveToDossier} disabled={syncing} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-2 shadow-xl active:scale-95 transition-all">
+                   {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-folder-fill"></i>} Simpan ke Dossier
+                </button>
+              )}
+              {canEdit && (
+                <button onClick={handleSave} disabled={syncing} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-2 shadow-xl active:scale-95 transition-all">
+                   {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-arrow-up-fill"></i>} Simpan
+                </button>
+              )}
               <button onClick={handleDownloadPdf} className="px-12 py-4 bg-gray-950 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-3 shadow-xl active:scale-95 transition-all"><i className="bi bi-file-earmark-pdf-fill"></i> Download PDF (F4)</button>
            </div>
            
