@@ -129,6 +129,7 @@ export interface RiwayatPendidikan {
   jurusan: string;
   tahunLulus: string;
   nomorIjazah: string;
+  fileUrl?: string;
 }
 
 export interface RiwayatJabatan {
@@ -137,6 +138,7 @@ export interface RiwayatJabatan {
   tmtJabatan: string;
   nomorSk: string;
   tanggalSk: string;
+  fileUrl?: string;
 }
 
 export interface RiwayatPangkat {
@@ -145,6 +147,7 @@ export interface RiwayatPangkat {
   tmtPangkat: string;
   nomorSk: string;
   tanggalSk: string;
+  fileUrl?: string;
 }
 
 export interface RiwayatPelatihan {
@@ -153,6 +156,7 @@ export interface RiwayatPelatihan {
   tahun: string;
   durasi: string;
   nomorSertifikat: string;
+  fileUrl?: string;
 }
 
 export interface Keluarga {
@@ -198,8 +202,9 @@ export interface Pegawai {
   npwp?: string;
   noBpjs?: string;
   noKarisKarsu?: string;
-  noTapera?: string;
+  noTAPERA?: string;
   noKarpeg?: string;
+  noRekeningGaji?: string;
   usia?: string;
   tglPensiun?: string;
   tmtPensiun?: string;
@@ -210,6 +215,7 @@ export interface Pegawai {
   jenisJabatan?: string;
   keteranganPensiun?: string;
   statusPerkawinan?: string;
+  kelasJabatan?: string;
   riwayatPendidikan?: RiwayatPendidikan[];
   riwayatJabatan?: RiwayatJabatan[];
   riwayatPangkat?: RiwayatPangkat[];
