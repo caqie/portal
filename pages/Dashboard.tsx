@@ -34,6 +34,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifTab, setNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat' | 'satya' | 'bangkom'>('pensiun');
+  const [selectedMonth, setSelectedMonth] = useState<string>('Semua');
 
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null);
   const [selectedCalendarEvents, setSelectedCalendarEvents] = useState<Kegiatan[]>([]);
@@ -204,19 +205,42 @@ const Dashboard = () => {
 
     activePegawaiList.forEach(p => {
       const ret = getRetirementDetails(p.nip || '', p.jabatan || '');
+      
+      // Filter by Month if selected
+      const checkMonth = (dateStr: string | undefined) => {
+        if (selectedMonth === 'Semua') return true;
+        if (!dateStr) return false;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) {
+            // Try parsing manually if Date fails (e.g. DD-MM-YYYY)
+            const parts = dateStr.split(/[-/]/);
+            if (parts.length === 3) {
+                const m = parts[0].length === 4 ? parseInt(parts[1]) : parseInt(parts[1]);
+                return m === parseInt(selectedMonth);
+            }
+            return false;
+        }
+        return (d.getMonth() + 1) === parseInt(selectedMonth);
+      };
+
       if (ret && ret.tmtPensiun && ret.tmtPensiun.getFullYear() === currentYear) {
-        listPensiun.push({ nama: p.nama, nip: p.nip, tmt: ret.tmtPensiun.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), sisa: ret.sisaMasaKerja });
+        if (selectedMonth === 'Semua' || (ret.tmtPensiun.getMonth() + 1) === parseInt(selectedMonth)) {
+            listPensiun.push({ nama: p.nama, nip: p.nip, tmt: ret.tmtPensiun.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), sisa: ret.sisaMasaKerja });
+        }
       }
       const anchorDate = p.tmtPangkat || p.tmtCpns;
       if (anchorDate) {
         const tmtParts = String(anchorDate).split(/[-/]/);
         if (tmtParts.length === 3) {
             const tmtYear = tmtParts[0].length === 4 ? parseInt(tmtParts[0]) : parseInt(tmtParts[2]);
+            const tmtMonth = tmtParts[0].length === 4 ? parseInt(tmtParts[1]) : parseInt(tmtParts[1]);
             const diffYears = currentYear - tmtYear;
             if (diffYears > 0 && diffYears % 2 === 0) {
-                const sudahDiproses = riwayatKgb.some(k => k.nip === p.nip && k.tmtBaru && k.tmtBaru.includes(currentYear.toString()));
-                if (!sudahDiproses) {
-                    listKGB.push({ nama: p.nama, nip: p.nip, tmtTerakhir: anchorDate, keterangan: `Jadwal KGB Tahun ${currentYear}` });
+                if (selectedMonth === 'Semua' || tmtMonth === parseInt(selectedMonth)) {
+                    const sudahDiproses = riwayatKgb.some(k => k.nip === p.nip && k.tmtBaru && k.tmtBaru.includes(currentYear.toString()));
+                    if (!sudahDiproses) {
+                        listKGB.push({ nama: p.nama, nip: p.nip, tmtTerakhir: anchorDate, keterangan: `Jadwal KGB Tahun ${currentYear}` });
+                    }
                 }
             }
         }
@@ -225,18 +249,24 @@ const Dashboard = () => {
         const tmtParts = String(p.tmtPangkat).split(/[-/]/);
         if (tmtParts.length === 3) {
             const tmtYear = tmtParts[0].length === 4 ? parseInt(tmtParts[0]) : parseInt(tmtParts[2]);
+            const tmtMonth = tmtParts[0].length === 4 ? parseInt(tmtParts[1]) : parseInt(tmtParts[1]);
             const diffYears = currentYear - tmtYear;
             if (diffYears > 0 && diffYears % 4 === 0) {
-                listPangkat.push({ nama: p.nama, nip: p.nip, tmtTerakhir: p.tmtPangkat, keterangan: `Jadwal KP Tahun ${currentYear}` });
+                if (selectedMonth === 'Semua' || tmtMonth === parseInt(selectedMonth)) {
+                    listPangkat.push({ nama: p.nama, nip: p.nip, tmtTerakhir: p.tmtPangkat, keterangan: `Jadwal KP Tahun ${currentYear}` });
+                }
             }
         }
       }
       const cleanNip = String(p.nip || '').replace(/\D/g, '');
       if (cleanNip.length >= 12) {
         const cpnsYear = parseInt(cleanNip.substring(8, 12));
+        const cpnsMonth = parseInt(cleanNip.substring(12, 14));
         const workingYears = currentYear - cpnsYear;
         if ([10, 20, 30].includes(workingYears)) {
-           listSatya.push({ nama: p.nama, nip: p.nip, tahun: workingYears, pengabdian: `Masa Kerja ${workingYears} Thn` });
+           if (selectedMonth === 'Semua' || cpnsMonth === parseInt(selectedMonth)) {
+               listSatya.push({ nama: p.nama, nip: p.nip, tahun: workingYears, pengabdian: `Masa Kerja ${workingYears} Thn` });
+           }
         }
       }
       const perUserBangkom = riwayatBangkom.filter(r => r.nip === p.nip && Number(r.tahun) === currentYear);
@@ -248,33 +278,139 @@ const Dashboard = () => {
       }
     });
     return { kgb: listKGB, pangkat: listPangkat, pensiun: listPensiun, satya: listSatya, bangkom: listBangkom };
-  }, [activePegawaiList, riwayatBangkom, riwayatKgb]);
+  }, [activePegawaiList, riwayatBangkom, riwayatKgb, selectedMonth]);
 
   const totalNotifCount = reminders.kgb.length + reminders.pangkat.length + reminders.pensiun.length + reminders.satya.length + reminders.bangkom.length;
 
   const handleDownloadFullAnalytics = () => {
     const wb = XLSX.utils.book_new();
+    
+    // 1. Sebaran Unit
     const unitWs = XLSX.utils.json_to_sheet(unitDistribution.map(u => ({ 
       'Unit Kerja Pengampu': u.unit, 
       'PNS': u.pns, 'CPNS': u.cpns, 'PPPK': u.pppk, 'PPPK Paruh Waktu': u.pppkParuh, 'Total ASN': u.total 
     })));
     XLSX.utils.book_append_sheet(wb, unitWs, "Sebaran Unit");
-    XLSX.writeFile(wb, `PortalSDM_Analytics_${new Date().getTime()}.xlsx`);
+
+    // 2. Statistik Gender
+    const genderWs = XLSX.utils.json_to_sheet([
+        { 'Kategori': 'Laki-laki', 'Jumlah': genderStats.pria },
+        { 'Kategori': 'Perempuan', 'Jumlah': genderStats.wanita },
+        { 'Kategori': 'Total', 'Jumlah': genderStats.pria + genderStats.wanita }
+    ]);
+    XLSX.utils.book_append_sheet(wb, genderWs, "Statistik Gender");
+
+    // 3. Statistik Pendidikan
+    const eduWs = XLSX.utils.json_to_sheet(educationStats.map(e => ({
+        'Jenjang Pendidikan': e.label,
+        'Jumlah ASN': e.count
+    })));
+    XLSX.utils.book_append_sheet(wb, eduWs, "Statistik Pendidikan");
+
+    // 4. Sebaran Golongan
+    const gradeWs = XLSX.utils.json_to_sheet(gradeStats.map(g => ({
+        'Golongan / Ruang': g.label,
+        'Jumlah ASN': g.count
+    })));
+    XLSX.utils.book_append_sheet(wb, gradeWs, "Sebaran Golongan");
+
+    // 5. Matriks Jabatan (Summary)
+    const jabWs = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({
+        'Nama Jabatan': j.jabatan,
+        'Klasifikasi': j.klasifikasi,
+        'Jenis Pegawai': j.jenis,
+        'Total ASN': j.total
+    })));
+    XLSX.utils.book_append_sheet(wb, jabWs, "Matriks Jabatan");
+
+    XLSX.writeFile(wb, `PortalSDM_Full_Analytics_${new Date().getTime()}.xlsx`);
+    logActivity('DOWNLOAD', 'Dashboard', 'Download Full Analytics Statistics');
   };
 
   const handleExportJabatan = () => {
     const wb = XLSX.utils.book_new();
     
+    // Apply Global Filters
+    let listForExport = activePegawaiList;
+    if (filterJenisMatrix.length > 0) {
+        listForExport = listForExport.filter(p => {
+            const jen = (p.jenisPegawai || '').toUpperCase();
+            return filterJenisMatrix.some(f => {
+                if (f === 'PPPK_PARUH') return jen.includes('PARUH');
+                return jen === f;
+            });
+        });
+    }
+    if (filterUnit !== 'Semua Unit') {
+      listForExport = listForExport.filter(p => normalizeUnitName(p.unitKerja) === filterUnit);
+    }
+
+    // Helper for Kelas Jabatan (Permenkum 38/2025 Placeholder Logic)
+    const getKelasJabatan = (p: Pegawai) => {
+        if (p.kelasJabatan) return p.kelasJabatan;
+        const jab = (p.jabatan || '').toUpperCase();
+        const eselon = (p.eselon || '').toUpperCase();
+        
+        // JPT
+        if (eselon === 'I.A') return '17';
+        if (eselon === 'I.B') return '16';
+        if (eselon === 'II.A') return '15';
+        if (eselon === 'II.B') return '14';
+        
+        // Administrator / Pengawas
+        if (eselon === 'III.A') return '12';
+        if (eselon === 'III.B') return '11';
+        if (eselon === 'IV.A') return '9';
+        if (eselon === 'IV.B') return '8';
+
+        // Fungsional
+        if (jab.includes('AHLI UTAMA')) return '14';
+        if (jab.includes('AHLI MADYA')) return '12';
+        if (jab.includes('AHLI MUDA')) return '9';
+        if (jab.includes('AHLI PERTAMA')) return '8';
+        
+        if (jab.includes('PENYELIA')) return '8';
+        if (jab.includes('MAHIR')) return '7';
+        if (jab.includes('TERAMPIL')) return '6';
+        if (jab.includes('PEMULA')) return '5';
+
+        // Pelaksana
+        if (p.golRuang?.startsWith('IV')) return '9';
+        if (p.golRuang?.startsWith('III')) return '7';
+        if (p.golRuang?.startsWith('II')) return '5';
+        
+        return '-';
+    };
+
     const getGroupedData = (list: Pegawai[]) => {
-      const groups: Record<string, { total: number, klasifikasi: string, jabatan: string, jenis: string, unitKerja: string }> = {};
+      const groups: Record<string, { total: number, klasifikasi: string, jabatan: string, jenis: string, unitKerja: string, kelasJabatan: string }> = {};
+      const term = searchJabatan.toUpperCase().trim();
+
       list.forEach(p => {
         const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
         const jen = (p.jenisPegawai || 'ASN').trim().toUpperCase();
-        const klas = (p.klasifikasiJabatan || 'LAINNYA').trim().toUpperCase();
+        
+        // Improved Classification Logic (same as matrixJabatan memo)
+        let klas = (p.klasifikasiJabatan || '').trim().toUpperCase();
+        if (!klas || klas === 'LAINNYA') {
+          if (jab.includes('AHLI') || jab.includes('TERAMPIL') || jab.includes('MAHIR') || jab.includes('PENYELIA')) klas = 'FUNGSIONAL';
+          else if (jab.includes('DIREKTUR') || jab.includes('KEPALA') || jab.includes('SEKRETARIS')) {
+              if (jab.includes('BIRO') || jab.includes('DIREKTORAT') || jab.includes('DITJEN')) klas = 'JPT';
+              else if (jab.includes('BAGIAN') || jab.includes('SUBDIREKTORAT')) klas = 'ADMINISTRATOR';
+              else klas = 'PENGAWAS';
+          }
+          else if (jab.includes('PENGADMINISTRASI') || jab.includes('PENGOLAH') || jab.includes('PENYUSUN') || jab.includes('PETUGAS')) klas = 'PELAKSANA';
+          else klas = 'LAINNYA';
+        }
+
+        // Filter by Search Term
+        if (term && !jab.includes(term) && !klas.includes(term)) return;
+
         const unit = normalizeUnitName(p.unitKerja);
-        const key = `${jab}|${jen}|${klas}|${unit}`;
+        const kelas = getKelasJabatan(p);
+        const key = `${jab}|${jen}|${klas}|${unit}|${kelas}`;
         if (!groups[key]) {
-          groups[key] = { total: 0, klasifikasi: klas, jabatan: jab, jenis: jen, unitKerja: unit };
+          groups[key] = { total: 0, klasifikasi: klas, jabatan: jab, jenis: jen, unitKerja: unit, kelasJabatan: kelas };
         }
         groups[key].total += 1;
       });
@@ -285,26 +421,30 @@ const Dashboard = () => {
     };
 
     // 1. Sheet "Semua Unit"
-    const allGrouped = getGroupedData(activePegawaiList);
+    const allGrouped = getGroupedData(listForExport);
     const wsAll = XLSX.utils.json_to_sheet(allGrouped.map((j, i) => ({
       'No': i + 1,
       'Nama Jabatan': j.jabatan,
       'Unit Kerja': j.unitKerja,
       'Klasifikasi': j.klasifikasi,
+      'Kelas Jabatan (Permenkum 38/2025)': j.kelasJabatan,
       'Jenis Pegawai': j.jenis,
       'Total': j.total
     })));
     XLSX.utils.book_append_sheet(wb, wsAll, "Semua Unit");
 
-    // 2. 7 Sheets for each Unit
+    // 2. Individual Sheets for each Unit (Filtered)
     UNIT_KERJA.forEach(unitName => {
-      const unitData = activePegawaiList.filter(p => normalizeUnitName(p.unitKerja) === unitName);
+      const unitData = listForExport.filter(p => normalizeUnitName(p.unitKerja) === unitName);
+      if (unitData.length === 0) return; // Skip if no data for this unit after filtering
+
       const groupedUnit = getGroupedData(unitData);
       const wsUnit = XLSX.utils.json_to_sheet(groupedUnit.map((j, i) => ({
         'No': i + 1,
         'Nama Jabatan': j.jabatan,
         'Unit Kerja': j.unitKerja,
         'Klasifikasi': j.klasifikasi,
+        'Kelas Jabatan (Permenkum 38/2025)': j.kelasJabatan,
         'Jenis Pegawai': j.jenis,
         'Total': j.total
       })));
@@ -323,8 +463,8 @@ const Dashboard = () => {
       XLSX.utils.book_append_sheet(wb, wsUnit, sName);
     });
 
-    XLSX.writeFile(wb, `Matriks_Jabatan_DJKI_${new Date().getTime()}.xlsx`);
-    logActivity('DOWNLOAD', 'Dashboard', 'Export Excel Matriks Jabatan (8 Sheets)');
+    XLSX.writeFile(wb, `Matriks_Jabatan_DJKI_Filtered_${new Date().getTime()}.xlsx`);
+    logActivity('DOWNLOAD', 'Dashboard', 'Export Excel Matriks Jabatan (Filtered)');
   };
 
   return (
@@ -359,26 +499,6 @@ const Dashboard = () => {
         <StatsCard title="Total CPNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'CPNS').length} icon="bi-person-plus" color="bg-cyan-600" loading={loading} />
         <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'PPPK').length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
         <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
-      </div>
-
-      <div className="relative">
-         <div className="absolute top-8 right-32 z-10 hidden md:block">
-            <p className="text-[9px] font-bold text-gray-400 tracking-[0.3em]">Jadwal Direktorat Terintegrasi</p>
-         </div>
-         <div className="absolute top-6 right-8 z-10 hidden md:block">
-            <a href="#/kegiatan" className="px-6 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-2">
-               <i className="bi bi-gear-fill"></i>
-               Kelola
-            </a>
-         </div>
-         <CalendarView 
-            events={kegiatan} 
-            onDateClick={(date, evs) => {
-              setSelectedCalendarDate(date);
-              setSelectedCalendarEvents(evs);
-              setIsCalendarModalOpen(true);
-            }}
-          />
       </div>
 
       <div className="bg-white p-4 md:p-10 rounded-2xl md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden">
@@ -605,6 +725,26 @@ const Dashboard = () => {
         </div>
       </div>
 
+      <div className="relative">
+         <div className="absolute top-8 right-32 z-10 hidden md:block">
+            <p className="text-[9px] font-bold text-gray-400 tracking-[0.3em]">Jadwal Direktorat Terintegrasi</p>
+         </div>
+         <div className="absolute top-6 right-8 z-10 hidden md:block">
+            <a href="#/kegiatan" className="px-6 py-2.5 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-2">
+               <i className="bi bi-gear-fill"></i>
+               Kelola
+            </a>
+         </div>
+         <CalendarView 
+            events={kegiatan} 
+            onDateClick={(date, evs) => {
+              setSelectedCalendarDate(date);
+              setSelectedCalendarEvents(evs);
+              setIsCalendarModalOpen(true);
+            }}
+          />
+      </div>
+
       {/* CALENDAR DETAIL MODAL */}
       {isCalendarModalOpen && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
@@ -694,14 +834,29 @@ const Dashboard = () => {
            <div className="relative bg-white w-full max-w-2xl rounded-t-[2.5rem] sm:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-modalEnter max-h-full mt-auto sm:mt-0">
               
               <div className="p-6 md:p-10 shrink-0 bg-gray-50/50 border-b relative z-50">
-                 <div className="flex items-center justify-between mb-6 md:mb-8">
+                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 md:mb-8 gap-4">
                     <div>
                       <h4 className="text-xl md:text-2xl font-black text-gray-950 tracking-tighter">Personnel Monitoring</h4>
                       <p className="text-[9px] md:text-[10px] font-bold text-gray-400 tracking-widest mt-1.5 md:mt-2 uppercase">Tindakan Administrasi Tahun {new Date().getFullYear()}</p>
                     </div>
-                    <button onClick={() => setIsNotifOpen(false)} className="h-10 w-10 md:h-12 md:w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white border border-gray-100 rounded-xl md:rounded-2xl shadow-sm transition-all hover:shadow-md active:scale-95">
-                       <i className="bi bi-x-lg text-lg md:text-xl"></i>
-                    </button>
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                       <div className="flex-1 sm:flex-none relative">
+                          <select 
+                            className="w-full sm:w-40 px-4 py-2 bg-white border border-gray-200 rounded-xl text-[9px] font-black outline-none focus:border-blue-600 appearance-none pr-10 shadow-sm"
+                            value={selectedMonth}
+                            onChange={e => setSelectedMonth(e.target.value)}
+                          >
+                             <option value="Semua">SEMUA BULAN</option>
+                             {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((m, idx) => (
+                                <option key={m} value={idx + 1}>{m.toUpperCase()}</option>
+                             ))}
+                          </select>
+                          <i className="bi bi-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                       </div>
+                       <button onClick={() => setIsNotifOpen(false)} className="h-10 w-10 md:h-12 md:w-12 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white border border-gray-100 rounded-xl md:rounded-2xl shadow-sm transition-all hover:shadow-md active:scale-95">
+                          <i className="bi bi-x-lg text-lg md:text-xl"></i>
+                       </button>
+                    </div>
                  </div>
                  <div className="flex bg-gray-200 p-1 md:p-1.5 rounded-xl md:rounded-2xl overflow-x-auto no-scrollbar gap-1">
                     <button onClick={() => setNotifTab('pensiun')} className={`flex-1 min-w-[80px] md:min-w-[100px] py-2.5 md:py-3.5 text-[8px] md:text-[9px] font-black rounded-lg md:rounded-xl transition-all uppercase ${notifTab==='pensiun' ? 'bg-white text-rose-600 shadow-md' : 'text-gray-500'}`}>Pensiun ({reminders.pensiun.length})</button>
