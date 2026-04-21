@@ -138,6 +138,10 @@ const SettingsPage = () => {
       if (res.success && res.fileUrl) {
         if (type === 'APP') setAppLogo(res.fileUrl);
         else setTemplateLogo(res.fileUrl);
+        setSuccessMsg(`Logo ${type === 'APP' ? 'Aplikasi' : 'Kop Surat'} berhasil diunggah.`);
+        setShowSuccess(true);
+      } else if (res.message) {
+        alert(res.message);
       }
       setUploading(false);
     };
