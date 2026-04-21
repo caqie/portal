@@ -82,9 +82,9 @@ const Dashboard = () => {
       const perUnit = activePegawaiList.filter(p => normalizeUnitName(p.unitKerja) === unit);
       return {
         unit,
-        pns: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase() === 'PNS').length,
-        cpns: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase() === 'CPNS').length,
-        pppk: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase() === 'PPPK').length,
+        pns: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase().trim() === 'PNS').length,
+        cpns: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase().trim().includes('CPNS')).length,
+        pppk: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase().trim().includes('PPPK')).length,
         pppkParuh: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PARUH')).length,
         total: perUnit.length
       };
@@ -495,9 +495,9 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
         <StatsCard title="Total ASN Aktif" value={activePegawaiList.length} icon="bi-people-fill" color="bg-blue-600" loading={loading} />
-        <StatsCard title="Total PNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'PNS').length} icon="bi-person-vcard" color="bg-indigo-600" loading={loading} />
-        <StatsCard title="Total CPNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'CPNS').length} icon="bi-person-plus" color="bg-cyan-600" loading={loading} />
-        <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase() === 'PPPK').length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
+        <StatsCard title="Total PNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim() === 'PNS').length} icon="bi-person-vcard" color="bg-indigo-600" loading={loading} />
+        <StatsCard title="Total CPNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim().includes('CPNS')).length} icon="bi-person-plus" color="bg-cyan-600" loading={loading} />
+        <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim().includes('PPPK')).length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
         <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
       </div>
 
