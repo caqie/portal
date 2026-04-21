@@ -51,6 +51,15 @@ const SatyaLencanaPage = () => {
     }
   };
 
+  const years = useMemo(() => {
+    const current = new Date().getFullYear();
+    const result = [];
+    for (let i = 0; i <= 10; i++) {
+      result.push(current + i);
+    }
+    return result;
+  }, []);
+
   // Logika Monitoring Kelayakan
   const eligiblePegawai = useMemo(() => {
     return pegawaiList.map(p => {
@@ -184,7 +193,7 @@ const SatyaLencanaPage = () => {
         </div>
         {activeTab === 'monitoring' && (
            <select className="px-8 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black uppercase outline-none focus:border-blue-600 shadow-inner" value={filterYear} onChange={e => setFilterYear(Number(e.target.value))}>
-              {[2025, 2024, 2023, 2022].map(y => <option key={y} value={y}>PROYEKSI TAHUN {y}</option>)}
+              {years.map(y => <option key={y} value={y}>PROYEKSI TAHUN {y}</option>)}
            </select>
         )}
       </div>
