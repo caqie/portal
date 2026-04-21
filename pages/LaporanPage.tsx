@@ -49,10 +49,18 @@ const LaporanPage = () => {
   };
 
   const stats = useMemo(() => {
-    const active = pegawai.filter(p => (p.status || '').toLowerCase() === 'aktif');
+    const active = pegawai.filter(p => {
+      const s = (p.status || 'Aktif').trim().toLowerCase();
+      // Dashboard uses s !== 'tidak aktif' && s !== 'pensiun'
+      return s !== 'tidak aktif' && s !== 'pensiun';
+    });
     
     const getStatsForType = (typeKey: string) => {
-      const list = active.filter(p => (p.jenisPegawai || '').toUpperCase().includes(typeKey.toUpperCase()));
+      const list = active.filter(p => {
+        const type = (p.jenisPegawai || '').toUpperCase().trim();
+        if (typeKey.toUpperCase() === 'PNS') return type === 'PNS';
+        return type.includes(typeKey.toUpperCase());
+      });
       
       const units: Record<string, number> = {};
       UNIT_KERJA.forEach(u => units[u] = list.filter(p => normalizeUnitName(p.unitKerja) === u).length);
@@ -164,7 +172,7 @@ const LaporanPage = () => {
                </div>
                <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Nota Dinas</label><input type="text" className="w-full px-4 py-3 bg-gray-50 border rounded-xl text-xs font-black" value={nomorNota} onChange={e => setNomorNota(e.target.value)} /></div>
                <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal Nota Dinas</label><input type="date" className="w-full px-4 py-3 bg-gray-50 border rounded-xl text-xs font-black" value={tanggalNota} onChange={e => setTanggalNota(e.target.value)} /></div>
-               <SearchableSelect label="Dari (Pejabat Penandatangan)" options={pegawai.map(p => ({ value: p.nip, label: p.nama, subLabel: p.jabatan }))} value={signatoryNip} onChange={handleSignatoryChange} />
+               <SearchableSelect label="Dari (Pejabat Penandatangan)" options={pegawai.filter(p => (p.status || 'Aktif').trim().toLowerCase() === 'aktif').map(p => ({ value: p.nip, label: p.nama, subLabel: p.jabatan }))} value={signatoryNip} onChange={handleSignatoryChange} />
             </div>
          </div>
 
