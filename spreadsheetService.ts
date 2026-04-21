@@ -2,32 +2,33 @@
 import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom } from './types';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
-const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9zyZrLGmDBRlUOdR1pgftxDfcElY_Fd4BfsCR4Fmd7Qb58MJKAllRkUloFQrbs8lY/exec';
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8dTUPkAb1f8EeH3DxXjTd9IZ-yAMUWxSfci9ZBLkMf3gxH3as4GlALPtER6JM-BWD/exec';
+const DEFAULT_DRIVE_FOLDER_ID = '19OkO6ZAMnTXaxy-58ntHRVNI85W-u23O';
 
 export const DEFAULT_GIDS = {
   USERS: '1215792031',
   PEGAWAI: '1631838106',
-  DOSSIER: '958942051',
+  DOSSIER: '1228512575',
   SKP: '1037719914',
   PAK: '1699747260',
   KENAIKAN: '108729233',
   PENGEMBANGAN: '747902508',
   KGB: '1233453234',
   ABSENSI: '1044338428',
-  CONFIG: '1234567890', // Default or will be synced
+  CONFIG: '398812913', 
   TUGAS_RUTIN: '457929061',
   LAPORAN: '555034467',
   KEGIATAN: '456342206',
-  ABK_ANJAB: '11',
-  PELANTIKAN: '0', 
-  SPMT_SPP: '13',
+  ABK_ANJAB: '922561147',
+  PELANTIKAN: '559339264', 
+  SPMT_SPP: '2105382325',
   PENSIUN: '985690424',
-  MAGANG_PKL: '123456789',
-  PERSURATAN: '2025010101',
+  MAGANG_PKL: '1436884143',
+  PERSURATAN: '2080049158',
   SATYA_LENCANA: '333444555',
-  KEUANGAN: '999888777',
-  BANK_SOAL: '111222333',
-  PESERTA_UKOM: '444555666',
+  KEUANGAN: '111444065',
+  BANK_SOAL: '1585181979',
+  PESERTA_UKOM: '2100046442',
   HASIL_UKOM: '777888999',
   UKOM_SESSIONS: '1122334455'
 };
@@ -37,14 +38,14 @@ const getDbConfig = () => {
   const savedCloud = localStorage.getItem('portal_cloud_config');
   let cloud: CloudConfig;
   try {
-    cloud = savedCloud ? JSON.parse(savedCloud) : { driveFolderId: '', appsScriptUrl: (import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL), logoUrl: '' };
+    cloud = savedCloud ? JSON.parse(savedCloud) : { driveFolderId: DEFAULT_DRIVE_FOLDER_ID, appsScriptUrl: (import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL), logoUrl: '' };
   } catch (e) {
-    cloud = { driveFolderId: '', appsScriptUrl: (import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL), logoUrl: '' };
+    cloud = { driveFolderId: DEFAULT_DRIVE_FOLDER_ID, appsScriptUrl: (import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL), logoUrl: '' };
   }
   return {
     spreadsheetId: (savedId && savedId.trim() !== '') ? savedId : (import.meta.env.VITE_SPREADSHEET_ID || DEFAULT_SPREADSHEET_ID),
     appsScriptUrl: (cloud.appsScriptUrl && cloud.appsScriptUrl.trim() !== '') ? cloud.appsScriptUrl : (import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL),
-    driveFolderId: cloud.driveFolderId || ''
+    driveFolderId: cloud.driveFolderId || DEFAULT_DRIVE_FOLDER_ID
   };
 };
 
@@ -288,7 +289,12 @@ export const fetchUsersFromSheets = () => fetchTableData<AdminUser>('USERS', 'po
 
 export const fetchPelantikanFromSheets = () => fetchTableData<any>('PELANTIKAN', 'pelantikan_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
-    return { id: get('ID'), nomor: get('NOMOR'), asnNip: get('ASNNIP') };
+    return { id: get('ID'), nomor: get('NOMOR'), asnNip: get('ASNNIP'), data: get('DATA') };
+});
+
+export const fetchPensiunFromSheets = () => fetchTableData<any>('PENSIUN', 'pensiun_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), data: get('DATA') };
 });
 
 export const fetchPAKFromSheets = () => fetchTableData<any>('PAK', 'pak_db', (cols, headers) => {
@@ -306,12 +312,30 @@ export const fetchKenaikanFromSheets = () => fetchTableData<KenaikanKarir>('KENA
     return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), dari: get('DARI'), menjadi: get('MENJADI'), status: get('STATUS') } as KenaikanKarir;
 });
 
-export const uploadFileToDrive = async (fileName: string, mimeType: string, base64: string): Promise<{ success: boolean; fileUrl?: string }> => {
+export const uploadFileToDrive = async (fileName: string, mimeType: string, base64: string): Promise<{ success: boolean; fileUrl?: string; message?: string }> => {
     const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
-    if (!appsScriptUrl || appsScriptUrl.trim() === '') return { success: false };
+    if (!appsScriptUrl || appsScriptUrl.trim() === '') {
+        return { success: false, message: "URL Apps Script tidak dikonfigurasi." };
+    }
+    
+    if (!driveFolderId || driveFolderId.trim() === '') {
+        return { success: false, message: "ID Folder Drive tidak dikonfigurasi di menu Pengaturan." };
+    }
+    
     const cleanUrl = appsScriptUrl.trim();
+    if (!base64) {
+        return { success: false, message: "Data file kosong." };
+    }
+
+    // Strip data URL prefix and any whitespace/newlines that might corrupt the base64 string
+    const cleanBase64 = (base64.includes(',') ? base64.split(',')[1] : base64).replace(/\s/g, '');
+    
+    // Ensure we have a valid mimeType and sanitized fileName
+    const safeMimeType = (mimeType || 'image/jpeg').trim();
+    const safeFileName = (fileName || `UPLOAD_${Date.now()}`).trim().replace(/[/\\?%*:|"<>]/g, '-');
+    
     try {
-        const res = await fetch(cleanUrl, { 
+        const response = await fetch(cleanUrl, { 
             method: 'POST', 
             mode: 'cors',
             headers: { 'Content-Type': 'text/plain' },
@@ -319,13 +343,36 @@ export const uploadFileToDrive = async (fileName: string, mimeType: string, base
                 action: 'UPLOAD', 
                 spreadsheetId, 
                 driveFolderId,
-                payload: { fileName, mimeType, base64 } 
+                payload: { 
+                    fileName: safeFileName, 
+                    mimeType: safeMimeType, 
+                    base64: cleanBase64 
+                } 
             }) 
         });
-        return await res.json();
+
+        if (!response.ok) {
+            return { success: false, message: `Server error: ${response.status}` };
+        }
+
+        const text = await response.text();
+        try {
+            const result = JSON.parse(text);
+            if (!result.success && !result.message) {
+                result.message = "Gagal memproses file di server Google.";
+            }
+            return result;
+        } catch (parseError) {
+            console.error("Parse Error:", text);
+            // Check if it's a HTML error page (common when Apps Script crashes)
+            if (text.includes('<!DOCTYPE html>') || text.includes('scriptErrorName')) {
+                return { success: false, message: "Server Google Apps Script mengalami gangguan atau memori penuh. Coba gunakan file yang lebih kecil." };
+            }
+            return { success: false, message: "Format respon server tidak valid." };
+        }
     } catch (e) { 
-        console.error("Upload Error:", e);
-        return { success: false }; 
+        console.error("Upload Exception:", e);
+        return { success: false, message: "Terjadi kesalahan koneksi saat mengunggah." }; 
     }
 };
 
@@ -526,6 +573,12 @@ export const savePegawai = async (pegawai: Partial<Pegawai>): Promise<boolean> =
   });
   
   return syncTableRemote('PEGAWAI', 'SAVE', payload);
+};
+
+export const findPegawaiByNip = async (nip: string): Promise<Pegawai | null> => {
+    const all = await fetchPegawaiFromSheets();
+    const cleanNip = nip.replace(/\D/g, '');
+    return all.find(p => (p.nip || '').replace(/\D/g, '') === cleanNip) || null;
 };
 
 export const saveHasilUkom = (hasil: HasilUkom) => syncTableRemote('HASIL_UKOM', 'SAVE', hasil);
