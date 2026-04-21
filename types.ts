@@ -205,6 +205,7 @@ export interface Pegawai {
   noTAPERA?: string;
   noKarpeg?: string;
   noRekeningGaji?: string;
+  namaBank?: string;
   usia?: string;
   tglPensiun?: string;
   tmtPensiun?: string;
