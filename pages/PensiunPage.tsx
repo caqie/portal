@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
@@ -154,6 +155,25 @@ const PensiunPage = () => {
     });
     return Array.from(years).sort();
   }, [pegawaiList]);
+
+  const exportToExcel = () => {
+    const dataToExport = retiringCandidates.map(p => ({
+      'Nama': p.nama,
+      'NIP': p.nip,
+      'Unit Kerja': p.unitKerja,
+      'Jabatan': p.jabatan,
+      'Golongan': p.golRuang,
+      'TMT Pensiun': p.tmtPensiunDisplay || (p.retirement?.tmtPensiun.toLocaleDateString('id-ID')),
+      'Sisa Masa Kerja': p.sisaMasaKerja || p.masaKerja || '-',
+      'BUP': p.retirement?.bup || '-'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Monitoring Pensiun");
+    XLSX.writeFile(workbook, `Monitoring_Pensiun_${new Date().getFullYear()}.xlsx`);
+    logActivity('DOWNLOAD', 'PENSIUN', 'Download Excel Monitoring Pensiun');
+  };
 
   const handleASNSelect = (nip: string) => {
     const p = pegawaiList.find(x => x.nip === nip);
@@ -374,6 +394,13 @@ const PensiunPage = () => {
                     {availableYears.map(y => <option key={y}>{y}</option>)}
                   </select>
                 </div>
+                <button 
+                  onClick={exportToExcel}
+                  className="px-6 py-3.5 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg hover:bg-emerald-700 active:scale-95 transition-all flex items-center gap-2"
+                >
+                  <i className="bi bi-file-earmark-spreadsheet-fill"></i>
+                  Download Excel
+                </button>
               </div>
            </div>
            <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
