@@ -210,7 +210,7 @@ const PengembanganPage = () => {
          </div>
       ) : (
         <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
-          <div className="overflow-x-auto -mx-6 px-6">
+          <div className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-left">
               <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
                  <tr>
@@ -241,10 +241,10 @@ const PengembanganPage = () => {
                       <td className="px-10 py-5 text-right">
                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                             {canEdit && (
-                              <>
-                                <button onClick={() => { setFormData(r); setIsModalOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl flex items-center justify-center hover:bg-amber-50"><i className="bi bi-pencil-fill"></i></button>
-                                <button onClick={() => { setItemToDelete(r); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-50"><i className="bi bi-trash-fill"></i></button>
-                              </>
+                               <>
+                                 <button onClick={() => { setFormData(r); setIsModalOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl flex items-center justify-center hover:bg-amber-50"><i className="bi bi-pencil-fill"></i></button>
+                                 <button onClick={() => { setItemToDelete(r); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-50"><i className="bi bi-trash-fill"></i></button>
+                               </>
                             )}
                          </div>
                       </td>

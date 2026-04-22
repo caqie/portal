@@ -200,93 +200,97 @@ const SatyaLencanaPage = () => {
 
       {activeTab === 'monitoring' ? (
         <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
-           <table className="w-full text-left">
-              <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
-                 <tr>
-                    <th className="px-10 py-5">Pegawai & NIP</th>
-                    <th className="px-4 py-5">Masa Kerja (Thn)</th>
-                    <th className="px-4 py-5">Tahun CPNS</th>
-                    <th className="px-4 py-5 text-center">Kategori Kelayakan</th>
-                    <th className="px-10 py-5 text-right">Opsi</th>
-                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                 {eligiblePegawai.map(p => (
-                   <tr key={p.nip} className="hover:bg-blue-50/5 group transition-colors">
-                      <td className="px-10 py-6">
-                         <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{p.nama}</p>
-                         <p className="text-[9px] font-mono text-blue-600 font-bold uppercase">NIP. {p.nip}</p>
-                      </td>
-                      <td className="px-4 py-6 font-black text-gray-700">{p.workingYears} TAHUN</td>
-                      <td className="px-4 py-6 font-bold text-gray-400">{p.cpnsYear}</td>
-                      <td className="px-4 py-6 text-center">
-                         <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase border shadow-sm ${
-                           p.category === '30 TAHUN' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                           p.category === '20 TAHUN' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                           'bg-amber-50 text-amber-700 border-amber-100'
-                         }`}>{p.category}</span>
-                      </td>
-                      <td className="px-10 py-6 text-right">
-                         {canEdit && (
-                           <button onClick={() => { setFormData({ nip: p.nip, kategori: p.category, tahunTerima: filterYear }); setIsModalOpen(true); }} className="px-6 py-2 bg-[#111827] text-white rounded-xl text-[9px] font-black uppercase shadow-lg opacity-0 group-hover:opacity-100 transition-all">Proses Terima</button>
-                         )}
-                      </td>
-                   </tr>
-                 ))}
-                 {eligiblePegawai.length === 0 && (
-                   <tr><td colSpan={5} className="py-32 text-center opacity-30"><i className="bi bi-award text-5xl mb-4 block"></i><p className="text-[10px] font-black uppercase tracking-widest">Tidak ada kelayakan baru di periode ini</p></td></tr>
-                 )}
-              </tbody>
-           </table>
+           <div className="overflow-x-auto">
+              <table className="min-w-[900px] w-full text-left">
+                 <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
+                    <tr>
+                       <th className="px-10 py-5">Pegawai & NIP</th>
+                       <th className="px-4 py-5">Masa Kerja (Thn)</th>
+                       <th className="px-4 py-5">Tahun CPNS</th>
+                       <th className="px-4 py-5 text-center">Kategori Kelayakan</th>
+                       <th className="px-10 py-5 text-right">Opsi</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-50">
+                    {eligiblePegawai.map(p => (
+                      <tr key={p.nip} className="hover:bg-blue-50/5 group transition-colors">
+                         <td className="px-10 py-6">
+                            <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{p.nama}</p>
+                            <p className="text-[9px] font-mono text-blue-600 font-bold uppercase">NIP. {p.nip}</p>
+                         </td>
+                         <td className="px-4 py-6 font-black text-gray-700">{p.workingYears} TAHUN</td>
+                         <td className="px-4 py-6 font-bold text-gray-400">{p.cpnsYear}</td>
+                         <td className="px-4 py-6 text-center">
+                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase border shadow-sm ${
+                              p.category === '30 TAHUN' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                              p.category === '20 TAHUN' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                              'bg-amber-50 text-amber-700 border-amber-100'
+                            }`}>{p.category}</span>
+                         </td>
+                         <td className="px-10 py-6 text-right">
+                            {canEdit && (
+                              <button onClick={() => { setFormData({ nip: p.nip, kategori: p.category, tahunTerima: filterYear }); setIsModalOpen(true); }} className="px-6 py-2 bg-[#111827] text-white rounded-xl text-[9px] font-black uppercase shadow-lg opacity-0 group-hover:opacity-100 transition-all">Proses Terima</button>
+                            )}
+                         </td>
+                      </tr>
+                    ))}
+                    {eligiblePegawai.length === 0 && (
+                      <tr><td colSpan={5} className="py-32 text-center opacity-30"><i className="bi bi-award text-5xl mb-4 block"></i><p className="text-[10px] font-black uppercase tracking-widest">Tidak ada kelayakan baru di periode ini</p></td></tr>
+                    )}
+                 </tbody>
+              </table>
+           </div>
         </div>
       ) : (
         <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
-           <table className="w-full text-left">
-              <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
-                 <tr>
-                    <th className="px-10 py-5">Penerima</th>
-                    <th className="px-4 py-5">Kategori</th>
-                    <th className="px-4 py-5">Nomor Keppres & Tahun</th>
-                    <th className="px-4 py-5 text-center">Sertifikat</th>
-                    <th className="px-10 py-5 text-right">Opsi</th>
-                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                 {filteredPenerima.map(r => (
-                   <tr key={r.id} className="hover:bg-blue-50/5 group transition-colors">
-                      <td className="px-10 py-6">
-                         <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{r.namaPegawai}</p>
-                         <p className="text-[9px] font-mono text-gray-400 font-bold uppercase">NIP. {r.nip}</p>
-                      </td>
-                      <td className="px-4 py-6">
-                         <span className={`px-3 py-1 rounded text-[8px] font-black uppercase border ${
-                           r.kategori === '30 TAHUN' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                           r.kategori === '20 TAHUN' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                           'bg-amber-50 text-amber-700 border-amber-100'
-                         }`}>{r.kategori}</span>
-                      </td>
-                      <td className="px-4 py-6">
-                         <p className="text-[10px] font-black text-gray-800 uppercase leading-tight line-clamp-1">{r.nomorKeppres}</p>
-                         <p className="text-[8px] font-bold text-gray-400 uppercase mt-1">TAHUN {r.tahunTerima}</p>
-                      </td>
-                      <td className="px-4 py-6 text-center">
-                         {r.fileSertifikatUrl ? (
-                            <button onClick={() => window.open(r.fileSertifikatUrl, '_blank')} className="h-9 w-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100 shadow-sm hover:bg-emerald-600 hover:text-white transition-all mx-auto"><i className="bi bi-file-earmark-check-fill text-lg"></i></button>
-                         ) : <span className="text-[8px] font-bold text-gray-300 italic uppercase">Belum Diupload</span>}
-                      </td>
-                      <td className="px-10 py-6 text-right">
-                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                            {canEdit && <button onClick={() => { setFormData(r); setIsModalOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl flex items-center justify-center hover:bg-amber-500 hover:text-white transition-all shadow-sm"><i className="bi bi-pencil-fill"></i></button>}
-                            {isSuperadmin && <button onClick={() => { setItemToDelete(r); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all shadow-sm"><i className="bi bi-trash-fill"></i></button>}
-                         </div>
-                      </td>
-                   </tr>
-                 ))}
-                 {filteredPenerima.length === 0 && (
-                   <tr><td colSpan={5} className="py-32 text-center opacity-30"><i className="bi bi-archive text-5xl mb-4 block"></i><p className="text-[10px] font-black uppercase tracking-widest">Belum ada riwayat penerima terdaftar</p></td></tr>
-                 )}
-              </tbody>
-           </table>
+           <div className="overflow-x-auto">
+              <table className="min-w-[900px] w-full text-left">
+                 <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
+                    <tr>
+                       <th className="px-10 py-5">Penerima</th>
+                       <th className="px-4 py-5">Kategori</th>
+                       <th className="px-4 py-5">Nomor Keppres & Tahun</th>
+                       <th className="px-4 py-5 text-center">Sertifikat</th>
+                       <th className="px-10 py-5 text-right">Opsi</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-50">
+                    {filteredPenerima.map(r => (
+                      <tr key={r.id} className="hover:bg-blue-50/5 group transition-colors">
+                         <td className="px-10 py-6">
+                            <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{r.namaPegawai}</p>
+                            <p className="text-[9px] font-mono text-gray-400 font-bold uppercase">NIP. {r.nip}</p>
+                         </td>
+                         <td className="px-4 py-6">
+                            <span className={`px-3 py-1 rounded text-[8px] font-black uppercase border ${
+                              r.kategori === '30 TAHUN' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                              r.kategori === '20 TAHUN' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                              'bg-amber-50 text-amber-700 border-amber-100'
+                            }`}>{r.kategori}</span>
+                         </td>
+                         <td className="px-4 py-6">
+                            <p className="text-[10px] font-black text-gray-800 uppercase leading-tight line-clamp-1">{r.nomorKeppres}</p>
+                            <p className="text-[8px] font-bold text-gray-400 uppercase mt-1">TAHUN {r.tahunTerima}</p>
+                         </td>
+                         <td className="px-4 py-6 text-center">
+                            {r.fileSertifikatUrl ? (
+                               <button onClick={() => window.open(r.fileSertifikatUrl, '_blank')} className="h-9 w-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-100 shadow-sm hover:bg-emerald-600 hover:text-white transition-all mx-auto"><i className="bi bi-file-earmark-check-fill text-lg"></i></button>
+                            ) : <span className="text-[8px] font-bold text-gray-300 italic uppercase">Belum Diupload</span>}
+                         </td>
+                         <td className="px-10 py-6 text-right">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                               {canEdit && <button onClick={() => { setFormData(r); setIsModalOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl flex items-center justify-center hover:bg-amber-500 hover:text-white transition-all shadow-sm"><i className="bi bi-pencil-fill"></i></button>}
+                               {isSuperadmin && <button onClick={() => { setItemToDelete(r); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all shadow-sm"><i className="bi bi-trash-fill"></i></button>}
+                            </div>
+                         </td>
+                      </tr>
+                    ))}
+                    {filteredPenerima.length === 0 && (
+                      <tr><td colSpan={5} className="py-32 text-center opacity-30"><i className="bi bi-archive text-5xl mb-4 block"></i><p className="text-[10px] font-black uppercase tracking-widest">Belum ada riwayat penerima terdaftar</p></td></tr>
+                    )}
+                 </tbody>
+              </table>
+           </div>
         </div>
       )}
 

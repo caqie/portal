@@ -127,7 +127,7 @@ const KegiatanPage = () => {
         <CalendarView events={kegiatanList} onDateClick={handleDateClick} />
       ) : (
         <div className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto -mx-6 px-6">
+          <div className="overflow-x-auto">
             <table className="min-w-[800px] w-full text-left">
               <thead className="bg-gray-50/50 text-[9px] font-black uppercase text-gray-400 border-b tracking-widest">
                 <tr>

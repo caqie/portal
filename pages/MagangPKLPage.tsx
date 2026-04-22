@@ -151,48 +151,50 @@ const MagangPKLPage = () => {
            </div>
 
            <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
-              <table className="w-full text-left">
-                 <thead className="bg-gray-50 text-[8px] font-black text-gray-400 border-b tracking-widest">
-                    <tr><th className="px-10 py-5">Peserta & Institusi</th><th className="px-4 py-5">Periode</th><th className="px-4 py-5">Penempatan</th><th className="px-4 py-5 text-center">Status</th><th className="px-10 py-5 text-right">Generator Dokumen</th></tr>
-                 </thead>
-                 <tbody className="divide-y divide-gray-50">
-                    {filteredData.map(p => (
-                      <tr key={p.id} className="hover:bg-blue-50/5 group transition-all">
-                         <td className="px-10 py-6">
-                            <p className="text-[11px] font-black text-gray-950">{p.nama}</p>
-                            <p className="text-[9px] font-bold text-blue-600 mt-1">{p.institusi} • {p.jenis}</p>
-                         </td>
-                         <td className="px-4 py-6">
-                            <p className="text-[10px] font-bold text-gray-500">{p.tanggalMulai} s/d</p>
-                            <p className="text-[10px] font-bold text-gray-500">{p.tanggalSelesai}</p>
-                         </td>
-                         <td className="px-4 py-6">
-                            <p className="text-[9px] font-black text-gray-800 leading-tight max-w-[200px]">{p.penempatan}</p>
-                         </td>
-                         <td className="px-4 py-6 text-center">
-                            <span className={`px-3 py-1 rounded-lg text-[8px] font-black border ${p.status === 'Selesai' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{p.status}</span>
-                         </td>
-                         <td className="px-10 py-6 text-right">
-                            <div className="flex justify-end gap-2">
-                               <button onClick={() => handleGenerate(p, 'BALASAN')} title="Surat Balasan" className="h-9 w-9 bg-white border border-gray-100 text-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm"><i className="bi bi-reply-all-fill"></i></button>
-                               <button onClick={() => handleGenerate(p, 'NOTA')} title="Nota Penempatan" className="h-9 w-9 bg-white border border-gray-100 text-indigo-600 rounded-xl flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><i className="bi bi-journal-text"></i></button>
-                               <button onClick={() => handleGenerate(p, 'KETERANGAN')} title="Surat Keterangan" className="h-9 w-9 bg-white border border-gray-100 text-teal-600 rounded-xl flex items-center justify-center hover:bg-teal-600 hover:text-white transition-all shadow-sm"><i className="bi bi-file-text-fill"></i></button>
-                               <button onClick={() => handleGenerate(p, 'SERTIFIKAT')} title="Sertifikat" className="h-9 w-9 bg-white border border-gray-100 text-amber-600 rounded-xl flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm"><i className="bi bi-award-fill"></i></button>
-                               {canEdit && (
-                                 <button onClick={() => { setFormData(p); setActiveView('editor'); }} className="h-9 w-9 bg-white border border-gray-100 text-gray-400 rounded-xl flex items-center justify-center hover:text-gray-900 transition-all shadow-sm"><i className="bi bi-pencil-fill"></i></button>
-                               )}
-                               {isSuperadmin && (
-                                 <button onClick={() => { setItemToDelete(p); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all shadow-sm"><i className="bi bi-trash-fill"></i></button>
-                               )}
-                            </div>
-                         </td>
-                      </tr>
-                    ))}
-                    {filteredData.length === 0 && (
-                       <tr><td colSpan={5} className="py-32 text-center opacity-30"><i className="bi bi-people text-5xl mb-4 block"></i><p className="text-[10px] font-black tracking-widest">Belum ada data peserta</p></td></tr>
-                    )}
-                 </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                 <table className="min-w-[900px] w-full text-left">
+                    <thead className="bg-gray-50 text-[8px] font-black text-gray-400 border-b tracking-widest">
+                       <tr><th className="px-10 py-5">Peserta & Institusi</th><th className="px-4 py-5">Periode</th><th className="px-4 py-5">Penempatan</th><th className="px-4 py-5 text-center">Status</th><th className="px-10 py-5 text-right">Generator Dokumen</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                       {filteredData.map(p => (
+                         <tr key={p.id} className="hover:bg-blue-50/5 group transition-all">
+                            <td className="px-10 py-6">
+                               <p className="text-[11px] font-black text-gray-950">{p.nama}</p>
+                               <p className="text-[9px] font-bold text-blue-600 mt-1">{p.institusi} • {p.jenis}</p>
+                            </td>
+                            <td className="px-4 py-6">
+                               <p className="text-[10px] font-bold text-gray-500">{p.tanggalMulai} s/d</p>
+                               <p className="text-[10px] font-bold text-gray-500">{p.tanggalSelesai}</p>
+                            </td>
+                            <td className="px-4 py-6">
+                               <p className="text-[9px] font-black text-gray-800 leading-tight max-w-[200px]">{p.penempatan}</p>
+                            </td>
+                            <td className="px-4 py-6 text-center">
+                               <span className={`px-3 py-1 rounded-lg text-[8px] font-black border ${p.status === 'Selesai' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{p.status}</span>
+                            </td>
+                            <td className="px-10 py-6 text-right">
+                               <div className="flex justify-end gap-2">
+                                  <button onClick={() => handleGenerate(p, 'BALASAN')} title="Surat Balasan" className="h-9 w-9 bg-white border border-gray-100 text-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm"><i className="bi bi-reply-all-fill"></i></button>
+                                  <button onClick={() => handleGenerate(p, 'NOTA')} title="Nota Penempatan" className="h-9 w-9 bg-white border border-gray-100 text-indigo-600 rounded-xl flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><i className="bi bi-journal-text"></i></button>
+                                  <button onClick={() => handleGenerate(p, 'KETERANGAN')} title="Surat Keterangan" className="h-9 w-9 bg-white border border-gray-100 text-teal-600 rounded-xl flex items-center justify-center hover:bg-teal-600 hover:text-white transition-all shadow-sm"><i className="bi bi-file-text-fill"></i></button>
+                                  <button onClick={() => handleGenerate(p, 'SERTIFIKAT')} title="Sertifikat" className="h-9 w-9 bg-white border border-gray-100 text-amber-600 rounded-xl flex items-center justify-center hover:bg-amber-600 hover:text-white transition-all shadow-sm"><i className="bi bi-award-fill"></i></button>
+                                  {canEdit && (
+                                    <button onClick={() => { setFormData(p); setActiveView('editor'); }} className="h-9 w-9 bg-white border border-gray-100 text-gray-400 rounded-xl flex items-center justify-center hover:text-gray-900 transition-all shadow-sm"><i className="bi bi-pencil-fill"></i></button>
+                                  )}
+                                  {isSuperadmin && (
+                                    <button onClick={() => { setItemToDelete(p); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all shadow-sm"><i className="bi bi-trash-fill"></i></button>
+                                  )}
+                               </div>
+                            </td>
+                         </tr>
+                       ))}
+                       {filteredData.length === 0 && (
+                          <tr><td colSpan={5} className="py-32 text-center opacity-30"><i className="bi bi-people text-5xl mb-4 block"></i><p className="text-[10px] font-black tracking-widest">Belum ada data peserta</p></td></tr>
+                       )}
+                    </tbody>
+                 </table>
+              </div>
            </div>
         </div>
       )}
