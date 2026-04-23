@@ -298,6 +298,27 @@ const PensiunPage = () => {
     }
   };
 
+   const exportSavedToExcel = () => {
+     const dataToExport = savedDpcpList.map(p => {
+       try {
+         const data = JSON.parse(p.data);
+         return {
+           'Nama Pegawai': p.namaPegawai,
+           'NIP': p.nip,
+           'Unit Kerja': data.unitKerjaHeader,
+           'Jabatan': data.jabatan,
+           'TMT Pensiun': data.tanggalLahir // Simplified for archive
+         };
+       } catch(e) {
+         return { 'Nama Pegawai': p.namaPegawai, 'NIP': p.nip };
+       }
+     });
+     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+     const workbook = XLSX.utils.book_new();
+     XLSX.utils.book_append_sheet(workbook, worksheet, "Arsip DPCP");
+     XLSX.writeFile(workbook, `Arsip_DPCP_${new Date().getFullYear()}.xlsx`);
+   };
+
   const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";
   const inputClass = "w-full px-5 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold uppercase focus:border-blue-600 outline-none transition-all";
 
@@ -325,44 +346,54 @@ const PensiunPage = () => {
       </div>
 
       {activeView === 'table' && (
-        <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
-           <div className="overflow-x-auto">
-              <table className="min-w-[800px] w-full text-left">
-                 <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
-                    <tr><th className="px-10 py-5">Nama Pegawai</th><th className="px-4 py-5">NIP</th><th className="px-10 py-5 text-right">Opsi</th></tr>
-                 </thead>
-                 <tbody className="divide-y divide-gray-50">
-                    {savedDpcpList.map(p => (
-                       <tr key={p.id} className="hover:bg-blue-50/5 group transition-all">
-                          <td className="px-10 py-5">
-                             <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{p.namaPegawai}</p>
-                          </td>
-                          <td className="px-4 py-5 text-[10px] font-mono text-blue-600 font-bold uppercase">NIP. {p.nip}</td>
-                          <td className="px-10 py-5 text-right">
-                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                                <button onClick={() => { 
-                                   try {
-                                     const data = JSON.parse(p.data);
-                                     setFormData({ ...data, id: p.id });
-                                     setActiveView('preview');
-                                   } catch(e) {}
-                                }} className="h-9 px-6 rounded-xl bg-gray-950 text-white text-[9px] font-black uppercase shadow-lg">Detail</button>
-                                {canEdit && (
-                                  <button onClick={() => handleEdit(p)} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl flex items-center justify-center hover:bg-amber-50 shadow-sm transition-all"><i className="bi bi-pencil-fill"></i></button>
-                                )}
-                                {isSuperadmin && (
-                                  <button onClick={() => { setItemToDelete(p); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-50 shadow-sm transition-all"><i className="bi bi-trash-fill"></i></button>
-                                )}
-                             </div>
-                          </td>
-                       </tr>
-                    ))}
-                    {savedDpcpList.length === 0 && !loading && (
-                      <tr><td colSpan={3} className="py-32 text-center text-gray-300 font-black uppercase text-[10px] tracking-widest">Belum ada arsip DPCP</td></tr>
-                    )}
-                 </tbody>
-              </table>
+        <div className="space-y-6">
+           <div className="flex justify-end no-print px-10">
+              <button 
+                onClick={exportSavedToExcel}
+                className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg flex items-center gap-2 active:scale-95 transition-all"
+              >
+                <i className="bi bi-file-earmark-excel"></i> Export Arsip ke Excel
+              </button>
            </div>
+           <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
+             <div className="overflow-x-auto">
+                <table className="min-w-[800px] w-full text-left">
+                   <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
+                      <tr><th className="px-10 py-5">Nama Pegawai</th><th className="px-4 py-5">NIP</th><th className="px-10 py-5 text-right">Opsi</th></tr>
+                   </thead>
+                   <tbody className="divide-y divide-gray-50">
+                      {savedDpcpList.map(p => (
+                         <tr key={p.id} className="hover:bg-blue-50/5 group transition-all">
+                            <td className="px-10 py-5">
+                               <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{p.namaPegawai}</p>
+                            </td>
+                            <td className="px-4 py-5 text-[10px] font-mono text-blue-600 font-bold uppercase">NIP. {p.nip}</td>
+                            <td className="px-10 py-5 text-right">
+                               <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                                  <button onClick={() => { 
+                                     try {
+                                       const data = JSON.parse(p.data);
+                                       setFormData({ ...data, id: p.id });
+                                       setActiveView('preview');
+                                     } catch(e) {}
+                                  }} className="h-9 px-6 rounded-xl bg-gray-950 text-white text-[9px] font-black uppercase shadow-lg">Detail</button>
+                                  {canEdit && (
+                                    <button onClick={() => handleEdit(p)} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl flex items-center justify-center hover:bg-amber-50 shadow-sm transition-all"><i className="bi bi-pencil-fill"></i></button>
+                                  )}
+                                  {isSuperadmin && (
+                                    <button onClick={() => { setItemToDelete(p); setIsConfirmOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-50 shadow-sm transition-all"><i className="bi bi-trash-fill"></i></button>
+                                  )}
+                               </div>
+                            </td>
+                         </tr>
+                      ))}
+                      {savedDpcpList.length === 0 && !loading && (
+                        <tr><td colSpan={3} className="py-32 text-center text-gray-300 font-black uppercase text-[10px] tracking-widest">Belum ada arsip DPCP</td></tr>
+                      )}
+                   </tbody>
+                </table>
+             </div>
+          </div>
         </div>
       )}
 
@@ -417,7 +448,7 @@ const PensiunPage = () => {
                           <td className="px-10 py-5"><p className="text-[11px] font-black text-gray-950 uppercase">{p.nama}</p><p className="text-[9px] font-mono text-blue-600">NIP. {p.nip}</p></td>
                           <td className="px-4 py-5 text-center font-black text-rose-600">{p.tmtPensiunDisplay || (p.retirement?.tmtPensiun.toLocaleDateString('id-ID'))}</td>
                           <td className="px-4 py-5 text-center"><span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black border border-rose-100">{p.sisaMasaKerja || p.masaKerja || '-'}</span></td>
-                          <td className="px-10 py-5 text-right"><button onClick={() => handleASNSelect(p.nip)} className="h-9 px-6 bg-gray-950 text-white rounded-xl text-[9px] font-black uppercase shadow-lg active:scale-95 transition-all opacity-0 group-hover:opacity-100">Buat DPCP</button></td>
+                          <td className="px-10 py-5 text-right"><button onClick={() => handleASNSelect(p.nip)} className="h-9 px-6 bg-gray-950 text-white rounded-xl text-[9px] font-black uppercase shadow-lg active:scale-95 transition-all md:opacity-0 md:group-hover:opacity-100">Buat DPCP</button></td>
                         </tr>
                       ))}
                     </tbody>

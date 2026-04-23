@@ -256,34 +256,33 @@ const KeuanganPage = () => {
 
     const imgData = canvas.toDataURL('image/png');
     
-    // Inisialisasi PDF A5 Landscape
+    // Inisialisasi PDF berdasarkan tipe
     const pdf = new jsPDF({ 
-      orientation: 'landscape', 
+      orientation: isKuitansi ? 'landscape' : 'portrait', 
       unit: 'mm', 
-      format: 'a5' 
+      format: isKuitansi ? 'a5' : 'a4' 
     });
 
-    const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
-    const pdfHeight = pdf.internal.pageSize.getHeight(); // 148mm
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
 
-    // Hitung Rasio agar tidak gepeng
-    const imgProps = pdf.getImageProperties(imgData);
-    const ratio = imgProps.width / imgProps.height;
-    
-    // Hitung tinggi berdasarkan lebar PDF agar proporsional
-    let finalWidth = pdfWidth;
-    let finalHeight = pdfWidth / ratio;
+    // Standard Shift Logic for Multi-page
+    const imgWidth = pdfWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 0;
 
-    // Jika setelah dihitung tingginya masih lebih dari kertas A5, kecilkan berdasarkan tinggi
-    if (finalHeight > pdfHeight) {
-      finalHeight = pdfHeight;
-      finalWidth = pdfHeight * ratio;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pdfHeight;
+
+    while (heightLeft >= 1) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
     }
-
-    // Masukkan ke PDF di posisi tengah (0,0 atau dengan margin kecil)
-    pdf.addImage(imgData, 'PNG', 0, 0, finalWidth, finalHeight);
     
-    pdf.save(`Kuitansi_${currentPeserta?.nama || 'Dokumen'}.pdf`);
+    pdf.save(`${previewType.toUpperCase()}_${currentPeserta?.nama || 'Dokumen'}.pdf`);
   } catch (e) {
     console.error(e);
     alert("Gagal cetak!");
@@ -783,70 +782,106 @@ const KeuanganPage = () => {
                     <div className="bg-gray-100 p-4 overflow-auto">
                       <div 
                         ref={pdfRef} 
-                        className="bg-white shadow-lg p-6 mx-auto"
+                        className="bg-white shadow-xl mx-auto"
                         style={{ 
-                          width: "210mm",   // Standar lebar A5 Landscape
-                          minHeight: "148mm", 
+                          width: previewType === 'kuitansi' ? "210mm" : "210mm", 
+                          minHeight: previewType === 'kuitansi' ? "148mm" : "297mm", 
+                          padding: (previewType === 'kuitansi' || previewType === 'spb') ? "10mm" : "20mm 20mm 25mm 30mm",
                           boxSizing: "border-box" 
                         }}
                       >
                       {previewType === "kuitansi" && (
-                        <div className="border-[1.5pt] border-black text-[9pt] leading-tight h-full flex flex-col p-0">
+                        <div className="border-[1.5pt] border-black text-[9pt] leading-tight h-full flex flex-col p-4 font-sans text-black">
                           {/* HEADER SECTION */}
-                          <div className="border-b-[1.5pt] border-black p-3 flex justify-between items-start">
+                          <div className="flex justify-between items-start mb-4">
                             <div className="font-bold">
                               Transaction ID : RE-SEK/{formData.tahunAnggaran}/IV/0103
                             </div>
-                            <div className="grid grid-cols-[100px_5px_1fr] gap-x-1 text-[9pt]">
-                              <span>Tahun Anggaran</span><span>:</span><span>{formData.tahunAnggaran}</span>
-                              <span>Nomor Bukti</span><span>:</span><span>{selectedPesertaIdx + 1}</span>
-                              <span>Mata Anggaran</span><span>:</span><span className="break-all">{formData.mataAnggaran}</span>
+                            <div className="text-right space-y-1">
+                              <div className="text-[7pt] italic text-right mb-4">
+                                <p>LAMPIRAN</p>
+                                <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA </p>
+                                <p>NOMOR 190/PMK.05/2012 TENTANG TATA CARA PEMBAYARAN DALAM RANGKA </p>
+                                <p>PELAKSANAAN ANGGARAN PENDAPATAN BELANJA NEGARA</p>
+                              </div>
+                              <div className="font-bold text-[10pt] mb-2 pr-4">{selectedPesertaIdx + 1}</div>
+                              <div className="grid grid-cols-[140px_5px_1fr] gap-x-1 text-[9pt] text-left">
+                                <span>Tahun Anggaran</span><span>:</span><span>{formData.tahunAnggaran}</span>
+                                <span>Nomor Bukti</span><span>:</span><span>{selectedPesertaIdx + 1}</span>
+                                <span>Mata Anggaran</span><span>:</span><span className="break-all">{formData.mataAnggaran}</span>
+                              </div>
                             </div>
                           </div>
 
                           {/* TITLE */}
-                          <div className="py-4 text-center">
-                            <h2 className="text-[10pt] font-bold underline tracking-widest">KUITANSI / BUKTI PEMBAYARAN</h2>
+                          <div className="py-2 text-center">
+                            <h2 className="text-[11pt] font-bold underline tracking-widest">KUITANSI / BUKTI PEMBAYARAN</h2>
                           </div>
 
                           {/* CONTENT SECTION */}
-                          <div className="px-6 space-y-3 flex-1">
-                            <div className="grid grid-cols-[140px_5px_1fr] gap-x-2 items-start">
-                              <span>Sudah terima dari</span><span>:</span>
-                              <span>Kuasa Pengguna Anggaran / Pejabat Pembuat Komitmen Satker DJKI</span>
+                          <div className="px-4 space-y-3 flex-1 mt-4">
+                            <div className="grid grid-cols-[150px_10px_1fr] gap-x-2 items-start">
+                              <span className="font-medium">Sudah terima dari</span><span>:</span>
+                              <span>Kuasa Pengguna Anggaran / Pejabat Pembuat Komitmen Satker Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum RI</span>
                             </div>
 
-                            <div className="grid grid-cols-[140px_5px_1fr] gap-x-2 items-center">
-                              <span>Jumlah Uang</span><span>:</span>
-                              <span className="font-bold text-[9pt] bg-gray-100 px-2 py-1 border border-black inline-block">
+                            <div className="grid grid-cols-[150px_10px_1fr] gap-x-2 items-center">
+                              <span className="font-medium">Jumlah Uang</span><span>:</span>
+                              <span className="font-bold text-[10pt]">
                                 {formatCurrency(currentPeserta?.totalJumlah || 0)}
                               </span>
                             </div>
 
-                            <div className="grid grid-cols-[140px_5px_1fr] gap-x-2 items-start italic">
-                              <span>Terbilang</span><span>:</span>
-                              <span className="font-semibold">"{terbilang(currentPeserta?.totalJumlah || 0)} Rupiah"</span>
+                            <div className="grid grid-cols-[150px_10px_1fr] gap-x-2 items-start italic">
+                              <span className="font-medium">Terbilang</span><span>:</span>
+                              <span className="font-semibold text-gray-800 Proper Case"> {terbilang(currentPeserta?.totalJumlah || 0)} Rupiah</span>
                             </div>
 
-                            <div className="grid grid-cols-[140px_5px_1fr] gap-x-2 items-start">
-                              <span className="shrink-0">Untuk Pembayaran</span><span>:</span>
+                            <div className="grid grid-cols-[150px_10px_1fr] gap-x-2 items-start">
+                              <span className="shrink-0 font-medium">Untuk Pembayaran</span><span>:</span>
                               <span className="leading-normal">
                                 Biaya {formData.namaKegiatan} {currentPeserta?.tujuanPerjalanan} pada tanggal {currentPeserta?.tanggalSpd 
                                   ? new Date(currentPeserta.tanggalSpd).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) 
                                   : '-'}. 
-                                Berdasarkan Surat Keputusan/SPD Nomor: {currentPeserta?.nomorSpd}.
                               </span>
+                            </div>
+
+                            <div className="grid grid-cols-[150px_10px_1fr] gap-x-2 items-start">
+                              <span className="shrink-0 font-medium">Berdasarkan SPD</span><span>:</span>
+                              <span className="leading-normal">
+                                Sekretaris Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum RI
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-[150px_10px_1fr] gap-x-2 items-start ml-4">
+                              <span>Nomor</span><span>:</span><span>{currentPeserta?.nomorSpd}</span>
+                            </div>
+                            <div className="grid grid-cols-[150px_10px_1fr] gap-x-2 items-start ml-4">
+                              <span>Tanggal</span><span>:</span><span>{currentPeserta?.tanggalSpd ? new Date(currentPeserta.tanggalSpd).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) : '-'}</span>
+                            </div>
+                            <div className="grid grid-cols-[150px_10px_1fr] gap-x-2 items-start ml-4">
+                              <span>Untuk Perjalanan Dinas dari</span><span>:</span><span>{currentPeserta?.tujuanPerjalanan}</span>
                             </div>
                           </div>
 
                           {/* SIGNATURE AREA */}
-                          <div className="mt-2 border-t-[1.5pt] border-black">
-                            {/* Penerima Section (Right Aligned) */}
-                            <div className="flex justify-end p-4">
-                              <div className="text-center w-[250px] space-y-12">
+                          <div className="mt-8 border-t-[1pt] border-black">
+                            <div className="grid grid-cols-2 text-[8.5pt]">
+                              <div className="p-4 text-center space-y-12">
+                                <div>
+                                  <p>a.n Kuasa Pengguna Anggaran</p>
+                                  <p>Pejabat Pembuat Komitmen</p>
+                                </div>
+                                <div>
+                                  <p className="font-bold underline uppercase">{formData.ppkNama}</p>
+                                  <p>NIP. {formData.ppkNip}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="p-4 text-center space-y-12">
                                 <div>
                                   <p>{docCity}, {new Date(docDate).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"})}</p>
-                                  <p className="font-bold">Yang Menerima,</p>
+                                  <p>Yang Menerima,</p>
                                 </div>
                                 <div>
                                   <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
@@ -855,36 +890,13 @@ const KeuanganPage = () => {
                               </div>
                             </div>
 
-                            {/* Official Signatures Grid */}
-                            <div className="grid grid-cols-2 border-t border-black text-[8.5pt]">
-                              <div className="border-r border-black p-4 text-center space-y-10">
-                                <div>
-                                  <p className="italic">Setuju dibebankan pada mata anggaran berkenaan</p>
-                                  <p>a.n. Kuasa Pengguna Anggaran</p>
-                                  <p className="font-bold">Pejabat Pembuat Komitmen</p>
-                                </div>
-                                <div>
-                                  <p className="font-bold underline uppercase">{formData.ppkNama}</p>
-                                  <p>NIP. {formData.ppkNip}</p>
-                                </div>
+                            <div className="grid grid-cols-1 border-t border-black p-2 text-center text-[8.5pt]">
+                              <p className="">Lunas dibayar tanggal, {new Date(docDate).toLocaleDateString("id-ID", {day:"numeric",month:"long",year:"numeric"})}</p>
+                              <p>Bendahara Pengeluaran</p>
+                              <div className="mt-12">
+                                <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
+                                <p>NIP. {formData.bendaharaNip}</p>
                               </div>
-                              
-                              <div className="p-4 text-center space-y-10">
-                                <div>
-                                  <p className="italic">Lunas dibayar tanggal {new Date(docDate).toLocaleDateString("id-ID", {day:"numeric",month:"long",year:"numeric"})}</p>
-                                  <p className="font-bold">Bendahara Pengeluaran</p>
-                                </div>
-                                <div>
-                                  <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
-                                  <p>NIP. {formData.bendaharaNip}</p>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="border-t border-black p-2 text-center text-[8pt]">
-                              <p className="font-bold">Barang/pekerjaan telah diterima dengan baik oleh </p>
-                              <p> Pejabat yang bertanggungjawab</p>
-                              <div className="mt-6">( ............................................................ )</div>
                             </div>
                           </div>
                         </div>
@@ -892,17 +904,17 @@ const KeuanganPage = () => {
                      
 
               {previewType === 'rincian' && (
-                <div className="space-y-8 text-[10pt]">
+                <div className="space-y-6 text-[10pt] font-tahoma text-black">
                   <div className="grid grid-cols-2 gap-8 pt-4 text-[9pt]">
                     <div className="space-y-1">
-                      <div className="grid grid-cols-[120px_10px_1fr] items-center">
-                        <span>Lampiran SPD No</span><span>:</span><span>{currentPeserta?.nomorSpd}</span>
+                      <div className="grid grid-cols-[120px_10px_1fr] items-center text-[10pt]">
+                        <span>Lampiran SPD No</span><span>:</span><span className="font-medium">{currentPeserta?.nomorSpd}</span>
                       </div>
-                      <div className="grid grid-cols-[120px_10px_1fr] items-center">
-                        <span>Tanggal</span><span>:</span><span>{currentPeserta?.tanggalSpd}</span>
+                      <div className="grid grid-cols-[120px_10px_1fr] items-center text-[10pt]">
+                        <span>Tanggal</span><span>:</span><span className="font-medium">{currentPeserta?.tanggalSpd ? new Date(currentPeserta.tanggalSpd).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"}) : '-'}</span>
                       </div>
                     </div>
-                    <div className="text-left text-[7pt] italic">
+                    <div className="text-left text-[7pt] italic leading-tight ml-auto w-3/4">
                       <p>LAMPIRAN</p>
                       <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA </p>
                       <p>NOMOR 113/PMK.05/2012 TENTANG PERJALANAN DINAS </p>
@@ -911,80 +923,119 @@ const KeuanganPage = () => {
                     </div>
                   </div>
                    
-                   
-
-                   <div className="text-center py-4">
-                     <h2 className="text-[12pt] font-bold uppercase">RINCIAN BIAYA PERJALANAN DINAS</h2>
+                                    <div className="text-center py-6">
+                     <h2 className="text-[12pt] font-bold uppercase tracking-wide">RINCIAN BIAYA PERJALANAN DINAS</h2>
                    </div>
 
-                   <table className="w-full border-collapse border border-black text-center">
+                   <table className="w-full border-collapse border-[1.5pt] border-black text-center text-[10pt]">
                      <thead>
-                       <tr className="bg-gray-50 border-b border-black">
+                       <tr className="bg-gray-100/50 border-b-[1.5pt] border-black">
                          <th className="border-r border-black p-2 w-10">No.</th>
                          <th className="border-r border-black p-2">Perincian Biaya</th>
-                         <th className="border-r border-black p-2 w-32">Jumlah</th>
+                         <th className="border-r border-black p-2 colspan-2 text-center" colSpan={2}>Jumlah</th>
                          <th className="p-2 w-32">Keterangan</th>
                        </tr>
                      </thead>
                      <tbody>
                        {(currentPeserta?.rincianBiaya || []).map((item, idx) => (
-                         <tr key={idx} className="border-b border-black">
+                         <tr key={idx} className="border-b border-black h-10">
                            <td className="border-r border-black p-2">{idx + 1}</td>
                            <td className="border-r border-black p-2 text-left">
-                             {item.item} (Rp {item.rate.toLocaleString('id-ID')} x {item.qty})
+                             {item.item}
                            </td>
-                           <td className="border-r border-black p-2 text-right">Rp {item.total.toLocaleString('id-ID')}</td>
+                           <td className="border-r border-black p-2 text-left italic">
+                             Rp {item.rate.toLocaleString('id-ID')} x {item.qty}
+                           </td>
+                           <td className="border-r border-black p-2 text-right">
+                             Rp {item.total.toLocaleString('id-ID')}
+                           </td>
                            <td className="p-2"></td>
                          </tr>
                        ))}
-                       <tr className="font-bold bg-gray-50">
-                         <td colSpan={2} className="border-r border-black p-2 text-right uppercase">JUMLAH</td>
+                       <tr className="font-bold bg-gray-100/50 border-t-[1.5pt] border-black h-10">
+                         <td colSpan={3} className="border-r border-black p-2 text-center Proper Case tracking-widest">JUMLAH</td>
                          <td className="border-r border-black p-2 text-right">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</td>
                          <td className="p-2"></td>
+                       </tr>
+                       <tr className="bg-gray-200/50 h-10">
+                         <td colSpan={5} className="p-2 text-left border-t border-black px-4 italic font-bold text-xs Proper Case">
+                           Terbilang :   {terbilang(currentPeserta?.totalJumlah || 0)} Rupiah 
+                         </td>
                        </tr>
                      </tbody>
                    </table>
 
-                   <div className="pt-2">
-                     <p className="font-bold italic uppercase">Terbilang :  {terbilang(currentPeserta?.totalJumlah || 0)} RUPIAH </p>
+                   <div className="text-right mr-10 pt-8">
+                      <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                    </div>
 
-                   <div className="grid grid-cols-2 gap-10 pt-10">
-                    <div className="text-center space-y-16">
-                      <div className="space-y-1">
-                        <p>Telah dibayar sejumlah</p>
-                        <p className="font-bold">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
-                        <p>Bendahara Pengeluaran</p>
-                      </div>
-                    </div>
-                    <div className="text-center space-y-16">
-                      <div className="space-y-1">
-                        <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                        <p>Telah menerima sejumlah uang sebesar</p>
-                        <p className="font-bold">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
-                        <p>Yang Menerima</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-10 border-t border-black">
-                    <p className="font-bold uppercase text-center underline">PERHITUNGAN SPD RAMPUNG</p>
-                    <div className="mt-4 space-y-1 max-w-md">
-                       <div className="grid grid-cols-[200px_10px_1fr]"><span>Ditetapkan Sejumlah</span><span>:</span><span>Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span></div>
-                       <div className="grid grid-cols-[200px_10px_1fr]"><span>Yang telah dibayar semula</span><span>:</span><span>-</span></div>
-                       <div className="grid grid-cols-[200px_10px_1fr] font-bold"><span>Sisa Kurang / Lebih</span><span>:</span><span>-</span></div>
-                    </div>
-                    <div className="ml-[60%] mt-10 text-center space-y-20">
-                       <p>Pejabat Pembuat Komitmen</p>
+                   <div className="grid grid-cols-2 gap-10 pt-4">
+                     <div className="text-center flex flex-col justify-between min-h-[250px]">
+                       <div className="space-y-1 text-left">
+                         <p className="ml-10">Telah dibayar sejumlah</p>
+                         <div className="flex justify-between px-10 font-bold">
+                           <span>Rp</span>
+                           <span>{(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span>
+                         </div>
+                         <div className="mx-10 border-t border-black pt-1">
+                            <p className="italic font-bold text-[8pt] Proper Case text-center">
+                              {terbilang(currentPeserta?.totalJumlah || 0)} Rupiah
+                            </p>
+                         </div>
+                         <p className="pt-8 text-center">Bendahara Pengeluaran</p>
+                       </div>
                        <div className="space-y-1">
-                         <p className="font-bold underline uppercase">{formData.ppkNama}</p>
-                         <p>NIP {formData.ppkNip}</p>
+                         <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
+                         <p className="text-[9pt]">NIP. {formData.bendaharaNip}</p>
+                       </div>
+                     </div>
+                     <div className="text-center flex flex-col justify-between min-h-[250px]">
+                       <div className="space-y-1 text-left">
+                         <p className="ml-10">Telah menerima sejumlah uang sebesar</p>
+                         <div className="flex justify-between px-10 font-bold">
+                           <span>Rp</span>
+                           <span>{(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span>
+                         </div>
+                         <div className="mx-10 border-t border-black pt-1">
+                            <p className="italic font-bold text-[8pt] Proper Case text-center">
+                              {terbilang(currentPeserta?.totalJumlah || 0)} Rupiah
+                            </p>
+                         </div>
+                         <p className="pt-8 text-center">Yang Menerima</p>
+                       </div>
+                       <div className="space-y-1">
+                         <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
+                         <p className="text-[9pt]">NIP. {currentPeserta?.nip || '-'}</p>
+                       </div>
+                     </div>
+                   </div>
+
+                  <div className="pt-12 mt-12 border-t-[1pt] border-black">
+                    <p className="font-bold uppercase text-center underline tracking-wide mb-12">PERHITUNGAN SPD RAMPUNG</p>
+                    
+                    <div className="flex flex-col items-center">
+                       <div className="space-y-2 text-[10pt] w-fit border-b border-black pb-6 mb-20">
+                          <div className="grid grid-cols-[200px_10px_1fr] items-center text-left">
+                            <span>Ditetapkan Sejumlah</span><span>:</span><span>Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span>
+                          </div>
+                          <div className="grid grid-cols-[200px_10px_1fr] items-center text-left">
+                            <span>Yang telah dibayar semula</span><span>:</span><span>-</span>
+                          </div>
+                          <div className="grid grid-cols-[200px_10px_1fr] items-center text-left font-bold">
+                            <span>Sisa Kurang / Lebih</span><span>:</span><span>-</span>
+                          </div>
+                       </div>
+
+                       <div className="w-full flex justify-end">
+                         <div className="text-center space-y-24 w-[300px]">
+                           <div>
+                             <p>Pejabat Pembuat Komitmen</p>
+                           </div>
+                           <div className="space-y-1">
+                             <p className="font-bold underline uppercase">{formData.ppkNama}</p>
+                             <p className="text-[9pt]">NIP. {formData.ppkNip}</p>
+                           </div>
+                         </div>
                        </div>
                     </div>
                   </div>
@@ -992,7 +1043,7 @@ const KeuanganPage = () => {
               )}
 
               {previewType === 'riil' && (
-                <div className="space-y-8 text-[10pt]">
+                <div className="space-y-8 text-[10pt] font-tahoma">
                      <div className="grid grid-cols-2 gap-8 pt-4 text-[9pt]">
                     <div className="space-y-1">
                     </div>
@@ -1048,19 +1099,19 @@ const KeuanganPage = () => {
                      <p>Demikian pernyataan ini kami buat dengan sebenarnya, untuk dipergunakan sebagaimana mestinya.</p>
                    </div>
 
-                   <div className="grid grid-cols-2 gap-10 pt-10">
+                   <div className="grid grid-cols-2 gap-10 pt-10 text-[10pt]">
                     <div className="text-center space-y-20">
-                      <p>Mengetahui/Menyetujui<br/>Pejabat Pembuat Komitmen</p>
+                      <p>Mengetahui / Menyetujui<br/>Pejabat Pembuat Komitmen,</p>
                       <div className="space-y-1">
                         <p className="font-bold underline uppercase">{formData.ppkNama}</p>
-                        <p>NIP {formData.ppkNip}</p>
+                        <p className="text-[9pt]">NIP. {formData.ppkNip}</p>
                       </div>
                     </div>
                     <div className="text-center space-y-20">
-                      <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Pelaksana SPD</p>
+                      <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Pelaksana SPD,</p>
                       <div className="space-y-1">
                         <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
-                        <p>NIP {currentPeserta?.nip || '-'}</p>
+                        <p className="text-[9pt]">NIP. {currentPeserta?.nip || '-'}</p>
                       </div>
                     </div>
                   </div>
@@ -1068,62 +1119,80 @@ const KeuanganPage = () => {
               )}
 
               {previewType === 'spb' && (
-                <div className="space-y-8 text-[10pt]">
-                   <div className="text-right text-[7pt] italic">
+                <div className="text-[9.2pt] font-tahoma border-[1.5pt] border-black p-4 bg-white min-h-[800px]">
+                   <div className="text-right text-[7pt] mb-4">
                       <p>LAMPIRAN</p>
-                      <p>PMK NO. 190/PMK.05/2012</p>
-                      <p>TENTANG TATA CARA PEMBAYARAN DALAM RANGKA </p>
-                      <p>PELAKSANAAN ANGGARAN PENDAPATAN BELANJA NEGARA</p>
+                      <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA</p>
+                      <p>NOMOR 190/PMK.05/2012 TENTANG TATA CARA PEMBAYARAN DALAM</p>
+                      <p>RANGKA PELAKSANAAN ANGGARAN PENDAPATAN BELANJA NEGARA</p>
                     </div>
-                   <div className="text-center space-y-1">
-                     <p className="font-bold uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                     <p className="font-bold uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                     <h2 className="text-[12pt] font-bold underline uppercase pt-4">SURAT PERINTAH BAYAR</h2>
-                     <div className="flex justify-center gap-10 pt-2">
+
+                   <div className="text-center space-y-1 mb-6">
+                     <p className="font-bold text-[10.5pt] uppercase">KEMENTERIAN HUKUM DAN HAK ASASI MANUSIA REPUBLIK INDONESIA</p>
+                     <p className="font-bold text-[10.5pt] uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                     <p className="text-[11.5pt] font-bold underline uppercase pt-4">SURAT PERINTAH BAYAR</p>
+                     <div className="flex justify-center gap-10 py-1 border-b-[2.5pt] border-double border-black">
                         <p>Tanggal : {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                         <p>Nomor : .........................</p>
                      </div>
                    </div>
 
-                   <div className="space-y-4">
-                     <p>Saya yang bertanda tangan di bawah ini selaku Pejabat Pembuat Komitmen memerintahkan Bendahara Pengeluaran agar melakukan pembayaran sejumlah :</p>
-                     <div className="flex gap-10 items-center">
-                        <span className="font-bold">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span>
-                        <span className="italic font-bold uppercase"> {terbilang(currentPeserta?.totalJumlah || 0)} RUPIAH </span>
+                   <div className="space-y-0 text-[10pt]">
+                     <div className="border-b border-black py-2">
+                        <p>Saya yang bertanda tangan di bawah ini selaku Pejabat Pembuat Komitmen memerintahkan Bendahara Pengeluaran agar melakukan pembayaran sejumlah :</p>
                      </div>
                      
-                     <div className="space-y-2">
-                        <div className="grid grid-cols-[150px_10px_1fr]"><span>Kepada</span><span>:</span><span className="font-bold uppercase">{currentPeserta?.nama}</span></div>
-                        <div className="grid grid-cols-[150px_10px_1fr]"><span>Untuk pembayaran</span><span>:</span><span>Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan}</span></div>
-                        <div className="grid grid-cols-[150px_10px_1fr] pt-4"><span>Atas dasar</span><span>:</span><span></span></div>
-                        <div className="grid grid-cols-[150px_10px_1fr] pl-4"><span>1. Kuitansi / bukti pembelian</span><span>:</span><span>Tersedia</span></div>
-                        <div className="grid grid-cols-[150px_10px_1fr] pl-4"><span>2. Nota / bukti penerimaan</span><span>:</span><span>Tersedia</span></div>
-                        <div className="grid grid-cols-[150px_10px_1fr] pt-4"><span>Dibebankan pada</span><span>:</span><span></span></div>
-                        <div className="grid grid-cols-[150px_10px_1fr] pl-4"><span>Kegiatan, Output, MAK</span><span>:</span><span>{formData.mataAnggaran}</span></div>
-                        <div className="grid grid-cols-[150px_10px_1fr] pl-4"><span>Kode</span><span>:</span><span>.........................</span></div>
+                     <div className="border-b border-black py-2 flex items-center">
+                        <span className="font-bold w-12">Rp</span>
+                        <span className="font-bold">{(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span>
+                     </div>
+
+                     <div className="border-b border-black py-2 text-center font-bold italic proper case">
+                         {terbilang(currentPeserta?.totalJumlah || 0)} Rupiah 
+                     </div>
+
+                     <div className="space-y-2 py-3">
+                        <div className="grid grid-cols-[180px_10px_1fr]"><span>Kepada</span><span>:</span><span className="font-bold uppercase">{currentPeserta?.nama}</span></div>
+                        <div className="grid grid-cols-[180px_10px_1fr] items-start">
+                           <span>Untuk pembayaran</span><span>:</span>
+                           <span className="leading-tight text-justify italic">
+                             Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan} {currentPeserta?.tujuanPerjalanan ? `Ke ${currentPeserta.tujuanPerjalanan}` : ''} pada tanggal {currentPeserta?.tanggalSpd ? new Date(currentPeserta.tanggalSpd).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"}) : '-'}
+                           </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-[180px_10px_1fr] pt-2"><span>Atas dasar</span><span>:</span><span></span></div>
+                        <div className="grid grid-cols-[180px_10px_1fr]"><span>1. Kuitansi / bukti pembelian</span><span className="text-right pr-2">:</span><span></span></div>
+                        <div className="grid grid-cols-[180px_10px_1fr]"><span>2. Nota / bukti penerimaan</span><span className="text-right pr-2">:</span><span></span></div>
+                        
+                        <div className="grid grid-cols-[180px_10px_1fr] pt-2"><span>Dibebankan pada</span><span>:</span><span></span></div>
+                        <div className="grid grid-cols-[180px_10px_1fr]"><span>Kegiatan, Output, MAK</span><span className="text-right pr-2">:</span><span className="font-bold">{formData.mataAnggaran}</span></div>
+                        <div className="grid grid-cols-[180px_10px_1fr]"><span>Kode</span><span className="text-right pr-2">:</span><span></span></div>
                      </div>
                    </div>
 
-                   <div className="grid grid-cols-3 gap-4 pt-10 text-center text-[9pt]">
-                      <div className="space-y-20">
-                        <p>Setuju/lunas dibayar, tanggal {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Bendahara Pengeluaran,</p>
-                        <div className="space-y-1">
+                   <div className="grid grid-cols-3 gap-2 pt-16 text-center text-[8.5pt]">
+                      <div className="flex flex-col h-full justify-between min-h-[140px]">
+                        <p className="leading-tight">Setuju/lunas dibayar, tgl {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Bendahara Pengeluaran,</p>
+                        <div className="space-y-0.5">
                           <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
-                          <p>NIP {formData.bendaharaNip}</p>
+                          <p>NIP. {formData.bendaharaNip}</p>
                         </div>
                       </div>
-                      <div className="space-y-20">
-                        <p>Diterima tanggal {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Penerima Uang/ Uang Muka Kerja</p>
-                        <div className="space-y-1">
+                      <div className="flex flex-col h-full justify-between min-h-[140px]">
+                        <p className="leading-tight">Diterima tanggal {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Penerima Uang/ Uang Muka Kerja,</p>
+                        <div className="space-y-0.5">
                           <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
-                          <p>NIP {currentPeserta?.nip || '-'}</p>
+                          <p>NIP. {currentPeserta?.nip || '-'}</p>
                         </div>
                       </div>
-                      <div className="space-y-20">
-                        <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>a.n. Kuasa Pengguna Anggaran<br/>Pejabat Pembuat Komitmen</p>
-                        <div className="space-y-1">
+                      <div className="flex flex-col h-full justify-between min-h-[140px]">
+                        <div className="text-center">
+                            <p className="text-right pr-4">{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                            <p className="leading-tight mt-1">a.n. Kuasa Pengguna Anggaran<br/>Pejabat Pembuat Komitmen,</p>
+                        </div>
+                        <div className="space-y-0.5">
                           <p className="font-bold underline uppercase">{formData.ppkNama}</p>
-                          <p>NIP {formData.ppkNip}</p>
+                          <p>NIP. {formData.ppkNip}</p>
                         </div>
                       </div>
                    </div>
@@ -1131,38 +1200,38 @@ const KeuanganPage = () => {
               )}
 
               {previewType === 'sptjm' && (
-                <div className="space-y-8 text-[11pt]">
-                   <div className="flex items-center gap-6 border-b-2 border-black pb-4">
-                      <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" className="h-20" />
-                      <div className="text-center flex-1">
-                        <p className="font-bold text-[12pt] uppercase">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                        <p className="font-bold text-[12pt] uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                        <p className="text-[9pt]">Jl. H.R. Rasuna Said Kav. 8-9 Kuningan, Jakarta Selatan 12190</p>
-                        <p className="text-[9pt]">Call Center: 152</p>
-                        <p className="text-[9pt]">Laman: www.dgip.go.id. Pos-el: halodjki@dgip.go.id</p>
+                <div className="space-y-6 text-[11pt] font-tahoma">
+                   <div className="flex items-center border-b-2 border-black pb-4">
+                      <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" className="h-24 w-24 object-contain" />
+                      <div className="text-center flex-1 pr-12">
+                        <p className="font-bold text-[12pt] uppercase leading-tight">KEMENTERIAN HUKUM DAN HAK ASASI MANUSIA REPUBLIK INDONESIA</p>
+                        <p className="font-bold text-[12pt] uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                        <p className="text-[9pt] font-tahoma mt-2">Jl. H.R. Rasuna Said Kav. 8-9 Kuningan, Jakarta Selatan 12190</p>
+                        <p className="text-[9pt] font-tahoma">Call Center: 152 </p>
+                        <p className="text-[9pt] font-tahoma">Laman: www.dgip.go.id</p>
                       </div>
                    </div>
 
-                   <div className="text-center py-6">
-                     <h2 className="text-[14pt] font-bold underline uppercase">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK</h2>
+                   <div className="text-center py-8">
+                     <h2 className="text-[12pt] font-bold underline uppercase tracking-wider">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK</h2>
                    </div>
 
                    <div className="space-y-6 text-justify leading-relaxed">
                      <p>Yang bertanda tangan di bawah ini:</p>
                      <div className="pl-10 space-y-2">
-                        <div className="grid grid-cols-[120px_10px_1fr]"><span>Nama</span><span>:</span><span className="font-bold uppercase">{currentPeserta?.nama}</span></div>
-                        <div className="grid grid-cols-[120px_10px_1fr]"><span>NIP</span><span>:</span><span>{currentPeserta?.nip || '-'}</span></div>
-                        <div className="grid grid-cols-[120px_10px_1fr]"><span>Jabatan</span><span>:</span><span className="uppercase">{currentPeserta?.jabatan}</span></div>
+                        <div className="grid grid-cols-[130px_10px_1fr]"><span>Nama</span><span>:</span><span className="font-bold uppercase">{currentPeserta?.nama}</span></div>
+                        <div className="grid grid-cols-[130px_10px_1fr]"><span>NIP</span><span>:</span><span>{currentPeserta?.nip || '-'}</span></div>
+                        <div className="grid grid-cols-[130px_10px_1fr]"><span>Jabatan</span><span>:</span><span className="uppercase">{currentPeserta?.jabatan}</span></div>
                      </div>
 
                      <p>Menyatakan dengan sesungguhnya bahwa:</p>
                      <div className="space-y-4">
                         <div className="flex gap-4">
-                           <span>1.</span>
+                           <span className="w-4">1.</span>
                            <p>Perhitungan yang terdapat dalam pertanggungjawaban Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan} Sebesar <span className="font-bold">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span></p>
                         </div>
                         <div className="flex gap-4">
-                           <span>2.</span>
+                           <span className="w-4">2.</span>
                            <p>Dari jumlah tersebut, apabila di kemudian hari terdapat kelebihan pembayaran atau terdapat hal-hal yang tidak benar atas perjalanan dinas tersebut di atas, saya bersedia untuk mengganti kelebihan atau kerugian negara tersebut untuk menyetorkan ke Kas Negara.</p>
                         </div>
                      </div>
@@ -1170,14 +1239,16 @@ const KeuanganPage = () => {
                      <p>Demikian surat pernyataan ini saya buat dengan sebenarnya.</p>
                    </div>
 
-                   <div className="ml-[60%] mt-20 text-center space-y-24">
-                      <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Yang melakukan perjalanan dinas</p>
-                      <div className="space-y-1">
-                        <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
-                        <p>NIP {currentPeserta?.nip || '-'}</p>
+                   <div className="flex justify-end mt-20">
+                     <div className="text-center w-80 space-y-24">
+                        <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Yang membuat pernyataan,</p>
+                        <div className="space-y-1">
+                          <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
+                          <p>NIP. {currentPeserta?.nip || '-'}</p>
+                        </div>
                       </div>
-                   </div>
-                </div>
+                    </div>
+                  </div>
               )}
 
             </div>
