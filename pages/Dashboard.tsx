@@ -72,8 +72,10 @@ const Dashboard = () => {
 
   const activePegawaiList = useMemo(() => {
     return pegawai.filter(p => {
-      const s = (p.status || 'Aktif').trim().toLowerCase();
-      return s !== 'tidak aktif' && s !== 'pensiun';
+      const s = (p.status || 'Aktif').trim().toUpperCase();
+      // Only include truly active statuses: "AKTIF" and "TUGAS BELAJAR"
+      // Exclude "TIDAK AKTIF" and "PENSIUN" as requested
+      return s === 'AKTIF' || s === 'TUGAS BELAJAR';
     });
   }, [pegawai]);
 
@@ -84,7 +86,11 @@ const Dashboard = () => {
         unit,
         pns: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase().trim() === 'PNS').length,
         cpns: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase().trim().includes('CPNS')).length,
-        pppk: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase().trim().includes('PPPK')).length,
+        // PPPK here should only count Full Time (Exclude Paruh Waktu for accurate sebaran)
+        pppk: perUnit.filter(p => {
+          const jen = (p.jenisPegawai || '').toUpperCase();
+          return jen.includes('PPPK') && !jen.includes('PARUH');
+        }).length,
         pppkParuh: perUnit.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PARUH')).length,
         total: perUnit.length
       };
@@ -497,7 +503,10 @@ const Dashboard = () => {
         <StatsCard title="Total ASN Aktif" value={activePegawaiList.length} icon="bi-people-fill" color="bg-blue-600" loading={loading} />
         <StatsCard title="Total PNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim() === 'PNS').length} icon="bi-person-vcard" color="bg-indigo-600" loading={loading} />
         <StatsCard title="Total CPNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim().includes('CPNS')).length} icon="bi-person-plus" color="bg-cyan-600" loading={loading} />
-        <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim().includes('PPPK')).length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
+        <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => {
+          const jen = (p.jenisPegawai || '').toUpperCase();
+          return jen.includes('PPPK') && !jen.includes('PARUH');
+        }).length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
         <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
       </div>
 

@@ -22,7 +22,7 @@ const KeuanganPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<'kuitansi' | 'rincian' | 'spb' | 'sptjm' | 'riil'>('kuitansi');
+  const [previewType, setPreviewType] = useState<'kuitansi' | 'rincian' | 'spb' | 'sptjm' | 'riil' | 'all'>('kuitansi');
   const [selectedPesertaIdx, setSelectedPesertaIdx] = useState<number>(0);
   const [docDate, setDocDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [docCity, setDocCity] = useState<string>('Bogor');
@@ -758,12 +758,23 @@ const KeuanganPage = () => {
         <div className="space-y-8">
           <div className="flex flex-col gap-4 no-print max-w-2xl mx-auto">
             <div className="flex justify-center gap-4">
-              {['kuitansi', 'rincian', 'riil', 'spb', 'sptjm'].map(type => (
+              {['kuitansi', 'rincian', 'riil', 'spb', 'sptjm', 'all'].map(type => (
                 <button key={type} onClick={() => setPreviewType(type as any)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all ${previewType === type ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-400 border border-gray-100'}`}>
-                  {type.replace(/_/g, ' ')}
+                  {type === 'all' ? 'Cetak Semua' : type.replace(/_/g, ' ')}
                 </button>
               ))}
             </div>
+
+            {previewType === 'all' && (
+              <div className="flex justify-center no-print mt-2">
+                <button 
+                  onClick={() => window.print()}
+                  className="px-8 py-4 bg-orange-600 text-white rounded-[1.5rem] font-black text-[11px] uppercase shadow-xl shadow-orange-100 flex items-center gap-3 hover:bg-orange-700 transition-all transform hover:-translate-y-1 active:scale-95"
+                >
+                  <i className="bi bi-printer text-[14px]"></i> Cetak Sekarang (Langsung ke Printer)
+                </button>
+              </div>
+            )}
             
             <div className="flex justify-center gap-6 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
               <div className="space-y-1 flex-1">
@@ -782,16 +793,29 @@ const KeuanganPage = () => {
                     <div className="bg-gray-100 p-4 overflow-auto">
                       <div 
                         ref={pdfRef} 
-                        className="bg-white shadow-xl mx-auto"
+                        className={`bg-white shadow-xl mx-auto ${previewType === 'all' ? 'print:shadow-none print:m-0 print:w-full' : ''}`}
                         style={{ 
-                          width: previewType === 'kuitansi' ? "210mm" : "210mm", 
+                          width: "210mm", 
                           minHeight: previewType === 'kuitansi' ? "148mm" : "297mm", 
-                          padding: (previewType === 'kuitansi' || previewType === 'spb') ? "10mm" : "20mm 20mm 25mm 30mm",
+                          padding: (previewType === 'kuitansi' || previewType === 'spb' || previewType === 'all') ? "10mm" : "20mm 20mm 25mm 30mm",
                           boxSizing: "border-box" 
                         }}
                       >
-                      {previewType === "kuitansi" && (
-                        <div className="border-[1.5pt] border-black text-[9pt] leading-tight h-full flex flex-col p-4 font-sans text-black">
+                       {previewType === 'all' && (
+                         <style>
+                           {`
+                             @media print {
+                               .page-break { page-break-after: always !important; display: block !important; padding-top: 20mm !important; }
+                               .no-print { display: none !important; }
+                               body { background: white !important; }
+                             }
+                           `}
+                         </style>
+                       )}
+
+                       {(previewType === "kuitansi" || previewType === "all") && (
+                         <div className={previewType === 'all' ? 'page-break mb-20 pb-20 border-b-4 border-dashed border-gray-100 last:border-b-0' : 'h-full'}>
+                           <div className="border-[1.5pt] border-black text-[9pt] leading-tight h-full flex flex-col p-4 font-sans text-black">
                           {/* HEADER SECTION */}
                           <div className="flex justify-between items-start mb-4">
                             <div className="font-bold">
@@ -900,11 +924,12 @@ const KeuanganPage = () => {
                             </div>
                           </div>
                         </div>
-                      )}
-                     
+                      </div>
+                    )}
 
-              {previewType === 'rincian' && (
-                <div className="space-y-6 text-[10pt] font-tahoma text-black">
+                      {(previewType === 'rincian' || previewType === 'all') && (
+                        <div className={previewType === 'all' ? 'page-break mb-20 pb-20 border-b-4 border-dashed border-gray-100 last:border-b-0 pt-10' : ''}>
+                          <div className="space-y-6 text-[10pt] font-tahoma text-black">
                   <div className="grid grid-cols-2 gap-8 pt-4 text-[9pt]">
                     <div className="space-y-1">
                       <div className="grid grid-cols-[120px_10px_1fr] items-center text-[10pt]">
@@ -1040,10 +1065,12 @@ const KeuanganPage = () => {
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              {previewType === 'riil' && (
-                <div className="space-y-8 text-[10pt] font-tahoma">
+              {(previewType === 'riil' || previewType === 'all') && (
+                <div className={previewType === 'all' ? 'page-break mb-20 pb-20 border-b-4 border-dashed border-gray-100 last:border-b-0 pt-10' : ''}>
+                  <div className="space-y-8 text-[10pt] font-tahoma text-black">
                      <div className="grid grid-cols-2 gap-8 pt-4 text-[9pt]">
                     <div className="space-y-1">
                     </div>
@@ -1116,95 +1143,106 @@ const KeuanganPage = () => {
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              {previewType === 'spb' && (
-                <div className="text-[9.2pt] font-tahoma border-[1.5pt] border-black p-4 bg-white min-h-[800px]">
-                   <div className="text-right text-[7pt] mb-4">
+              {(previewType === 'spb' || previewType === 'all') && (
+                <div className={previewType === 'all' ? 'page-break mb-20 pb-20 border-b-4 border-dashed border-gray-100 last:border-b-0 pt-10' : ''}>
+                   <div className="text-[9.2pt] font-tahoma border-[1.5pt] border-black p-4 bg-white min-h-[800px] flex flex-col text-black">
+                   <div className="text-right text-[7pt] mb-2 leading-tight">
                       <p>LAMPIRAN</p>
                       <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA</p>
                       <p>NOMOR 190/PMK.05/2012 TENTANG TATA CARA PEMBAYARAN DALAM</p>
                       <p>RANGKA PELAKSANAAN ANGGARAN PENDAPATAN BELANJA NEGARA</p>
                     </div>
 
-                   <div className="text-center space-y-1 mb-6">
-                     <p className="font-bold text-[10.5pt] uppercase">KEMENTERIAN HUKUM DAN HAK ASASI MANUSIA REPUBLIK INDONESIA</p>
-                     <p className="font-bold text-[10.5pt] uppercase">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                     <p className="text-[11.5pt] font-bold underline uppercase pt-4">SURAT PERINTAH BAYAR</p>
-                     <div className="flex justify-center gap-10 py-1 border-b-[2.5pt] border-double border-black">
+                   <div className="text-center space-y-0.5 mb-2">
+                     <p className="font-bold text-[10.5pt] uppercase leading-tight">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                     <p className="font-bold text-[10.5pt] uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
+                     <p className="text-[11.5pt] font-bold underline uppercase pt-2">SURAT PERINTAH BAYAR</p>
+                   </div>
+
+                   <div className="flex justify-center gap-10 py-1 border-y border-black mb-2">
                         <p>Tanggal : {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                         <p>Nomor : .........................</p>
-                     </div>
                    </div>
 
-                   <div className="space-y-0 text-[10pt]">
-                     <div className="border-b border-black py-2">
-                        <p>Saya yang bertanda tangan di bawah ini selaku Pejabat Pembuat Komitmen memerintahkan Bendahara Pengeluaran agar melakukan pembayaran sejumlah :</p>
-                     </div>
-                     
-                     <div className="border-b border-black py-2 flex items-center">
-                        <span className="font-bold w-12">Rp</span>
-                        <span className="font-bold">{(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span>
-                     </div>
-
-                     <div className="border-b border-black py-2 text-center font-bold italic proper case">
-                         {terbilang(currentPeserta?.totalJumlah || 0)} Rupiah 
-                     </div>
-
-                     <div className="space-y-2 py-3">
-                        <div className="grid grid-cols-[180px_10px_1fr]"><span>Kepada</span><span>:</span><span className="font-bold uppercase">{currentPeserta?.nama}</span></div>
-                        <div className="grid grid-cols-[180px_10px_1fr] items-start">
-                           <span>Untuk pembayaran</span><span>:</span>
-                           <span className="leading-tight text-justify italic">
-                             Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan} {currentPeserta?.tujuanPerjalanan ? `Ke ${currentPeserta.tujuanPerjalanan}` : ''} pada tanggal {currentPeserta?.tanggalSpd ? new Date(currentPeserta.tanggalSpd).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"}) : '-'}
-                           </span>
-                        </div>
-                        
-                        <div className="grid grid-cols-[180px_10px_1fr] pt-2"><span>Atas dasar</span><span>:</span><span></span></div>
-                        <div className="grid grid-cols-[180px_10px_1fr]"><span>1. Kuitansi / bukti pembelian</span><span className="text-right pr-2">:</span><span></span></div>
-                        <div className="grid grid-cols-[180px_10px_1fr]"><span>2. Nota / bukti penerimaan</span><span className="text-right pr-2">:</span><span></span></div>
-                        
-                        <div className="grid grid-cols-[180px_10px_1fr] pt-2"><span>Dibebankan pada</span><span>:</span><span></span></div>
-                        <div className="grid grid-cols-[180px_10px_1fr]"><span>Kegiatan, Output, MAK</span><span className="text-right pr-2">:</span><span className="font-bold">{formData.mataAnggaran}</span></div>
-                        <div className="grid grid-cols-[180px_10px_1fr]"><span>Kode</span><span className="text-right pr-2">:</span><span></span></div>
-                     </div>
-                   </div>
-
-                   <div className="grid grid-cols-3 gap-2 pt-16 text-center text-[8.5pt]">
-                      <div className="flex flex-col h-full justify-between min-h-[140px]">
-                        <p className="leading-tight">Setuju/lunas dibayar, tgl {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Bendahara Pengeluaran,</p>
-                        <div className="space-y-0.5">
-                          <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
-                          <p>NIP. {formData.bendaharaNip}</p>
-                        </div>
+                   <div className="space-y-0 text-[9.5pt] flex-1">
+                      <div className="border-b border-black py-2">
+                         <p>Saya yang bertanda tangan di bawah ini selaku Pejabat Pembuat Komitmen memerintahkan Bendahara Pengeluaran agar melakukan pembayaran sejumlah :</p>
                       </div>
-                      <div className="flex flex-col h-full justify-between min-h-[140px]">
-                        <p className="leading-tight">Diterima tanggal {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Penerima Uang/ Uang Muka Kerja,</p>
-                        <div className="space-y-0.5">
-                          <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
-                          <p>NIP. {currentPeserta?.nip || '-'}</p>
-                        </div>
+                      
+                      <div className="border-b border-black py-1.5 flex items-center">
+                         <span className="font-bold w-12">Rp</span>
+                         <span className="font-bold">{(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span>
                       </div>
-                      <div className="flex flex-col h-full justify-between min-h-[140px]">
-                        <div className="text-center">
-                            <p className="text-right pr-4">{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                            <p className="leading-tight mt-1">a.n. Kuasa Pengguna Anggaran<br/>Pejabat Pembuat Komitmen,</p>
+
+                      <div className="border-b-[2.5pt] border-double border-black py-2 text-center font-bold italic Proper Case">
+                          {terbilang(currentPeserta?.totalJumlah || 0)} Rupiah 
+                      </div>
+
+                      <div className="space-y-1 py-2 border-b border-black mb-2">
+                         <div className="grid grid-cols-[180px_10px_1fr]"><span>Kepada</span><span>:</span><span className="font-bold uppercase">{currentPeserta?.nama}</span></div>
+                         <div className="grid grid-cols-[180px_10px_1fr] items-start">
+                            <span>Untuk pembayaran</span><span>:</span>
+                            <span className="leading-tight text-justify">
+                              Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan} {currentPeserta?.tujuanPerjalanan ? `Ke ${currentPeserta.tujuanPerjalanan}` : ''} pada tanggal {currentPeserta?.tanggalSpd ? new Date(currentPeserta.tanggalSpd).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"}) : '-'}
+                            </span>
+                         </div>
+                         
+                         <div className="grid grid-cols-[180px_10px_1fr] pt-2"><span>Atas dasar</span><span>:</span><span></span></div>
+                         <div className="grid grid-cols-[180px_10px_1fr]"><span>1. Kuitansi / bukti pembelian</span><span className="text-right pr-2">:</span><span></span></div>
+                         <div className="grid grid-cols-[180px_10px_1fr]"><span>2. Nota / bukti penerimaan</span><span className="text-right pr-2">:</span><span></span></div>
+                         
+                         <div className="grid grid-cols-[180px_10px_1fr] pt-1"><span>Dibebankan pada</span><span>:</span><span></span></div>
+                         <div className="grid grid-cols-[180px_10px_1fr]"><span>Kegiatan, Output, MAK</span><span className="text-right pr-2">:</span><span className="font-bold">{formData.mataAnggaran}</span></div>
+                         <div className="grid grid-cols-[180px_10px_1fr]"><span>Kode</span><span className="text-right pr-2">:</span><span></span></div>
+                      </div>
+                       <div className="pt-8 text-[8.2pt]">
+                        <div className="grid grid-cols-3 gap-2 text-center mb-1">
+                          <div></div>
+                          <div></div>
+                          <div>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
                         </div>
-                        <div className="space-y-0.5">
-                          <p className="font-bold underline uppercase">{formData.ppkNama}</p>
-                          <p>NIP. {formData.ppkNip}</p>
+
+                        <div className="grid grid-cols-3 gap-2 text-center text-[8.2pt]">
+                          <div className="flex flex-col h-full justify-between min-h-[120px]">
+                            <p className="leading-tight">Setuju/lunas dibayar, tgl {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Bendahara Pengeluaran,</p>
+                            <div className="space-y-0.5">
+                              <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
+                              <p>NIP. {formData.bendaharaNip}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col h-full justify-between min-h-[120px]">
+                            <p className="leading-tight">Diterima tanggal {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Penerima Uang/ Uang Muka Kerja,</p>
+                            <div className="space-y-0.5">
+                              <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
+                              <p>NIP. {currentPeserta?.nip || '-'}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col h-full justify-between min-h-[120px]">
+                            <div className="text-center space-y-1">
+                                <p className="leading-tight">a.n. Kuasa Pengguna Anggaran<br/>Pejabat Pembuat Komitmen,</p>
+                            </div>
+                            <div className="space-y-0.5 mt-auto">
+                              <p className="font-bold underline uppercase">{formData.ppkNama}</p>
+                              <p>NIP. {formData.ppkNip}</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                    </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              {previewType === 'sptjm' && (
-                <div className="space-y-6 text-[11pt] font-tahoma">
+              {(previewType === 'sptjm' || previewType === 'all') && (
+                <div className={previewType === 'all' ? 'page-break pt-10' : ''}>
+                   <div className="space-y-6 text-[11pt] font-tahoma text-black">
                    <div className="flex items-center border-b-2 border-black pb-4">
                       <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" className="h-24 w-24 object-contain" />
                       <div className="text-center flex-1 pr-12">
-                        <p className="font-bold text-[12pt] uppercase leading-tight">KEMENTERIAN HUKUM DAN HAK ASASI MANUSIA REPUBLIK INDONESIA</p>
+                        <p className="font-bold text-[12pt] uppercase leading-tight">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
                         <p className="font-bold text-[12pt] uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
                         <p className="text-[9pt] font-tahoma mt-2">Jl. H.R. Rasuna Said Kav. 8-9 Kuningan, Jakarta Selatan 12190</p>
                         <p className="text-[9pt] font-tahoma">Call Center: 152 </p>
@@ -1212,7 +1250,7 @@ const KeuanganPage = () => {
                       </div>
                    </div>
 
-                   <div className="text-center py-8">
+                   <div className="text-center py-6">
                      <h2 className="text-[12pt] font-bold underline uppercase tracking-wider">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK</h2>
                    </div>
 
@@ -1249,6 +1287,7 @@ const KeuanganPage = () => {
                       </div>
                     </div>
                   </div>
+                </div>
               )}
 
             </div>
