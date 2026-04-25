@@ -212,8 +212,8 @@ const SatyaLencanaPage = () => {
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-gray-50">
-                    {eligiblePegawai.map(p => (
-                      <tr key={p.nip} className="hover:bg-blue-50/5 group transition-colors">
+                    {eligiblePegawai.map((p, i) => (
+                      <tr key={`${p.nip}-${i}`} className="hover:bg-blue-50/5 group transition-colors">
                          <td className="px-10 py-6">
                             <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{p.nama}</p>
                             <p className="text-[9px] font-mono text-blue-600 font-bold uppercase">NIP. {p.nip}</p>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets, fetchKGBFromSheets, fetchKegiatanFromSheets } from '../spreadsheetService';
-import { Pegawai, Pengembangan, KGB, Kegiatan } from '../types';
+import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets, fetchKGBFromSheets, fetchKegiatanFromSheets, fetchAbsensiHistoryFromSheets } from '../spreadsheetService';
+import { Pegawai, Pengembangan, KGB, Kegiatan, AbsensiRecord } from '../types';
 import { useAuth } from '../AuthContext';
 import { UNIT_KERJA, normalizeUnitName } from '../constants';
 import * as XLSX from 'xlsx';
@@ -26,8 +26,9 @@ const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: str
 );
 
 const Dashboard = () => {
-  const { logActivity } = useAuth();
+  const { user, logActivity } = useAuth();
   const [pegawai, setPegawai] = useState<Pegawai[]>([]);
+  const [todayAbsensi, setTodayAbsensi] = useState<AbsensiRecord[]>([]);
   const [riwayatBangkom, setRiwayatBangkom] = useState<Pengembangan[]>([]);
   const [riwayatKgb, setRiwayatKgb] = useState<KGB[]>([]);
   const [kegiatan, setKegiatan] = useState<Kegiatan[]>([]);
@@ -48,21 +49,25 @@ const Dashboard = () => {
   const [filterJenisGender, setFilterJenisGender] = useState('Semua Jenis');
   const [filterJenisGrade, setFilterJenisGrade] = useState('Semua Jenis');
 
-  useEffect(() => { loadDashboardData(); }, []);
+  useEffect(() => { 
+    if (user) loadDashboardData(); 
+  }, [user?.nip]);
 
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [pegData, bangkomData, kgbData, kegiatanData] = await Promise.all([
+      const [pegData, bangkomData, kgbData, kegiatanData, absensiData] = await Promise.all([
         fetchPegawaiFromSheets(),
         fetchPengembanganFromSheets(),
         fetchKGBFromSheets(),
-        fetchKegiatanFromSheets()
+        fetchKegiatanFromSheets(),
+        user?.nip ? fetchAbsensiHistoryFromSheets(user.nip) : Promise.resolve([])
       ]);
       setPegawai(Array.isArray(pegData) ? pegData : []);
       setRiwayatBangkom(Array.isArray(bangkomData) ? bangkomData : []);
       setRiwayatKgb(Array.isArray(kgbData) ? kgbData : []);
       setKegiatan(Array.isArray(kegiatanData) ? kegiatanData : []);
+      setTodayAbsensi(absensiData || []);
     } catch (error) {
       console.error("Dashboard Load Error:", error);
     } finally {
@@ -519,6 +524,56 @@ const Dashboard = () => {
         <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
       </div>
 
+      {user && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+           <div className="bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-100 shadow-sm flex flex-col justify-center">
+              <div className="flex items-center gap-4 mb-6">
+                 <div className="h-12 w-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <i className="bi bi-fingerprint text-2xl"></i>
+                 </div>
+                 <div>
+                    <h4 className="text-sm font-black text-gray-950 uppercase tracking-widest">Status Presensi Anda</h4>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                 </div>
+              </div>
+              <div className="flex gap-4">
+                 <div className={`flex-1 p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 ${todayAbsensi.find(a => a.tipe === 'MASUK') ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-gray-50 border-transparent text-gray-400 opacity-60'}`}>
+                    <i className={`bi ${todayAbsensi.find(a => a.tipe === 'MASUK') ? 'bi-check-circle-fill' : 'bi-dash-circle'} text-2xl`}></i>
+                    <p className="text-[9px] font-black uppercase tracking-widest">MASUK</p>
+                    {todayAbsensi.find(a => a.tipe === 'MASUK') && <p className="text-sm font-black">{todayAbsensi.find(a => a.tipe === 'MASUK')?.waktu}</p>}
+                 </div>
+                 <div className={`flex-1 p-4 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 ${todayAbsensi.find(a => a.tipe === 'PULANG') ? 'bg-amber-50 border-amber-100 text-amber-600' : 'bg-gray-50 border-transparent text-gray-400 opacity-60'}`}>
+                    <i className={`bi ${todayAbsensi.find(a => a.tipe === 'PULANG') ? 'bi-check-circle-fill' : 'bi-dash-circle'} text-2xl`}></i>
+                    <p className="text-[9px] font-black uppercase tracking-widest">PULANG</p>
+                    {todayAbsensi.find(a => a.tipe === 'PULANG') && <p className="text-sm font-black">{todayAbsensi.find(a => a.tipe === 'PULANG')?.waktu}</p>}
+                 </div>
+              </div>
+              <a href="#/absensi" className="mt-8 py-4 bg-gray-950 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-center shadow-xl shadow-gray-950/20 active:scale-95 transition-all">
+                Lakukan Presensi Biometrik
+              </a>
+           </div>
+
+           <div className="bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden relative group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600 blur-[100px] opacity-10 group-hover:opacity-20 transition-opacity"></div>
+              <h4 className="text-[10px] font-black text-gray-950 tracking-[0.2em] mb-6 uppercase">Aktivitas Terakhir</h4>
+              <div className="space-y-4">
+                 {kegiatan.slice(0, 3).map((ev, i) => (
+                    <div key={i} className="flex gap-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-md transition-all">
+                       <div className="h-10 w-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-blue-600 shrink-0 shadow-sm">
+                          <i className="bi bi-calendar-event"></i>
+                       </div>
+                       <div className="min-w-0">
+                          <p className="text-[11px] font-black text-gray-950 uppercase truncate">{ev.judulKegiatan}</p>
+                          <p className="text-[9px] font-bold text-gray-400 mt-1 uppercase italic">{ev.tempat}</p>
+                       </div>
+                    </div>
+                 ))}
+                 {kegiatan.length === 0 && <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest text-center py-10 italic">Belum ada agenda terdaftar</p>}
+              </div>
+           </div>
+        </div>
+      )}
+
       <div className="bg-white p-4 md:p-10 rounded-2xl md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden">
          <div className="mb-4 md:mb-10">
             <h4 className="text-[9px] md:text-[12px] font-black text-gray-950 tracking-[0.2em] md:tracking-[0.3em] uppercase">Sebaran Pegawai Aktif per Unit Kerja</h4>
@@ -887,7 +942,7 @@ const Dashboard = () => {
 
               <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar space-y-3 md:space-y-4 bg-white">
                  {(reminders[notifTab] || []).map((item, i) => (
-                    <div key={i} className="p-4 md:p-5 bg-gray-50/50 border border-gray-100 rounded-2xl md:rounded-[2rem] flex items-center gap-4 md:gap-5 hover:bg-blue-50 transition-all shadow-sm group">
+                    <div key={`${item.nip || i}-${i}`} className="p-4 md:p-5 bg-gray-50/50 border border-gray-100 rounded-2xl md:rounded-[2rem] flex items-center gap-4 md:gap-5 hover:bg-blue-50 transition-all shadow-sm group">
                        <div className="min-w-0 flex-1">
                           <p className="text-[10px] md:text-[11px] font-black text-gray-950 truncate uppercase">{item.nama || 'Tanpa Nama'}</p>
                           <p className="text-[8px] md:text-[9px] font-bold text-gray-400 mt-1 uppercase">{item.tmt || item.tmtTerakhir || '-'}</p>

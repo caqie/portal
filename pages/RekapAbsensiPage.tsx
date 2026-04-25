@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchPegawaiFromSheets } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, fetchAllAbsensiHistoryFromSheets } from '../spreadsheetService';
 import { Pegawai, AbsensiRecord } from '../types';
 import { useAuth } from '../AuthContext';
 import * as XLSX from 'xlsx';
@@ -18,14 +18,17 @@ const RekapAbsensiPage = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const pegawais = await fetchPegawaiFromSheets();
+      const [pegawais, history] = await Promise.all([
+        fetchPegawaiFromSheets(),
+        fetchAllAbsensiHistoryFromSheets()
+      ]);
       setPegawaiList(pegawais);
-      const saved = localStorage.getItem('absensi_history_db');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setGlobalHistory(isViewer ? parsed.filter((a: any) => a.nip === user?.nip) : parsed);
-      }
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+      setGlobalHistory(isViewer ? history.filter((a: any) => a.nip === user?.nip) : history);
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const filteredLogs = useMemo(() => {

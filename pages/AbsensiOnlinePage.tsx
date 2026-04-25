@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchPegawaiFromSheets, fetchAbsensiConfig } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, fetchAbsensiConfig, saveAbsensiRecord, fetchAbsensiHistoryFromSheets } from '../spreadsheetService';
 import { Pegawai, AbsensiRecord, AbsensiConfig } from '../types';
 import { useAuth } from '../AuthContext';
 import * as faceapi from '@vladmandic/face-api';
@@ -26,6 +26,7 @@ const AbsensiOnlinePage = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [livenessScore, setLivenessScore] = useState(0);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  const [networkStatus, setNetworkStatus] = useState<string>('');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const detectionInterval = useRef<any>(null);
@@ -133,38 +134,53 @@ const AbsensiOnlinePage = () => {
 
   const checkNetwork = async () => {
     try {
-      const [config, ipRes] = await Promise.all([
-        fetchAbsensiConfig(),
-        fetch('https://api.ipify.org?format=json').then(res => res.json())
-      ]);
-      setAbsensiConfig(config);
-      setUserIp(ipRes.ip);
-      
-      const isWfa = config.wfaNips.includes(user?.nip || '');
-      
-      // Check multiple IPs or Ranges
-      const allowedRanges = (config.officeIpAddresses || '').split(',').map(s => s.trim()).filter(s => s !== '');
-      const isOffice = allowedRanges.length === 0 || allowedRanges.some(range => isIpInRange(ipRes.ip, range));
-      
-      if (!isWfa && !isOffice) {
-        setIsNetworkValid(false);
-        setErrorMessage(`Akses Ditolak: Anda harus terhubung ke jaringan kantor (${config.officeWifiSsid || 'Wi-Fi Kantor'}).`);
-      } else {
+      // 1. Fetch Config
+      const config = await fetchAbsensiConfig().catch(() => null);
+      if (config) setAbsensiConfig(config);
+
+      // 2. Fetch IP with Fallback
+      let ip = 'Unknown';
+      try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        const data = await res.json();
+        ip = data.ip;
+      } catch (e) {
+        try {
+          const res2 = await fetch('https://ipapi.co/json/');
+          const data2 = await res2.json();
+          ip = data2.ip;
+        } catch (e2) {
+          console.warn("All IP discovery services failed.");
+        }
+      }
+      setUserIp(ip);
+
+      if (!config) {
         setIsNetworkValid(true);
+        return;
+      }
+
+      const isWfa = config.wfaNips.includes(user?.nip || '');
+      const allowedRanges = (config.officeIpAddresses || '').split(',').map(s => s.trim()).filter(s => s !== '');
+      const isOffice = allowedRanges.length === 0 || (ip !== 'Unknown' && allowedRanges.some(range => isIpInRange(ip, range)));
+      
+      if (isWfa || isOffice || user?.role === 'Superadmin') {
+        setIsNetworkValid(true);
+        setNetworkStatus(isWfa ? 'Validated (WFA)' : isOffice ? 'Validated (Office)' : 'Bypassed (Superadmin)');
+      } else {
+        setIsNetworkValid(false);
+        setErrorMessage(`Akses Ditolak: Lokasi Anda (${ip}) di luar jangkauan kantor.`);
       }
     } catch (e) {
       console.error("Network check failed:", e);
+      setIsNetworkValid(true); 
     }
   };
 
-  const loadHistory = () => {
-    const saved = localStorage.getItem('absensi_history_db');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      const today = new Date().toLocaleDateString('id-ID');
-      const userLogs = parsed.filter((l: any) => l.nip === user?.nip && l.tanggal === today);
-      setAbsensiHistory(userLogs);
-    }
+  const loadHistory = async () => {
+    if (!user?.nip) return;
+    const history = await fetchAbsensiHistoryFromSheets(user.nip);
+    setAbsensiHistory(history);
   };
 
   const loadModels = async () => {
@@ -262,12 +278,13 @@ const AbsensiOnlinePage = () => {
       const video = videoRef.current;
       if (!video || !modelsLoaded || isProcessing) return;
 
-      const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 }))
+      const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 }))
         .withFaceLandmarks().withFaceDescriptor();
 
       if (detection) {
         setIsFaceDetected(true);
         setDetectionScore(detection.detection.score);
+        console.log("Face detected with score:", detection.detection.score);
 
         // Basic Liveness Detection: Check for micro-movements in landmarks
         if (lastLandmarks.current) {
@@ -293,10 +310,10 @@ const AbsensiOnlinePage = () => {
         }
         lastLandmarks.current = detection.landmarks.positions;
         
-        // Threshold for liveness: avgMovement should be between 0.1 and 5.0
-        const isLive = livenessScore > 0.05 && livenessScore < 10;
+        // Threshold for liveness: avgMovement should be between 0.01 and 10.0
+        const isLive = livenessScore > 0.01 && livenessScore < 10;
 
-        if (faceMatcher.current && detection.detection.score > 0.7 && isLive) {
+        if (faceMatcher.current && detection.detection.score > 0.4 && isLive) {
           const bestMatch = faceMatcher.current.findBestMatch(detection.descriptor);
           const matched = bestMatch.label !== 'unknown';
           setIsFaceMatched(matched);
@@ -326,21 +343,27 @@ const AbsensiOnlinePage = () => {
   };
 
   const handleAutoAbsensi = async () => {
-    if (isProcessing || !isNetworkValid || !user) return;
+    if (isProcessing || (!isNetworkValid && !isSuperadmin) || !user) {
+      console.log("Auto-absensi blocked:", { isProcessing, isNetworkValid, isSuperadmin });
+      return;
+    }
     setIsProcessing(true);
     
     try {
       const now = new Date();
       const currentHour = now.getHours();
       const currentTimeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-      const todayStr = now.toLocaleDateString('id-ID');
+      const d = now.getDate().toString().padStart(2, '0');
+      const m = (now.getMonth() + 1).toString().padStart(2, '0');
+      const y = now.getFullYear();
+      const todayStr = `${d}/${m}/${y}`;
       const { limitMasuk } = getScheduleRules();
 
       const tipe: 'MASUK' | 'PULANG' = currentHour < 12 ? 'MASUK' : 'PULANG';
 
-      const savedLogs = JSON.parse(localStorage.getItem('absensi_history_db') || '[]');
-      const alreadyCheckIn = savedLogs.find((l: any) => l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'MASUK');
-      const alreadyCheckOut = savedLogs.find((l: any) => l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'PULANG');
+      // Check existing history from state (which is synced with server on load)
+      const alreadyCheckIn = absensiHistory.find(l => l.tipe === 'MASUK');
+      const alreadyCheckOut = absensiHistory.find(l => l.tipe === 'PULANG');
 
       if (tipe === 'MASUK' && alreadyCheckIn) {
         speak("Maaf, Anda sudah melakukan absensi masuk hari ini.");
@@ -358,42 +381,37 @@ const AbsensiOnlinePage = () => {
       }
 
       const record: any = {
-        id: Date.now().toString(),
+        id: `ATT-${Date.now()}`,
         nip: currentPegawai?.nip || user?.nip,
         nama: currentPegawai?.nama || user?.name,
         tanggal: todayStr,
         waktu: currentTimeStr,
         tipe,
         status: isLate ? 'TERLAMBAT' : 'TEPAT WAKTU',
-        lokasi: absensiConfig?.wfaNips.includes(user?.nip || '') ? 'WFA (Remote)' : 'DJKI Office Node',
-        confidence: detectionScore
+        lokasi: absensiConfig?.wfaNips.includes(user?.nip || '') ? 'WFA (REMOTE)' : 'DJKI OFFICE NODE',
+        confidence: detectionScore.toFixed(4)
       };
 
-      let updatedLogs = [...savedLogs];
-      if (tipe === 'PULANG' && alreadyCheckOut) {
-        updatedLogs = savedLogs.map((l: any) => 
-          (l.nip === user?.nip && l.tanggal === todayStr && l.tipe === 'PULANG') ? record : l
-        );
+      const ok = await saveAbsensiRecord(record);
+      if (ok) {
+        await loadHistory();
+        speak("Terima kasih, presensi berhasil terkirim ke database.");
+        setVerificationResult({ 
+          status: 'SUCCESS', 
+          message: `Presensi ${tipe} Berhasil`, 
+          type: tipe, 
+          late: isLate 
+        });
       } else {
-        updatedLogs = [record, ...savedLogs];
+        throw new Error("Cloud sync failed");
       }
-
-      localStorage.setItem('absensi_history_db', JSON.stringify(updatedLogs));
-      loadHistory();
-      
-      speak("Terima kasih, absensi berhasil.");
-      setVerificationResult({ 
-        status: 'SUCCESS', 
-        message: `Presensi ${tipe} Berhasil`, 
-        type: tipe, 
-        late: isLate 
-      });
 
       setTimeout(() => resetState(), 5000);
     } catch (err) {
       console.error("Absensi processing failed:", err);
       setIsProcessing(false);
-      setErrorMessage("Gagal memproses data absensi.");
+      speak("Maaf, terjadi kesalahan saat mengirim data ke cloud. Pastikan internet Anda stabil.");
+      setErrorMessage("Gagal memproses data absensi ke Cloud Database.");
     }
   };
 
@@ -415,7 +433,7 @@ const AbsensiOnlinePage = () => {
   }, [isFaceDetected, isFaceMatched, isProcessing]);
 
   // UI UNTUK DESKTOP (RESTRICTED)
-  if (!canAccess || !isNetworkValid) {
+  if (!canAccess || (!isNetworkValid && !isSuperadmin)) {
     const isWfa = absensiConfig?.wfaNips.includes(user?.nip || '');
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center animate-fadeIn text-center p-10">
@@ -440,6 +458,14 @@ const AbsensiOnlinePage = () => {
              <div className="mt-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                 <p className="text-[9px] font-black text-gray-400 uppercase">Your Current IP:</p>
                 <p className="text-xs font-mono font-bold text-gray-600">{userIp || 'Detecting...'}</p>
+                {isSuperadmin && (
+                  <button 
+                    onClick={() => setIsNetworkValid(true)}
+                    className="mt-4 w-full py-3 bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                  >
+                    Bypass & Test Presensi (Superadmin Only)
+                  </button>
+                )}
              </div>
            )}
            <div className="h-[1px] w-24 bg-gray-100 mx-auto my-6"></div>
@@ -482,13 +508,35 @@ const AbsensiOnlinePage = () => {
         </div>
       </div>
 
+      {errorMessage && (
+        <div className="bg-rose-50 border-2 border-rose-100 p-6 rounded-[2rem] flex items-center gap-4 animate-fadeIn">
+          <div className="h-12 w-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-lg">
+            <i className="bi bi-exclamation-triangle-fill text-xl"></i>
+          </div>
+          <div>
+            <h6 className="text-[11px] font-black text-rose-900 uppercase">System Error Detected</h6>
+            <p className="text-[10px] font-bold text-rose-600 uppercase mt-1">{errorMessage}</p>
+          </div>
+          <button onClick={() => setErrorMessage(null)} className="ml-auto text-rose-400 hover:text-rose-600">
+            <i className="bi bi-x-circle-fill text-xl"></i>
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
         <div className="xl:col-span-8 space-y-6">
           <div className="bg-slate-900 rounded-[3.5rem] overflow-hidden relative aspect-square md:aspect-video shadow-2xl border-[12px] border-white ring-1 ring-gray-100 group flex items-center justify-center">
             
             {/* CIRCULAR CAMERA CONTAINER */}
             <div className="relative w-72 h-72 md:w-96 md:h-96 rounded-full overflow-hidden border-8 border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10">
-              <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover scale-x-[-1]" />
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                onPlay={() => startDetection()}
+                className="absolute inset-0 w-full h-full object-cover scale-x-[-1]" 
+              />
               
               {/* SCANNING LINE ANIMATION */}
               <div className="absolute inset-0 pointer-events-none">
@@ -518,20 +566,29 @@ const AbsensiOnlinePage = () => {
                </div>
 
                <div className="absolute bottom-6 flex flex-col items-center gap-3">
-                  {!isFaceDetected && (
+                   {!isFaceDetected && (
                     <div className="bg-black/60 backdrop-blur-xl px-8 py-3 rounded-full text-white text-[10px] font-black uppercase tracking-widest border border-white/10 flex items-center gap-3">
-                       <i className="bi bi-person-bounding-box text-blue-400 animate-pulse"></i> Posisikan Wajah Anda
+                       <i className="bi bi-person-bounding-box text-blue-400 animate-pulse"></i> Scan Wajah Sedang Aktif...
                     </div>
                   )}
                   {isFaceDetected && !isFaceMatched && (
                     <div className="bg-rose-600/90 backdrop-blur-xl px-8 py-3 rounded-full text-white text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center gap-3">
-                       <i className="bi bi-shield-lock-fill"></i> Identitas Belum Singkron
+                       <i className="bi bi-shield-lock-fill"></i> Identitas Belum Sesuai
                     </div>
                   )}
                   {isFaceMatched && !isProcessing && (
-                    <div className="bg-emerald-500 backdrop-blur-xl px-8 py-3 rounded-full text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-xl">
-                       <div className="h-2 w-2 bg-white rounded-full animate-ping"></div>
-                       Wajah Terverifikasi... Mohon Diam
+                    <button 
+                      onClick={handleAutoAbsensi}
+                      className="bg-blue-600 hover:bg-blue-700 active:scale-95 transition-all backdrop-blur-xl px-10 py-5 rounded-full text-white text-[12px] font-black uppercase tracking-[0.2em] flex items-center gap-4 shadow-[0_20px_50px_rgba(37,99,235,0.4)] border-2 border-blue-400 group/btn"
+                    >
+                       <i className="bi bi-fingerprint text-xl group-hover/btn:scale-125 transition-transform"></i>
+                       Klik Untuk Presensi Sekarang
+                    </button>
+                  )}
+                  {isFaceMatched && !isProcessing && (
+                    <div className="bg-emerald-500/80 backdrop-blur-md px-6 py-2 rounded-full text-white text-[8px] font-black uppercase tracking-widest flex items-center gap-2 mt-2">
+                       <div className="h-1.5 w-1.5 bg-white rounded-full animate-ping"></div>
+                       Sistem Akan Mengambil Data Otomatis Dalam 3 Detik
                     </div>
                   )}
                </div>
@@ -594,8 +651,8 @@ const AbsensiOnlinePage = () => {
               <i className="bi bi-cpu text-blue-600 text-xl"></i>
            </div>
            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-white">
-              {absensiHistory.map(h => (
-                <div key={h.id} className="p-5 bg-gray-50/50 border border-gray-100 rounded-[2rem] flex items-center gap-5 transition-all hover:bg-white shadow-sm">
+              {absensiHistory.map((h, i) => (
+                <div key={`${h.id}-${i}`} className="p-5 bg-gray-50/50 border border-gray-100 rounded-[2rem] flex items-center gap-5 transition-all hover:bg-white shadow-sm">
                    <div className={`h-12 w-12 rounded-2xl flex items-center justify-center text-xl ${h.tipe === 'MASUK' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                       <i className={`bi ${h.tipe === 'MASUK' ? 'bi-box-arrow-in-right' : 'bi-box-arrow-right'}`}></i>
                    </div>

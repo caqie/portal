@@ -95,9 +95,13 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
   }
 
   try {
-    const response = await fetch(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`);
+    const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`;
+    const response = await fetch(url);
     const csvText = await response.text();
-    if (csvText.includes('<!DOCTYPE html>')) throw new Error("Access denied.");
+    if (csvText.includes('<!DOCTYPE html>')) {
+      console.warn(`Access denied or invalid sheet for ${gidKey}. Ensure spreadsheet is published to the web.`);
+      throw new Error("Access denied.");
+    }
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
     if (lines.length < 1) return [];
     const headers = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').replace(/""/g, '"').trim().toUpperCase().replace(/[\s_.]/g, ''));
@@ -108,6 +112,7 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     if (result.length > 0) localStorage.setItem(storageKey, JSON.stringify(result));
     return result;
   } catch (error) {
+    console.error(`Error fetching table data for ${gidKey}:`, error);
     const saved = localStorage.getItem(storageKey);
     return saved ? JSON.parse(saved) : [];
   }
@@ -466,6 +471,55 @@ export const fetchAbsensiConfig = async (): Promise<AbsensiConfig> => {
 };
 
 export const saveAbsensiConfig = (config: AbsensiConfig) => syncTableRemote('CONFIG', 'SAVE', config);
+
+export const saveAbsensiRecord = async (record: any): Promise<boolean> => {
+  return syncTableRemote('ABSENSI', 'SAVE', record);
+};
+
+export const fetchAbsensiHistoryFromSheets = async (nip: string): Promise<any[]> => {
+  const all = await fetchTableData<any>('ABSENSI', 'portal_absensi_history_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return {
+      id: get('ID'),
+      nip: (get('NIP') || '').replace(/\D/g, ''),
+      nama: get('NAMA'),
+      tanggal: get('TANGGAL'),
+      waktu: get('WAKTU'),
+      tipe: get('TIPE'),
+      status: get('STATUS'),
+      lokasi: get('LOKASI'),
+      confidence: parseFloat(get('CONFIDENCE')) || 0
+    };
+  });
+  const now = new Date();
+  const d = now.getDate().toString().padStart(2, '0');
+  const m = (now.getMonth() + 1).toString().padStart(2, '0');
+  const y = now.getFullYear();
+  const today = `${d}/${m}/${y}`;
+  const todayAlt = `${y}-${m}-${d}`;
+  
+  return all.filter(r => 
+    r.nip === nip.replace(/\D/g, '') && 
+    (r.tanggal === today || r.tanggal === todayAlt || r.tanggal?.includes(today))
+  );
+};
+
+export const fetchAllAbsensiHistoryFromSheets = async (): Promise<any[]> => {
+  return fetchTableData<any>('ABSENSI', 'portal_absensi_history_global', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return {
+      id: get('ID'),
+      nip: (get('NIP') || '').replace(/\D/g, ''),
+      nama: get('NAMA'),
+      tanggal: get('TANGGAL'),
+      waktu: get('WAKTU'),
+      tipe: get('TIPE'),
+      status: get('STATUS'),
+      lokasi: get('LOKASI'),
+      confidence: parseFloat(get('CONFIDENCE')) || 0
+    };
+  });
+};
 
 export const fetchSystemConfig = async (): Promise<SystemConfig> => {
   const data = await fetchTableData<SystemConfig>('CONFIG', 'portal_system_config', (cols, headers) => {

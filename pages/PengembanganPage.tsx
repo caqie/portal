@@ -175,8 +175,8 @@ const PengembanganPage = () => {
       {activeTab === 'monitoring' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
            {loading ? Array(6).fill(0).map((_,i) => <div key={i} className="h-44 bg-white rounded-[3rem] animate-pulse"></div>) : 
-            monitoringData.map(p => (
-              <div key={p.nip} className="bg-white p-7 rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-2xl transition-all relative overflow-hidden group">
+            monitoringData.map((p, i) => (
+              <div key={`${p.nip}-${i}`} className="bg-white p-7 rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-2xl transition-all relative overflow-hidden group">
                  <div className="flex items-center gap-5 mb-6">
                     <div className="h-14 w-14 rounded-2xl bg-gray-50 border-2 border-white shadow-lg overflow-hidden shrink-0">
                        {p.foto ? <img src={p.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-indigo-600 font-black text-xl">{p.nama.charAt(0)}</div>}

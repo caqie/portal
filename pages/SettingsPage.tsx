@@ -396,11 +396,11 @@ const SettingsPage = () => {
                   <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
                     {pegawaiList
                       .filter(p => p.nama.toLowerCase().includes(wfaSearch.toLowerCase()) || p.nip.includes(wfaSearch))
-                      .map(p => {
+                      .map((p, i) => {
                         const isWfa = absensiConfig.wfaNips.includes(p.nip);
                         return (
                           <div 
-                            key={p.nip} 
+                            key={`${p.nip}-${i}`} 
                             onClick={() => toggleWfaUser(p.nip)}
                             className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${isWfa ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg' : 'bg-white border-gray-100 text-gray-900 hover:border-emerald-200'}`}
                           >

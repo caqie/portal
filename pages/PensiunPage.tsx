@@ -443,8 +443,8 @@ const PensiunPage = () => {
                       <tr><th className="px-10 py-5">Pegawai</th><th className="px-4 py-5 text-center">TMT Pensiun</th><th className="px-4 py-5 text-center">Sisa Masa Kerja</th><th className="px-10 py-5 text-right">Opsi</th></tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {retiringCandidates.map(p => (
-                        <tr key={p.nip} className="hover:bg-blue-50/5 group transition-all">
+                      {retiringCandidates.map((p, i) => (
+                        <tr key={`${p.nip}-${i}`} className="hover:bg-blue-50/5 group transition-all">
                           <td className="px-10 py-5"><p className="text-[11px] font-black text-gray-950 uppercase">{p.nama}</p><p className="text-[9px] font-mono text-blue-600">NIP. {p.nip}</p></td>
                           <td className="px-4 py-5 text-center font-black text-rose-600">{p.tmtPensiunDisplay || (p.retirement?.tmtPensiun.toLocaleDateString('id-ID'))}</td>
                           <td className="px-4 py-5 text-center"><span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black border border-rose-100">{p.sisaMasaKerja || p.masaKerja || '-'}</span></td>
