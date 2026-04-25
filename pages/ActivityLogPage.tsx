@@ -102,7 +102,7 @@ const ActivityLogPage = () => {
             />
           </div>
         </div>
-        <div className="overflow-x-auto -mx-6 px-6">
+        <div className="overflow-x-auto -mx-6 px-6 custom-scrollbar">
           <table className="min-w-[900px] w-full text-left">
             <thead className="bg-gray-50/50 text-[8px] font-black uppercase text-gray-400 border-b tracking-[0.2em]">
               <tr>

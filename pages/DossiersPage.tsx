@@ -191,7 +191,7 @@ const DossiersPage = () => {
             />
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto custom-scrollbar">
           <table className="min-w-[900px] w-full text-left">
             <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
               <tr>

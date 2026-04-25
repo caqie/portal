@@ -230,7 +230,7 @@ const SettingsPage = () => {
       
       <div className="flex flex-col lg:flex-row min-h-[800px]">
         {/* TAB NAVIGATION */}
-        <div className="w-full lg:w-80 bg-gray-50/50 border-r border-gray-100 p-8 flex flex-row lg:flex-col overflow-x-auto no-scrollbar shrink-0 gap-2">
+        <div className="w-full lg:w-80 bg-gray-50/50 border-r border-gray-100 p-8 flex flex-row lg:flex-col overflow-x-auto shrink-0 gap-2">
           {[
             { id: 'general', label: 'Branding & Teks', icon: 'bi-palette2' }, 
             { id: 'database', label: 'Integrasi Cloud', icon: 'bi-database-fill-gear' }, 
@@ -583,7 +583,7 @@ const SettingsPage = () => {
                 </div>
                 <button onClick={() => { setUserFormData({ role: 'Viewer' }); setIsUserModalOpen(true); }} className="px-8 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg tracking-widest">+ Admin Baru</button>
               </div>
-              <div className="bg-white border border-gray-100 rounded-[2.5rem] overflow-hidden shadow-sm">
+              <div className="bg-white border border-gray-100 rounded-[2.5rem] overflow-x-auto custom-scrollbar shadow-sm">
                 <table className="w-full text-left">
                   <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-[0.2em]">
                     <tr><th className="px-10 py-5">Identitas & NIP</th><th className="px-4 py-5 text-center">Role</th><th className="px-10 py-5 text-right">Opsi</th></tr>

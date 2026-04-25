@@ -250,6 +250,7 @@ export interface KeuanganRecord {
   unitKerja: string;
   status: 'Draft' | 'Diajukan' | 'Disetujui' | 'Ditolak';
   keterangan?: string;
+  transactionId?: string;
   peserta: KeuanganPeserta[];
   configBiaya?: {
     uangHarian: number;

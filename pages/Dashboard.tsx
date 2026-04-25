@@ -160,7 +160,11 @@ const Dashboard = () => {
   const genderStats = useMemo(() => {
     const filteredList = activePegawaiList.filter(p => {
         if (filterJenisGender === 'Semua Jenis') return true;
-        return (p.jenisPegawai || '').toUpperCase() === filterJenisGender.toUpperCase();
+        const jen = (p.jenisPegawai || '').toUpperCase();
+        const target = filterJenisGender.toUpperCase();
+        if (target === 'PPPK') return jen.includes('PPPK');
+        if (target === 'PNS') return jen === 'PNS';
+        return jen.includes(target);
     });
     return { pria: filteredList.filter(p => p.gender === 'L').length, wanita: filteredList.filter(p => p.gender === 'P').length };
   }, [activePegawaiList, filterJenisGender]);
@@ -168,7 +172,11 @@ const Dashboard = () => {
   const educationStats = useMemo(() => {
     const filteredList = activePegawaiList.filter(p => {
         if (filterJenisEdu === 'Semua Jenis') return true;
-        return (p.jenisPegawai || '').toUpperCase() === filterJenisEdu.toUpperCase();
+        const jen = (p.jenisPegawai || '').toUpperCase();
+        const target = filterJenisEdu.toUpperCase();
+        if (target === 'PPPK') return jen.includes('PPPK');
+        if (target === 'PNS') return jen === 'PNS';
+        return jen.includes(target);
     });
     const eduMap: Record<string, number> = {};
     filteredList.forEach(p => {
@@ -190,7 +198,11 @@ const Dashboard = () => {
   const gradeStats = useMemo(() => {
     const filteredList = activePegawaiList.filter(p => {
         if (filterJenisGrade === 'Semua Jenis') return true;
-        return (p.jenisPegawai || '').toUpperCase() === filterJenisGrade.toUpperCase();
+        const jen = (p.jenisPegawai || '').toUpperCase();
+        const target = filterJenisGrade.toUpperCase();
+        if (target === 'PPPK') return jen.includes('PPPK');
+        if (target === 'PNS') return jen === 'PNS';
+        return jen.includes(target);
     });
     const gradeMap: Record<string, number> = {};
     filteredList.forEach(p => {
@@ -503,10 +515,7 @@ const Dashboard = () => {
         <StatsCard title="Total ASN Aktif" value={activePegawaiList.length} icon="bi-people-fill" color="bg-blue-600" loading={loading} />
         <StatsCard title="Total PNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim() === 'PNS').length} icon="bi-person-vcard" color="bg-indigo-600" loading={loading} />
         <StatsCard title="Total CPNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim().includes('CPNS')).length} icon="bi-person-plus" color="bg-cyan-600" loading={loading} />
-        <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => {
-          const jen = (p.jenisPegawai || '').toUpperCase();
-          return jen.includes('PPPK') && !jen.includes('PARUH');
-        }).length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
+        <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PPPK')).length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
         <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
       </div>
 
@@ -514,7 +523,7 @@ const Dashboard = () => {
          <div className="mb-4 md:mb-10">
             <h4 className="text-[9px] md:text-[12px] font-black text-gray-950 tracking-[0.2em] md:tracking-[0.3em] uppercase">Sebaran Pegawai Aktif per Unit Kerja</h4>
          </div>
-         <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+         <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0 custom-scrollbar">
             <table className="w-full text-left border-collapse min-w-[800px]">
                <thead className="bg-gray-50 text-[7px] md:text-[8px] font-black text-gray-400 border-b">
                   <tr>

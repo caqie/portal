@@ -441,6 +441,7 @@ export const fetchKeuanganFromSheets = () => fetchTableData<KeuanganRecord>('KEU
     unitKerja: get('UNITKERJA'),
     status: (get('STATUS') || 'Draft') as any, 
     keterangan: get('KETERANGAN'), 
+    transactionId: get('TRANSACTIONID'),
     peserta: getJson('PESERTA'),
     configBiaya: getJson('CONFIGBIAYA'),
     configSpd: getJson('CONFIGSPD')

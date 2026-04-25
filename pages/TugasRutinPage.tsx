@@ -406,7 +406,7 @@ const TugasRutinPage = () => {
       </div>
 
       <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto custom-scrollbar">
            <table className="min-w-[800px] w-full text-left">
              <thead className="bg-[#111827] text-[8px] font-black text-gray-400 border-b border-white/5 tracking-widest">
                <tr><th className="px-10 py-6 w-72">Kategori & Waktu</th><th className="px-4 py-6">Atribut Capaian Administrasi</th><th className="px-10 py-6 text-right">Opsi</th></tr>

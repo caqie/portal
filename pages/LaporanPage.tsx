@@ -188,8 +188,8 @@ const LaporanPage = () => {
          </div>
 
          <div className="xl:col-span-8 flex justify-center">
-            <div className="bg-gray-400/10 p-6 md:p-10 rounded-[3rem] overflow-x-auto no-scrollbar w-full">
-               <div ref={pdfRef} className="bg-white shadow-2xl font-arial p-[2cm_2cm_2.5cm_3cm] leading-tight text-black mx-auto" style={{ width: '210mm', minHeight: '297mm', fontSize: '11pt' }}>
+            <div className="bg-gray-400/10 p-4 md:p-10 rounded-[2rem] md:rounded-[3rem] overflow-x-auto custom-scrollbar w-full">
+               <div ref={pdfRef} className="bg-white shadow-2xl font-arial p-[1.5cm_1.5cm_2cm_2.5cm] md:p-[2cm_2cm_2.5cm_3cm] leading-tight text-black mx-auto" style={{ width: '210mm', minHeight: '297mm', fontSize: '11pt' }}>
                   
                   {/* KOP SURAT RESMI */}
                   <div className="text-center mb-6 text-black">
