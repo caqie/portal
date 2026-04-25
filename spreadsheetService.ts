@@ -464,16 +464,98 @@ export const fetchAbsensiConfig = async (): Promise<AbsensiConfig> => {
       id: get('ID'),
       officeWifiSsid: get('OFFICEWIFISSID'),
       officeIpAddresses: get('OFFICEIPADDRESSES') || get('OFFICEIPADDRESS'),
-      wfaNips: getJson('WFANIPS')
+      wfaNips: getJson('WFANIPS'),
+      simpegEnabled: get('SIMPEGENABLED') === 'TRUE' || get('SIMPEGENABLED') === 'true',
+      simpegApiUrl: get('SIMPEGAPIURL'),
+      simpegApiKey: get('SIMPEGAPIKEY')
     } as AbsensiConfig;
   });
-  return data.length > 0 ? data[0] : { id: 'ABSENSI_GLOBAL', officeWifiSsid: '', officeIpAddresses: '', wfaNips: [] };
+  return data.length > 0 ? data[0] : { 
+    id: 'ABSENSI_GLOBAL', 
+    officeWifiSsid: '', 
+    officeIpAddresses: '', 
+    wfaNips: [],
+    simpegEnabled: false,
+    simpegApiUrl: '',
+    simpegApiKey: ''
+  };
 };
 
 export const saveAbsensiConfig = (config: AbsensiConfig) => syncTableRemote('CONFIG', 'SAVE', config);
 
+const sendToSimpeg = async (record: any, config: AbsensiConfig): Promise<{ success: boolean; error?: string }> => {
+  if (!config.simpegEnabled || !config.simpegApiUrl) return { success: false, error: 'SIMPEG integration disabled or URL missing' };
+
+  try {
+    const payload = {
+      nip: record.nip,
+      nama: record.nama,
+      tanggal: record.tanggal,
+      waktu: record.waktu,
+      tipe: record.tipe,
+      status: record.status,
+      lokasi: record.lokasi,
+      confidence: record.confidence,
+      source: 'PORTAL-SDM-DJKI'
+    };
+
+    const response = await fetch(config.simpegApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(config.simpegApiKey ? { 'Authorization': `Bearer ${config.simpegApiKey}`, 'X-API-KEY': config.simpegApiKey } : {})
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn('Gagal sinkron ke SIMPEG:', errorText);
+      return { success: false, error: errorText };
+    } else {
+      console.log('Sinkron SIMPEG Berhasil');
+      return { success: true };
+    }
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('SIMPEG Integration Error:', errorMsg);
+    return { success: false, error: errorMsg };
+  }
+};
+
+export const resendAbsensiToSimpeg = async (record: any): Promise<boolean> => {
+  const config = await fetchAbsensiConfig();
+  if (!config) return false;
+  
+  const result = await sendToSimpeg(record, config);
+  
+  // Update record with status
+  return syncTableRemote('ABSENSI', 'SAVE', { 
+    id: record.id, 
+    simpegStatus: result.success ? 'SUCCESS' : 'FAILED',
+    simpegError: result.error || null
+  });
+};
+
 export const saveAbsensiRecord = async (record: any): Promise<boolean> => {
-  return syncTableRemote('ABSENSI', 'SAVE', record);
+  const ok = await syncTableRemote('ABSENSI', 'SAVE', { ...record, simpegStatus: 'PENDING' });
+  
+  if (ok) {
+    // Try background sync to SIMPEG if configured
+    fetchAbsensiConfig().then(async config => {
+      if (config && config.simpegEnabled) {
+        const result = await sendToSimpeg(record, config);
+        // Update the row with the result in background
+        syncTableRemote('ABSENSI', 'SAVE', { 
+          id: record.id, 
+          simpegStatus: result.success ? 'SUCCESS' : 'FAILED',
+          simpegError: result.error || null
+        });
+      }
+    }).catch(err => console.error("Could not fetch config for SIMPEG sync", err));
+  }
+  
+  return ok;
 };
 
 export const fetchAbsensiHistoryFromSheets = async (nip: string): Promise<any[]> => {
@@ -488,7 +570,9 @@ export const fetchAbsensiHistoryFromSheets = async (nip: string): Promise<any[]>
       tipe: get('TIPE'),
       status: get('STATUS'),
       lokasi: get('LOKASI'),
-      confidence: parseFloat(get('CONFIDENCE')) || 0
+      confidence: parseFloat(get('CONFIDENCE')) || 0,
+      simpegStatus: get('SIMPEGSTATUS') as any,
+      simpegError: get('SIMPEGERROR')
     };
   });
   const now = new Date();
@@ -516,7 +600,9 @@ export const fetchAllAbsensiHistoryFromSheets = async (): Promise<any[]> => {
       tipe: get('TIPE'),
       status: get('STATUS'),
       lokasi: get('LOKASI'),
-      confidence: parseFloat(get('CONFIDENCE')) || 0
+      confidence: parseFloat(get('CONFIDENCE')) || 0,
+      simpegStatus: get('SIMPEGSTATUS') as any,
+      simpegError: get('SIMPEGERROR')
     };
   });
 };

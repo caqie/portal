@@ -371,13 +371,16 @@ export interface Kegiatan {
   linkDriveFoto: string; 
   status: string; 
 }
-export interface AbsensiRecord { id: string; nip: string; nama: string; waktu: string; tipe: 'MASUK' | 'PULANG'; status: string; lokasi: string; confidence: number; }
+export interface AbsensiRecord { id: string; nip: string; nama: string; tanggal?: string; waktu: string; tipe: 'MASUK' | 'PULANG'; status: string; lokasi: string; confidence: number; simpegStatus?: 'PENDING' | 'SUCCESS' | 'FAILED'; simpegError?: string; }
 
 export interface AbsensiConfig {
   id: string;
   officeWifiSsid: string;
   officeIpAddresses: string; // Comma-separated IPs or CIDR ranges
   wfaNips: string[];
+  simpegApiUrl?: string;
+  simpegApiKey?: string;
+  simpegEnabled?: boolean;
 }
 
 export interface MaintenanceConfig {

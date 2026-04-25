@@ -420,6 +420,55 @@ const SettingsPage = () => {
                     }
                   </div>
                 </div>
+
+                {/* SIMPEG INTEGRATION SETTINGS */}
+                <div className="space-y-8 bg-blue-50/50 p-10 rounded-[3rem] border border-blue-100 xl:col-span-2">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 bg-blue-700 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg"><i className="bi bi-gear-wide-connected"></i></div>
+                      <h5 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Integrasi SIMPEG Kemenkumham</h5>
+                    </div>
+                    <button 
+                      onClick={() => setAbsensiConfig({...absensiConfig, simpegEnabled: !absensiConfig.simpegEnabled})}
+                      className={`h-8 w-14 rounded-full p-1 transition-all ${absensiConfig.simpegEnabled ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20' : 'bg-gray-300'}`}
+                    >
+                       <div className={`h-6 w-6 bg-white rounded-full transition-transform ${absensiConfig.simpegEnabled ? 'translate-x-6' : 'translate-x-0'} shadow-sm`}></div>
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className={labelClass}>SIMPEG API Endpoint URL</label>
+                      <div className="relative">
+                        <i className="bi bi-link-45deg absolute left-5 top-1/2 -translate-y-1/2 text-blue-600 text-xl"></i>
+                        <input 
+                          type="text" 
+                          className={`${inputClass} pl-14 font-mono normal-case`}
+                          placeholder="https://api.simpeg.kemenkumham.go.id/v1/..."
+                          value={absensiConfig.simpegApiUrl || ''}
+                          onChange={e => setAbsensiConfig({...absensiConfig, simpegApiUrl: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>Bearer / API Token (X-API-KEY)</label>
+                      <div className="relative">
+                        <i className="bi bi-key-fill absolute left-5 top-1/2 -translate-y-1/2 text-amber-600 text-xl"></i>
+                        <input 
+                          type="password" 
+                          className={`${inputClass} pl-14`}
+                          placeholder="••••••••••••••••"
+                          value={absensiConfig.simpegApiKey || ''}
+                          onChange={e => setAbsensiConfig({...absensiConfig, simpegApiKey: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-5 bg-blue-100/50 rounded-2xl flex gap-4 items-start border border-blue-200/50">
+                    <i className="bi bi-info-circle-fill text-blue-600 text-lg mt-0.5"></i>
+                    <p className="text-[10px] font-bold text-blue-800 uppercase leading-relaxed">Aktifkan integrasi untuk mengirim data presensi secara real-time ke sistem SIMPEG Pusat Kemenkumham berdasarkan NIP Pegawai.</p>
+                  </div>
+                </div>
               </div>
 
               <div className="pt-8 border-t flex items-center justify-between">

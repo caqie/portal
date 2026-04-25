@@ -27,8 +27,15 @@ const AbsensiOnlinePage = () => {
   const [livenessScore, setLivenessScore] = useState(0);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [networkStatus, setNetworkStatus] = useState<string>('');
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
   
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Real-time Clock Effect
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const detectionInterval = useRef<any>(null);
   const faceMatcher = useRef<any>(null);
   const lastLandmarks = useRef<any>(null);
@@ -543,6 +550,19 @@ const AbsensiOnlinePage = () => {
                 <div className="w-full h-1 bg-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.8)] absolute top-0 animate-[scan_3s_ease-in-out_infinite]"></div>
               </div>
 
+              {/* REAL-TIME CLOCK OVERLAY */}
+              <div className="absolute top-8 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none z-30">
+                 <div className="bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-2xl border border-white/10 flex flex-col items-center">
+                    <p className="text-[14px] font-black text-white tracking-[0.2em] leading-none mb-0.5">
+                       {currentDateTime.toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </p>
+                    <p className="text-[8px] font-bold text-blue-400 uppercase tracking-widest leading-none">
+                       {currentDateTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                 </div>
+                 <div className="h-4 w-0.5 bg-blue-500/50 mt-1"></div>
+              </div>
+
               {/* FACE FRAME */}
               <div className={`absolute inset-0 border-4 rounded-full transition-all duration-300 ${isFaceMatched ? 'border-emerald-500 shadow-[inset_0_0_40px_rgba(16,185,129,0.2)]' : isFaceDetected ? 'border-blue-500/50' : 'border-white/5'}`}></div>
             </div>
@@ -661,9 +681,14 @@ const AbsensiOnlinePage = () => {
                          <span className="text-[10px] font-black text-gray-950 uppercase">{h.tipe}</span>
                          <span className="text-[11px] font-black text-blue-600 tabular-nums">{h.waktu}</span>
                       </div>
-                      <div className="flex justify-between mt-1">
+                      <div className="flex justify-between mt-1 items-center">
                          <p className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter truncate">{h.lokasi}</p>
-                         <span className={`text-[8px] font-black ${h.status === 'TERLAMBAT' ? 'text-rose-600' : 'text-emerald-600'}`}>{h.status}</span>
+                         <div className="flex items-center gap-1.5">
+                            <span className={`text-[8px] font-black ${h.status === 'TERLAMBAT' ? 'text-rose-600' : 'text-emerald-600'}`}>{h.status}</span>
+                            {h.simpegStatus === 'SUCCESS' && <i className="bi bi-check-circle-fill text-emerald-500 text-[10px]" title="Sync SIMPEG OK"></i>}
+                            {h.simpegStatus === 'FAILED' && <i className="bi bi-exclamation-circle-fill text-rose-500 text-[10px]" title="Sync SIMPEG Gagal"></i>}
+                            {h.simpegStatus === 'PENDING' && <i className="bi bi-arrow-repeat text-amber-500 text-[10px] animate-spin"></i>}
+                         </div>
                       </div>
                    </div>
                 </div>
