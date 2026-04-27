@@ -887,9 +887,10 @@ const KeuanganPage = () => {
                             <div className="text-right space-y-1">
                               <div className="text-[7pt] italic text-left mb-4">
                                 <p>LAMPIRAN</p>
-                                <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA </p>
-                                <p>NOMOR 190/PMK.05/2012 TENTANG TATA CARA PEMBAYARAN DALAM RANGKA </p>
-                                <p>PELAKSANAAN ANGGARAN PENDAPATAN BELANJA NEGARA</p>
+                                <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA</p>
+                                <p>NOMOR 190/PMK.05/2012 TENTANG TATA CARA PEMBAYARAN </p>
+                                <p>DALAM RANGKA PELAKSANAAN ANGGARAN PENDAPATAN</p>
+                                <p>BELANJA NEGARA</p>
                               </div>
                               <div className="font-bold text-[10pt] mb-2 pr-4">{selectedPesertaIdx + 1}</div>
                               <div className="grid grid-cols-[140px_5px_1fr] gap-x-1 text-[9pt] text-left">
@@ -1005,9 +1006,9 @@ const KeuanganPage = () => {
                     <div className="text-left text-[7pt] italic">
                       <p>LAMPIRAN</p>
                       <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA </p>
-                      <p>NOMOR 113/PMK.05/2012 TENTANG PERJALANAN DINAS </p>
-                      <p>JABATAN DALAM NEGERI BAGI PEJABAT NEGARA,</p>
-                      <p>PEGAWAI NEGERI, DAN PEGAWAI TIDAK TETAP</p>
+                      <p>NOMOR 113/PMK.05/2012 TENTANG PERJALANAN DINAS JABATAN</p>
+                      <p>DALAM NEGERI BAGI PEJABAT NEGARA,PEGAWAI NEGERI,DAN </p>
+                      <p>PEGAWAI TIDAK TETAP</p>
                     </div>
                   </div>
                    
@@ -1140,9 +1141,9 @@ const KeuanganPage = () => {
                     <div className="text-left text-[7pt] italic">
                       <p>LAMPIRAN</p>
                       <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA </p>
-                      <p>NOMOR 113/PMK.05/2012 TENTANG PERJALANAN DINAS </p>
-                      <p>JABATAN DALAM NEGERI BAGI PEJABAT NEGARA,</p>
-                      <p>PEGAWAI NEGERI, DAN PEGAWAI TIDAK TETAP</p>
+                      <p>NOMOR 113/PMK.05/2012 TENTANG PERJALANAN DINAS JABATAN</p>
+                      <p>DALAM NEGERI BAGI PEJABAT NEGARA,PEGAWAI NEGERI,DAN </p>
+                      <p>PEGAWAI TIDAK TETAP</p>
                     </div>
                     </div>
                    <div className="text-center py-4">
@@ -1220,8 +1221,9 @@ const KeuanganPage = () => {
                     <div className="text-left text-[7pt] italic">
                       <p>LAMPIRAN</p>
                       <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA</p>
-                      <p>NOMOR 190/PMK.05/2012 TENTANG TATA CARA PEMBAYARAN DALAM</p>
-                      <p>RANGKA PELAKSANAAN ANGGARAN PENDAPATAN BELANJA NEGARA</p>
+                      <p>NOMOR 190/PMK.05/2012 TENTANG TATA CARA PEMBAYARAN </p>
+                      <p>DALAM RANGKA PELAKSANAAN ANGGARAN PENDAPATAN</p>
+                      <p>BELANJA NEGARA</p>
                     </div>
                     </div>
 
