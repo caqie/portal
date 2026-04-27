@@ -432,7 +432,7 @@ const PelantikanGeneratorPage = () => {
                     ref={pdfRef} 
   className={`
     bg-white shadow-2xl text-black font-arial box-border overflow-hidden
-    ${docType === 'PAKTA' ? 'border-double border-[6px] border-black my-10 mx-auto' : ''}
+    ${docType === 'PAKTA' ? 'border-double border-[6px] border-black my-9 mx-auto' : ''}
   `}
   style={{ 
     width: docType === 'PAKTA' ? '330mm' : '210mm', 
