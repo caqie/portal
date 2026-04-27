@@ -85,7 +85,7 @@ const KeuanganPage = () => {
       return;
     }
     setSyncing(true);
-    const id = formData.id || `ACT-${Date.now()}`;
+    const id = formData.id || `ACT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const payload = { ...formData, id };
     const success = await syncKeuanganRemote('SAVE', payload);
     if (success) {
@@ -125,7 +125,7 @@ const KeuanganPage = () => {
 
   const addPeserta = () => {
     const newPeserta: KeuanganPeserta = {
-      id: `P-${Date.now()}`,
+      id: `P-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       nama: '',
       jabatan: '',
       nomorSpd: formData.configSpd?.nomorSpdPrefix || '',
@@ -205,6 +205,38 @@ const KeuanganPage = () => {
         [field]: value
       }
     });
+  };
+
+  const applyConfigToAll = () => {
+    if (!formData.configBiaya || !formData.peserta) return;
+    const { uangHarian, penginapan, transport, fullboard, halfboard } = formData.configBiaya;
+    
+    const newList = formData.peserta.map(p => {
+      const rincian = [...p.rincianBiaya];
+      
+      const updateOrAdd = (name: string, rate: number) => {
+        const idx = rincian.findIndex(r => r.item.toLowerCase().includes(name.toLowerCase()));
+        if (idx !== -1) {
+          rincian[idx] = { ...rincian[idx], rate, total: rate * rincian[idx].qty };
+        } else if (rate > 0) {
+          rincian.push({ item: name, rate, qty: 1, total: rate });
+        }
+      };
+
+      if (uangHarian !== undefined) updateOrAdd('Uang Harian', uangHarian);
+      if (penginapan !== undefined) updateOrAdd('Biaya Penginapan', penginapan);
+      if (transport !== undefined) updateOrAdd('Uang Transport', transport);
+      if (fullboard !== undefined) updateOrAdd('Uang Harian Fullboard', fullboard);
+      if (halfboard !== undefined) updateOrAdd('Uang Harian Halfboard', halfboard);
+
+      return {
+        ...p,
+        rincianBiaya: rincian,
+        totalJumlah: rincian.reduce((acc, curr) => acc + (curr.total || 0), 0)
+      };
+    });
+
+    setFormData({ ...formData, peserta: newList });
   };
 
   const updateConfigSpd = (field: string, value: string) => {
@@ -623,6 +655,14 @@ const KeuanganPage = () => {
                       <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formatRupiah(formData.configBiaya?.halfboard)} onChange={e => updateConfigBiaya('halfboard', parseRawValue(e.target.value))} />
                     </div>
                   </div>
+                  <button 
+                    onClick={applyConfigToAll}
+                    type="button"
+                    className="mt-4 w-full py-3 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest border border-blue-100 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-2"
+                  >
+                    <i className="bi bi-person-check-fill text-lg"></i>
+                    Terapkan Standar Biaya ke Seluruh Peserta
+                  </button>
                 </div>
                 <div className="space-y-6">
                   <p className="text-[9px] font-black text-gray-400 ml-3 tracking-widest border-l-4 border-emerald-600 pl-3">Standar Data SPD</p>

@@ -392,7 +392,7 @@ const PegawaiPage = () => {
       
       if (res.success && res.fileUrl) {
         const payload: Dossier = {
-          id: `DOS-${Date.now()}`,
+          id: `DOS-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
           nip: selectedPegawai.nip,
           namaPegawai: selectedPegawai.nama,
           tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
@@ -425,7 +425,7 @@ const PegawaiPage = () => {
     // Generate ID for new records
     const payload = {
       ...formData,
-      id: formData.id || `PEG-${formData.nip}-${Date.now()}`,
+      id: formData.id || `PEG-${formData.nip}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       updatedAt: new Date().toISOString()
     };
 

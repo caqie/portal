@@ -28,13 +28,30 @@ const AbsensiOnlinePage = () => {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [networkStatus, setNetworkStatus] = useState<string>('');
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  const [serverTimeOffset, setServerTimeOffset] = useState(0);
   
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Real-time Clock Effect
   useEffect(() => {
-    const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date(Date.now() + serverTimeOffset));
+    }, 1000);
     return () => clearInterval(timer);
+  }, [serverTimeOffset]);
+
+  // Sync Server Time
+  useEffect(() => {
+    const syncTime = async () => {
+      try {
+        const { getServerTime } = await import('../spreadsheetService');
+        const sTime = await getServerTime();
+        setServerTimeOffset(sTime.getTime() - Date.now());
+      } catch (e) {
+        console.error("Failed to sync server time:", e);
+      }
+    };
+    syncTime();
   }, []);
   const detectionInterval = useRef<any>(null);
   const faceMatcher = useRef<any>(null);
@@ -388,7 +405,7 @@ const AbsensiOnlinePage = () => {
       }
 
       const record: any = {
-        id: `ATT-${Date.now()}`,
+        id: `ATT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         nip: currentPegawai?.nip || user?.nip,
         nama: currentPegawai?.nama || user?.name,
         tanggal: todayStr,

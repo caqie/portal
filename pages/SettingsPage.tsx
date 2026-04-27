@@ -183,7 +183,7 @@ const SettingsPage = () => {
   const handleUserAction = async (action: 'SAVE' | 'DELETE', userData?: AdminUser) => {
     setLoading(true);
     const targetUser = userData || (userFormData as AdminUser);
-    if (action === 'SAVE' && !targetUser.id) targetUser.id = `USR-${Date.now()}`;
+    if (action === 'SAVE' && !targetUser.id) targetUser.id = `USR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const success = await syncTableRemote('USERS', action === 'SAVE' ? 'SAVE' : 'DELETE', targetUser);
     if (success) {
       setTimeout(async () => {
@@ -422,7 +422,8 @@ const SettingsPage = () => {
                 </div>
 
                 {/* SIMPEG INTEGRATION SETTINGS */}
-                <div className="space-y-8 bg-blue-50/50 p-10 rounded-[3rem] border border-blue-100 xl:col-span-2">
+                {isSuperadmin && (
+                  <div className="space-y-8 bg-blue-50/50 p-10 rounded-[3rem] border border-blue-100 xl:col-span-2">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-4">
                       <div className="h-12 w-12 bg-blue-700 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg"><i className="bi bi-gear-wide-connected"></i></div>
@@ -469,6 +470,7 @@ const SettingsPage = () => {
                     <p className="text-[10px] font-bold text-blue-800 uppercase leading-relaxed">Aktifkan integrasi untuk mengirim data presensi secara real-time ke sistem SIMPEG Pusat Kemenkumham berdasarkan NIP Pegawai.</p>
                   </div>
                 </div>
+                )}
               </div>
 
               <div className="pt-8 border-t flex items-center justify-between">

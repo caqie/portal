@@ -48,7 +48,7 @@ const TugasRutinPage = () => {
   const handleSave = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault(); // Mencegah form submit default jika ada
     setSyncing(true);
-    const taskId = editingTask?.id || `TR-${Date.now()}`;
+    const taskId = editingTask?.id || `TR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     
     // Validasi sederhana
     if (!formData.jenis) {

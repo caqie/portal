@@ -114,7 +114,7 @@ const SatyaLencanaPage = () => {
     const peg = pegawaiList.find(p => p.nip === formData.nip);
     const payload: SatyaLencanaRecord = {
       ...formData as any,
-      id: formData.id || `SL-${formData.nip}-${Date.now()}`,
+      id: formData.id || `SL-${formData.nip}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       namaPegawai: peg?.nama || 'ASN'
     };
 

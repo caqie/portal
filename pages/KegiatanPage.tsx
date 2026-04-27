@@ -66,7 +66,7 @@ const KegiatanPage = () => {
     setSyncing(true);
     
     const agendaPayload: Kegiatan = { 
-      id: editingKegiatan?.id || Date.now().toString(),
+      id: editingKegiatan?.id || `AGN-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       tanggal: formData.tanggalMulai || '',
       tanggalMulai: formData.tanggalMulai || '',
       tanggalSelesai: formData.tanggalSelesai || '',

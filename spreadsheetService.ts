@@ -52,6 +52,13 @@ const getDbConfig = () => {
 export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELETE', data: any): Promise<boolean> => {
   const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
   if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
+  
+  // Validation for DELETE action
+  if (action === 'DELETE' && !data?.id && !data?.nip) {
+    console.warn(`Sync blocked: Action DELETE for module ${moduleName} requires id or nip. Received:`, data);
+    return false;
+  }
+
   const cleanUrl = appsScriptUrl.trim();
   try {
     const response = await fetch(cleanUrl, {
@@ -70,12 +77,27 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
     if (!response.ok) throw new Error(`Network error: ${response.status} ${response.statusText}`);
     const result = await response.json();
     if (!result.success) {
-      console.error("Remote Sync Business Error:", result.message || "Unknown error");
+      console.error("Remote Sync Business Error:", result.message || "Unknown error", "Payload:", data);
     }
     return result.success === true;
   } catch (error) { 
     console.error("Remote Sync Exception:", error);
     return false; 
+  }
+};
+
+export const getServerTime = async (): Promise<Date> => {
+  const { appsScriptUrl } = getDbConfig();
+  try {
+    // We can use a simple GET request to a special action in Apps Script
+    // Or just fetch headers from a reliable source if Apps Script is too slow.
+    // For now, let's assume we can get it from Apps Script.
+    const res = await fetch(`${appsScriptUrl}?action=GET_TIME`);
+    const data = await res.json();
+    if (data.success && data.time) return new Date(data.time);
+    return new Date();
+  } catch (e) {
+    return new Date();
   }
 };
 
