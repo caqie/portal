@@ -142,6 +142,8 @@ const KeuanganPage = () => {
       if (formData.configBiaya.uangHarian > 0) rb.push({ item: 'Uang Harian', rate: formData.configBiaya.uangHarian, qty: 1, total: formData.configBiaya.uangHarian });
       if (formData.configBiaya.penginapan > 0) rb.push({ item: 'Biaya Penginapan', rate: formData.configBiaya.penginapan, qty: 1, total: formData.configBiaya.penginapan });
       if (formData.configBiaya.transport > 0) rb.push({ item: 'Biaya Transport', rate: formData.configBiaya.transport, qty: 1, total: formData.configBiaya.transport });
+      if (formData.configBiaya.fullboard > 0) rb.push({ item: 'Uang Harian Fullboard', rate: formData.configBiaya.fullboard, qty: 1, total: formData.configBiaya.fullboard });
+      if (formData.configBiaya.halfboard > 0) rb.push({ item: 'Uang Harian Halfboard', rate: formData.configBiaya.halfboard, qty: 1, total: formData.configBiaya.halfboard });
       newPeserta.rincianBiaya = rb;
       newPeserta.totalJumlah = rb.reduce((acc, curr) => acc + curr.total, 0);
     } else {
@@ -416,6 +418,16 @@ const KeuanganPage = () => {
 
   const currentPeserta = formData.peserta?.[selectedPesertaIdx];
 
+  const rincianRiil = useMemo(() => {
+    return (currentPeserta?.rincianBiaya || []).filter(item => 
+      item.item.toLowerCase().includes('transport')
+    );
+  }, [currentPeserta]);
+
+  const totalRiil = useMemo(() => {
+    return rincianRiil.reduce((acc, curr) => acc + (curr.total || 0), 0);
+  }, [rincianRiil]);
+
   return (
     <div className="space-y-8 animate-fadeIn pb-24 text-black">
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} />
@@ -606,6 +618,10 @@ const KeuanganPage = () => {
                       <label className="text-[8px] font-black text-gray-400 ml-2">Fullboard (Rp)</label>
                       <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formatRupiah(formData.configBiaya?.fullboard)} onChange={e => updateConfigBiaya('fullboard', parseRawValue(e.target.value))} />
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-gray-400 ml-2">Halfboard (Rp)</label>
+                      <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formatRupiah(formData.configBiaya?.halfboard)} onChange={e => updateConfigBiaya('halfboard', parseRawValue(e.target.value))} />
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-6">
@@ -702,6 +718,8 @@ const KeuanganPage = () => {
                              if (formData.configBiaya?.uangHarian) rb.push({ item: 'Uang Harian', rate: formData.configBiaya.uangHarian, qty: 1, total: formData.configBiaya.uangHarian });
                              if (formData.configBiaya?.penginapan) rb.push({ item: 'Biaya Penginapan', rate: formData.configBiaya.penginapan, qty: 1, total: formData.configBiaya.penginapan });
                              if (formData.configBiaya?.transport) rb.push({ item: 'Biaya Transport', rate: formData.configBiaya.transport, qty: 1, total: formData.configBiaya.transport });
+                             if (formData.configBiaya?.fullboard) rb.push({ item: 'Uang Harian Fullboard', rate: formData.configBiaya.fullboard, qty: 1, total: formData.configBiaya.fullboard });
+                             if (formData.configBiaya?.halfboard) rb.push({ item: 'Uang Harian Halfboard', rate: formData.configBiaya.halfboard, qty: 1, total: formData.configBiaya.halfboard });
                              list[pIdx].rincianBiaya = rb;
                              list[pIdx].totalJumlah = rb.reduce((acc, curr) => acc + curr.total, 0);
                              list[pIdx].nomorSpd = formData.configSpd?.nomorSpdPrefix || list[pIdx].nomorSpd;
@@ -827,7 +845,7 @@ const KeuanganPage = () => {
                               Transaction ID : {formData.transactionId || `RE-SEK/${formData.tahunAnggaran}/IV/0103`}
                             </div>
                             <div className="text-right space-y-1">
-                              <div className="text-[7pt] italic text-right mb-4">
+                              <div className="text-[7pt] italic text-left mb-4">
                                 <p>LAMPIRAN</p>
                                 <p>PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA </p>
                                 <p>NOMOR 190/PMK.05/2012 TENTANG TATA CARA PEMBAYARAN DALAM RANGKA </p>
@@ -1112,7 +1130,7 @@ const KeuanganPage = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {(currentPeserta?.rincianBiaya || []).map((item, idx) => (
+                            {(rincianRiil || []).map((item, idx) => (
                               <tr key={idx} className="border-b border-black">
                                 <td className="border-r border-black p-2">{idx + 1}</td>
                                 <td className="border-r border-black p-2 text-left">{item.item}</td>
@@ -1121,7 +1139,7 @@ const KeuanganPage = () => {
                             ))}
                             <tr className="font-bold bg-gray-50">
                               <td colSpan={2} className="border-r border-black p-2 text-right uppercase">JUMLAH</td>
-                              <td className="p-2 text-right">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</td>
+                              <td className="p-2 text-right">Rp {(totalRiil || 0).toLocaleString('id-ID')}</td>
                             </tr>
                           </tbody>
                         </table>
@@ -1172,7 +1190,7 @@ const KeuanganPage = () => {
                      <p className="text-[11.5pt] font-bold underline uppercase pt-2">SURAT PERINTAH BAYAR</p>
                    </div>
 
-                   <div className="flex justify-center gap-10 py-1 border-y border-black mb-2">
+                   <div className="flex justify-center gap-10 py-1 border-b border-black mb-2">
                         <p>Tanggal : {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                         <p>Nomor : .........................</p>
                    </div>
@@ -1273,17 +1291,23 @@ const KeuanganPage = () => {
                         <div className="grid grid-cols-[130px_10px_1fr]"><span>Jabatan</span><span>:</span><span className="uppercase">{currentPeserta?.jabatan}</span></div>
                      </div>
 
-                     <p>Menyatakan dengan sesungguhnya bahwa:</p>
-                     <div className="space-y-4">
-                        <div className="flex gap-4">
-                           <span className="w-4">1.</span>
-                           <p>Perhitungan yang terdapat dalam pertanggungjawaban Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan} Sebesar <span className="font-bold">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span></p>
-                        </div>
-                        <div className="flex gap-4">
-                           <span className="w-4">2.</span>
-                           <p>Dari jumlah tersebut, apabila di kemudian hari terdapat kelebihan pembayaran atau terdapat hal-hal yang tidak benar atas perjalanan dinas tersebut di atas, saya bersedia untuk mengganti kelebihan atau kerugian negara tersebut untuk menyetorkan ke Kas Negara.</p>
-                        </div>
-                     </div>
+                      <p>Menyatakan dengan sesungguhnya bahwa:</p>
+                      <div className="space-y-4">
+                         <div className="flex gap-4">
+                            <span className="w-4">1.</span>
+                            <p>Perhitungan yang terdapat dalam pertanggungjawaban Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan} Sebesar <span className="font-bold">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span></p>
+                         </div>
+                         {rincianRiil && rincianRiil.length > 0 && (
+                            <div className="flex gap-4">
+                               <span className="w-4">2.</span>
+                               <p>Biaya transportasi darat yang dibayarkan secara lumpsum, tidak menggunakan kendaraan dinas jabatan atau operasional</p>
+                            </div>
+                         )}
+                         <div className="flex gap-4">
+                            <span className="w-4">{rincianRiil && rincianRiil.length > 0 ? '3.' : '2.'}</span>
+                            <p>Dari jumlah tersebut, apabila di kemudian hari terdapat kelebihan pembayaran atau terdapat hal-hal yang tidak benar atas perjalanan dinas tersebut di atas, saya bersedia untuk mengganti kelebihan atau kerugian negara tersebut untuk menyetorkan ke Kas Negara.</p>
+                         </div>
+                      </div>
 
                      <p>Demikian surat pernyataan ini saya buat dengan sebenarnya.</p>
                    </div>
@@ -1292,7 +1316,7 @@ const KeuanganPage = () => {
                      <div className="text-center w-80 space-y-24">
                         <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Yang membuat pernyataan,</p>
                         <div className="space-y-1">
-                          <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
+                          <p className="text-[10pt] font-bold uppercase">{currentPeserta?.nama}</p>
                           <p>NIP. {currentPeserta?.nip || '-'}</p>
                         </div>
                       </div>
