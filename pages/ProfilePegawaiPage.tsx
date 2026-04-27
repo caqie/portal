@@ -969,7 +969,7 @@ const ProfilePegawaiPage = () => {
 
                 <div className="space-y-4">
                   {(pegawai.keluarga || []).map((k, idx) => (
-                    <div key={idx} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
+                    <div key={`${k.nama}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                       {isEditing && (
                         <button onClick={() => removeHistoryItem('keluarga', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
                           <i className="bi bi-trash3"></i>
@@ -1052,7 +1052,7 @@ const ProfilePegawaiPage = () => {
 
                 <div className="space-y-4">
                   {(pegawai.riwayatPendidikan || []).map((p, idx) => (
-                    <div key={idx} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
+                    <div key={`${p.jenjang}-${p.institusi}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                       {isEditing && (
                         <button onClick={() => removeHistoryItem('riwayatPendidikan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
                           <i className="bi bi-trash3"></i>
@@ -1153,7 +1153,7 @@ const ProfilePegawaiPage = () => {
                 </div>
                 <div className="space-y-4">
                   {(pegawai.riwayatJabatan || []).map((j, idx) => (
-                    <div key={idx} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
+                    <div key={`${j.namaJabatan}-${j.tmtJabatan}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                       {isEditing && (
                         <button onClick={() => removeHistoryItem('riwayatJabatan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
                           <i className="bi bi-trash3"></i>
@@ -1248,7 +1248,7 @@ const ProfilePegawaiPage = () => {
                 </div>
                 <div className="space-y-4">
                   {(pegawai.riwayatPangkat || []).map((p, idx) => (
-                    <div key={idx} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
+                    <div key={`${p.pangkat}-${p.tmtPangkat}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                       {isEditing && (
                         <button onClick={() => removeHistoryItem('riwayatPangkat', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
                           <i className="bi bi-trash3"></i>
@@ -1343,7 +1343,7 @@ const ProfilePegawaiPage = () => {
                 </div>
                 <div className="space-y-4">
                   {(pegawai.riwayatPelatihan || []).map((p, idx) => (
-                    <div key={idx} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
+                    <div key={`${p.namaPelatihan}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                       {isEditing && (
                         <button onClick={() => removeHistoryItem('riwayatPelatihan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
                           <i className="bi bi-trash3"></i>

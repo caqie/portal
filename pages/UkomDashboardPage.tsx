@@ -15,7 +15,12 @@ const UkomDashboardPage: React.FC = () => {
       navigate('/ukom/login');
       return;
     }
-    setPeserta(JSON.parse(saved));
+    try {
+      setPeserta(JSON.parse(saved));
+    } catch (e) {
+      console.error("Error parsing peserta data:", e);
+      navigate('/ukom/login');
+    }
   }, [navigate]);
 
   const handleStart = () => {

@@ -182,14 +182,14 @@ const PelantikanGeneratorPage = () => {
 
   const handleEdit = (item: any) => {
     try {
-      const data = JSON.parse(item.data);
+      const data = item.data && item.data.trim() ? JSON.parse(item.data) : {};
       setFormData(data);
       setEditingId(item.id);
       setDocType(item.type || 'BA');
       setActiveView('editor');
     } catch (e) {
       console.error("Error parsing data", e);
-      alert("Gagal memuat data untuk diedit");
+      alert("Gagal memuat data untuk diedit. Format data mungkin tidak valid.");
     }
   };
 
@@ -305,10 +305,10 @@ const PelantikanGeneratorPage = () => {
                  </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                 {historyList.map(h => {
+                 {historyList.map((h, idx) => {
                     const p = pegawaiList.find(x => x.nip === h.asnNip);
                     return (
-                       <tr key={h.id} className="hover:bg-blue-50/5 group transition-all">
+                       <tr key={h.id || idx} className="hover:bg-blue-50/5 group transition-all">
                           <td className="px-10 py-6">
                              <p className="text-[12px] font-black text-gray-950 uppercase">{p?.nama || 'Unknown'}</p>
                              <p className="text-[9px] font-mono text-blue-600">NIP. {h.asnNip}</p>
@@ -323,7 +323,7 @@ const PelantikanGeneratorPage = () => {
                              <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                 <button onClick={() => { 
                                    try {
-                                      const data = JSON.parse(h.data);
+                                      const data = h.data && h.data.trim() ? JSON.parse(h.data) : {};
                                       setFormData(data);
                                       setDocType(h.type || 'BA');
                                       setActiveView('preview');
@@ -442,78 +442,90 @@ const PelantikanGeneratorPage = () => {
   }}
                      >
                  
-                 {docType === 'BA' ? (
+                  {docType === 'BA' ? (
                     // --- TEMPLATE BERITA ACARA (PORTRAIT F4) ---
-                    <div className="h-full flex flex-col justify-between text-[11.5pt] leading-relaxed">
+                    <div className="h-full flex flex-col text-[11pt] leading-snug font-arial text-black">
                        {/* HEADER */}
-                       <div className="flex flex-col items-center text-center mb-8">
-                          <img src={LOGO_GARUDA_URL} style={{ width: '70px', height: 'auto' }} className="mb-4" crossOrigin="anonymous" />
-                          <h1 className="font-bold uppercase tracking-wider text-[14pt]">BERITA ACARA</h1>
-                          <h2 className="font-bold uppercase tracking-wider text-[12pt]">PENGAMBILAN SUMPAH JABATAN PEGAWAI NEGERI SIPIL</h2>
-                          <p className="font-bold mt-2">NOMOR : {formData.nomor}</p>
+                       <div className="flex flex-col items-center text-center mb-10 pt-4">
+                          <img src={LOGO_GARUDA_URL} style={{ width: '80px', height: 'auto' }} className="mb-6" crossOrigin="anonymous" />
+                          <h1 className="font-bold uppercase tracking-widest text-[13pt] mb-1">BERITA ACARA</h1>
+                          <h2 className="font-bold uppercase tracking-widest text-[11pt] mb-1">PENGAMBILAN SUMPAH JABATAN PEGAWAI NEGERI SIPIL</h2>
+                          <p className="font-normal text-[11pt]">NOMOR : {formData.nomor || 'HKI.1-KP.03.04-...'}</p>
                        </div>
 
                        {/* CONTENT */}
-                       <div className="text-justify space-y-4">
-                          <p>
-                             Pada hari <span className="font-bold">{formatTanggalLengkap(formData.tanggal)}</span>, bertempat di {formData.tempat}, saya, <span className="font-bold uppercase">{formData.pjbNama}</span>, <span className="font-bold uppercase">{formData.pjbJabatan}</span> Kementerian Hukum Republik Indonesia, dengan disaksikan oleh 2 (dua) orang saksi masing-masing:
+                       <div className="text-justify space-y-4 px-2">
+                          <p className="indent-0">
+                             Pada hari <span className="font-normal">{formatTanggalLengkap(formData.tanggal)}</span>, bertempat di {formData.tempat || 'Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum Republik Indonesia'}, saya, <span className="font-bold uppercase">{formData.pjbNama}</span>, <span className="font-bold uppercase">{formData.pjbJabatan}</span> Kementerian Hukum Republik Indonesia, dengan disaksikan oleh 2 (dua) orang saksi masing-masing :
                           </p>
-                          <div className="grid gap-x-8 ml-4">
-                             <div>1. <span className="font-bold uppercase">{formData.saksi1Nama}</span>, {formData.saksi1Jabatan};</div>
-                             <div>2. <span className="font-bold uppercase">{formData.saksi2Nama}</span>, {formData.saksi2Jabatan}.</div>
+                          <div className="space-y-1 ml-4 py-2">
+                             <div className="flex gap-2">
+                               <span>1.</span>
+                               <span><span className="font-bold uppercase">{formData.saksi1Nama}</span>, {formData.saksi1Jabatan};</span>
+                             </div>
+                             <div className="flex gap-2">
+                               <span>2.</span>
+                               <span><span className="font-bold uppercase">{formData.saksi2Nama}</span>, {formData.saksi2Jabatan}.</span>
+                             </div>
                           </div>
                           <p>
-                             telah mengambil sumpah jabatan <span className="font-bold uppercase">{formData.asnJabatan}</span> atas nama <span className="font-bold uppercase">{formData.asnNama}</span>, yang berdasarkan Keputusan Menteri Hukum Republik Indonesia Nomor <span className="font-bold">{formData.nomorSk}</span> tanggal <span className="font-bold">{formData.tanggalSk}</span> diangkat sebagai <span className="font-bold uppercase">{formData.asnJabatan}</span>.
+                             telah mengambil sumpah jabatan <span className="font-normal">{formData.asnJabatan}</span> atas nama <span className="font-bold uppercase">{formData.asnNama}</span>, yang berdasarkan Keputusan Menteri Hukum Republik Indonesia Nomor <span className="font-normal">{formData.nomorSk}</span> tanggal <span className="font-normal">{formData.tanggalSk}</span> diangkat sebagai <span className="font-normal">{formData.asnJabatan}</span>.
                           </p>
                           <p>Pegawai Negeri Sipil yang mengangkat sumpah tersebut mengucapkan sumpah jabatan sebagai berikut:</p>
                           
-                          <div className="font-serif text-[12pt] pl-6">
+                          <div className="italic space-y-3 py-2">
                              <p>”{formData.kataPelantikan}:</p>
-                             <p className="mb-2 pl-6">bahwa saya, akan setia dan taat kepada Undang-Undang Dasar Negara Republik Indonesia Tahun 1945 serta akan menjalankan segala peraturan perundang-undangan dengan selurus-lurusnya, demi dharma bakti saya kepada bangsa dan negara;</p>
-                             <p className="mb-2 pl-6">bahwa saya dalam menjalankan tugas jabatan, akan menjunjung etika jabatan, bekerja dengan sebaik-baiknya, dan dengan penuh rasa tanggung jawab;</p>
-                             <p className="pl-6">bahwa saya, akan menjaga integritas, tidak menyalahgunakan kewenangan, serta menghindarkan diri dari perbuatan tercela.”</p>
+                             <div className="pl-8 space-y-2">
+                                <p>bahwa saya, akan setia dan taat kepada Undang-Undang Dasar Negara Republik Indonesia Tahun 1945 serta akan menjalankan segala peraturan perundang-undangan dengan selurus-lurusnya, demi dharma bakti saya kepada bangsa dan negara;</p>
+                                <p>bahwa saya dalam menjalankan tugas jabatan, akan menjunjung etika jabatan, bekerja dengan sebaik-baiknya, dan dengan penuh rasa tanggung jawab;</p>
+                                <p>bahwa saya, akan menjaga integritas, tidak menyalahgunakan kewenangan, serta menghindarkan diri dari perbuatan tercela.”</p>
+                             </div>
                           </div>
                           
                           {formData.penutupKataPelantikan && (
-                              <p className="italic font-bold pl-6">{formData.penutupKataPelantikan}</p>
+                              <p className="italic font-bold text-center mt-2">{formData.penutupKataPelantikan}</p>
                           )}
 
-                          <p>Demikian berita acara pengambilan sumpah jabatan ini dibuat dengan sebenar-benarnya untuk dapat digunakan sebagaimana mestinya.</p>
+                          <p className="mt-4">Demikian berita acara pengambilan sumpah jabatan ini dibuat dengan sebenar-benarnya untuk dapat digunakan sebagaimana mestinya.</p>
                        </div>
 
                        {/* SIGNATURES */}
-                       <div className="mt-16 space-y-12">
-                          <div className="grid grid-cols-2 gap-10 text-center">
+                       <div className="mt-12 space-y-10">
+                          <div className="grid grid-cols-2 gap-x-12 text-center text-[10.5pt]">
                              <div className="flex flex-col items-center">
-                                <p className="font-bold uppercase mb-24">Pejabat yang Mengambil Sumpah,</p>
-                                <p className="font-bold uppercase underline leading-none">{formData.pjbNama}</p>
-                                <p className="mt-1">NIP {formData.pjbNip}</p>
+                                <p className="mb-24">Yang mengangkat sumpah,</p>
+                                <div className="space-y-0.5">
+                                  <p className="font-bold uppercase underline leading-none">{formData.asnNama}</p>
+                                  <p>NIP {formData.asnNip}</p>
+                                </div>
                              </div>
                              <div className="flex flex-col items-center">
-                                <p className="font-bold uppercase mb-24">Yang Mengucapkan Sumpah,</p>
-                                <p className="font-bold uppercase underline leading-none">{formData.asnNama}</p>
-                                <p className="mt-1">NIP {formData.asnNip}</p>
+                                <p className="mb-4">Pejabat<br/>Yang mengambil sumpah,</p>
+                                <div className="mt-[4.5rem]">
+                                  <p className="font-bold uppercase underline leading-none">{formData.pjbNama}</p>
+                                  <p>NIP {formData.pjbNip}</p>
+                                </div>
                              </div>
                           </div>
 
-                          <div className="border-t border-dashed border-gray-300 pt-8">
-                             <p className="text-center font-bold uppercase mb-8">Saksi-Saksi,</p>
-                             <div className="grid grid-cols-2 gap-10 text-center">
+                          <div className="flex flex-col items-center pt-4">
+                             <p className="font-bold uppercase mb-8">SAKSI-SAKSI,</p>
+                             <div className="grid grid-cols-2 gap-x-20 w-full text-center text-[10.5pt]">
                                 <div className="flex flex-col items-center">
-                                   <p className="mb-24"></p>
-                                   <p className="font-bold uppercase font-bold">{formData.saksi1Nama}</p>
-                                   <p className="mt-1">NIP {formData.saksi1Nip}</p>
+                                   <div className="h-24"></div>
+                                   <p className="font-bold uppercase underline leading-none">{formData.saksi1Nama}</p>
+                                   <p>NIP {formData.saksi1Nip}</p>
                                 </div>
                                 <div className="flex flex-col items-center">
-                                   <p className="mb-24"></p>
-                                   <p className="font-bold uppercase font-bold">{formData.saksi2Nama}</p>
-                                   <p className="mt-1">NIP {formData.saksi2Nip}</p>
+                                   <div className="h-24"></div>
+                                   <p className="font-bold uppercase underline leading-none">{formData.saksi2Nama}</p>
+                                   <p>NIP {formData.saksi2Nip}</p>
                                 </div>
                              </div>
                           </div>
                        </div>
                     </div>
-                 ) : (
+                  ) : (
                     // --- TEMPLATE PAKTA INTEGRITAS (LANDSCAPE F4) ---
                     <div className="h-full flex flex-col text-[11pt] leading-relaxed font-arial">
                        {/* HEADER */}

@@ -57,8 +57,16 @@ const UkomExamPage: React.FC = () => {
       navigate('/ukom/login');
       return;
     }
-    const p = JSON.parse(savedPeserta);
-    setPeserta(p);
+    let p: any = null;
+    try {
+      p = JSON.parse(savedPeserta);
+      setPeserta(p);
+    } catch (e) {
+      console.error("Error parsing peserta:", e);
+      navigate('/ukom/login');
+      return;
+    }
+    if (!p) return;
 
     const initExam = async () => {
       try {
@@ -84,14 +92,22 @@ const UkomExamPage: React.FC = () => {
           const savedQuestions = localStorage.getItem(`ukom_questions_${p.noPeserta}`);
 
           if (savedQuestions) {
-            setQuestions(JSON.parse(savedQuestions));
+            try {
+              setQuestions(JSON.parse(savedQuestions));
+            } catch (e) {
+              setQuestions(shuffled);
+            }
           } else {
             setQuestions(shuffled);
             localStorage.setItem(`ukom_questions_${p.noPeserta}`, JSON.stringify(shuffled));
           }
 
           if (savedAnswers) {
-            setAnswers(JSON.parse(savedAnswers));
+            try {
+              setAnswers(JSON.parse(savedAnswers));
+            } catch (e) {
+              // Reset if corrupt
+            }
           } else {
             // Initialize randomized options for each question
             const initialAnswers: AnswerState = {};
@@ -558,7 +574,7 @@ const UkomExamPage: React.FC = () => {
                   <div className="space-y-4">
                     {currentAnswer.options.map((opt, idx) => (
                       <button
-                        key={idx}
+                        key={opt.key}
                         onClick={() => handleSelectAnswer(currentQuestion.id, opt.key)}
                         className={`w-full p-6 text-left rounded-2xl border-2 transition-all flex items-start gap-5 group ${
                           currentAnswer.jawaban === opt.key 
@@ -640,7 +656,7 @@ const UkomExamPage: React.FC = () => {
 
                 return (
                   <button
-                    key={idx}
+                    key={q.id || idx}
                     onClick={() => setCurrentIndex(idx)}
                     className={`h-12 rounded-xl text-xs font-black transition-all border-2 ${
                       isCurrent ? 'border-blue-600 scale-110 z-10 shadow-lg' : 'border-transparent'

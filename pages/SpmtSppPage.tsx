@@ -14,13 +14,8 @@ import html2canvas from 'html2canvas';
 // @ts-ignore
 import { jsPDF } from 'jspdf';
 
-// ==========================================
-// FITUR WORD (MATIKAN KOMENTAR JIKA SUDAH INSTALL)
-// 1. Jalankan: npm install html-docx-js-typescript file-saver
-// 2. Hapus tanda // pada 2 baris di bawah ini:
-// import htmlDocx from 'html-docx-js-typescript';
-// import { saveAs } from 'file-saver';
-// ==========================================
+import htmlDocx from 'html-docx-js-typescript';
+import { saveAs } from 'file-saver';
 
 const SpmtSppPage = () => {
   const navigate = useNavigate();
@@ -131,20 +126,29 @@ const SpmtSppPage = () => {
       }
       pdf.save(`${fileName}.pdf`);
     } else if (format === 'word') {
-      // Cek apakah library tersedia
-      // @ts-ignore
-      if (typeof htmlDocx === 'undefined') {
-        alert("Fitur Word belum aktif.\n\nSilakan jalankan perintah ini di terminal:\nnpm install html-docx-js-typescript file-saver\n\nLalu uncomment import library di paling atas kode.");
-        setSyncing(false);
-        return;
-      }
+      if (!pdfRef.current) return;
       
-      // Logic Export Word (Hanya jalan jika library di-install)
-      // @ts-ignore
       const content = pdfRef.current.innerHTML;
       // @ts-ignore
-      const converted = htmlDocx.asBlob(content);
-      // @ts-ignore
+      const converted = await htmlDocx.asBlob(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; font-size: 11pt; }
+              table { width: 100%; border-collapse: collapse; }
+              td { vertical-align: top; }
+              .text-center { text-align: center; }
+              .text-justify { text-align: justify; }
+              .font-bold { font-weight: bold; }
+              .uppercase { text-transform: uppercase; }
+              .underline { text-decoration: underline; }
+            </style>
+          </head>
+          <body>${content}</body>
+        </html>
+      `) as Blob;
       saveAs(converted, `${fileName}.docx`);
     }
     setSyncing(false);
@@ -184,8 +188,8 @@ const SpmtSppPage = () => {
                  <tr><th className="px-10 py-5">Jenis & Nomor</th><th className="px-4 py-5">Pegawai</th><th className="px-4 py-5 text-center">Status</th><th className="px-10 py-5 text-right">Opsi</th></tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                 {history.map(h => (
-                   <tr key={h.id} className="hover:bg-blue-50/5 group transition-colors">
+                 {history.map((h, idx) => (
+                   <tr key={h.id || idx} className="hover:bg-blue-50/5 group transition-colors">
                       <td className="px-10 py-5">
                          <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase border ${h.type==='SPP'?'bg-amber-50 text-amber-600':'bg-blue-50 text-blue-600'}`}>{h.type}</span>
                          <p className="text-[11px] font-black text-gray-950 mt-1 uppercase">{h.nomor}</p>

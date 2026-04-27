@@ -14,7 +14,12 @@ const ActivityLogPage = () => {
   useEffect(() => {
     const savedLogs = localStorage.getItem('portal_audit_logs');
     if (savedLogs) {
-      setLogs(JSON.parse(savedLogs));
+      try {
+        setLogs(JSON.parse(savedLogs));
+      } catch (e) {
+        console.error("Error parsing audit logs:", e);
+        setLogs([]);
+      }
     }
   }, []);
 

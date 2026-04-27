@@ -49,6 +49,43 @@ const Dashboard = () => {
   const [filterJenisGender, setFilterJenisGender] = useState('Semua Jenis');
   const [filterJenisGrade, setFilterJenisGrade] = useState('Semua Jenis');
 
+  // Helper for Kelas Jabatan (Permenkum 38/2025 Placeholder Logic)
+  const getKelasJabatan = (p: Pegawai) => {
+      if (p.kelasJabatan) return p.kelasJabatan;
+      const jab = (p.jabatan || '').toUpperCase();
+      const eselon = (p.eselon || '').toUpperCase();
+      
+      // JPT
+      if (eselon === 'I.A') return '17';
+      if (eselon === 'I.B') return '16';
+      if (eselon === 'II.A') return '15';
+      if (eselon === 'II.B') return '14';
+      
+      // Administrator / Pengawas
+      if (eselon === 'III.A') return '12';
+      if (eselon === 'III.B') return '11';
+      if (eselon === 'IV.A') return '9';
+      if (eselon === 'IV.B') return '8';
+
+      // Fungsional
+      if (jab.includes('AHLI UTAMA')) return '14';
+      if (jab.includes('AHLI MADYA')) return '12';
+      if (jab.includes('AHLI MUDA')) return '9';
+      if (jab.includes('AHLI PERTAMA')) return '8';
+      
+      if (jab.includes('PENYELIA')) return '8';
+      if (jab.includes('MAHIR')) return '7';
+      if (jab.includes('TERAMPIL')) return '6';
+      if (jab.includes('PEMULA')) return '5';
+
+      // Pelaksana
+      if (p.golRuang?.startsWith('IV')) return '9';
+      if (p.golRuang?.startsWith('III')) return '7';
+      if (p.golRuang?.startsWith('II')) return '5';
+      
+      return '-';
+  };
+
   useEffect(() => { 
     if (user) loadDashboardData(); 
   }, [user?.nip]);
@@ -120,11 +157,14 @@ const Dashboard = () => {
       list = list.filter(p => normalizeUnitName(p.unitKerja) === filterUnit);
     }
     
-    const groups: Record<string, { total: number, klasifikasi: string, jabatan: string, jenis: string }> = {};
+    const groups: Record<string, { total: number, klasifikasi: string, jabatan: string, jenis: string, unitKerja: string, bagian: string, kelasJabatan: string }> = {};
     
     list.forEach(p => {
       const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
       const jen = (p.jenisPegawai || 'ASN').trim().toUpperCase();
+      const unit = (p.unitKerja || '-').trim().toUpperCase();
+      const unitBagian = (p.bagian || '-').trim().toUpperCase();
+      const kelas = getKelasJabatan(p);
       
       // Improved Classification Logic
       let klas = (p.klasifikasiJabatan || '').trim().toUpperCase();
@@ -139,10 +179,10 @@ const Dashboard = () => {
         else klas = 'LAINNYA';
       }
       
-      const key = `${jab}|${jen}|${klas}`;
+      const key = `${jab}|${jen}|${klas}|${unit}|${unitBagian}`;
 
       if (!groups[key]) {
-        groups[key] = { total: 0, klasifikasi: klas, jabatan: jab, jenis: jen };
+        groups[key] = { total: 0, klasifikasi: klas, jabatan: jab, jenis: jen, unitKerja: unit, bagian: unitBagian, kelasJabatan: kelas };
       }
       groups[key].total += 1;
     });
@@ -340,6 +380,8 @@ const Dashboard = () => {
     // 5. Matriks Jabatan (Summary)
     const jabWs = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({
         'Nama Jabatan': j.jabatan,
+        'Unit Kerja': j.unitKerja,
+        'Bagian': j.bagian,
         'Klasifikasi': j.klasifikasi,
         'Jenis Pegawai': j.jenis,
         'Total ASN': j.total
@@ -353,7 +395,7 @@ const Dashboard = () => {
   const handleExportJabatan = () => {
     const wb = XLSX.utils.book_new();
     
-    // Apply Global Filters
+    // Apply Global Filters (Jenis & Search)
     let listForExport = activePegawaiList;
     if (filterJenisMatrix.length > 0) {
         listForExport = listForExport.filter(p => {
@@ -364,130 +406,77 @@ const Dashboard = () => {
             });
         });
     }
-    if (filterUnit !== 'Semua Unit') {
-      listForExport = listForExport.filter(p => normalizeUnitName(p.unitKerja) === filterUnit);
-    }
 
-    // Helper for Kelas Jabatan (Permenkum 38/2025 Placeholder Logic)
-    const getKelasJabatan = (p: Pegawai) => {
-        if (p.kelasJabatan) return p.kelasJabatan;
-        const jab = (p.jabatan || '').toUpperCase();
-        const eselon = (p.eselon || '').toUpperCase();
-        
-        // JPT
-        if (eselon === 'I.A') return '17';
-        if (eselon === 'I.B') return '16';
-        if (eselon === 'II.A') return '15';
-        if (eselon === 'II.B') return '14';
-        
-        // Administrator / Pengawas
-        if (eselon === 'III.A') return '12';
-        if (eselon === 'III.B') return '11';
-        if (eselon === 'IV.A') return '9';
-        if (eselon === 'IV.B') return '8';
-
-        // Fungsional
-        if (jab.includes('AHLI UTAMA')) return '14';
-        if (jab.includes('AHLI MADYA')) return '12';
-        if (jab.includes('AHLI MUDA')) return '9';
-        if (jab.includes('AHLI PERTAMA')) return '8';
-        
-        if (jab.includes('PENYELIA')) return '8';
-        if (jab.includes('MAHIR')) return '7';
-        if (jab.includes('TERAMPIL')) return '6';
-        if (jab.includes('PEMULA')) return '5';
-
-        // Pelaksana
-        if (p.golRuang?.startsWith('IV')) return '9';
-        if (p.golRuang?.startsWith('III')) return '7';
-        if (p.golRuang?.startsWith('II')) return '5';
-        
-        return '-';
-    };
-
-    const getGroupedData = (list: Pegawai[]) => {
-      const groups: Record<string, { total: number, klasifikasi: string, jabatan: string, jenis: string, unitKerja: string, kelasJabatan: string }> = {};
-      const term = searchJabatan.toUpperCase().trim();
-
+    const term = searchJabatan.toUpperCase().trim();
+    
+    // Process Data for ALL Units (for the Overall sheet)
+    const getGroupedDataInternal = (list: Pegawai[]) => {
+      const groups: Record<string, { total: number, jabatan: string, unitKerja: string, bagian: string, kelasJabatan: string }> = {};
       list.forEach(p => {
         const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
-        const jen = (p.jenisPegawai || 'ASN').trim().toUpperCase();
-        
-        // Improved Classification Logic (same as matrixJabatan memo)
-        let klas = (p.klasifikasiJabatan || '').trim().toUpperCase();
-        if (!klas || klas === 'LAINNYA') {
-          if (jab.includes('AHLI') || jab.includes('TERAMPIL') || jab.includes('MAHIR') || jab.includes('PENYELIA')) klas = 'FUNGSIONAL';
-          else if (jab.includes('DIREKTUR') || jab.includes('KEPALA') || jab.includes('SEKRETARIS')) {
-              if (jab.includes('BIRO') || jab.includes('DIREKTORAT') || jab.includes('DITJEN')) klas = 'JPT';
-              else if (jab.includes('BAGIAN') || jab.includes('SUBDIREKTORAT')) klas = 'ADMINISTRATOR';
-              else klas = 'PENGAWAS';
-          }
-          else if (jab.includes('PENGADMINISTRASI') || jab.includes('PENGOLAH') || jab.includes('PENYUSUN') || jab.includes('PETUGAS')) klas = 'PELAKSANA';
-          else klas = 'LAINNYA';
-        }
-
-        // Filter by Search Term
-        if (term && !jab.includes(term) && !klas.includes(term)) return;
+        if (term && !jab.includes(term)) return;
 
         const unit = normalizeUnitName(p.unitKerja);
+        const bagian = (p.bagian || '-').toUpperCase().trim();
         const kelas = getKelasJabatan(p);
-        const key = `${jab}|${jen}|${klas}|${unit}|${kelas}`;
+        const key = `${jab}|${unit}|${bagian}|${kelas}`;
+        
         if (!groups[key]) {
-          groups[key] = { total: 0, klasifikasi: klas, jabatan: jab, jenis: jen, unitKerja: unit, kelasJabatan: kelas };
+          groups[key] = { total: 0, jabatan: jab, unitKerja: unit, bagian: bagian, kelasJabatan: kelas };
         }
         groups[key].total += 1;
       });
-      return Object.values(groups).sort((a, b) => {
-        const u = a.unitKerja.localeCompare(b.unitKerja);
-        return u !== 0 ? u : b.total - a.total;
-      });
+      return Object.values(groups);
     };
 
-    // 1. Sheet "Semua Unit"
-    const allGrouped = getGroupedData(listForExport);
-    const wsAll = XLSX.utils.json_to_sheet(allGrouped.map((j, i) => ({
-      'No': i + 1,
-      'Nama Jabatan': j.jabatan,
-      'Unit Kerja': j.unitKerja,
-      'Klasifikasi': j.klasifikasi,
-      'Kelas Jabatan (Permenkum 38/2025)': j.kelasJabatan,
-      'Jenis Pegawai': j.jenis,
-      'Total': j.total
-    })));
-    XLSX.utils.book_append_sheet(wb, wsAll, "Semua Unit");
+    const allDataRaw = getGroupedDataInternal(listForExport);
 
-    // 2. Individual Sheets for each Unit (Filtered)
-    UNIT_KERJA.forEach(unitName => {
-      const unitData = listForExport.filter(p => normalizeUnitName(p.unitKerja) === unitName);
-      if (unitData.length === 0) return; // Skip if no data for this unit after filtering
-
-      const groupedUnit = getGroupedData(unitData);
-      const wsUnit = XLSX.utils.json_to_sheet(groupedUnit.map((j, i) => ({
-        'No': i + 1,
-        'Nama Jabatan': j.jabatan,
-        'Unit Kerja': j.unitKerja,
-        'Klasifikasi': j.klasifikasi,
-        'Kelas Jabatan (Permenkum 38/2025)': j.kelasJabatan,
-        'Jenis Pegawai': j.jenis,
-        'Total': j.total
-      })));
-      
-      // Shorten sheet name for Excel (max 31 chars)
-      let sName = unitName;
-      if (sName.includes('Sekretariat')) sName = 'Sekretariat';
-      else if (sName.includes('Hak Cipta')) sName = 'Hak Cipta';
-      else if (sName.includes('Paten')) sName = 'Paten';
-      else if (sName.includes('Merek')) sName = 'Merek';
-      else if (sName.includes('Kerja Sama')) sName = 'Kerja Sama';
-      else if (sName.includes('Teknologi Informasi')) sName = 'TI';
-      else if (sName.includes('Penegakan Hukum')) sName = 'Penegakan Hukum';
-      else sName = sName.substring(0, 31);
-
-      XLSX.utils.book_append_sheet(wb, wsUnit, sName);
+    // 1. Keseluruhan Jabatan Sheet (Unique Names ONLY)
+    const uniqueJobsOverall: Record<string, { kelas: string, total: number }> = {};
+    allDataRaw.forEach(j => {
+      if (!uniqueJobsOverall[j.jabatan]) {
+        uniqueJobsOverall[j.jabatan] = { kelas: j.kelasJabatan, total: 0 };
+      }
+      uniqueJobsOverall[j.jabatan].total += j.total;
     });
 
-    XLSX.writeFile(wb, `Matriks_Jabatan_DJKI_Filtered_${new Date().getTime()}.xlsx`);
-    logActivity('DOWNLOAD', 'Dashboard', 'Export Excel Matriks Jabatan (Filtered)');
+    const overallData = Object.entries(uniqueJobsOverall)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([jab, data], i) => ({
+        'No': i + 1,
+        'Nama Jabatan': jab,
+        'Kelas Jabatan': data.kelas,
+        'Total Pegawai': data.total
+      }));
+
+    const wsAll = XLSX.utils.json_to_sheet(overallData);
+    XLSX.utils.book_append_sheet(wb, wsAll, "Keseluruhan Jabatan");
+
+    // 2. Per-Unit Sheets
+    // Respect the filterUnit if it's not "Semua Unit" for selection, but we often want all units in Excel
+    const unitsToExport = filterUnit === 'Semua Unit' ? UNIT_KERJA : [filterUnit];
+    
+    unitsToExport.forEach(unitName => {
+      const unitGroups = allDataRaw.filter(j => j.unitKerja === unitName);
+      if (unitGroups.length > 0) {
+        const unitData = unitGroups
+          .sort((a, b) => a.jabatan.localeCompare(b.jabatan))
+          .map((j, i) => ({
+            'No': i + 1,
+            'Nama Jabatan': j.jabatan,
+            'Kelas Jabatan': j.kelasJabatan,
+            'Bagian': j.bagian,
+            'Total Pegawai': j.total
+          }));
+        
+        const wsUnit = XLSX.utils.json_to_sheet(unitData);
+        const safeName = unitName.replace('Direktorat ', 'DIT ').replace('Sekretariat ', 'SET ').substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, wsUnit, safeName);
+      }
+    });
+
+    XLSX.writeFile(wb, `Nomenklatur_Jabatan_DJKI_${new Date().getTime()}.xlsx`);
+    logActivity('DOWNLOAD', 'Dashboard', 'Download Matriks Jabatan Lengkap (Excel Export)');
   };
 
   return (
@@ -594,7 +583,7 @@ const Dashboard = () => {
               </div>
               <div className="space-y-2 md:space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                  {educationStats.map((edu, i) => (
-                    <div key={i} className="flex justify-between items-center p-3 md:p-4 bg-gray-50 rounded-xl md:rounded-2xl hover:bg-blue-50 transition-colors group">
+                    <div key={`${edu.label}-${i}`} className="flex justify-between items-center p-3 md:p-4 bg-gray-50 rounded-xl md:rounded-2xl hover:bg-blue-50 transition-colors group">
                        <span className="text-[9px] md:text-[10px] font-black text-gray-600 group-hover:text-blue-600 transition-colors uppercase">{edu.label}</span>
                        <span className="text-[11px] md:text-[12px] font-black text-gray-950">{edu.count} ASN</span>
                     </div>
@@ -623,7 +612,7 @@ const Dashboard = () => {
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                         {gradeStats.map((grade, i) => (
-                            <tr key={i} className="hover:bg-gray-50 transition-colors">
+                            <tr key={`${grade.label}-${i}`} className="hover:bg-gray-50 transition-colors">
                                 <td className="px-6 md:px-8 py-3 md:py-4 font-black text-[9px] md:text-[10px] text-gray-800">{grade.label}</td>
                                 <td className="px-4 md:px-6 py-3 md:py-4 text-right font-black text-[11px] md:text-[12px] text-gray-950">{grade.count}</td>
                             </tr>
@@ -640,7 +629,17 @@ const Dashboard = () => {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                  <div>
                     <h4 className="text-[9px] md:text-[12px] font-black text-gray-950 tracking-[0.2em] md:tracking-[0.3em] uppercase">Matriks Nomenklatur Jabatan</h4>
-                    <p className="text-[7px] md:text-[8px] text-gray-400 font-bold mt-1 tracking-widest text-blue-600 uppercase">Total Sebaran Nomenklatur Jabatan Terpusat</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <p className="text-[7px] md:text-[8px] text-gray-400 font-bold tracking-widest text-blue-600 uppercase">Total Sebaran Nomenklatur Jabatan Terpusat</p>
+                      <button 
+                        onClick={handleExportJabatan}
+                        className="px-2 py-0.5 bg-blue-600 text-white text-[7px] md:text-[9px] font-black rounded-lg shadow-sm hover:bg-blue-700 transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                        title="Klik untuk download matriks jabatan lengkap"
+                      >
+                        <i className="bi bi-download text-[8px]"></i>
+                        {new Set(matrixJabatan.map(j => j.jabatan)).size} JABATAN
+                      </button>
+                    </div>
                  </div>
                  <button onClick={handleExportJabatan} className="w-full sm:w-auto px-6 py-2.5 bg-[#111827] text-white rounded-xl text-[8px] font-black shadow-lg flex items-center justify-center gap-2 hover:bg-gray-800 transition-all active:scale-95">
                     <i className="bi bi-file-earmark-spreadsheet text-sm"></i>
@@ -705,7 +704,7 @@ const Dashboard = () => {
                  </thead>
                  <tbody className="divide-y divide-gray-50">
                     {matrixJabatan.map((row, i) => (
-                      <tr key={i} className="hover:bg-gray-50 transition-colors">
+                      <tr key={`${row.jabatan}-${row.unitKerja}-${i}`} className="hover:bg-gray-50 transition-colors">
                          <td className="px-4 md:px-10 py-3 md:py-4 font-bold text-[8px] md:text-[10px] text-gray-800 leading-tight">{row.jabatan}</td>
                          <td className="px-2 md:px-4 py-3 md:py-4 text-center">
                             <span className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[6px] md:text-[8px] font-black border ${
@@ -816,7 +815,7 @@ const Dashboard = () => {
               <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar space-y-6 bg-white">
                  {selectedCalendarEvents.length > 0 ? (
                     selectedCalendarEvents.map((ev, i) => (
-                       <div key={i} className="p-6 md:p-8 bg-gray-50/50 border border-gray-100 rounded-[2rem] md:rounded-[2.5rem] space-y-4 md:space-y-6 hover:bg-blue-50/30 transition-all group">
+                       <div key={`${ev.id || i}-${i}`} className="p-6 md:p-8 bg-gray-50/50 border border-gray-100 rounded-[2rem] md:rounded-[2.5rem] space-y-4 md:space-y-6 hover:bg-blue-50/30 transition-all group">
                           <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                              <div className="flex-1">
                                 <h5 className="text-lg md:text-xl font-black text-gray-950 leading-tight group-hover:text-blue-600 transition-colors uppercase">{ev.judulKegiatan}</h5>
@@ -921,7 +920,7 @@ const Dashboard = () => {
 
               <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar space-y-3 md:space-y-4 bg-white">
                  {(reminders[notifTab] || []).map((item, i) => (
-                    <div key={`${item.nip || i}-${i}`} className="p-4 md:p-5 bg-gray-50/50 border border-gray-100 rounded-2xl md:rounded-[2rem] flex items-center gap-4 md:gap-5 hover:bg-blue-50 transition-all shadow-sm group">
+                    <div key={`${item.nip || item.nama || i}-${i}`} className="p-4 md:p-5 bg-gray-50/50 border border-gray-100 rounded-2xl md:rounded-[2rem] flex items-center gap-4 md:gap-5 hover:bg-blue-50 transition-all shadow-sm group">
                        <div className="min-w-0 flex-1">
                           <p className="text-[10px] md:text-[11px] font-black text-gray-950 truncate uppercase">{item.nama || 'Tanpa Nama'}</p>
                           <p className="text-[8px] md:text-[9px] font-bold text-gray-400 mt-1 uppercase">{item.tmt || item.tmtTerakhir || '-'}</p>

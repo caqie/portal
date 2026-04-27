@@ -140,8 +140,8 @@ const KegiatanPage = () => {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {kegiatanList.length > 0 ? (
-                  kegiatanList.map((k) => (
-                    <tr key={k.id} className="hover:bg-blue-50/20 group transition-all">
+                  kegiatanList.map((k, idx) => (
+                    <tr key={`${k.id || idx}-${idx}`} className="hover:bg-blue-50/20 group transition-all">
                       <td className="px-8 py-5">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-black text-gray-900">{k.tanggalMulai}</span>
@@ -194,8 +194,8 @@ const KegiatanPage = () => {
             <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Agenda Tanggal</h4>
             <p className="text-lg font-black text-gray-950 mb-6">{selectedDateLabel}</p>
             <div className="space-y-4">
-              {selectedDateEvents.map(ev => (
-                <div key={ev.id} className="p-5 bg-gray-50 rounded-2xl border border-gray-100 group relative">
+              {selectedDateEvents.map((ev, idx) => (
+                <div key={`${ev.id}-${idx}`} className="p-5 bg-gray-50 rounded-2xl border border-gray-100 group relative">
                   {canEdit && (
                     <button 
                       onClick={() => {

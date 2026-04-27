@@ -784,7 +784,7 @@ const KeuanganPage = () => {
                       <div className="overflow-x-auto">
                         <div className="space-y-2 min-w-[600px]">
                           {p.rincianBiaya.map((r, rIdx) => (
-                            <div key={rIdx} className="grid grid-cols-12 gap-2 items-center">
+                            <div key={`${rIdx}-${r.item}`} className="grid grid-cols-12 gap-2 items-center">
                               <div className="col-span-5"><input type="text" placeholder="Perincian" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-[11px] font-bold outline-none" value={r.item} onChange={e => updateRincian(pIdx, rIdx, 'item', e.target.value)} /></div>
                               <div className="col-span-3"><input type="text" placeholder="Satuan" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-[11px] font-bold outline-none" value={formatRupiah(r.rate)} onChange={e => updateRincian(pIdx, rIdx, 'rate', parseRawValue(e.target.value))} /></div>
                               <div className="col-span-1"><input type="number" placeholder="Qty" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-[11px] font-bold outline-none text-center" value={r.qty} onChange={e => updateRincian(pIdx, rIdx, 'qty', parseInt(e.target.value))} /></div>
