@@ -725,10 +725,10 @@ export const savePegawai = async (pegawai: Partial<Pegawai>): Promise<boolean> =
   // Filter out fields that are typically calculated by ArrayFormula in the spreadsheet
   // to prevent overwriting formulas with static values.
   const calculatedFields = [
-    'pangkat', 'jenisJabatan', 'klasifikasiJabatan', 'masaKerja', 
+    'masaKerja', 
     'masaKerjaGolongan', 'masaKerjaPensiun', 'usia', 'tglPensiun', 
     'tmtPensiun', 'tmtPensiunDisplay', 'usiaPensiun', 'bup', 
-    'sisaMasaKerja', 'keteranganPensiun', 'tmtCpns'
+    'sisaMasaKerja', 'keteranganPensiun'
   ];
   
   const payload = { ...pegawai };

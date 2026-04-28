@@ -57,15 +57,59 @@ const PegawaiPage = () => {
 
   useEffect(() => { loadData(); }, []);
 
+  const getJabatanClassification = (p: Pegawai): string => {
+    let kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
+    const es = (p.eselon || '').trim().toUpperCase();
+    const j = (p.jabatan || '').toUpperCase();
+
+    // 1. Check Eselon first (Most reliable for structural)
+    if (es) {
+      if (es.includes('IV') || es.includes('4')) return 'STRUKTURAL';
+      if (es.includes('III') || es.includes('3')) return 'STRUKTURAL';
+      if (es.includes('II') || es.includes('2')) return 'JPT';
+      if (es.includes('I') || es.includes('1')) return 'JPT';
+    }
+
+    // 2. Check for "Struktural" keywords specifically before "Fungsional"
+    if (j.includes('DIREKTUR') || j.includes('KEPALA') || j.includes('SEKRETARIS') || j.includes('KOORDINATOR') || j.includes('KABAG') || j.includes('KASUB')) {
+        // Special case for Sekretaris: Sekretaris Pimpinan/Pribadi is Pelaksana
+        if (j.includes('SEKRETARIS') && (j.includes('PIMPINAN') || j.includes('PRIBADI'))) return 'PELAKSANA';
+        
+        if (j.includes('BIRO') || j.includes('DIREKTORAT') || j.includes('DITJEN') || j.includes('STAF AHLI')) return 'JPT';
+        return 'STRUKTURAL';
+    }
+
+    // 3. Check for "Fungsional Umum" first
+    if (kl.includes('FUNGSIONAL UMUM') || kl.includes('STAFF') || kl.includes('STAF') || j.includes('FUNGSIONAL UMUM')) return 'PELAKSANA';
+    if (kl === 'FUNGSIONAL' || kl.includes('PEJABAT FUNGSIONAL') || kl.includes('JFT') || kl.includes('KEJURUAN')) return 'FUNGSIONAL';
+
+    // 4. Keyword matching for remaining ambiguous cases
+    if (j.includes('AHLI') || j.includes('TERAMPIL') || j.includes('MAHIR') || j.includes('PENYELIA')) return 'FUNGSIONAL';
+    if (j.includes('PENGADMINISTRASI') || j.includes('PENGOLAH') || j.includes('PENYUSUN') || j.includes('PETUGAS')) return 'PELAKSANA';
+    
+    // 5. Classification normalization
+    if (kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('STRUKTURAL') || kl.includes('MANAJERIAL')) return 'STRUKTURAL';
+    if (kl.includes('PELAKSANA')) return 'PELAKSANA';
+    if (kl.includes('PIMPINAN TINGGI') || kl.includes('JPT')) return 'JPT';
+    if (kl.includes('FUNGSIONAL')) return 'FUNGSIONAL';
+
+    return kl || 'LAINNYA';
+  };
+
   const loadData = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const [pData, dData] = await Promise.all([fetchPegawaiFromSheets(), fetchDossiersFromSheets()]);
       
       const enrichedData = pData.map(p => {
         const enriched = { ...p };
         
-        // Enrichment logic
+        // 1. Classification Enrichment
+        if (!enriched.klasifikasiJabatan || enriched.klasifikasiJabatan === '-' || enriched.klasifikasiJabatan === '') {
+          enriched.klasifikasiJabatan = getJabatanClassification(enriched);
+        }
+        
+        // 2. Identity & Retirement Enrichment
         if (enriched.tanggalLahir) {
           const birth = new Date(formatDateForInput(enriched.tanggalLahir));
           if (!isNaN(birth.getTime())) {
@@ -452,7 +496,7 @@ const PegawaiPage = () => {
         setImportProgress({ current: 0, total: 0 });
         
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true, cellNF: false, cellText: false });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
@@ -463,10 +507,14 @@ const PegawaiPage = () => {
           return;
         }
 
-        // Filter data yang punya NIP
-        const validData = data.filter(row => row.NIP || row.nip || row['NIP (18 Digit)']);
+        // Filter valid data with NIP
+        const validData = data.filter(row => {
+          const nipVal = row.NIP || row.nip || row['NIP (18 Digit)'] || row['NIP Baru'] || row[Object.keys(row).find(k => k.toLowerCase().includes('nip')) || ''];
+          return nipVal && String(nipVal).trim() !== '';
+        });
+
         if (validData.length === 0) {
-          alert("Tidak ditemukan kolom NIP pada file Excel.");
+          alert("Tidak ditemukan data dengan kolom NIP pada file Excel.");
           setSyncing(false);
           return;
         }
@@ -476,46 +524,65 @@ const PegawaiPage = () => {
         let successCount = 0;
         for (let i = 0; i < validData.length; i++) {
           const row = validData[i];
-          const payload: any = {};
-                    Object.keys(row).forEach(key => {
+          const payload: Partial<Pegawai> = {};
+          
+          Object.keys(row).forEach(key => {
             const normalizedKey = key.toLowerCase().replace(/[\s_.]/g, '');
-            const val = row[key];
+            let val = row[key];
             
-            if (normalizedKey === 'nip' || normalizedKey === 'nip18digit') payload.nip = String(val).replace(/\D/g, '');
-            else if (normalizedKey === 'nama' || normalizedKey === 'namapegawai') payload.nama = val;
-            else if (normalizedKey === 'jabatan') payload.jabatan = val;
-            else if (normalizedKey === 'klasifikasi' || normalizedKey === 'klasifikasijabatan') payload.klasifikasiJabatan = val;
-            else if (normalizedKey === 'subbagian') payload.subBagian = val;
-            else if (normalizedKey === 'bagian') payload.bagian = val;
-            else if (normalizedKey === 'unitkerja') payload.unitKerja = val;
-            else if (normalizedKey === 'golruang' || normalizedKey === 'golongan') payload.golRuang = val;
-            else if (normalizedKey === 'pangkat') payload.pangkat = val;
-            else if (normalizedKey === 'jenispegawai') payload.jenisPegawai = val;
-            else if (normalizedKey === 'status') payload.status = val;
-            else if (normalizedKey === 'nik') payload.nik = val;
-            else if (normalizedKey === 'alamat') payload.alamat = val;
-            else if (normalizedKey === 'email') payload.email = val;
-            else if (normalizedKey === 'nohp' || normalizedKey === 'telepon') payload.noHp = val;
-            else if (normalizedKey === 'tmtpangkat') payload.tmtPangkat = val;
-            else if (normalizedKey === 'tmtjabatan') payload.tmtJabatan = val;
-            else if (normalizedKey === 'tmtstatus' || normalizedKey === 'tmtcpns') payload.tmtCpns = val;
-            else if (normalizedKey === 'pendidikan') payload.pendidikan = val;
-            else if (normalizedKey === 'jurusan') payload.jurusan = val;
-            else if (normalizedKey === 'masakerja') payload.masaKerja = val;
-            else if (normalizedKey === 'tempatlahir') payload.tempatLahir = val;
-            else if (normalizedKey === 'tanggallahir') payload.tanggalLahir = val;
-            else if (normalizedKey === 'eselon') payload.eselon = val;
-            else if (normalizedKey === 'agama') payload.agama = val;
-            else if (normalizedKey === 'npwp') payload.npwp = val;
-            else if (normalizedKey === 'nobpjs') payload.noBpjs = val;
-            else if (normalizedKey === 'nokariskarsu') payload.noKarisKarsu = val;
-            else if (normalizedKey === 'notapera') payload.noTapera = val;
-            else if (normalizedKey === 'nokarpeg' || normalizedKey === 'kartupegawai') payload.noKarpeg = val;
-            else if (normalizedKey === 'gender' || normalizedKey === 'jeniskelamin') payload.gender = String(val).toUpperCase().startsWith('P') ? 'P' : 'L';
-            else payload[key] = val;
+            // Format date values
+            if (val instanceof Date) {
+              val = val.toISOString().split('T')[0];
+            } else if (typeof val === 'number' && (normalizedKey.includes('tmt') || normalizedKey.includes('tanggal') || normalizedKey.includes('lahir'))) {
+              // Handle case where dates are numbers but cellDates was somehow missed or failed
+              try {
+                const date = new Date((val - 25569) * 86400 * 1000);
+                if (!isNaN(date.getTime())) val = date.toISOString().split('T')[0];
+              } catch(e) {}
+            }
+
+            if (normalizedKey === 'nip' || normalizedKey === 'nip18digit' || normalizedKey === 'nipbaru') payload.nip = String(val).replace(/\D/g, '');
+            else if (normalizedKey === 'nama' || normalizedKey === 'namapegawai') payload.nama = String(val).trim();
+            else if (normalizedKey === 'jabatan') payload.jabatan = String(val).trim();
+            else if (normalizedKey === 'klasifikasi' || normalizedKey === 'klasifikasijabatan') payload.klasifikasiJabatan = String(val).trim();
+            else if (normalizedKey === 'subbagian') payload.subBagian = String(val).trim();
+            else if (normalizedKey === 'bagian') payload.bagian = String(val).trim();
+            else if (normalizedKey === 'unitkerja') payload.unitKerja = String(val).trim();
+            else if (normalizedKey === 'golruang' || normalizedKey === 'golongan') payload.golRuang = String(val).trim();
+            else if (normalizedKey === 'pangkat') payload.pangkat = String(val).trim();
+            else if (normalizedKey === 'jenispegawai') payload.jenisPegawai = String(val).trim();
+            else if (normalizedKey === 'status') payload.status = String(val).trim();
+            else if (normalizedKey === 'nik') payload.nik = String(val).replace(/\D/g, '');
+            else if (normalizedKey === 'alamat') payload.alamat = String(val).trim();
+            else if (normalizedKey === 'email') payload.email = String(val).trim();
+            else if (normalizedKey === 'nohp' || normalizedKey === 'telepon' || normalizedKey === 'ponsel') payload.noHp = String(val).trim();
+            else if (normalizedKey === 'tmtpangkat') payload.tmtPangkat = String(val).trim();
+            else if (normalizedKey === 'tmtjabatan') payload.tmtJabatan = String(val).trim();
+            else if (normalizedKey === 'tmtstatus' || normalizedKey === 'tmtcpns') payload.tmtCpns = String(val).trim();
+            else if (normalizedKey === 'pendidikan') payload.pendidikan = String(val).trim();
+            else if (normalizedKey === 'jurusan') payload.jurusan = String(val).trim();
+            else if (normalizedKey === 'masakerja') payload.masaKerja = String(val).trim();
+            else if (normalizedKey === 'tempatlahir') payload.tempatLahir = String(val).trim();
+            else if (normalizedKey === 'tanggallahir') payload.tanggalLahir = String(val).trim();
+            else if (normalizedKey === 'eselon') payload.eselon = String(val).trim();
+            else if (normalizedKey === 'agama') payload.agama = String(val).trim();
+            else if (normalizedKey === 'npwp') payload.npwp = String(val).trim();
+            else if (normalizedKey === 'nobpjs') payload.noBpjs = String(val).trim();
+            else if (normalizedKey === 'nokariskarsu') payload.noKarisKarsu = String(val).trim();
+            else if (normalizedKey === 'notapera') payload.noTAPERA = String(val).trim();
+            else if (normalizedKey === 'nokarpeg' || normalizedKey === 'kartupegawai') payload.noKarpeg = String(val).trim();
+            else if (normalizedKey === 'gender' || normalizedKey === 'jeniskelamin') {
+              const g = String(val).toUpperCase();
+              payload.gender = (g.startsWith('P') || g.includes('WANITA')) ? 'P' : 'L';
+            }
+            else if (normalizedKey === 'norekeninggaji' || normalizedKey === 'nomorrekening') payload.noRekeningGaji = String(val).trim();
+            else if (normalizedKey === 'namabank' || normalizedKey === 'bank') payload.namaBank = String(val).trim();
           });
 
           if (payload.nip) {
+            if (!payload.klasifikasiJabatan) {
+              payload.klasifikasiJabatan = getJabatanClassification(payload as Pegawai);
+            }
             const ok = await savePegawai(payload);
             if (ok) successCount++;
           }
