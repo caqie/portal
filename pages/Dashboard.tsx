@@ -86,6 +86,45 @@ const Dashboard = () => {
       return '-';
   };
 
+  const getJabatanClassification = (p: Pegawai) => {
+    let kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
+    const es = (p.eselon || '').trim().toUpperCase();
+    const j = (p.jabatan || '').toUpperCase();
+
+    // 1. Check Eselon first (Most reliable for structural)
+    if (es) {
+      if (es.includes('IV') || es.includes('4')) return 'STRUKTURAL';
+      if (es.includes('III') || es.includes('3')) return 'STRUKTURAL';
+      if (es.includes('II') || es.includes('2')) return 'JPT';
+      if (es.includes('I') || es.includes('1')) return 'JPT';
+    }
+
+    // 2. Check for "Struktural" keywords specifically before "Fungsional"
+    if (j.includes('DIREKTUR') || j.includes('KEPALA') || j.includes('SEKRETARIS') || j.includes('KOORDINATOR') || j.includes('KABAG') || j.includes('KASUB')) {
+        // Special case for Sekretaris: Sekretaris Pimpinan/Pribadi is Pelaksana
+        if (j.includes('SEKRETARIS') && (j.includes('PIMPINAN') || j.includes('PRIBADI'))) return 'PELAKSANA';
+        
+        if (j.includes('BIRO') || j.includes('DIREKTORAT') || j.includes('DITJEN') || j.includes('STAF AHLI')) return 'JPT';
+        return 'STRUKTURAL';
+    }
+
+    // 3. Check for "Fungsional Umum" first because it contains "Fungsional"
+    if (kl.includes('FUNGSIONAL UMUM') || kl.includes('STAFF') || kl.includes('STAF') || j.includes('FUNGSIONAL UMUM')) return 'PELAKSANA';
+    if (kl === 'FUNGSIONAL' || kl.includes('PEJABAT FUNGSIONAL') || kl.includes('JFT') || kl.includes('KEJURUAN')) return 'FUNGSIONAL';
+
+    // 4. Keyword matching for remaining ambiguous cases
+    if (j.includes('AHLI') || j.includes('TERAMPIL') || j.includes('MAHIR') || j.includes('PENYELIA')) return 'FUNGSIONAL';
+    if (j.includes('PENGADMINISTRASI') || j.includes('PENGOLAH') || j.includes('PENYUSUN') || j.includes('PETUGAS')) return 'PELAKSANA';
+    
+    // 5. Classification normalization
+    if (kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('STRUKTURAL') || kl.includes('MANAJERIAL')) return 'STRUKTURAL';
+    if (kl.includes('PELAKSANA')) return 'PELAKSANA';
+    if (kl.includes('PIMPINAN TINGGI') || kl.includes('JPT')) return 'JPT';
+    if (kl.includes('FUNGSIONAL')) return 'FUNGSIONAL';
+
+    return kl || 'LAINNYA';
+  };
+
   useEffect(() => { 
     if (user) loadDashboardData(); 
   }, [user?.nip]);
@@ -120,6 +159,93 @@ const Dashboard = () => {
       return s === 'AKTIF' || s === 'TUGAS BELAJAR';
     });
   }, [pegawai]);
+
+  const classificationStats = useMemo(() => {
+    const stats = {
+      jpt: 0,
+      jptTitles: new Set<string>(),
+      struktural: 0,
+      strukturalTitles: new Set<string>(),
+      fungsional: 0,
+      fungsionalTitles: new Set<string>(),
+      pelaksana: 0,
+      pelaksanaTitles: new Set<string>(),
+      total: 0,
+      totalTitles: new Set<string>()
+    };
+    activePegawaiList.forEach(p => {
+      const cls = getJabatanClassification(p);
+      const jab = (p.jabatan || '').trim().toUpperCase();
+      
+      if (jab) {
+        stats.totalTitles.add(jab);
+        if (cls === 'JPT') {
+          stats.jpt++;
+          stats.jptTitles.add(jab);
+        } else if (cls === 'STRUKTURAL') {
+          stats.struktural++;
+          stats.strukturalTitles.add(jab);
+        } else if (cls === 'FUNGSIONAL') {
+          stats.fungsional++;
+          stats.fungsionalTitles.add(jab);
+        } else if (cls === 'PELAKSANA') {
+          stats.pelaksana++;
+          stats.pelaksanaTitles.add(jab);
+        }
+      }
+      stats.total++;
+    });
+    return {
+      jpt: stats.jpt,
+      jptUnique: stats.jptTitles.size,
+      jptTitles: Array.from(stats.jptTitles).sort(),
+      struktural: stats.struktural,
+      strukturalUnique: stats.strukturalTitles.size,
+      strukturalTitles: Array.from(stats.strukturalTitles).sort(),
+      fungsional: stats.fungsional,
+      fungsionalUnique: stats.fungsionalTitles.size,
+      fungsionalTitles: Array.from(stats.fungsionalTitles).sort(),
+      pelaksana: stats.pelaksana,
+      pelaksanaUnique: stats.pelaksanaTitles.size,
+      pelaksanaTitles: Array.from(stats.pelaksanaTitles).sort(),
+      total: stats.total,
+      totalUnique: stats.totalTitles.size,
+      totalTitles: Array.from(stats.totalTitles).sort()
+    };
+  }, [activePegawaiList]);
+
+  const handleDownloadClusterStats = () => {
+    const wb = XLSX.utils.book_new();
+    
+    // Sheet 1: Summary
+    const summaryRows = [
+      ["REKAPITULASI KLASTER JABATAN ASN"],
+      ["DICETAK PADA:", new Date().toLocaleString('id-ID')],
+      [],
+      ["KLASTER JABATAN", "DESKRIPSI", "PEMANGKU (ORANG)", "NOMENKLATUR (UNIK)", "PERSENTASE"],
+      ["JABATAN PIMPINAN TINGGI", "ESELON I & II", classificationStats.jpt, classificationStats.jptUnique, `${(classificationStats.jpt/classificationStats.total*100).toFixed(1)}%`],
+      ["JABATAN STRUKTURAL", "ESELON III & IV", classificationStats.struktural, classificationStats.strukturalUnique, `${(classificationStats.struktural/classificationStats.total*100).toFixed(1)}%`],
+      ["JABATAN FUNGSIONAL", "TENAGA AHLI/JFT", classificationStats.fungsional, classificationStats.fungsionalUnique, `${(classificationStats.fungsional/classificationStats.total*100).toFixed(1)}%`],
+      ["PELAKSANA", "FUNGSIONAL UMUM/STAF", classificationStats.pelaksana, classificationStats.pelaksanaUnique, `${(classificationStats.pelaksana/classificationStats.total*100).toFixed(1)}%`],
+      [],
+      ["TOTAL KESELURUHAN", "", classificationStats.total, classificationStats.totalUnique, "100%"]
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Ringkasan Klaster");
+
+    // Sheet 2: Unique Nomenclature
+    const nomenclatureRows = [["DAFTAR NOMENKLATUR JABATAN UNIK"], ["KLASTER", "NAMA JABATAN"]];
+    
+    classificationStats.jptTitles.forEach(t => nomenclatureRows.push(["JPT", t]));
+    classificationStats.strukturalTitles.forEach(t => nomenclatureRows.push(["STRUKTURAL", t]));
+    classificationStats.fungsionalTitles.forEach(t => nomenclatureRows.push(["FUNGSIONAL", t]));
+    classificationStats.pelaksanaTitles.forEach(t => nomenclatureRows.push(["PELAKSANA", t]));
+
+    const wsNom = XLSX.utils.aoa_to_sheet(nomenclatureRows);
+    XLSX.utils.book_append_sheet(wb, wsNom, "Daftar Nomenklatur");
+
+    XLSX.writeFile(wb, `Rekap_Klaster_Jabatan_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
 
   const unitDistribution = useMemo(() => {
     return UNIT_KERJA.map(unit => {
@@ -167,17 +293,7 @@ const Dashboard = () => {
       const kelas = getKelasJabatan(p);
       
       // Improved Classification Logic
-      let klas = (p.klasifikasiJabatan || '').trim().toUpperCase();
-      if (!klas || klas === 'LAINNYA') {
-        if (jab.includes('AHLI') || jab.includes('TERAMPIL') || jab.includes('MAHIR') || jab.includes('PENYELIA')) klas = 'FUNGSIONAL';
-        else if (jab.includes('DIREKTUR') || jab.includes('KEPALA') || jab.includes('SEKRETARIS')) {
-            if (jab.includes('BIRO') || jab.includes('DIREKTORAT') || jab.includes('DITJEN')) klas = 'JPT';
-            else if (jab.includes('BAGIAN') || jab.includes('SUBDIREKTORAT')) klas = 'ADMINISTRATOR';
-            else klas = 'PENGAWAS';
-        }
-        else if (jab.includes('PENGADMINISTRASI') || jab.includes('PENGOLAH') || jab.includes('PENYUSUN') || jab.includes('PETUGAS')) klas = 'PELAKSANA';
-        else klas = 'LAINNYA';
-      }
+      const klas = getJabatanClassification(p);
       
       const key = `${jab}|${jen}|${klas}|${unit}|${unitBagian}`;
 
@@ -189,10 +305,31 @@ const Dashboard = () => {
 
     const term = searchJabatan.toUpperCase().trim();
     return Object.values(groups)
-      .filter(item => 
-        item.jabatan.includes(term) || 
-        item.klasifikasi.includes(term) // Sekarang bisa cari berdasarkan klasifikasi
-      )
+      .filter(item => {
+        const j = item.jabatan.toUpperCase();
+        const k = item.klasifikasi.toUpperCase();
+        
+        // Exact category matching for common ambiguous terms
+        if (term === 'FUNGSIONAL' || term === 'PEJABAT FUNGSIONAL') {
+          return k === 'FUNGSIONAL';
+        }
+        
+        if (term === 'STRUKTURAL' || term === 'PEJABAT STRUKTURAL' || term === 'MANAJERIAL') {
+          return k === 'STRUKTURAL';
+        }
+
+        if (term === 'JPT' || term === 'PIMPINAN TINGGI') {
+          return k === 'JPT';
+        }
+        
+        if (term === 'FUNGSIONAL UMUM' || term === 'PELAKSANA') {
+          // If searching for "Fungsional Umum", only show matches in the title OR people classified as Pelaksana but NOT as functional
+          return (j.includes('FUNGSIONAL UMUM') || k === 'PELAKSANA') && k !== 'FUNGSIONAL';
+        }
+
+        // Generic fallback
+        return j.includes(term) || k.includes(term);
+      })
       .sort((a, b) => b.total - a.total);
   }, [activePegawaiList, filterUnit, filterJenisMatrix, searchJabatan]);
 
@@ -411,18 +548,36 @@ const Dashboard = () => {
     
     // Process Data for ALL Units (for the Overall sheet)
     const getGroupedDataInternal = (list: Pegawai[]) => {
-      const groups: Record<string, { total: number, jabatan: string, unitKerja: string, bagian: string, kelasJabatan: string }> = {};
+      const groups: Record<string, { total: number, jabatan: string, unitKerja: string, bagian: string, kelasJabatan: string, klasifikasi: string }> = {};
       list.forEach(p => {
         const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
-        if (term && !jab.includes(term)) return;
+        const klas = getJabatanClassification(p);
+        
+        // Use the same refined logic as UI matrix
+        let isMatch = !term;
+        if (term) {
+           if (term === 'FUNGSIONAL' || term === 'PEJABAT FUNGSIONAL') {
+             isMatch = klas === 'FUNGSIONAL';
+           } else if (term === 'STRUKTURAL' || term === 'PEJABAT STRUKTURAL' || term === 'MANAJERIAL') {
+             isMatch = klas === 'STRUKTURAL';
+           } else if (term === 'JPT' || term === 'PIMPINAN TINGGI') {
+             isMatch = klas === 'JPT';
+           } else if (term === 'FUNGSIONAL UMUM' || term === 'PELAKSANA') {
+             isMatch = (jab.includes('FUNGSIONAL UMUM') || klas === 'PELAKSANA') && klas !== 'FUNGSIONAL';
+           } else {
+             isMatch = jab.includes(term) || klas.includes(term);
+           }
+        }
+
+        if (!isMatch) return;
 
         const unit = normalizeUnitName(p.unitKerja);
         const bagian = (p.bagian || '-').toUpperCase().trim();
         const kelas = getKelasJabatan(p);
-        const key = `${jab}|${unit}|${bagian}|${kelas}`;
+        const key = `${jab}|${unit}|${bagian}|${kelas}|${klas}`;
         
         if (!groups[key]) {
-          groups[key] = { total: 0, jabatan: jab, unitKerja: unit, bagian: bagian, kelasJabatan: kelas };
+          groups[key] = { total: 0, jabatan: jab, unitKerja: unit, bagian: bagian, kelasJabatan: kelas, klasifikasi: klas };
         }
         groups[key].total += 1;
       });
@@ -511,6 +666,161 @@ const Dashboard = () => {
         <StatsCard title="Total CPNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim().includes('CPNS')).length} icon="bi-person-plus" color="bg-cyan-600" loading={loading} />
         <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PPPK')).length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
         <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
+      </div>
+
+      {/* STATISTIK JABATAN (TABLE SUMMARY) */}
+      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-[3rem] border border-gray-100 shadow-sm relative overflow-hidden group">
+         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+            <i className="bi bi-diagram-3 text-7xl md:text-9xl text-blue-600"></i>
+         </div>
+         <div className="mb-6 md:mb-8 relative z-10 flex justify-between items-center">
+            <h4 className="text-[10px] md:text-[12px] font-black text-gray-950 tracking-[0.2em] md:tracking-[0.3em] uppercase flex items-center gap-2">
+               <span className="h-2 w-2 bg-blue-600 rounded-full animate-pulse"></span>
+               Rekapitulasi Klaster Jabatan ASN
+            </h4>
+            <button 
+              onClick={handleDownloadClusterStats}
+              className="bg-gray-950 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-colors flex items-center gap-2 shadow-sm"
+            >
+              <i className="bi bi-file-earmark-excel"></i>
+              Download Rekap
+            </button>
+         </div>
+         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 relative z-10">
+            <div className="bg-blue-50/50 p-4 md:p-6 rounded-2xl border border-blue-100 flex flex-col">
+               <span className="text-[7px] md:text-[8px] font-black text-blue-600 tracking-widest uppercase mb-1">JPT (Pratama)</span>
+               <div className="flex items-baseline justify-between gap-2">
+                  <div className="flex items-baseline gap-2">
+                    <h5 className="text-xl md:text-3xl font-black text-gray-950">{classificationStats.jpt}</h5>
+                    <span className="text-[9px] font-bold text-gray-400">ORANG</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] md:text-[12px] font-black text-blue-600 leading-none">{classificationStats.jptUnique}</p>
+                    <p className="text-[6px] text-gray-400 uppercase font-bold tracking-tighter">JABATAN</p>
+                  </div>
+               </div>
+            </div>
+            <div className="bg-indigo-50/50 p-4 md:p-6 rounded-2xl border border-indigo-100 flex flex-col">
+               <span className="text-[7px] md:text-[8px] font-black text-indigo-600 tracking-widest uppercase mb-1">Struktural (Adm/Pengawas)</span>
+               <div className="flex items-baseline justify-between gap-2">
+                  <div className="flex items-baseline gap-2">
+                    <h5 className="text-xl md:text-3xl font-black text-gray-950">{classificationStats.struktural}</h5>
+                    <span className="text-[9px] font-bold text-gray-400">ORANG</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] md:text-[12px] font-black text-indigo-600 leading-none">{classificationStats.strukturalUnique}</p>
+                    <p className="text-[6px] text-gray-400 uppercase font-bold tracking-tighter">JABATAN</p>
+                  </div>
+               </div>
+            </div>
+            <div className="bg-cyan-50/50 p-4 md:p-6 rounded-2xl border border-cyan-100 flex flex-col">
+               <span className="text-[7px] md:text-[8px] font-black text-cyan-600 tracking-widest uppercase mb-1">Fungsional (JFT)</span>
+               <div className="flex items-baseline justify-between gap-2">
+                  <div className="flex items-baseline gap-2">
+                    <h5 className="text-xl md:text-3xl font-black text-gray-950">{classificationStats.fungsional}</h5>
+                    <span className="text-[9px] font-bold text-gray-400">ORANG</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] md:text-[12px] font-black text-cyan-600 leading-none">{classificationStats.fungsionalUnique}</p>
+                    <p className="text-[6px] text-gray-400 uppercase font-bold tracking-tighter">JABATAN</p>
+                  </div>
+               </div>
+            </div>
+            <div className="bg-rose-50/50 p-4 md:p-6 rounded-2xl border border-rose-100 flex flex-col">
+               <span className="text-[7px] md:text-[8px] font-black text-rose-600 tracking-widest uppercase mb-1">Pelaksana / Fungsional Umum</span>
+               <div className="flex items-baseline justify-between gap-2">
+                  <div className="flex items-baseline gap-2">
+                    <h5 className="text-xl md:text-3xl font-black text-gray-950">{classificationStats.pelaksana}</h5>
+                    <span className="text-[9px] font-bold text-gray-400">ORANG</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] md:text-[12px] font-black text-rose-600 leading-none">{classificationStats.pelaksanaUnique}</p>
+                    <p className="text-[6px] text-gray-400 uppercase font-bold tracking-tighter">JABATAN</p>
+                  </div>
+               </div>
+            </div>
+         </div>
+
+         {/* DETAILED TABLE VIEW */}
+         <div className="mt-8 overflow-x-auto border-t border-gray-100 pt-8 relative z-10">
+            <table className="w-full text-left border-collapse">
+               <thead>
+                  <tr className="text-[7px] md:text-[8px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                     <th className="pb-4 pl-4">Klaster Jabatan</th>
+                     <th className="pb-4 text-center">Deskripsi Lingkup</th>
+                     <th className="pb-4 text-right">Pemangku (Orang)</th>
+                     <th className="pb-4 text-right">Nomenklatur (Unik)</th>
+                     <th className="pb-4 text-right pr-4">Persentase</th>
+                  </tr>
+               </thead>
+               <tbody className="divide-y divide-gray-50">
+                  <tr className="group hover:bg-blue-50/30 transition-colors">
+                     <td className="py-4 pl-4">
+                        <div className="flex items-center gap-3">
+                           <div className="h-6 w-6 rounded-lg bg-blue-600 flex items-center justify-center text-white"><i className="bi bi-person-workspace text-[10px]"></i></div>
+                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase">Jabatan Pimpinan Tinggi (JPT)</span>
+                        </div>
+                     </td>
+                     <td className="py-4 text-center font-bold text-[9px] text-gray-400 uppercase">Eselon I & II / High Level Leadership</td>
+                     <td className="py-4 text-right font-black text-[12px] md:text-[14px] text-gray-950">{classificationStats.jpt}</td>
+                     <td className="py-4 text-right font-black text-[12px] md:text-[14px] text-blue-600">{classificationStats.jptUnique}</td>
+                     <td className="py-4 text-right pr-4 text-[10px] font-bold text-blue-600">
+                        {classificationStats.total > 0 ? ((classificationStats.jpt / classificationStats.total) * 100).toFixed(1) : 0}%
+                     </td>
+                  </tr>
+                  <tr className="group hover:bg-indigo-50/30 transition-colors">
+                     <td className="py-4 pl-4">
+                        <div className="flex items-center gap-3">
+                           <div className="h-6 w-6 rounded-lg bg-indigo-600 flex items-center justify-center text-white"><i className="bi bi-diagram-2 text-[10px]"></i></div>
+                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase">Jabatan Struktural (Manajerial)</span>
+                        </div>
+                     </td>
+                     <td className="py-4 text-center font-bold text-[9px] text-gray-400 uppercase">Administrator & Pengawas / Middle Mgmt</td>
+                     <td className="py-4 text-right font-black text-[12px] md:text-[14px] text-gray-950">{classificationStats.struktural}</td>
+                     <td className="py-4 text-right font-black text-[12px] md:text-[14px] text-indigo-600">{classificationStats.strukturalUnique}</td>
+                     <td className="py-4 text-right pr-4 text-[10px] font-bold text-indigo-600">
+                        {classificationStats.total > 0 ? ((classificationStats.struktural / classificationStats.total) * 100).toFixed(1) : 0}%
+                     </td>
+                  </tr>
+                  <tr className="group hover:bg-cyan-50/30 transition-colors">
+                     <td className="py-4 pl-4">
+                        <div className="flex items-center gap-3">
+                           <div className="h-6 w-6 rounded-lg bg-cyan-600 flex items-center justify-center text-white"><i className="bi bi-gear-wide-connected text-[10px]"></i></div>
+                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase">Jabatan Fungsional (JFT)</span>
+                        </div>
+                     </td>
+                     <td className="py-4 text-center font-bold text-[9px] text-gray-400 uppercase">Tenaga Ahli & Keterampilan Spesifik</td>
+                     <td className="py-4 text-right font-black text-[12px] md:text-[14px] text-gray-950">{classificationStats.fungsional}</td>
+                     <td className="py-4 text-right font-black text-[12px] md:text-[14px] text-cyan-600">{classificationStats.fungsionalUnique}</td>
+                     <td className="py-4 text-right pr-4 text-[10px] font-bold text-cyan-600">
+                        {classificationStats.total > 0 ? ((classificationStats.fungsional / classificationStats.total) * 100).toFixed(1) : 0}%
+                     </td>
+                  </tr>
+                  <tr className="group hover:bg-rose-50/30 transition-colors">
+                     <td className="py-4 pl-4">
+                        <div className="flex items-center gap-3">
+                           <div className="h-6 w-6 rounded-lg bg-rose-600 flex items-center justify-center text-white"><i className="bi bi-briefcase text-[10px]"></i></div>
+                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase">Pelaksana / Fungsional Umum</span>
+                        </div>
+                     </td>
+                     <td className="py-4 text-center font-bold text-[9px] text-gray-400 uppercase">Administrasi & Dukungan Operasional</td>
+                     <td className="py-4 text-right font-black text-[12px] md:text-[14px] text-gray-950">{classificationStats.pelaksana}</td>
+                     <td className="py-4 text-right font-black text-[12px] md:text-[14px] text-rose-600">{classificationStats.pelaksanaUnique}</td>
+                     <td className="py-4 text-right pr-4 text-[10px] font-bold text-rose-600">
+                        {classificationStats.total > 0 ? ((classificationStats.pelaksana / classificationStats.total) * 100).toFixed(1) : 0}%
+                     </td>
+                  </tr>
+               </tbody>
+               <tfoot>
+                  <tr className="bg-gray-50/50">
+                     <td colSpan={2} className="py-4 pl-4 font-black text-[10px] md:text-[11px] text-gray-500 uppercase tracking-widest text-right pr-10">Total Terdata</td>
+                     <td className="py-4 text-right font-black text-[12px] md:text-[14px] text-gray-950">{classificationStats.total}</td>
+                     <td className="py-4 text-right font-black text-[12px] md:text-[14px] text-blue-600 pr-2">{classificationStats.totalUnique}</td>
+                     <td className="py-4 text-right pr-4 text-[10px] font-black text-gray-950">100%</td>
+                  </tr>
+               </tfoot>
+            </table>
+         </div>
       </div>
 
       <div className="bg-white p-4 md:p-10 rounded-2xl md:rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden">
