@@ -210,7 +210,7 @@ const AppContent = () => {
   };
 
   const currentPath = location.pathname;
-  const isMaintenance = isPageInMaintenance(currentPath);
+  const isMaintenance = isPageInMaintenance(currentPath) && !isSuperadmin;
   const isDenied = !hasAccess(currentPath);
 
   const MaintenanceView = () => (

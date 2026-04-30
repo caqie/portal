@@ -740,17 +740,33 @@ const SettingsPage = () => {
                       <div className="h-12 w-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg"><i className="bi bi-tools"></i></div>
                       <h5 className="text-[12px] font-black text-amber-900 uppercase tracking-widest">Mode Pemeliharaan</h5>
                     </div>
-                    <div className="space-y-4">
-                      <label className="flex items-center gap-4 p-4 bg-white rounded-2xl border-2 border-amber-100 cursor-pointer hover:border-amber-300 transition-all">
-                        <input 
-                          type="checkbox" 
-                          className="h-6 w-6 rounded-lg border-amber-300 text-amber-600 focus:ring-amber-500"
-                          checked={systemConfig.maintenance.all}
-                          onChange={e => setSystemConfig({...systemConfig, maintenance: {...systemConfig.maintenance, all: e.target.checked}})}
-                        />
-                        <span className="text-[11px] font-black text-amber-900 uppercase">Tutup Seluruh Sistem</span>
-                      </label>
-                      <p className="text-[8px] text-amber-600 font-bold uppercase ml-2">* Jika aktif, seluruh halaman akan menampilkan pesan pemeliharaan kecuali untuk Superadmin.</p>
+                    <div className="space-y-6">
+                      <div className="flex flex-col gap-4">
+                        <button 
+                          onClick={() => {
+                            setSystemConfig({...systemConfig, maintenance: {...systemConfig.maintenance, all: true}});
+                            // Triggr auto-save if helpful, or just let user click save
+                          }}
+                          className={`flex items-center justify-center gap-3 p-4 rounded-2xl border-2 transition-all font-black uppercase text-[11px] ${systemConfig.maintenance.all ? 'bg-amber-100 border-amber-500 text-amber-700 shadow-inner' : 'bg-white border-gray-100 text-gray-400 hover:border-amber-200'}`}
+                        >
+                          <i className="bi bi-lock-fill text-lg"></i>
+                          Tutup Aplikasi (Maintenance)
+                        </button>
+                        
+                        <button 
+                          onClick={() => {
+                            setSystemConfig({...systemConfig, maintenance: {...systemConfig.maintenance, all: false}});
+                          }}
+                          className={`flex items-center justify-center gap-3 p-4 rounded-2xl border-2 transition-all font-black uppercase text-[11px] ${!systemConfig.maintenance.all ? 'bg-emerald-100 border-emerald-500 text-emerald-700 shadow-inner' : 'bg-white border-gray-100 text-gray-400 hover:border-emerald-200'}`}
+                        >
+                          <i className="bi bi-unlock-fill text-lg"></i>
+                          Buka Aplikasi (Aktif)
+                        </button>
+                      </div>
+                      <p className="text-[8px] text-amber-600 font-bold uppercase ml-2 leading-relaxed">
+                        * MENUTUP APLIKASI AKAN MENAMPILKAN PESAN PEMELIHARAAN BAGI SELURUH USER <br/>
+                        KECUALI SUPERADMIN YANG MASIH TETAP DAPAT MENGAKSES SISTEM.
+                      </p>
                     </div>
                   </div>
 

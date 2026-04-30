@@ -106,16 +106,9 @@ const ProfilePegawaiPage = () => {
           if (diff) enriched.masaKerjaPensiun = `${diff.years} Thn ${diff.months} Bln`;
         }
 
-        // 4. Infer Jenis Jabatan
-        if (!enriched.jenisJabatan || enriched.jenisJabatan === '-') {
-          if (enriched.eselon && enriched.eselon !== '-') {
-            enriched.jenisJabatan = 'STRUKTURAL';
-          } else if (enriched.jabatan?.toUpperCase().includes('AHLI') || enriched.jabatan?.toUpperCase().includes('FUNGSIONAL')) {
-            enriched.jenisJabatan = 'FUNGSIONAL';
-          } else {
-            enriched.jenisJabatan = 'PELAKSANA';
-          }
-        }
+        // 4. Force dynamic classification (Override sheet data for UI consistency)
+        enriched.jenisJabatan = getJabatanClassification(enriched);
+        enriched.klasifikasiJabatan = enriched.jenisJabatan;
 
         // 5. Retirement Info (BUP, Usia Pensiun, Tgl Pensiun)
         if (!enriched.bup || enriched.bup === '-') {
@@ -355,6 +348,64 @@ const ProfilePegawaiPage = () => {
     if (!pegawai) return;
     const list = (pegawai[field] || []).filter((_, i) => i !== idx);
     setPegawai({ ...pegawai, [field]: list });
+  };
+
+  const getJabatanClassification = (p: Pegawai): string => {
+    const es = (p.eselon || '').trim().toUpperCase();
+    const j = (p.jabatan || '').trim().toUpperCase();
+    const kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
+
+    // 1. Primary Source of Truth: Trust Column AN (Jenis Jabatan) from Spreadsheet
+    if (kl.includes('PIMPINAN TINGGI') || kl.includes('JPT')) return 'JPT';
+    if (kl.includes('STRUKTURAL') || kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('MANAJERIAL')) return 'STRUKTURAL';
+    if (kl.includes('FUNGSIONAL TERTENTU') || kl.includes('JFT') || kl === 'FUNGSIONAL') return 'FUNGSIONAL';
+    if (kl.includes('FUNGSIONAL UMUM') || kl.includes('JFU') || kl.includes('PELAKSANA')) return 'PELAKSANA';
+
+    // 2. Secondary: Force JFT markers in name (if says AHLI/MADYA/MUDA/PERTAMA, etc)
+    if (j.includes('AHLI') || j.includes('MADYA') || j.includes('MUDA') || 
+        j.includes('PERTAMA') || j.includes('UTAMA') || j.includes('TERAMPIL') || 
+        j.includes('MAHIR') || j.includes('PENYELIA') || j.includes('PELAKSANA LANJUTAN')) return 'FUNGSIONAL';
+
+    // 3. Fallback: Management Keywords - JPT (Eselon I & II)
+    if (j.includes('DIREKTUR JENDERAL') || j.includes('SEKRETARIS DIREKTORAT JENDERAL') || 
+        j.includes('SEKRETARIS UTAMA') || j.includes('STAF AHLI') || j.includes('INSPEKTUR') || 
+        j.includes('KEPALA BIRO') || j.includes('KEPALA PUSAT') || j.includes('DIREKTUR') || 
+        j.includes('SEKRETARIS DIREKTORAT')) {
+      return 'JPT';
+    }
+
+    // 4. Fallback: Management Keywords - Structural (Eselon III & IV)
+    if (j.includes('KEPALA BAGIAN') || j.includes('KABAG') || 
+        j.includes('KEPALA SUBDIREKTORAT') || j.includes('KASUBDIT') || 
+        j.includes('KEPALA BIDANG') || j.includes('KABID') ||
+        j.includes('KEPALA SEKSI') || j.includes('KASI') || 
+        j.includes('KEPALA SUBBAGIAN') || j.includes('KASUBBAG') || 
+        j.includes('KOORDINATOR') || j.includes('SUBKOORDINATOR') ||
+        j.includes('KEPALA KANTOR') || j.includes('KEPALA SATUAN') ||
+        j.startsWith('KEPALA ') || j.includes(' KEPALA ')) {
+      return 'STRUKTURAL';
+    }
+
+    // 5. Fallback: Pelaksana (JFU) Specific Title Keywords
+    if (j.includes('ANALIS') || j.includes('PENATA KELOLA') || j.includes('PENATA LAYANAN') || 
+        j.includes('PENELAAH') || j.includes('PENGADMINISTRASI') || j.includes('PENGELOLA') || 
+        j.includes('PENGOLAH') || j.includes('PENYUSUN') || j.includes('DOKUMENTALIS') || 
+        j.includes('OPERATOR') || j.includes('FASILITATOR') || j.includes('SEKRETARIS PIMPINAN') ||
+        j.includes('KONSELOR') || j.includes('PENGENDALI KONTEN') || j.includes('PETUGAS') || 
+        j.includes('PRAMU') || j.includes('PENGEMUDI') || j.includes('TEKNISI') || 
+        j.includes('STAF') || j.includes('STAFF')) {
+      return 'PELAKSANA';
+    }
+
+    // 6. Fallback: Eselon
+    if (es && es !== '-') {
+      if (es.startsWith('IV') || es.startsWith('4')) return 'STRUKTURAL';
+      if (es.startsWith('III') || es.startsWith('3')) return 'STRUKTURAL';
+      if (es.startsWith('II') || es.startsWith('2')) return 'JPT';
+      if (es.startsWith('I') || es.startsWith('1')) return 'JPT';
+    }
+
+    return 'PELAKSANA';
   };
 
   if (loading) return (

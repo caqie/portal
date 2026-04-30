@@ -51,9 +51,10 @@ const Dashboard = () => {
 
   // Helper for Kelas Jabatan (Permenkum 38/2025 Placeholder Logic)
   const getKelasJabatan = (p: Pegawai) => {
-      if (p.kelasJabatan) return p.kelasJabatan;
+      if (p.kelasJabatan && p.kelasJabatan !== '-') return p.kelasJabatan;
       const jab = (p.jabatan || '').toUpperCase();
       const eselon = (p.eselon || '').toUpperCase();
+      const gol = (p.golRuang || '').toUpperCase();
       
       // JPT
       if (eselon === 'I.A') return '17';
@@ -67,62 +68,85 @@ const Dashboard = () => {
       if (eselon === 'IV.A') return '9';
       if (eselon === 'IV.B') return '8';
 
-      // Fungsional
+      // Fungsional Ahli
       if (jab.includes('AHLI UTAMA')) return '14';
       if (jab.includes('AHLI MADYA')) return '12';
       if (jab.includes('AHLI MUDA')) return '9';
       if (jab.includes('AHLI PERTAMA')) return '8';
       
+      // Fungsional Keterampilan
       if (jab.includes('PENYELIA')) return '8';
       if (jab.includes('MAHIR')) return '7';
       if (jab.includes('TERAMPIL')) return '6';
       if (jab.includes('PEMULA')) return '5';
 
-      // Pelaksana
-      if (p.golRuang?.startsWith('IV')) return '9';
-      if (p.golRuang?.startsWith('III')) return '7';
-      if (p.golRuang?.startsWith('II')) return '5';
+      // Pelaksana Berdasarkan Golongan (Standard Mapping if not specified)
+      if (gol.startsWith('IV')) return '9';
+      if (gol.startsWith('III/D')) return '8';
+      if (gol.startsWith('III/C')) return '7';
+      if (gol.startsWith('III/B')) return '6';
+      if (gol.startsWith('III/A')) return '5';
+      if (gol.startsWith('II')) return '4';
       
       return '-';
   };
 
   const getJabatanClassification = (p: Pegawai) => {
-    let kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
     const es = (p.eselon || '').trim().toUpperCase();
-    const j = (p.jabatan || '').toUpperCase();
+    const j = (p.jabatan || '').trim().toUpperCase();
+    const kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
 
-    // 1. Check Eselon first (Most reliable for structural)
-    if (es) {
-      if (es.includes('IV') || es.includes('4')) return 'STRUKTURAL';
-      if (es.includes('III') || es.includes('3')) return 'STRUKTURAL';
-      if (es.includes('II') || es.includes('2')) return 'JPT';
-      if (es.includes('I') || es.includes('1')) return 'JPT';
-    }
-
-    // 2. Check for "Struktural" keywords specifically before "Fungsional"
-    if (j.includes('DIREKTUR') || j.includes('KEPALA') || j.includes('SEKRETARIS') || j.includes('KOORDINATOR') || j.includes('KABAG') || j.includes('KASUB')) {
-        // Special case for Sekretaris: Sekretaris Pimpinan/Pribadi is Pelaksana
-        if (j.includes('SEKRETARIS') && (j.includes('PIMPINAN') || j.includes('PRIBADI'))) return 'PELAKSANA';
-        
-        if (j.includes('BIRO') || j.includes('DIREKTORAT') || j.includes('DITJEN') || j.includes('STAF AHLI')) return 'JPT';
-        return 'STRUKTURAL';
-    }
-
-    // 3. Check for "Fungsional Umum" first because it contains "Fungsional"
-    if (kl.includes('FUNGSIONAL UMUM') || kl.includes('STAFF') || kl.includes('STAF') || j.includes('FUNGSIONAL UMUM')) return 'PELAKSANA';
-    if (kl === 'FUNGSIONAL' || kl.includes('PEJABAT FUNGSIONAL') || kl.includes('JFT') || kl.includes('KEJURUAN')) return 'FUNGSIONAL';
-
-    // 4. Keyword matching for remaining ambiguous cases
-    if (j.includes('AHLI') || j.includes('TERAMPIL') || j.includes('MAHIR') || j.includes('PENYELIA')) return 'FUNGSIONAL';
-    if (j.includes('PENGADMINISTRASI') || j.includes('PENGOLAH') || j.includes('PENYUSUN') || j.includes('PETUGAS')) return 'PELAKSANA';
-    
-    // 5. Classification normalization
-    if (kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('STRUKTURAL') || kl.includes('MANAJERIAL')) return 'STRUKTURAL';
-    if (kl.includes('PELAKSANA')) return 'PELAKSANA';
+    // 1. Primary Source of Truth: Trust Column AN (Jenis Jabatan) from Spreadsheet
     if (kl.includes('PIMPINAN TINGGI') || kl.includes('JPT')) return 'JPT';
-    if (kl.includes('FUNGSIONAL')) return 'FUNGSIONAL';
+    if (kl.includes('STRUKTURAL') || kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('MANAJERIAL')) return 'STRUKTURAL';
+    if (kl.includes('FUNGSIONAL TERTENTU') || kl.includes('JFT') || kl === 'FUNGSIONAL') return 'FUNGSIONAL';
+    if (kl.includes('FUNGSIONAL UMUM') || kl.includes('JFU') || kl.includes('PELAKSANA')) return 'PELAKSANA';
 
-    return kl || 'LAINNYA';
+    // 2. Secondary: Force JFT markers in name (if says AHLI/MADYA/MUDA/PERTAMA, etc)
+    if (j.includes('AHLI') || j.includes('MADYA') || j.includes('MUDA') || 
+        j.includes('PERTAMA') || j.includes('UTAMA') || j.includes('TERAMPIL') || 
+        j.includes('MAHIR') || j.includes('PENYELIA') || j.includes('PELAKSANA LANJUTAN')) return 'FUNGSIONAL';
+
+    // 3. Fallback: Management Keywords - JPT (Eselon I & II)
+    if (j.includes('DIREKTUR JENDERAL') || j.includes('SEKRETARIS DIREKTORAT JENDERAL') || 
+        j.includes('SEKRETARIS UTAMA') || j.includes('STAF AHLI') || j.includes('INSPEKTUR') || 
+        j.includes('KEPALA BIRO') || j.includes('KEPALA PUSAT') || j.includes('DIREKTUR') || 
+        j.includes('SEKRETARIS DIREKTORAT')) {
+      return 'JPT';
+    }
+
+    // 4. Fallback: Management Keywords - Structural (Eselon III & IV)
+    if (j.includes('KEPALA BAGIAN') || j.includes('KABAG') || 
+        j.includes('KEPALA SUBDIREKTORAT') || j.includes('KASUBDIT') || 
+        j.includes('KEPALA BIDANG') || j.includes('KABID') ||
+        j.includes('KEPALA SEKSI') || j.includes('KASI') || 
+        j.includes('KEPALA SUBBAGIAN') || j.includes('KASUBBAG') || 
+        j.includes('KOORDINATOR') || j.includes('SUBKOORDINATOR') ||
+        j.includes('KEPALA KANTOR') || j.includes('KEPALA SATUAN') ||
+        j.startsWith('KEPALA ') || j.includes(' KEPALA ')) {
+      return 'STRUKTURAL';
+    }
+
+    // 5. Fallback: Pelaksana (JFU) Specific Title Keywords
+    if (j.includes('ANALIS') || j.includes('PENATA KELOLA') || j.includes('PENATA LAYANAN') || 
+        j.includes('PENELAAH') || j.includes('PENGADMINISTRASI') || j.includes('PENGELOLA') || 
+        j.includes('PENGOLAH') || j.includes('PENYUSUN') || j.includes('DOKUMENTALIS') || 
+        j.includes('OPERATOR') || j.includes('FASILITATOR') || j.includes('SEKRETARIS PIMPINAN') ||
+        j.includes('KONSELOR') || j.includes('PENGENDALI KONTEN') || j.includes('PETUGAS') || 
+        j.includes('PRAMU') || j.includes('PENGEMUDI') || j.includes('TEKNISI') || 
+        j.includes('STAF') || j.includes('STAFF')) {
+      return 'PELAKSANA';
+    }
+
+    // 6. Fallback: Eselon
+    if (es && es !== '-') {
+      if (es.startsWith('IV') || es.startsWith('4')) return 'STRUKTURAL';
+      if (es.startsWith('III') || es.startsWith('3')) return 'STRUKTURAL';
+      if (es.startsWith('II') || es.startsWith('2')) return 'JPT';
+      if (es.startsWith('I') || es.startsWith('1')) return 'JPT';
+    }
+
+    return 'PELAKSANA';
   };
 
   useEffect(() => { 
