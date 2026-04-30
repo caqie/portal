@@ -54,8 +54,8 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
   if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
   
   // Validation for DELETE action
-  if (action === 'DELETE' && !data?.id && !data?.nip) {
-    console.warn(`Sync blocked: Action DELETE for module ${moduleName} requires id or nip. Received:`, data);
+  if (action === 'DELETE' && !data?.id && !data?.nip && !data?.nama) {
+    console.warn(`Sync blocked: Action DELETE for module ${moduleName} requires id, nip, or nama. Received:`, data);
     return false;
   }
 
@@ -101,8 +101,19 @@ export const getServerTime = async (): Promise<Date> => {
   }
 };
 
-export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, storageKey: string, mapper: (cols: string[], headers: string[]) => T | null): Promise<T[]> => {
+export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, storageKey: string, mapper: (cols: string[], headers: string[]) => T | null, bypassCache = false): Promise<T[]> => {
   const { spreadsheetId } = getDbConfig();
+
+  if (!bypassCache) {
+    const cached = localStorage.getItem(storageKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
+  }
+
   const savedMapRaw = localStorage.getItem('portal_gid_map');
   let gid = (DEFAULT_GIDS as any)[gidKey];
   
@@ -119,61 +130,126 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
   try {
     const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`;
     const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+    
     const csvText = await response.text();
     if (csvText.includes('<!DOCTYPE html>')) {
       console.warn(`Access denied or invalid sheet for ${gidKey}. Ensure spreadsheet is published to the web.`);
-      throw new Error("Access denied.");
+      throw new Error(`Akses ke sheet ${gidKey} ditolak. Pastikan Spreadsheet dipublikasikan ke web sebagai CSV.`);
     }
-    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+
+    const lines = csvText.split(/\r?\n/).filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      // Skip lines that are just commas and quotes (empty rows)
+      if (/^[,"'\s]+$/.test(trimmed)) return false;
+      return true;
+    });
+
     if (lines.length < 1) return [];
+    
     const headers = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, '').replace(/""/g, '"').trim().toUpperCase().replace(/[\s_.]/g, ''));
+    
     const result = lines.slice(1).map(line => {
         const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
+        // Only ignore rows that are truly 100% empty (all commas)
+        if (cols.every(c => !c)) return null;
         return mapper(cols, headers);
     }).filter((item): item is T => item !== null);
-    if (result.length > 0) localStorage.setItem(storageKey, JSON.stringify(result));
+
+    if (result.length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify(result));
+    } else {
+      localStorage.removeItem(storageKey);
+    }
     return result;
   } catch (error) {
     console.error(`Error fetching table data for ${gidKey}:`, error);
+    if (bypassCache) throw error; // Re-throw to inform parent caller during sync
     const saved = localStorage.getItem(storageKey);
     return saved ? JSON.parse(saved) : [];
   }
 };
 
-export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
+export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegawai[]> => {
   return fetchTableData<Pegawai>('PEGAWAI', 'portal_pegawai_db', (cols, headers) => {
-    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    const get = (k: string) => { 
+      const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+      return (i !== -1 && cols[i]) ? cols[i] : ''; 
+    };
     const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
+    
+    // Identity fields with fallbacks
+    const nama = (get('NAMA') || get('NAMAPEGAWAI') || get('FULLNAME')).trim();
+    const nipRaw = get('NIP') || get('NIPBARU') || get('ASN_NIP') || get('NIP_ASN');
+    const nip = nipRaw ? nipRaw.replace(/\D/g, '') : '';
+    const sid = get('ID');
+    
+    // VALIDATION: Skip garbage rows
+    if (!nama && !nip && !sid) return null;
+    
+    // Check for "Corrupted" names: suspiciously short (degree codes) or address-like strings
+    const upperNama = nama.toUpperCase();
+    const looksLikeDegree = (nama.length < 8 && (upperNama.startsWith('S.') || upperNama.startsWith('M.') || upperNama.startsWith('A.')));
+    const isAddressOrInfo = (upperNama.includes('PONDOK') || upperNama.includes('JALAN') || upperNama.includes('KEC.') || upperNama.includes('KAB.'));
+    
+    // If it has NO NIP and the name looks suspicious, filter it out
+    if (!nip && (looksLikeDegree || isAddressOrInfo || nama.length < 3)) {
+      console.warn("Filtering suspected corrupted row:", { nama, nip, id: sid });
+      return null;
+    }
+    
     return {
-      id: get('ID'), nip: get('NIP').replace(/\D/g, ''), nama: get('NAMA'), 
-      jabatan: get('JABATAN'), 
-      klasifikasiJabatan: get('KLASIFIKASI') || get('KLASIFIKASIJABATAN'),
-      subBagian: get('SUBBAGIAN'), bagian: get('BAGIAN'),
-      unitKerja: get('UNITKERJA') || 'DJKI', gender: (() => {
-        const g = (get('GENDER') || get('JENISKELAMIN')).toUpperCase();
+      id: sid || `PEG-${nip || Date.now()}-${Math.random().toString(36).substr(2, 5)}`, 
+      nip: nip, 
+      nama: nama || '(NAMA KOSONG)', 
+      statusPerkawinan: get('STATUSPERKAWINAN') || get('STATUSKAWIN') || get('MARITALSTATUS') || get('STATUS_KAWIN'),
+      jabatan: get('JABATAN') || get('NAMAJABATAN') || get('JAB'), 
+      jenisJabatan: get('JENISJABATAN') || get('TIPEJABATAN') || get('KATEGORIJABATAN'),
+      klasifikasiJabatan: get('KLASIFIKASI') || get('KLASIFIKASIJABATAN') || get('KATEGORI'),
+      subBagian: get('SUBBAGIAN') || get('SUB_BAGIAN'), 
+      bagian: get('BAGIAN'),
+      unitKerja: get('UNITKERJA') || get('UNIT_KERJA') || 'DJKI', 
+      gender: (() => {
+        const g = (get('GENDER') || get('JENISKELAMIN') || get('JK') || '').toUpperCase();
         if (g === 'P' || g.startsWith('PEREMPUAN') || g === 'WANITA') return 'P';
         return 'L';
       })() as 'L' | 'P',
-      golRuang: get('GOLRUANG'), jenisPegawai: get('JENISPEGAWAI'), status: get('STATUS') || 'Aktif',
-      pangkat: get('PANGKAT'), foto: get('FOTO') || get('FOTOURL'),
-      tmtPangkat: get('TMTPANGKAT'), tmtJabatan: get('TMTJABATAN'), tmtCpns: get('TMTSTATUS') || get('TMTCPNS'),
-      pendidikan: get('PENDIDIKAN'), jurusan: get('JURUSAN'), nik: get('NIK'),
-      masaKerja: get('MASAKERJA'), tempatLahir: get('TEMPATLAHIR'), tanggalLahir: get('TANGGALLAHIR'),
-      alamat: get('ALAMAT'), eselon: get('ESELON'), agama: get('AGAMA'),
-      noHp: get('NOHP'), email: get('EMAIL'), npwp: get('NPWP'), noBpjs: get('NOBPJS'), noKarisKarsu: get('NOKARISKARSU'),
-      noTapera: get('NOTAPERA'), noKarpeg: get('NOKARPEG'), noRekeningGaji: get('NOREKENINGGAJI') || get('NOMORREKENINGGAJI'),
-      namaBank: get('NAMABANK'),
-      usia: get('USIA') || cols[23] || '',
-      tglPensiun: get('TGLPENSIUN') || get('TANGGALPENSIUN') || cols[24] || '',
-      tmtPensiun: get('TMTPENSIUN') || cols[27] || '',
-      tmtPensiunDisplay: get('TMTPENSIUNDISPLAY') || cols[25] || '',
-      bup: get('BUP') || cols[26] || '',
-      sisaMasaKerja: get('SISAMASAKERJA') || cols[28] || '',
-      keteranganPensiun: get('KETERANGANPENSIUN') || cols[29] || '',
-      statusPerkawinan: get('STATUSPERKAWINAN') || get('STATUSKAWIN') || get('MARITALSTATUS') || get('STATUS'),
-      jenisJabatan: get('JENISJABATAN') || get('TIPEJABATAN') || get('KATEGORIJABATAN'),
-      usiaPensiun: get('USIAPENSIUN') || get('BUP'),
-      masaKerjaPensiun: get('MKPENSIUN') || get('MASAKERJAPENSIUN') || get('MK_TOTAL'),
+      golRuang: get('GOLRUANG') || get('GOLONGAN') || get('PANGKATGOL'), 
+      jenisPegawai: get('JENISPEGAWAI') || get('KATEGORIPEG') || get('TYPE'), 
+      status: get('STATUS') || get('STATUSPEGAWAI') || 'Aktif',
+      pangkat: get('PANGKAT'), 
+      foto: get('FOTO') || get('FOTOURL') || get('PHOTO'),
+      tmtPangkat: get('TMTPANGKAT') || get('TMT_PANGKAT'), 
+      tmtJabatan: get('TMTJABATAN') || get('TMT_JABATAN'), 
+      tmtCpns: get('TMTSTATUS') || get('TMTCPNS') || get('TMT_ASN'),
+      pendidikan: get('PENDIDIKAN') || get('PEND'), 
+      jurusan: get('JURUSAN'), 
+      nik: (get('NIK') || get('NO_NIK')).replace(/\D/g, ''),
+      masaKerja: get('MASAKERJA') || get('MK_TOTAL'), 
+      tempatLahir: get('TEMPATLAHIR') || get('TMP_LAHIR'), 
+      tanggalLahir: get('TANGGALLAHIR') || get('TGL_LAHIR'),
+      alamat: get('ALAMAT'), 
+      eselon: get('ESELON'), 
+      agama: get('AGAMA'),
+      noHp: get('NOHP') || get('TELEPON') || get('WA'), 
+      email: get('EMAIL'), 
+      npwp: get('NPWP'), 
+      noBpjs: get('NOBPJS') || get('BPJS'), 
+      noKarisKarsu: get('NOKARISKARSU'),
+      noTAPERA: get('NOTAPERA'), 
+      noKarpeg: get('NOKARPEG') || get('KARTU_PEG'), 
+      noRekeningGaji: get('NOREKENINGGAJI') || get('NOMORREKENINGGAJI') || get('NO_REK'),
+      namaBank: get('NAMABANK') || get('BANK'),
+      usia: get('USIA'),
+      tglPensiun: get('TGLPENSIUN') || get('TANGGALPENSIUN'),
+      tmtPensiun: get('TMTPENSIUN'),
+      tmtPensiunDisplay: get('TMTPENSIUNDISPLAY'),
+      bup: get('BUP'),
+      sisaMasaKerja: get('SISAMASAKERJA'),
+      keteranganPensiun: get('KETERANGANPENSIUN'),
+      usiaPensiun: get('USIAPENSIUN'),
+      masaKerjaPensiun: get('MKPENSIUN') || get('MASAKERJAPENSIUN'),
       masaKerjaGolongan: get('MKGOLONGAN') || get('MASAKERJAGOLONGAN') || get('MK_GOL'),
       riwayatPendidikan: getJson('RIWAYATPENDIDIKAN'),
       riwayatJabatan: getJson('RIWAYATJABATAN'),
@@ -181,7 +257,7 @@ export const fetchPegawaiFromSheets = async (): Promise<Pegawai[]> => {
       riwayatPelatihan: getJson('RIWAYATPELATIHAN'),
       keluarga: getJson('KELUARGA')
     } as Pegawai;
-  });
+  }, bypassCache);
 };
 
 export const fetchSatyaLencanaFromSheets = () => fetchTableData<SatyaLencanaRecord>('SATYA_LENCANA', 'satya_lencana_db', (cols, headers) => {
@@ -725,6 +801,7 @@ export const savePegawai = async (pegawai: Partial<Pegawai>): Promise<boolean> =
   // Filter out fields that are typically calculated by ArrayFormula in the spreadsheet
   // to prevent overwriting formulas with static values.
   const calculatedFields = [
+    'pangkat',
     'masaKerja', 
     'masaKerjaGolongan', 'masaKerjaPensiun', 'usia', 'tglPensiun', 
     'tmtPensiun', 'tmtPensiunDisplay', 'usiaPensiun', 'bup', 

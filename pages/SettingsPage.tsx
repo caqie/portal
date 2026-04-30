@@ -2,21 +2,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai, SystemConfig, PageAccess } from '../types';
 import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig } from '../spreadsheetService';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../AuthContext';
-import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO, APP_ROUTES } from '../constants';
+import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO, APP_ROUTES, UNIT_KERJA, PANGKAT_MAP } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 
 const SettingsPage = () => {
-  const { isSuperadmin, logActivity, user: currentUser } = useAuth();
+  const { isSuperadmin, logActivity, user: currentUser, canEdit } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [syncingGid, setSyncingGid] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   
   const appLogoInputRef = useRef<HTMLInputElement>(null);
   const templateLogoInputRef = useRef<HTMLInputElement>(null);
+  const importExcelInputRef = useRef<HTMLInputElement>(null);
+  const bulkPhotoInputRef = useRef<HTMLInputElement>(null);
   
   const [systemName, setSystemName] = useState(localStorage.getItem('portal_system_name') || 'Portal SDM');
   const [runningTextValue, setRunningTextValue] = useState(localStorage.getItem('portal_running_text') || 'Selamat Datang di Portal SDM DJKI.');
@@ -31,6 +35,12 @@ const SettingsPage = () => {
   const [accessSearch, setAccessSearch] = useState('');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userFormData, setUserFormData] = useState<Partial<AdminUser>>({ role: 'Viewer' });
+
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [duplicateNips, setDuplicateNips] = useState<string[]>([]);
+  const [invalidItems, setInvalidItems] = useState<{id: string, nip: string, nama: string}[]>([]);
+  const [cleanupProgress, setCleanupProgress] = useState({ current: 0, total: 0, active: false });
+  const [bulkPhotoProgress, setBulkPhotoProgress] = useState({ current: 0, total: 0, active: false });
 
   const [dbConfig, setDbConfig] = useState({
     spreadsheetId: localStorage.getItem('db_spreadsheet_id') || '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4',
@@ -52,6 +62,11 @@ const SettingsPage = () => {
       if (activeTab === 'access') {
         const config = await fetchSystemConfig();
         setSystemConfig(config);
+      }
+      if (activeTab === 'management') {
+         const p = await fetchPegawaiFromSheets(true);
+         setPegawaiList(p);
+         findDuplicatesAndInvalids(p);
       }
     } catch (e) { console.error("Gagal memuat data pengaturan:", e); }
     setLoading(false);
@@ -180,6 +195,222 @@ const SettingsPage = () => {
     setSyncingGid(false);
   };
 
+  const downloadExcelTemplate = () => {
+    const headers = [
+      'NIP', 'NAMA', 'JABATAN', 'UNIT KERJA', 'GOL RUANG', 'JENIS PEGAWAI', 'STATUS', 
+      'TEMPAT LAHIR', 'TANGGAL LAHIR', 'GENDER (L/P)', 'AGAMA', 'ALAMAT', 'EMAIL', 
+      'NO HP', 'PENDIDIKAN', 'JURUSAN', 'NIK', 'NPWP', 'NO BPJS', 'NO REKENING GAJI', 'NAMA BANK'
+    ];
+    const sampleData = [
+      {
+        'NIP': '198001012010011001',
+        'NAMA': 'NAMA PEGAWAI CONTOH',
+        'JABATAN': 'PRANATA KOMPUTER AHLI PERTAMA',
+        'UNIT KERJA': 'DIREKTORAT TEKNOLOGI INFORMASI',
+        'GOL RUANG': 'III/a',
+        'JENIS PEGAWAI': 'PNS',
+        'STATUS': 'AKTIF',
+        'TEMPAT LAHIR': 'JAKARTA',
+        'TANGGAL LAHIR': '1980-01-01',
+        'GENDER (L/P)': 'L',
+        'AGAMA': 'ISLAM',
+        'ALAMAT': 'JL. HR RASUNA SAID KAV 6-7, JAKARTA SELATAN',
+        'EMAIL': 'pegawai@kemenkumham.go.id',
+        'NO HP': '081234567890',
+        'PENDIDIKAN': 'S-1',
+        'JURUSAN': 'TEKNIK INFORMATIKA',
+        'NIK': '3171010101800001',
+        'NPWP': '01.234.567.8-012.000',
+        'NO BPJS': '000123456789',
+        'NO REKENING GAJI': '1234567890',
+        'NAMA BANK': 'BANK SUMUT'
+      }
+    ];
+    
+    const ws = XLSX.utils.json_to_sheet(sampleData, { header: headers });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Import_Pegawai");
+    XLSX.writeFile(wb, "Template_Import_Pegawai.xlsx");
+  };
+
+  const findDuplicatesAndInvalids = (list: Pegawai[]) => {
+    const counts = new Map<string, number>();
+    const invItems: {id: string, nip: string, nama: string}[] = [];
+    list.forEach((p, idx) => {
+      const nip = (p.nip || '').replace(/\D/g, '');
+      const nama = (p.nama || '').trim();
+      const isActuallyEmpty = (!nama || nama === '(NAMA KOSONG)') && !nip;
+      const upperNama = nama.toUpperCase();
+      const isShort = nama.length < 8;
+      const degreeTitles = ['S.T', 'S.H', 'S.E', 'M.H', 'M.T', 'S.SI', 'A.MD', 'DRS', 'DRA', 'PROF', 'DR.'];
+      const isDegreeInitials = isShort && degreeTitles.some(d => upperNama.startsWith(d));
+      const isAddress = upperNama.includes('PONDOK') || upperNama.includes('JALAN') || upperNama.includes('KEC.') || upperNama.includes('KAB.');
+      const isSuspectedShift = isDegreeInitials && nama.length < 6;
+      const badData = (!nip && (nama.length < 3 || isActuallyEmpty || isDegreeInitials || isAddress)) || (nip.length > 0 && nip.length < 8) || isSuspectedShift;
+      if (isActuallyEmpty || badData) invItems.push({ id: p.id, nip: p.nip || '-', nama: p.nama || '(Nama Kosong)' });
+      if (nip && nip.length >= 8) counts.set(nip, (counts.get(nip) || 0) + 1);
+    });
+    const dups = Array.from(counts.entries()).filter(([_, count]) => count > 1).map(([nip]) => nip);
+    setDuplicateNips(dups);
+    setInvalidItems(invItems);
+  };
+
+  const handleCleanupData = async () => {
+    const totalToClean = duplicateNips.length + invalidItems.length;
+    if (totalToClean === 0) { alert("Tidak ada data duplikat atau bermasalah yang ditemukan."); return; }
+    if (!confirm(`Ditemukan ${duplicateNips.length} NIP duplikat dan ${invalidItems.length} data tidak valid. Benahi data secara otomatis?`)) return;
+    setSyncing(true);
+    setCleanupProgress({ current: 0, total: totalToClean, active: true });
+    let removed = 0;
+    try {
+      const currentListRaw = await fetchPegawaiFromSheets(true);
+      const currentList = currentListRaw.map(p => ({ ...p, cleanNip: (p.nip || '').replace(/\D/g, '') }));
+      const processedIds = new Set<string>();
+      for (let i = 0; i < invalidItems.length; i++) {
+        const item = invalidItems[i];
+        setCleanupProgress(prev => ({ ...prev, current: i + 1 }));
+        if (item.id || item.nip) {
+          const ok = await syncTableRemote('PEGAWAI', 'DELETE', { id: item.id, nip: item.nip, nama: item.nama });
+          if (ok) { if(item.id) processedIds.add(item.id); removed++; }
+        }
+      }
+      for (let j = 0; j < duplicateNips.length; j++) {
+        const dNip = duplicateNips[j];
+        setCleanupProgress(prev => ({ ...prev, current: invalidItems.length + j + 1 }));
+        const matches = currentList.filter(p => p.cleanNip === dNip);
+        if (matches.length > 1) {
+          for (let i = 1; i < matches.length; i++) {
+            const m = matches[i];
+            if (!processedIds.has(m.id)) {
+              const ok = await syncTableRemote('PEGAWAI', 'DELETE', { id: m.id, nip: m.nip });
+              if (ok) { processedIds.add(m.id); removed++; }
+            }
+          }
+        }
+      }
+      if (removed > 0) {
+        setSuccessMsg(`Berhasil membersihkan ${removed} data bermasalah.`);
+        setShowSuccess(true);
+        loadSettingsData();
+      }
+    } catch (e) { console.error(e); }
+    finally { setSyncing(false); setCleanupProgress({ current: 0, total: 0, active: false }); }
+  };
+
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        setSyncing(true);
+        setImportProgress({ current: 0, total: 0 });
+        const currentPegawai = await fetchPegawaiFromSheets();
+        const existingPegawaiMap = new Map<string, string>();
+        currentPegawai.forEach(p => {
+          const cleanNip = (p.nip || '').replace(/\D/g, '');
+          if (cleanNip) existingPegawaiMap.set(cleanNip, p.id);
+        });
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+        const validData = data.filter(row => {
+          const nipVal = row.NIP || row.nip || row['NIP Baru'];
+          return nipVal && String(nipVal).trim() !== '';
+        });
+        if (validData.length === 0) { alert("Tidak ditemukan data NIP valid."); setSyncing(false); return; }
+        setImportProgress({ current: 0, total: validData.length });
+        let successCount = 0;
+        for (let i = 0; i < validData.length; i++) {
+          const row = validData[i];
+          const payload: Partial<Pegawai> = {};
+          Object.keys(row).forEach(key => {
+            const normalizedKey = key.toLowerCase().replace(/[\s_.]/g, '');
+            let val = row[key];
+            if (val instanceof Date) val = val.toISOString().split('T')[0];
+            if (normalizedKey === 'nip' || normalizedKey === 'nipbaru') payload.nip = String(val).replace(/\D/g, '');
+            else if (normalizedKey === 'nama' || normalizedKey === 'namapegawai') payload.nama = String(val).trim();
+            else if (normalizedKey === 'jabatan') payload.jabatan = String(val).trim();
+            else if (normalizedKey === 'unitkerja') payload.unitKerja = String(val).trim();
+            else if (normalizedKey === 'golruang' || normalizedKey === 'golongan') payload.golRuang = String(val).trim();
+            else if (normalizedKey === 'jenispegawai') payload.jenisPegawai = String(val).trim();
+            else if (normalizedKey === 'status') payload.status = String(val).trim();
+          });
+          if (payload.nip) {
+            const cleanNip = payload.nip.replace(/\D/g, '');
+            const existingId = existingPegawaiMap.get(cleanNip);
+            payload.id = existingId || `PEG-${cleanNip}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            const ok = await syncTableRemote('PEGAWAI', 'SAVE', payload);
+            if (ok) successCount++;
+          }
+          setImportProgress(prev => ({ ...prev, current: i + 1 }));
+        }
+        setSuccessMsg(`Berhasil memproses ${validData.length} baris. ${successCount} data disimpan.`);
+        setShowSuccess(true);
+        loadSettingsData();
+      } catch (err) { alert("Gagal membaca Excel."); }
+      finally { setSyncing(false); setImportProgress({ current: 0, total: 0 }); if (importExcelInputRef.current) importExcelInputRef.current.value = ''; }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleBulkPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const fileList = Array.from(files);
+    setBulkPhotoProgress({ current: 0, total: fileList.length, active: true });
+    setSyncing(true);
+    let successCount = 0;
+    for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        setBulkPhotoProgress(prev => ({ ...prev, current: i + 1 }));
+        const nipFromFileName = file.name.split('.')[0].replace(/\D/g, '');
+        if (nipFromFileName.length < 8) continue;
+        try {
+            const pList = await fetchPegawaiFromSheets();
+            const pegawai = pList.find(p => (p.nip || '').replace(/\D/g, '') === nipFromFileName);
+            if (!pegawai) continue;
+            const base64 = await new Promise<string>(r => { 
+                const rd = new FileReader(); 
+                rd.onloadend = () => r(rd.result as string); 
+                rd.readAsDataURL(file); 
+            });
+            const res = await uploadFileToDrive(`FOTO_BULK_${nipFromFileName}`, file.type, base64);
+            if (res.success && res.fileUrl) {
+                const ok = await syncTableRemote('PEGAWAI', 'SAVE', { ...pegawai, foto: res.fileUrl });
+                if (ok) successCount++;
+            }
+        } catch (err) {}
+    }
+    setSyncing(false);
+    setBulkPhotoProgress({ current: 0, total: 0, active: false });
+    setSuccessMsg(`Bulk Upload Selesai: ${successCount} Foto Berhasil Diunggah.`);
+    setShowSuccess(true);
+    loadSettingsData();
+    if (bulkPhotoInputRef.current) bulkPhotoInputRef.current.value = '';
+  };
+
+  const handleResetAllData = async () => {
+    if (!confirm("HAPUS SELURUH DATA PEGAWAI?")) return;
+    if (!confirm("KONFIRMASI TERAKHIR: Hapus permanen?")) return;
+    setSyncing(true);
+    try {
+      const freshList = await fetchPegawaiFromSheets(true);
+      setCleanupProgress({ current: 0, total: freshList.length, active: true });
+      let successCount = 0;
+      for (let i = 0; i < freshList.length; i++) {
+        setCleanupProgress(prev => ({ ...prev, current: i + 1 }));
+        const ok = await syncTableRemote('PEGAWAI', 'DELETE', { id: freshList[i].id, nip: freshList[i].nip, nama: freshList[i].nama });
+        if (ok) successCount++;
+      }
+      alert(`Berhasil menghapus ${successCount} data.`);
+      logActivity('DELETE', 'Database', 'Reset total data pegawai');
+      loadSettingsData();
+    } catch (e) { alert("Gagal reset."); }
+    finally { setSyncing(false); setCleanupProgress({ current: 0, total: 0, active: false }); }
+  };
+
   const handleUserAction = async (action: 'SAVE' | 'DELETE', userData?: AdminUser) => {
     setLoading(true);
     const targetUser = userData || (userFormData as AdminUser);
@@ -236,8 +467,9 @@ const SettingsPage = () => {
             { id: 'database', label: 'Integrasi Cloud', icon: 'bi-database-fill-gear' }, 
             { id: 'absensi', label: 'Pengaturan Absensi', icon: 'bi-clock-history' },
             { id: 'access', label: 'Manajemen Akses', icon: 'bi-shield-lock-fill' },
-            { id: 'users', label: 'Manajemen User', icon: 'bi-people-fill' }
-          ].map(tab => (
+            { id: 'users', label: 'Manajemen User', icon: 'bi-people-fill' },
+            { id: 'management', label: 'Pengelolaan Data', icon: 'bi-database-fill-exclamation' }
+          ].filter(tab => isSuperadmin || tab.id === 'general').map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 lg:flex-none flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-[#111827] text-white shadow-xl' : 'text-gray-400 hover:text-gray-900 hover:bg-white'}`}>
               <i className={`bi ${tab.icon} text-lg`}></i>
               <span className="hidden md:inline">{tab.label}</span>
@@ -657,6 +889,84 @@ const SettingsPage = () => {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* TAB MANAGEMENT: IMPORT & DATA CLEANUP */}
+          {activeTab === 'management' && isSuperadmin && (
+            <div className="space-y-12 animate-fadeIn max-w-5xl">
+               <div>
+                  <h4 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Pengelolaan Data Master</h4>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Import masal, Pembersihan Duplikat, dan Reset Database</p>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* IMPORT EXCEL */}
+                  <div className="p-8 bg-blue-50 border border-blue-100 rounded-[2.5rem] space-y-6">
+                     <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg"><i className="bi bi-file-earmark-spreadsheet-fill"></i></div>
+                        <h5 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Import Data Excel</h5>
+                     </div>
+                     <p className="text-[10px] text-gray-500 font-bold leading-relaxed uppercase">Unggah file Excel (.xlsx) dengan kolom NIP, NAMA, JABATAN, dsb. Data akan disinkronkan langsung ke cloud.</p>
+                     <div className="flex flex-col gap-2">
+                        <button onClick={downloadExcelTemplate} className="w-full py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-2xl font-black text-[10px] uppercase shadow-sm active:scale-95 transition-all flex items-center justify-center gap-3">
+                           <i className="bi bi-file-earmark-arrow-down-fill text-lg"></i> Download Contoh Excel
+                        </button>
+                        <input type="file" ref={importExcelInputRef} className="hidden" accept=".xlsx,.xls" onChange={handleImportExcel} />
+                        <button onClick={() => importExcelInputRef.current?.click()} disabled={syncing} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3">
+                           {importProgress.total > 0 ? (
+                              <><div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> {importProgress.current} / {importProgress.total}</>
+                           ) : <><i className="bi bi-cloud-arrow-up-fill"></i> Pilih & Import Excel</>}
+                        </button>
+                     </div>
+                  </div>
+
+                  {/* BULK PHOTO */}
+                  <div className="p-8 bg-rose-50 border border-rose-100 rounded-[2.5rem] space-y-6">
+                     <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-rose-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg"><i className="bi bi-images"></i></div>
+                        <h5 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Bulk Foto Profil</h5>
+                     </div>
+                     <p className="text-[10px] text-gray-500 font-bold leading-relaxed uppercase">Unggah banyak foto sekaligus. Nama file harus match dengan NIP Pegawai (Contoh: 19800101....jpg).</p>
+                     <input type="file" ref={bulkPhotoInputRef} className="hidden" accept="image/*" multiple onChange={handleBulkPhotoUpload} />
+                     <button onClick={() => bulkPhotoInputRef.current?.click()} disabled={syncing} className="w-full py-4 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3">
+                        {bulkPhotoProgress.active ? (
+                            <><div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> {bulkPhotoProgress.current} / {bulkPhotoProgress.total}</>
+                        ) : <><i className="bi bi-camera-fill"></i> Upload Foto Masal</>}
+                     </button>
+                  </div>
+
+                  {/* CLEANUP DATA */}
+                  <div className="p-8 bg-amber-50 border border-amber-100 rounded-[2.5rem] space-y-4">
+                     <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg"><i className="bi bi-magic"></i></div>
+                        <div>
+                           <h5 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Pembersihan Data</h5>
+                           <div className="flex gap-2 mt-1">
+                              <span className="text-[8px] font-black text-rose-600 uppercase tracking-tighter bg-rose-100 px-2 py-0.5 rounded-full">{duplicateNips.length} Duplikat</span>
+                              <span className="text-[8px] font-black text-amber-600 uppercase tracking-tighter bg-amber-100 px-2 py-0.5 rounded-full">{invalidItems.length} Corrupted</span>
+                           </div>
+                        </div>
+                     </div>
+                     <button onClick={handleCleanupData} disabled={syncing || (duplicateNips.length === 0 && invalidItems.length === 0)} className="w-full py-4 bg-white border-2 border-amber-500 text-amber-600 rounded-2xl font-black text-[10px] uppercase active:scale-95 transition-all flex items-center justify-center gap-3">
+                        {cleanupProgress.active ? (
+                           <><div className="h-4 w-4 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin"></div> Pembersihan...</>
+                        ) : <><i className="bi bi-stars"></i> Bersihkan Database</>}
+                     </button>
+                  </div>
+
+                  {/* RESET DATABASE */}
+                  <div className="p-8 bg-gray-900 border border-black rounded-[2.5rem] space-y-4">
+                     <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-rose-700 text-white rounded-2xl flex items-center justify-center text-2xl shadow-lg"><i className="bi bi-trash-fill"></i></div>
+                        <h5 className="text-[12px] font-black text-white uppercase tracking-widest">Reset Total Database</h5>
+                     </div>
+                     <p className="text-[9px] text-gray-400 font-bold uppercase">Hapus seluruh data pegawai secara permanen dari server!</p>
+                     <button onClick={handleResetAllData} disabled={syncing} className="w-full py-4 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-rose-700 active:scale-95 transition-all">
+                        Reset Total Pegawai
+                     </button>
+                  </div>
+               </div>
             </div>
           )}
         </div>

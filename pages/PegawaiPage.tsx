@@ -27,6 +27,8 @@ const PegawaiPage = () => {
   const [filterUnit, setFilterUnit] = useState('Semua Unit');
   const [filterJenis, setFilterJenis] = useState('Semua Jenis');
   const [filterStatus, setFilterStatus] = useState('Semua Status');
+  const [minGolongan, setMinGolongan] = useState('Semua');
+  const [maxGolongan, setMaxGolongan] = useState('Semua');
   const [minAge, setMinAge] = useState<string>('');
   const [maxAge, setMaxAge] = useState<string>('');
   
@@ -42,8 +44,53 @@ const PegawaiPage = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [pegawaiToDelete, setPegawaiToDelete] = useState<Pegawai | null>(null);
-  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
-  const [bulkPhotoProgress, setBulkPhotoProgress] = useState({ current: 0, total: 0, active: false });
+  
+  const [duplicateNips, setDuplicateNips] = useState<string[]>([]);
+  const [invalidItems, setInvalidItems] = useState<{id: string, nip: string, nama: string}[]>([]);
+
+  const findDuplicatesAndInvalids = (list: Pegawai[]) => {
+    const counts = new Map<string, number>();
+    const invItems: {id: string, nip: string, nama: string}[] = [];
+    
+    list.forEach((p, idx) => {
+      const nip = (p.nip || '').replace(/\D/g, '');
+      const nama = (p.nama || '').trim();
+      
+      // Detect invalid or corrupted data more strictly
+      const isActuallyEmpty = (!nama || nama === '(NAMA KOSONG)') && !nip;
+      
+      const upperNama = nama.toUpperCase();
+      const isShort = nama.length < 8;
+      // Many of these are degree names that shouldn't be in the NAMA column
+      const degreeTitles = ['S.T', 'S.H', 'S.E', 'M.H', 'M.T', 'S.SI', 'A.MD', 'DRS', 'DRA', 'PROF', 'DR.'];
+      const isDegreeInitials = isShort && degreeTitles.some(d => upperNama.startsWith(d));
+      const isAddress = upperNama.includes('PONDOK') || upperNama.includes('JALAN') || upperNama.includes('KEC.') || upperNama.includes('KAB.');
+      
+      // If the name is basically just a degree code but there is a NIP, it might be a shifted row.
+      // We flag it if the name is unusually short.
+      const isSuspectedShift = isDegreeInitials && nama.length < 6;
+      
+      const badData = (!nip && (nama.length < 3 || isActuallyEmpty || isDegreeInitials || isAddress)) || 
+                      (nip.length > 0 && nip.length < 8) ||
+                      isSuspectedShift;
+      
+      if (isActuallyEmpty || badData) {
+        console.warn(`Row ${idx+1} flagged as invalid:`, { nama, nip, id: p.id });
+        invItems.push({ id: p.id, nip: p.nip || '-', nama: p.nama || '(Nama Kosong)' });
+      }
+      
+      if (nip && nip.length >= 8) { // Only count valid-looking NIPs for duplicates
+        counts.set(nip, (counts.get(nip) || 0) + 1);
+      }
+    });
+    
+    const dups = Array.from(counts.entries())
+      .filter(([_, count]) => count > 1)
+      .map(([nip]) => nip);
+      
+    setDuplicateNips(dups);
+    setInvalidItems(invItems);
+  };
   
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [tempPhotoFile, setTempPhotoFile] = useState<File | null>(null);
@@ -52,10 +99,11 @@ const PegawaiPage = () => {
   const drhRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dossierFileInputRef = useRef<HTMLInputElement>(null);
-  const importExcelInputRef = useRef<HTMLInputElement>(null);
-  const bulkPhotoInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { 
+    // Load fresh data on mount to ensure synchronization
+    loadData(true); 
+  }, []);
 
   const getJabatanClassification = (p: Pegawai): string => {
     let kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
@@ -96,10 +144,20 @@ const PegawaiPage = () => {
     return kl || 'LAINNYA';
   };
 
-  const loadData = async () => {
+  const loadData = async (bypassCache = false) => {
     try {
       setLoading(true);
-      const [pData, dData] = await Promise.all([fetchPegawaiFromSheets(), fetchDossiersFromSheets()]);
+      // HARD RESET indicators when syncing
+      if (bypassCache) {
+        setDuplicateNips([]);
+        setInvalidItems([]);
+        setPegawaiList([]);
+      }
+      
+      const [pData, dData] = await Promise.all([
+        fetchPegawaiFromSheets(bypassCache), 
+        fetchDossiersFromSheets()
+      ]);
       
       const enrichedData = pData.map(p => {
         const enriched = { ...p };
@@ -165,7 +223,20 @@ const PegawaiPage = () => {
 
       setPegawaiList(enrichedData);
       setDossierList(dData);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+      findDuplicatesAndInvalids(enrichedData);
+
+      if (bypassCache && pData.length > 0) {
+        setSuccessMsg("Data berhasil disinkronkan dengan Spreadsheet.");
+        setShowSuccess(true);
+      }
+    } catch (e) { 
+      console.error("Data loading error:", e); 
+      if (bypassCache) {
+        alert("Gagal sinkronisasi: " + (e instanceof Error ? e.message : "Terjadi kesalahan koneksi. Pastikan Spreadsheet dipublikasikan ke Web (CSV)."));
+      }
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const formatDateForInput = (dateStr: string | undefined): string => {
@@ -201,12 +272,39 @@ const PegawaiPage = () => {
     const min = minAge ? parseInt(minAge) : 0;
     const max = maxAge ? parseInt(maxAge) : 200;
 
-    return pegawaiList.filter(p => {
+    return (pegawaiList || []).filter(p => {
+      // NOTE: We no longer hide ghost records so the user can see/fix them
+      // if (!(p.nama || '').trim() || !(p.nip || '').trim()) return false;
+
       const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
       const match = searchStr.includes(term);
       const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
       const jenisMatch = filterJenis === 'Semua Jenis' || (p.jenisPegawai || '').toUpperCase() === filterJenis.toUpperCase();
       const statusMatch = filterStatus === 'Semua Status' || (p.status || 'Aktif') === filterStatus;
+      
+      // Golongan range match
+      let golonganMatch = true;
+      if (minGolongan !== 'Semua' || maxGolongan !== 'Semua') {
+        const sortedGols = Object.keys(PANGKAT_MAP).sort((a, b) => {
+          // Priority: I < II < III < IV
+          const rankA = a.split('/')[0];
+          const rankB = b.split('/')[0];
+          const romValues: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4 };
+          if (rankA !== rankB) return (romValues[rankA] || 0) - (romValues[rankB] || 0);
+          return a.localeCompare(b);
+        });
+        
+        const currentGol = p.golRuang || '-';
+        const currentIndex = sortedGols.indexOf(currentGol);
+        
+        if (currentIndex === -1) {
+          golonganMatch = false;
+        } else {
+          const minIdx = minGolongan === 'Semua' ? 0 : sortedGols.indexOf(minGolongan);
+          const maxIdx = maxGolongan === 'Semua' ? sortedGols.length - 1 : sortedGols.indexOf(maxGolongan);
+          golonganMatch = currentIndex >= minIdx && currentIndex <= maxIdx;
+        }
+      }
       
       // Age calculation
       let ageMatch = true;
@@ -230,9 +328,9 @@ const PegawaiPage = () => {
         }
       }
 
-      return match && unitMatch && jenisMatch && ageMatch && statusMatch;
+      return match && unitMatch && jenisMatch && ageMatch && statusMatch && golonganMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterStatus, minAge, maxAge]);
+  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge]);
 
   const filteredForCounts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -353,61 +451,6 @@ const PegawaiPage = () => {
     reader.readAsDataURL(tempPhotoFile);
   };
 
-  const handleBulkPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const fileList = Array.from(files);
-    setBulkPhotoProgress({ current: 0, total: fileList.length, active: true });
-    setSyncing(true);
-
-    let successCount = 0;
-    let failCount = 0;
-
-    for (let i = 0; i < fileList.length; i++) {
-        const file = fileList[i];
-        setBulkPhotoProgress(prev => ({ ...prev, current: i + 1 }));
-
-        const nipFromFileName = file.name.split('.')[0].replace(/\D/g, '');
-        if (nipFromFileName.length < 8) {
-            failCount++;
-            continue;
-        }
-
-        try {
-            const pegawai = await findPegawaiByNip(nipFromFileName);
-            if (!pegawai) {
-                failCount++;
-                continue;
-            }
-
-            const base64 = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.readAsDataURL(file);
-            });
-
-            const res = await uploadFileToDrive(`FOTO_BULK_${nipFromFileName}_${Date.now()}`, file.type, base64);
-            if (res.success && res.fileUrl) {
-                const updatedPegawai = { ...pegawai, foto: res.fileUrl };
-                await savePegawai(updatedPegawai);
-                successCount++;
-            } else {
-                failCount++;
-            }
-        } catch (err) {
-            failCount++;
-        }
-    }
-
-    setSyncing(false);
-    setBulkPhotoProgress({ current: 0, total: 0, active: false });
-    setSuccessMsg(`Bulk Upload Selesai: ${successCount} Berhasil, ${failCount} Gagal.`);
-    setShowSuccess(true);
-    loadData();
-    if (bulkPhotoInputRef.current) bulkPhotoInputRef.current.value = '';
-  };
-
   const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -485,125 +528,6 @@ const PegawaiPage = () => {
     setSyncing(false);
   };
 
-  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        setSyncing(true);
-        setImportProgress({ current: 0, total: 0 });
-        
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true, cellNF: false, cellText: false });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
-
-        if (data.length === 0) {
-          alert("File Excel kosong atau tidak valid.");
-          setSyncing(false);
-          return;
-        }
-
-        // Filter valid data with NIP
-        const validData = data.filter(row => {
-          const nipVal = row.NIP || row.nip || row['NIP (18 Digit)'] || row['NIP Baru'] || row[Object.keys(row).find(k => k.toLowerCase().includes('nip')) || ''];
-          return nipVal && String(nipVal).trim() !== '';
-        });
-
-        if (validData.length === 0) {
-          alert("Tidak ditemukan data dengan kolom NIP pada file Excel.");
-          setSyncing(false);
-          return;
-        }
-
-        setImportProgress({ current: 0, total: validData.length });
-
-        let successCount = 0;
-        for (let i = 0; i < validData.length; i++) {
-          const row = validData[i];
-          const payload: Partial<Pegawai> = {};
-          
-          Object.keys(row).forEach(key => {
-            const normalizedKey = key.toLowerCase().replace(/[\s_.]/g, '');
-            let val = row[key];
-            
-            // Format date values
-            if (val instanceof Date) {
-              val = val.toISOString().split('T')[0];
-            } else if (typeof val === 'number' && (normalizedKey.includes('tmt') || normalizedKey.includes('tanggal') || normalizedKey.includes('lahir'))) {
-              // Handle case where dates are numbers but cellDates was somehow missed or failed
-              try {
-                const date = new Date((val - 25569) * 86400 * 1000);
-                if (!isNaN(date.getTime())) val = date.toISOString().split('T')[0];
-              } catch(e) {}
-            }
-
-            if (normalizedKey === 'nip' || normalizedKey === 'nip18digit' || normalizedKey === 'nipbaru') payload.nip = String(val).replace(/\D/g, '');
-            else if (normalizedKey === 'nama' || normalizedKey === 'namapegawai') payload.nama = String(val).trim();
-            else if (normalizedKey === 'jabatan') payload.jabatan = String(val).trim();
-            else if (normalizedKey === 'klasifikasi' || normalizedKey === 'klasifikasijabatan') payload.klasifikasiJabatan = String(val).trim();
-            else if (normalizedKey === 'subbagian') payload.subBagian = String(val).trim();
-            else if (normalizedKey === 'bagian') payload.bagian = String(val).trim();
-            else if (normalizedKey === 'unitkerja') payload.unitKerja = String(val).trim();
-            else if (normalizedKey === 'golruang' || normalizedKey === 'golongan') payload.golRuang = String(val).trim();
-            else if (normalizedKey === 'pangkat') payload.pangkat = String(val).trim();
-            else if (normalizedKey === 'jenispegawai') payload.jenisPegawai = String(val).trim();
-            else if (normalizedKey === 'status') payload.status = String(val).trim();
-            else if (normalizedKey === 'nik') payload.nik = String(val).replace(/\D/g, '');
-            else if (normalizedKey === 'alamat') payload.alamat = String(val).trim();
-            else if (normalizedKey === 'email') payload.email = String(val).trim();
-            else if (normalizedKey === 'nohp' || normalizedKey === 'telepon' || normalizedKey === 'ponsel') payload.noHp = String(val).trim();
-            else if (normalizedKey === 'tmtpangkat') payload.tmtPangkat = String(val).trim();
-            else if (normalizedKey === 'tmtjabatan') payload.tmtJabatan = String(val).trim();
-            else if (normalizedKey === 'tmtstatus' || normalizedKey === 'tmtcpns') payload.tmtCpns = String(val).trim();
-            else if (normalizedKey === 'pendidikan') payload.pendidikan = String(val).trim();
-            else if (normalizedKey === 'jurusan') payload.jurusan = String(val).trim();
-            else if (normalizedKey === 'masakerja') payload.masaKerja = String(val).trim();
-            else if (normalizedKey === 'tempatlahir') payload.tempatLahir = String(val).trim();
-            else if (normalizedKey === 'tanggallahir') payload.tanggalLahir = String(val).trim();
-            else if (normalizedKey === 'eselon') payload.eselon = String(val).trim();
-            else if (normalizedKey === 'agama') payload.agama = String(val).trim();
-            else if (normalizedKey === 'npwp') payload.npwp = String(val).trim();
-            else if (normalizedKey === 'nobpjs') payload.noBpjs = String(val).trim();
-            else if (normalizedKey === 'nokariskarsu') payload.noKarisKarsu = String(val).trim();
-            else if (normalizedKey === 'notapera') payload.noTAPERA = String(val).trim();
-            else if (normalizedKey === 'nokarpeg' || normalizedKey === 'kartupegawai') payload.noKarpeg = String(val).trim();
-            else if (normalizedKey === 'gender' || normalizedKey === 'jeniskelamin') {
-              const g = String(val).toUpperCase();
-              payload.gender = (g.startsWith('P') || g.includes('WANITA')) ? 'P' : 'L';
-            }
-            else if (normalizedKey === 'norekeninggaji' || normalizedKey === 'nomorrekening') payload.noRekeningGaji = String(val).trim();
-            else if (normalizedKey === 'namabank' || normalizedKey === 'bank') payload.namaBank = String(val).trim();
-          });
-
-          if (payload.nip) {
-            if (!payload.klasifikasiJabatan) {
-              payload.klasifikasiJabatan = getJabatanClassification(payload as Pegawai);
-            }
-            const ok = await savePegawai(payload);
-            if (ok) successCount++;
-          }
-          setImportProgress(prev => ({ ...prev, current: i + 1 }));
-        }
-
-        setSuccessMsg(`Berhasil memproses ${validData.length} baris. ${successCount} data berhasil diperbarui/ditambahkan.`);
-        setShowSuccess(true);
-        await loadData();
-      } catch (err) {
-        console.error(err);
-        alert("Terjadi kesalahan saat membaca file Excel.");
-      } finally {
-        setSyncing(false);
-        setImportProgress({ current: 0, total: 0 });
-        if (importExcelInputRef.current) importExcelInputRef.current.value = '';
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
   const inputClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950";
   const inputNoCapsClass = "w-full px-5 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black outline-none focus:border-blue-600 focus:bg-white transition-all text-gray-950";
   const labelClass = "text-[9px] font-black text-gray-400 ml-3 tracking-widest block mb-1.5";
@@ -617,10 +541,14 @@ const PegawaiPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => !syncing && setIsConfirmOpen(false)} onConfirm={async () => {
            if(pegawaiToDelete) {
              setSyncing(true);
-             const ok = await syncTableRemote('PEGAWAI', 'DELETE', { id: pegawaiToDelete.id, nip: pegawaiToDelete.nip });
+             const ok = await syncTableRemote('PEGAWAI', 'DELETE', { 
+               id: pegawaiToDelete.id, 
+               nip: pegawaiToDelete.nip,
+               nama: pegawaiToDelete.nama 
+             });
              if (ok) {
                logActivity('DELETE', 'Pegawai', `Hapus data pegawai: ${pegawaiToDelete.nama}`);
-               await loadData();
+               await loadData(true);
                setIsConfirmOpen(false);
                if (selectedPegawai?.nip === pegawaiToDelete.nip) {
                  setSelectedPegawai(null);
@@ -636,9 +564,17 @@ const PegawaiPage = () => {
         <div className="w-full lg:w-auto">
           <div className="flex items-center justify-between lg:justify-start gap-4">
             <h3 className="text-xl md:text-3xl font-black text-gray-950 uppercase tracking-tighter leading-none">Database ASN DJKI</h3>
-            <span className="px-2 md:px-4 py-1 md:py-1.5 bg-blue-600 text-white rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg shadow-blue-600/20">{filteredPegawai.length} Pegawai</span>
+             <div className="flex flex-col items-end gap-1">
+               <span className="px-2 md:px-4 py-1 md:py-1.5 bg-blue-600 text-white rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase shadow-lg shadow-blue-600/20">{filteredPegawai.length} / {pegawaiList.length} Pegawai</span>
+               <div className="flex items-center gap-2">
+                 <span className="text-[7px] md:text-[9px] font-black text-gray-400 uppercase tracking-tighter">Database Source: {pegawaiList.length}</span>
+                 {duplicateNips.length > 0 && <span className="text-[7px] md:text-[9px] font-black text-rose-500 uppercase tracking-tighter animate-pulse">! {duplicateNips.length} Duplikat</span>}
+                 {invalidItems.length > 0 && <span className="text-[7px] md:text-[9px] font-black text-rose-500 uppercase tracking-tighter animate-pulse">! {invalidItems.length} Error</span>}
+               </div>
+             </div>
           </div>
           <div className="flex flex-wrap gap-1 md:gap-2 mt-3">
+
             <div className="flex items-center gap-1 px-2 md:px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
               <span className="w-1 h-1 md:w-1.5 md:h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
               <span className="text-[7px] md:text-[9px] font-black uppercase tracking-wider">Aktif: {statusCounts['Aktif'] || 0}</span>
@@ -659,38 +595,14 @@ const PegawaiPage = () => {
           <p className="text-[8px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-3 flex items-center gap-2"><i className="bi bi-shield-check text-blue-600"></i> Terintegrasi dengan Cloud Google Spreadsheet</p>
         </div>
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full lg:w-auto">
-           <input type="file" ref={importExcelInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
-           <input type="file" ref={bulkPhotoInputRef} className="hidden" accept="image/*" multiple onChange={handleBulkPhotoUpload} />
            {canEdit && (
              <button 
-               onClick={() => importExcelInputRef.current?.click()} 
-               disabled={syncing}
-               className="h-10 md:h-14 px-3 md:px-6 bg-blue-50 text-blue-600 border border-blue-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
+               onClick={() => loadData(true)} 
+               disabled={syncing || loading}
+               className="h-10 md:h-14 px-3 md:px-6 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2"
              >
-               {syncing && importProgress.total > 0 && !bulkPhotoProgress.active ? (
-                 <div className="flex items-center gap-2">
-                   <div className="h-3 w-3 md:h-4 md:w-4 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div>
-                   <span>{importProgress.current}/{importProgress.total}</span>
-                 </div>
-               ) : (
-                 <><i className="bi bi-file-earmark-arrow-up-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Import</span><span className="xs:hidden">Imp</span></>
-               )}
-             </button>
-           )}
-           {canEdit && (
-             <button 
-               onClick={() => bulkPhotoInputRef.current?.click()} 
-               disabled={syncing}
-               className="h-10 md:h-14 px-3 md:px-6 bg-rose-50 text-rose-600 border border-rose-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-rose-600 hover:text-white transition-all flex items-center justify-center gap-2"
-             >
-               {bulkPhotoProgress.active ? (
-                 <div className="flex items-center gap-2">
-                   <div className="h-3 w-3 md:h-4 md:w-4 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin"></div>
-                   <span>{bulkPhotoProgress.current}/{bulkPhotoProgress.total}</span>
-                 </div>
-               ) : (
-                 <><i className="bi bi-images text-base md:text-lg"></i> <span className="hidden xs:inline">Bulk Foto</span><span className="xs:hidden">Bulk</span></>
-               )}
+               <i className={`bi bi-arrow-clockwise text-base md:text-lg ${(syncing || loading) ? 'animate-spin' : ''}`}></i>
+               <span className="hidden xs:inline">Sinkronkan</span><span className="xs:hidden">Sync</span>
              </button>
            )}
            <button onClick={() => handleExportExcel('SHARE')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2"><i className="bi bi-file-earmark-spreadsheet-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Share</span><span className="xs:hidden">Shr</span></button>
@@ -723,6 +635,36 @@ const PegawaiPage = () => {
               <option value="Pensiun">PENSIUN</option>
               <option value="Tugas Belajar">TUGAS BELAJAR</option>
           </select>
+          <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
+            <div className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] w-full">
+              <span className="text-[7px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Gol:</span>
+              <select className="bg-transparent border-none outline-none text-[8px] md:text-[10px] font-black uppercase w-full cursor-pointer hover:text-blue-600" value={minGolongan} onChange={e => setMinGolongan(e.target.value)}>
+                  <option value="Semua">DARI</option>
+                  {Object.keys(PANGKAT_MAP).sort((a, b) => {
+                    const romValues: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4 };
+                    const rankA = a.split('/')[0];
+                    const rankB = b.split('/')[0];
+                    if (rankA !== rankB) return (romValues[rankA] || 0) - (romValues[rankB] || 0);
+                    return a.localeCompare(b);
+                  }).map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+              </select>
+              <span className="text-gray-300 font-bold">»</span>
+              <select className="bg-transparent border-none outline-none text-[8px] md:text-[10px] font-black uppercase w-full cursor-pointer hover:text-blue-600" value={maxGolongan} onChange={e => setMaxGolongan(e.target.value)}>
+                  <option value="Semua">SAMPAI</option>
+                  {Object.keys(PANGKAT_MAP).sort((a, b) => {
+                    const romValues: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4 };
+                    const rankA = a.split('/')[0];
+                    const rankB = b.split('/')[0];
+                    if (rankA !== rankB) return (romValues[rankA] || 0) - (romValues[rankB] || 0);
+                    return a.localeCompare(b);
+                  }).map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+              </select>
+            </div>
+          </div>
           <div className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-2 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem]">
             <span className="text-[7px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Usia:</span>
             <input 
@@ -746,35 +688,46 @@ const PegawaiPage = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
         {loading ? Array(6).fill(0).map((_,i) => <div key={i} className="h-32 md:h-44 bg-white rounded-2xl md:rounded-[3rem] animate-pulse"></div>) : 
-         filteredPegawai.map((p, i) => (
-           <div key={`${p.nip}-${i}`} onClick={() => navigate(`/pegawai/${p.nip}`)} className="bg-white p-3 md:p-7 rounded-xl md:rounded-[3rem] border border-gray-100 shadow-sm group hover:shadow-2xl transition-all cursor-pointer relative overflow-hidden">
-              <div className="flex items-center gap-3 md:gap-6">
-                 <div className="h-12 w-12 md:h-20 md:w-20 rounded-lg md:rounded-[1.8rem] bg-blue-50 overflow-hidden border-2 md:border-4 border-white shadow-xl group-hover:scale-105 transition-transform shrink-0">
-                    {p.foto ? <img src={getPhotoUrl(p.foto)} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black text-lg md:text-3xl">{p.nama.charAt(0)}</div>}
-                 </div>
-                 <div className="min-w-0 flex-1">
-                    <h4 className="text-[10px] md:text-[13px] font-black text-gray-950 truncate leading-tight uppercase">{p.nama}</h4>
-                    <p className="text-[7px] md:text-[9px] font-mono text-gray-400 mt-1 uppercase tracking-tighter md:tracking-normal">NIP. {p.nip}</p>
-                    {canEdit && (
-                      <button 
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          setPegawaiToDelete(p); 
-                          setIsConfirmOpen(true); 
-                        }}
-                        className="absolute top-2 right-2 md:top-4 md:right-4 h-6 w-6 md:h-10 md:w-10 bg-rose-50 text-rose-500 rounded-lg md:rounded-xl flex items-center justify-center opacity-100 md:opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-600 hover:text-white shadow-sm shrink-0 z-10"
-                      >
-                        <i className="bi bi-trash3-fill text-[10px] md:text-sm"></i>
-                      </button>
-                    )}
-                    <div className="flex flex-wrap items-center gap-1 md:gap-2 mt-1.5 md:mt-2">
-                       <span className="px-1 md:px-2 py-0.5 bg-blue-50 text-blue-600 text-[5px] md:text-[7px] font-black rounded border border-blue-100 uppercase">{p.golRuang}</span>
-                       <span className="px-1 md:px-2 py-0.5 bg-gray-50 text-gray-500 text-[5px] md:text-[7px] font-black rounded border border-gray-200 uppercase truncate max-w-[60px] md:max-w-none">{p.jenisPegawai}</span>
-                    </div>
-                 </div>
-              </div>
-           </div>
-         ))}
+         filteredPegawai.map((p, i) => {
+           const pNip = (p.nip || '').replace(/\D/g, '');
+           const isDup = duplicateNips.includes(pNip);
+           const isInv = invalidItems.some(inv => inv.id === p.id || (inv.nip && inv.nip === p.nip));
+           
+           return (
+             <div key={`${p.nip}-${i}`} onClick={() => navigate(`/pegawai/${p.nip}`)} className={`bg-white p-3 md:p-7 rounded-xl md:rounded-[3rem] border shadow-sm group hover:shadow-2xl transition-all cursor-pointer relative overflow-hidden ${isDup || isInv ? 'border-rose-200 bg-rose-50/10' : 'border-gray-100'}`}>
+                <div className="flex items-center gap-3 md:gap-6">
+                   <div className={`h-12 w-12 md:h-20 md:w-20 rounded-lg md:rounded-[1.8rem] overflow-hidden border-2 md:border-4 border-white shadow-xl group-hover:scale-105 transition-transform shrink-0 ${isDup || isInv ? 'bg-rose-100' : 'bg-blue-50'}`}>
+                      {p.foto ? <img src={getPhotoUrl(p.foto)} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className={`h-full w-full flex items-center justify-center font-black text-lg md:text-3xl ${isDup || isInv ? 'text-rose-600' : 'text-blue-600'}`}>{p.nama ? p.nama.charAt(0) : '?'}</div>}
+                   </div>
+                   <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className={`text-[10px] md:text-[13px] font-black truncate leading-tight uppercase ${isDup || isInv ? 'text-rose-700' : 'text-gray-950'}`}>{p.nama || '(Nama Kosong)'}</h4>
+                        {(isDup || isInv) && <i className="bi bi-exclamation-triangle-fill text-rose-500 text-[10px]" title={isInv ? "Data Tidak Valid" : "NIP Duplikat"}></i>}
+                      </div>
+                      <p className="text-[7px] md:text-[9px] font-mono text-gray-400 mt-1 uppercase tracking-tighter md:tracking-normal">NIP. {p.nip || 'TIDAK TERDETEKSI'}</p>
+                      {canEdit && (
+                        <button 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setPegawaiToDelete(p); 
+                            setIsConfirmOpen(true); 
+                          }}
+                          className={`${isDup || isInv ? 'bg-rose-100 text-rose-600' : 'bg-rose-50 text-rose-500'} absolute top-2 right-2 md:top-4 md:right-4 h-6 w-6 md:h-10 md:w-10 rounded-lg md:rounded-xl flex items-center justify-center opacity-100 md:opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-600 hover:text-white shadow-sm shrink-0 z-10`}
+                        >
+                          <i className="bi bi-trash3-fill text-[10px] md:text-sm"></i>
+                        </button>
+                      )}
+                      <div className="flex flex-wrap items-center gap-1 md:gap-2 mt-1.5 md:mt-2">
+                         <span className={`px-1 md:px-2 py-0.5 text-[5px] md:text-[7px] font-black rounded border uppercase ${isDup || isInv ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{p.golRuang || '-'}</span>
+                         <span className="px-1 md:px-2 py-0.5 bg-gray-50 text-gray-500 text-[5px] md:text-[7px] font-black rounded border border-gray-200 uppercase truncate max-w-[60px] md:max-w-none">{p.jenisPegawai || '-'}</span>
+                      </div>
+                   </div>
+                </div>
+                {isInv && <div className="absolute top-0 right-0 px-2 py-0.5 bg-rose-600 text-white text-[6px] font-black uppercase tracking-tighter">DATA BERMASALAH</div>}
+                {isDup && !isInv && <div className="absolute top-0 right-0 px-2 py-0.5 bg-rose-500 text-white text-[6px] font-black uppercase tracking-tighter">DUPLIKAT</div>}
+             </div>
+           );
+         })}
       </div>
 
       {isAddDossierOpen && selectedPegawai && (
@@ -797,7 +750,7 @@ const PegawaiPage = () => {
                       type="text" 
                       className={inputClass} 
                       placeholder="Contoh: SK Kenaikan Pangkat 2024"
-                      value={dossierFormData.fileName}
+                      value={dossierFormData.fileName || ''}
                       onChange={e => setDossierFormData({...dossierFormData, fileName: e.target.value})}
                       required 
                     />
@@ -807,7 +760,7 @@ const PegawaiPage = () => {
                     <textarea 
                       className={`${inputNoCapsClass} h-20 md:h-24 resize-none`}
                       placeholder="Catatan opsional..."
-                      value={dossierFormData.keterangan}
+                      value={dossierFormData.keterangan || ''}
                       onChange={e => setDossierFormData({...dossierFormData, keterangan: e.target.value})}
                     />
                  </div>
@@ -881,7 +834,7 @@ const PegawaiPage = () => {
                                 type="text" 
                                 className={inputClass} 
                                 placeholder="Contoh: BANK SUMUT" 
-                                value={BANK_LIST.includes(formData.namaBank || '') ? '' : formData.namaBank}
+                                value={BANK_LIST.includes(formData.namaBank || '') ? '' : (formData.namaBank || '')}
                                 onChange={e => setFormData({...formData, namaBank: e.target.value.toUpperCase()})} 
                               />
                             </div>
@@ -981,7 +934,7 @@ const PegawaiPage = () => {
                  <section className="space-y-4 md:space-y-6">
                     <div className="flex items-center gap-3 md:gap-4"><div className="h-6 md:h-8 w-1.5 md:w-2 bg-emerald-600 rounded-full"></div><h5 className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase tracking-widest">C. Pangkat & Masa Kerja</h5></div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-                       <div><label className={labelClass}>Golongan / Ruang</label><select className={inputClass} value={formData.golRuang || 'III/a'} onChange={e => setFormData({...formData, golRuang: e.target.value, pangkat: PANGKAT_MAP[e.target.value] || ''})}>{Object.keys(PANGKAT_MAP).map(g => <option key={g} value={g}>{g}</option>)}</select></div>
+                       <div><label className={labelClass}>Golongan / Ruang</label><select className={inputClass} value={formData.golRuang || 'III/a'} onChange={e => setFormData({...formData, golRuang: e.target.value})}>{Object.keys(PANGKAT_MAP).map(g => <option key={g} value={g}>{g}</option>)}</select></div>
                        <div className="sm:col-span-2 md:col-span-2"><label className={labelClass}>Pangkat (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.pangkat || '-'} /></div>
                        <div><label className={labelClass}>TMT Pangkat</label><input type="date" className={inputNoCapsClass} value={formData.tmtPangkat || ''} onChange={e => setFormData({...formData, tmtPangkat: e.target.value})} /></div>
                        <div><label className={labelClass}>Jenis Pegawai</label><select className={inputClass} value={formData.jenisPegawai || 'PNS'} onChange={e => setFormData({...formData, jenisPegawai: e.target.value})}><option value="PNS">PNS</option><option value="CPNS">CPNS</option><option value="PPPK">PPPK</option><option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option></select></div>
