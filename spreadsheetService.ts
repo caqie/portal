@@ -373,7 +373,7 @@ export const fetchKegiatanFromSheets = () => fetchTableData<Kegiatan>('KEGIATAN'
     } as Kegiatan;
 });
 
-export const fetchDossiersFromSheets = () => fetchTableData<Dossier>('DOSSIER', 'portal_dossiers_db', (cols, headers) => {
+export const fetchDossiersFromSheets = (bypassCache = false) => fetchTableData<Dossier>('DOSSIER', 'portal_dossiers_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { 
       id: get('ID'), 
@@ -384,37 +384,37 @@ export const fetchDossiersFromSheets = () => fetchTableData<Dossier>('DOSSIER', 
       fileName: get('FILENAME'), 
       fileUrl: get('FILEURL') 
     } as Dossier;
-});
+}, bypassCache);
 
-export const fetchUsersFromSheets = () => fetchTableData<AdminUser>('USERS', 'portal_users_db', (cols, headers) => {
+export const fetchUsersFromSheets = (bypassCache = false) => fetchTableData<AdminUser>('USERS', 'portal_users_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), nip: get('NIP'), name: get('NAME'), password: get('PASSWORD'), role: get('ROLE') as any, foto: get('FOTO') };
-});
+}, bypassCache);
 
-export const fetchPelantikanFromSheets = () => fetchTableData<any>('PELANTIKAN', 'pelantikan_db', (cols, headers) => {
+export const fetchPelantikanFromSheets = (bypassCache = false) => fetchTableData<any>('PELANTIKAN', 'pelantikan_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), nomor: get('NOMOR'), asnNip: get('ASNNIP'), data: get('DATA') };
-});
+}, bypassCache);
 
-export const fetchPensiunFromSheets = () => fetchTableData<any>('PENSIUN', 'pensiun_db', (cols, headers) => {
+export const fetchPensiunFromSheets = (bypassCache = false) => fetchTableData<any>('PENSIUN', 'pensiun_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), data: get('DATA') };
-});
+}, bypassCache);
 
-export const fetchPAKFromSheets = () => fetchTableData<any>('PAK', 'pak_db', (cols, headers) => {
+export const fetchPAKFromSheets = (bypassCache = false) => fetchTableData<any>('PAK', 'pak_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), nomor: get('NOMOR'), jumlahKredit: parseFloat(get('JUMLAHKREDIT')) || 0 };
-});
+}, bypassCache);
 
-export const fetchSPMTSPPFromSheets = () => fetchTableData<SpmtSppRecord>('SPMT_SPP', 'spmt_spp_db', (cols, headers) => {
+export const fetchSPMTSPPFromSheets = (bypassCache = false) => fetchTableData<SpmtSppRecord>('SPMT_SPP', 'spmt_spp_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), type: get('TYPE') as any, nomor: get('NOMOR'), pegawaiNip: get('PEGAWAINIP') } as SpmtSppRecord;
-});
+}, bypassCache);
 
-export const fetchKenaikanFromSheets = () => fetchTableData<KenaikanKarir>('KENAIKAN', 'kenaikan_db', (cols, headers) => {
+export const fetchKenaikanFromSheets = (bypassCache = false) => fetchTableData<KenaikanKarir>('KENAIKAN', 'kenaikan_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), dari: get('DARI'), menjadi: get('MENJADI'), status: get('STATUS') } as KenaikanKarir;
-});
+}, bypassCache);
 
 export const uploadFileToDrive = async (fileName: string, mimeType: string, base64: string): Promise<{ success: boolean; fileUrl?: string; message?: string }> => {
     const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();

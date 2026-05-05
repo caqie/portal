@@ -329,13 +329,45 @@ const ProfilePegawaiPage = () => {
     file: File
   ) => {
     if (!pegawai) return;
+    
+    // Capture current values to use in dossier recording
+    const currentItem = (pegawai[field] || [])[idx];
+    const pegNip = pegawai.nip;
+    const pegNama = pegawai.nama;
+
     setUploading(true);
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
-      const res = await uploadFileToDrive(`HIST_${field.toUpperCase()}_${pegawai.nip}_${Date.now()}`, file.type, base64);
+      const res = await uploadFileToDrive(`HIST_${field.toUpperCase()}_${pegNip}_${Date.now()}`, file.type, base64);
       if (res.success && res.fileUrl) {
         updateHistoryItem(field, idx, 'fileUrl', res.fileUrl);
+        
+        // Auto-save to Dossier
+        let dossierName = '';
+        if (field === 'riwayatJabatan') dossierName = `SK Jabatan - ${currentItem?.namaJabatan || 'Baru'}`;
+        else if (field === 'riwayatPangkat') dossierName = `SK Pangkat - ${currentItem?.pangkat || 'Baru'}`;
+        else if (field === 'riwayatPendidikan') dossierName = `Ijazah ${currentItem?.jenjang || 'Baru'} - ${currentItem?.institusi || ''}`;
+        else if (field === 'riwayatPelatihan') dossierName = `Sertifikat ${currentItem?.namaPelatihan || 'Baru'}`;
+        
+        const dossierPayload: Dossier = {
+          id: `DOS-AUTO-${Date.now()}`,
+          nip: pegNip,
+          namaPegawai: pegNama,
+          tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+          keterangan: `Unggahan otomatis dari Riwayat ${field.replace('riwayat', '')}`,
+          fileName: dossierName || file.name,
+          fileUrl: res.fileUrl
+        };
+        
+        await syncTableRemote('DOSSIER', 'SAVE', dossierPayload);
+        
+        // Refresh local dossiers state
+        const dData = await fetchDossiersFromSheets(true); // Bypass cache to get latest
+        setDossiers(dData.filter(d => d.nip === pegNip));
+        
+        setSuccessMsg(`Berkas "${dossierName || file.name}" berhasil diunggah dan tersimpan di Dossier.`);
+        setShowSuccess(true);
       } else {
         alert("Gagal mengunggah file.");
       }
