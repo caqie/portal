@@ -1540,11 +1540,35 @@ const ProfilePegawaiPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {dossiers.map(d => (
-                    <div key={d.id} onClick={() => d.fileUrl && window.open(d.fileUrl, '_blank')} className="p-5 md:p-6 bg-gray-50 border border-gray-100 rounded-2xl md:rounded-[2.5rem] hover:bg-white hover:border-blue-300 transition-all cursor-pointer group flex items-center gap-4 md:gap-5">
+                    <div key={d.id} className="p-5 md:p-6 bg-gray-50 border border-gray-100 rounded-2xl md:rounded-[2.5rem] hover:bg-white hover:border-blue-300 transition-all group flex items-center gap-4 md:gap-5">
                       <div className="h-12 w-12 md:h-14 md:w-14 bg-white rounded-xl md:rounded-2xl flex items-center justify-center text-blue-600 text-2xl md:text-3xl shadow-sm shrink-0"><i className="bi bi-file-earmark-pdf-fill"></i></div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] md:text-[11px] font-black uppercase truncate text-gray-950">{d.fileName}</p>
                         <p className="text-[7px] md:text-[8px] font-bold text-gray-400 mt-1 uppercase">{d.tanggal}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => d.fileUrl && window.open(d.fileUrl, '_blank')}
+                          className="h-9 w-9 md:h-10 md:w-10 flex items-center justify-center bg-white border border-gray-100 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                          title="Lihat"
+                        >
+                          <i className="bi bi-eye"></i>
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (!d.fileUrl) return;
+                            let url = d.fileUrl;
+                            if (url.includes('drive.google.com')) {
+                              const idMatch = url.match(/\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/);
+                              if (idMatch) url = `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
+                            }
+                            window.open(url, '_blank');
+                          }}
+                          className="h-9 w-9 md:h-10 md:w-10 flex items-center justify-center bg-white border border-gray-100 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+                          title="Download"
+                        >
+                          <i className="bi bi-download"></i>
+                        </button>
                       </div>
                     </div>
                   ))}

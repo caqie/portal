@@ -221,6 +221,21 @@ const DossiersPage = () => {
                   <td className="px-8 py-5 text-right">
                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                        <button onClick={() => d.fileUrl && window.open(d.fileUrl, '_blank')} className="h-10 w-10 flex items-center justify-center bg-blue-50 text-blue-600 border border-blue-100 rounded-xl shadow-sm hover:bg-blue-600 hover:text-white transition-all" title="Lihat"><i className="bi bi-eye-fill"></i></button>
+                       <button 
+                         onClick={() => {
+                           if (!d.fileUrl) return;
+                           let url = d.fileUrl;
+                           if (url.includes('drive.google.com')) {
+                             const idMatch = url.match(/\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/);
+                             if (idMatch) url = `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
+                           }
+                           window.open(url, '_blank');
+                         }} 
+                         className="h-10 w-10 flex items-center justify-center bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl shadow-sm hover:bg-emerald-600 hover:text-white transition-all" 
+                         title="Download"
+                       >
+                         <i className="bi bi-download"></i>
+                       </button>
                        {canEdit && (
                          <>
                            <button onClick={() => handleOpenModal(d)} className="h-10 w-10 flex items-center justify-center bg-amber-50 text-amber-600 border border-amber-100 rounded-xl shadow-sm hover:bg-amber-600 hover:text-white transition-all" title="Edit"><i className="bi bi-pencil-square"></i></button>
