@@ -60,7 +60,10 @@ const ProfilePegawaiPage = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [pData, dData] = await Promise.all([fetchPegawaiFromSheets(), fetchDossiersFromSheets()]);
+      const [pData, dData] = await Promise.all([
+        fetchPegawaiFromSheets(), 
+        fetchDossiersFromSheets(true)
+      ]);
       const found = pData.find(p => p.nip === nip);
       if (found) {
         // Enrich data

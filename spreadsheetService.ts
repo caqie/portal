@@ -377,7 +377,7 @@ export const fetchDossiersFromSheets = (bypassCache = false) => fetchTableData<D
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { 
       id: get('ID'), 
-      nip: get('NIP'), 
+      nip: (get('NIP') || '').replace(/\D/g, ''), 
       namaPegawai: get('NAMAPEGAWAI'),
       tanggal: get('TANGGAL'),
       keterangan: get('KETERANGAN'),

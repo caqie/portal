@@ -175,7 +175,7 @@ const PegawaiPage = () => {
       
       const [pData, dData] = await Promise.all([
         fetchPegawaiFromSheets(bypassCache), 
-        fetchDossiersFromSheets()
+        fetchDossiersFromSheets(bypassCache)
       ]);
       
       const enrichedData = pData.map(p => {
