@@ -176,16 +176,84 @@ const ProfilePegawaiPage = () => {
     }
   };
 
+  const syncHistoryToDetail = (p: Pegawai): Pegawai => {
+    let updated = { ...p };
+
+    // 1. Sync Jabatan (latest TMT)
+    if (p.riwayatJabatan && p.riwayatJabatan.length > 0) {
+      const latestJabatan = [...p.riwayatJabatan].sort((a, b) => {
+        const tmtA = a.tmtJabatan || '';
+        const tmtB = b.tmtJabatan || '';
+        return tmtB.localeCompare(tmtA);
+      })[0];
+      if (latestJabatan) {
+        updated.jabatan = latestJabatan.namaJabatan;
+        updated.tmtJabatan = latestJabatan.tmtJabatan;
+        updated.unitKerja = latestJabatan.unitKerja;
+      }
+    }
+
+    // 2. Sync Pangkat (latest TMT)
+    if (p.riwayatPangkat && p.riwayatPangkat.length > 0) {
+      const latestPangkat = [...p.riwayatPangkat].sort((a, b) => {
+        const tmtA = a.tmtPangkat || '';
+        const tmtB = b.tmtPangkat || '';
+        return tmtB.localeCompare(tmtA);
+      })[0];
+      if (latestPangkat) {
+        updated.pangkat = latestPangkat.pangkat;
+        updated.golRuang = latestPangkat.golRuang;
+        updated.tmtPangkat = latestPangkat.tmtPangkat;
+      }
+    }
+
+    // 3. Sync Pendidikan (highest degree)
+    if (p.riwayatPendidikan && p.riwayatPendidikan.length > 0) {
+      const degreeOrder: { [key: string]: number } = {
+        'S3': 9, 'DOKTOR': 9,
+        'S2': 8, 'MAGISTER': 8,
+        'S1': 7, 'SARJANA': 7,
+        'D4': 6,
+        'D3': 5,
+        'D2': 4,
+        'D1': 3,
+        'SMA': 2, 'SMK': 2, 'MA': 2, 'DIKMEN': 2,
+        'SMP': 1, 'DIKDAS': 1,
+        'SD': 0
+      };
+
+      const sortedPendidikan = [...p.riwayatPendidikan].sort((a, b) => {
+        const orderA = degreeOrder[a.jenjang.trim().toUpperCase()] || 0;
+        const orderB = degreeOrder[b.jenjang.trim().toUpperCase()] || 0;
+        if (orderA !== orderB) return orderB - orderA;
+        return (b.tahunLulus || '').localeCompare(a.tahunLulus || '');
+      });
+
+      const highest = sortedPendidikan[0];
+      if (highest) {
+        updated.pendidikan = highest.jenjang;
+        updated.jurusan = highest.jurusan;
+      }
+    }
+
+    return updated;
+  };
+
   const handleSave = async () => {
     if (!pegawai) return;
     setSyncing(true);
-    const success = await savePegawai(pegawai);
+    
+    // Sync data from history before saving
+    const syncedPegawai = syncHistoryToDetail(pegawai);
+    const success = await savePegawai(syncedPegawai);
+    
     if (success) {
-      logActivity('UPDATE', 'Pegawai', `Update profil lengkap pegawai: ${pegawai.nama} (NIP: ${pegawai.nip})`);
+      logActivity('UPDATE', 'Pegawai', `Update profil lengkap pegawai: ${syncedPegawai.nama} (NIP: ${syncedPegawai.nip})`);
       setSuccessMsg("Profil pegawai berhasil diperbarui.");
       setShowSuccess(true);
       setIsEditing(false);
-      loadData();
+      setPegawai(syncedPegawai); // Update local state with synced data
+      // loadData(); // No need to reload everything if we just updated local state
     } else {
       alert("Gagal menyimpan data.");
     }
@@ -212,6 +280,89 @@ const ProfilePegawaiPage = () => {
     } finally { 
       setSyncing(false); 
     }
+  };
+
+  const handleCetakDHCP = async () => {
+    if (!pegawai) return;
+    setSyncing(true);
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      
+      // Header
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('DAFTAR HUBUNGAN KELUARGA (DHCP)', 105, 20, { align: 'center' });
+      pdf.setFontSize(10);
+      pdf.text(`UNTUK PERSIAPAN PENSIUN: ${pegawai.nama.toUpperCase()}`, 105, 26, { align: 'center' });
+      
+      // Pegawai info
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`NIP: ${pegawai.nip}`, 20, 40);
+      pdf.text(`Jabatan: ${pegawai.jabatan}`, 20, 46);
+      pdf.text(`Unit Kerja: ${pegawai.unitKerja}`, 20, 52);
+      
+      // Table Header
+      let y = 65;
+      pdf.setFont('helvetica', 'bold');
+      pdf.rect(20, y, 10, 10);
+      pdf.text('NO', 25, y+7, { align: 'center' });
+      pdf.rect(30, y, 60, 10);
+      pdf.text('NAMA LENGKAP', 60, y+7, { align: 'center' });
+      pdf.rect(90, y, 30, 10);
+      pdf.text('HUBUNGAN', 105, y+7, { align: 'center' });
+      pdf.rect(120, y, 40, 10);
+      pdf.text('TANGGAL LAHIR', 140, y+7, { align: 'center' });
+      pdf.rect(160, y, 30, 10);
+      pdf.text('PEKERJAAN', 175, y+7, { align: 'center' });
+      
+      y += 10;
+      pdf.setFont('helvetica', 'normal');
+      (pegawai.keluarga || []).forEach((k, i) => {
+        pdf.rect(20, y, 10, 10);
+        pdf.text((i+1).toString(), 25, y+7, { align: 'center' });
+        pdf.rect(30, y, 60, 10);
+        pdf.text(k.nama || '-', 32, y+7);
+        pdf.rect(90, y, 30, 10);
+        pdf.text(k.hubungan || '-', 105, y+7, { align: 'center' });
+        pdf.rect(120, y, 40, 10);
+        pdf.text(k.tanggalLahir || '-', 140, y+7, { align: 'center' });
+        pdf.rect(160, y, 30, 10);
+        pdf.text(k.pekerjaan || '-', 162, y+7);
+        y += 10;
+        if (y > 270) {
+          pdf.addPage();
+          y = 20;
+        }
+      });
+      
+      // Signature
+      y += 20;
+      const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      pdf.text(`Jakarta, ${today}`, 140, y);
+      pdf.text('Hormat Saya,', 140, y+7);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(pegawai.nama, 140, y+30);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`NIP. ${pegawai.nip}`, 140, y+35);
+
+      pdf.save(`DHCP_${pegawai.nama.replace(/\s+/g, '_')}.pdf`);
+      logActivity('DOWNLOAD', 'Pegawai', `Cetak DHCP Pensiun Pegawai: ${pegawai.nama}`);
+    } catch (e) {
+      console.error(e);
+      alert("Gagal cetak DHCP.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleDownload = (url: string) => {
+    if (!url) return;
+    let finalUrl = url;
+    if (url.includes('drive.google.com')) {
+      const idMatch = url.match(/\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/);
+      if (idMatch) finalUrl = `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
+    }
+    window.open(finalUrl, '_blank');
   };
 
   const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -375,16 +526,19 @@ const ProfilePegawaiPage = () => {
         await syncTableRemote('DOSSIER', 'SAVE', dossierPayload);
         
         // Auto-save the employee record as well to persist the fileUrl in riwayat
-        await savePegawai({
+        const updatedPegawaiWithFile = {
           ...pegawai,
           [field]: (pegawai[field] as any[]).map((itm, i) => i === idx ? { ...itm, fileUrl: res.fileUrl } : itm)
-        });
+        };
+        const syncedPegawai = syncHistoryToDetail(updatedPegawaiWithFile);
+        await savePegawai(syncedPegawai);
+        setPegawai(syncedPegawai);
         
         // Refresh local dossiers state
         const dData = await fetchDossiersFromSheets(true); // Bypass cache to get latest
         setDossiers(dData.filter(d => d.nip === pegNip));
         
-        setSuccessMsg(`Berkas "${dossierName || file.name}" berhasil diunggah dan tersimpan di Dossier.`);
+        setSuccessMsg(`Berkas "${dossierName || file.name}" berhasil diunggah dan tersimpan di Dossier serta memperbarui data induk.`);
         setShowSuccess(true);
       } else {
         alert("Gagal mengunggah file.");
@@ -1061,11 +1215,17 @@ const ProfilePegawaiPage = () => {
                       <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Data pasangan dan anak</p>
                     </div>
                   </div>
-                  {isEditing && (
-                    <button onClick={() => addHistoryItem('keluarga')} className="w-full sm:w-auto px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-emerald-100">
-                      <i className="bi bi-plus-lg"></i> Tambah Anggota
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <button onClick={handleCetakDHCP} disabled={syncing} className="flex-1 sm:flex-none px-6 py-3 bg-gray-900 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-gray-100">
+                      {syncing ? <div className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>}
+                      Cetak DHCP Pensiun
                     </button>
-                  )}
+                    {isEditing && (
+                      <button onClick={() => addHistoryItem('keluarga')} className="flex-1 sm:flex-none px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-emerald-100">
+                        <i className="bi bi-plus-lg"></i> Tambah Anggota
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-4">
@@ -1213,7 +1373,12 @@ const ProfilePegawaiPage = () => {
                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload Ijazah (PDF)</label>
                            <div className="flex items-center gap-3">
                               {p.fileUrl ? (
-                                 <button onClick={() => window.open(p.fileUrl, '_blank')} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all">Lihat PDF</button>
+                                 <div className="flex gap-2">
+                                    <button onClick={() => window.open(p.fileUrl || '', '_blank')} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all">Lihat PDF</button>
+                                    <button onClick={() => handleDownload(p.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
+                                       <i className="bi bi-download"></i> Unduh PDF
+                                    </button>
+                                 </div>
                               ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
                               {isEditing && (
                                  <button onClick={() => {
@@ -1305,7 +1470,12 @@ const ProfilePegawaiPage = () => {
                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload SK Jabatan (PDF)</label>
                            <div className="flex items-center gap-3">
                               {j.fileUrl ? (
-                                 <button onClick={() => window.open(j.fileUrl, '_blank')} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase border border-blue-100 hover:bg-blue-600 hover:text-white transition-all">Lihat SK</button>
+                                 <div className="flex gap-2">
+                                    <button onClick={() => window.open(j.fileUrl || '', '_blank')} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase border border-blue-100 hover:bg-blue-600 hover:text-white transition-all">Lihat SK</button>
+                                    <button onClick={() => handleDownload(j.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
+                                       <i className="bi bi-download"></i> Unduh SK
+                                    </button>
+                                 </div>
                               ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
                               {isEditing && (
                                  <button onClick={() => {
@@ -1400,7 +1570,12 @@ const ProfilePegawaiPage = () => {
                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload SK Pangkat (PDF)</label>
                            <div className="flex items-center gap-3">
                               {p.fileUrl ? (
-                                 <button onClick={() => window.open(p.fileUrl, '_blank')} className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase border border-amber-100 hover:bg-amber-600 hover:text-white transition-all">Lihat SK</button>
+                                 <div className="flex gap-2">
+                                    <button onClick={() => window.open(p.fileUrl || '', '_blank')} className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase border border-amber-100 hover:bg-amber-600 hover:text-white transition-all">Lihat SK</button>
+                                    <button onClick={() => handleDownload(p.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
+                                       <i className="bi bi-download"></i> Unduh SK
+                                    </button>
+                                 </div>
                               ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
                               {isEditing && (
                                  <button onClick={() => {
@@ -1495,7 +1670,12 @@ const ProfilePegawaiPage = () => {
                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload Sertifikat (PDF)</label>
                            <div className="flex items-center gap-3">
                               {p.fileUrl ? (
-                                 <button onClick={() => window.open(p.fileUrl, '_blank')} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-[9px] font-black uppercase border border-purple-100 hover:bg-purple-600 hover:text-white transition-all">Lihat PDF</button>
+                                 <div className="flex gap-2">
+                                    <button onClick={() => window.open(p.fileUrl || '', '_blank')} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-[9px] font-black uppercase border border-purple-100 hover:bg-purple-600 hover:text-white transition-all">Lihat Sertifikat</button>
+                                    <button onClick={() => handleDownload(p.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
+                                       <i className="bi bi-download"></i> Unduh PDF
+                                    </button>
+                                 </div>
                               ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
                               {isEditing && (
                                  <button onClick={() => {
@@ -1549,25 +1729,17 @@ const ProfilePegawaiPage = () => {
                       <div className="flex gap-2">
                         <button 
                           onClick={() => d.fileUrl && window.open(d.fileUrl, '_blank')}
-                          className="h-9 w-9 md:h-10 md:w-10 flex items-center justify-center bg-white border border-gray-100 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                          className="px-4 py-2 flex items-center justify-center bg-white border border-gray-100 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm text-[9px] font-black uppercase"
                           title="Lihat"
                         >
-                          <i className="bi bi-eye"></i>
+                          <i className="bi bi-eye mr-2"></i> Lihat
                         </button>
                         <button 
-                          onClick={() => {
-                            if (!d.fileUrl) return;
-                            let url = d.fileUrl;
-                            if (url.includes('drive.google.com')) {
-                              const idMatch = url.match(/\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/);
-                              if (idMatch) url = `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
-                            }
-                            window.open(url, '_blank');
-                          }}
-                          className="h-9 w-9 md:h-10 md:w-10 flex items-center justify-center bg-white border border-gray-100 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
-                          title="Download"
+                          onClick={() => handleDownload(d.fileUrl || '')}
+                          className="px-4 py-2 flex items-center justify-center bg-white border border-gray-100 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm text-[9px] font-black uppercase"
+                          title="Unduh PDF"
                         >
-                          <i className="bi bi-download"></i>
+                          <i className="bi bi-download mr-2"></i> Unduh
                         </button>
                       </div>
                     </div>

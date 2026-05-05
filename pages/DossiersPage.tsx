@@ -52,6 +52,16 @@ const DossiersPage = () => {
     );
   }, [dossiers, searchTerm]);
 
+  const handleDownload = (url: string) => {
+    if (!url) return;
+    let finalUrl = url;
+    if (url.includes('drive.google.com')) {
+      const idMatch = url.match(/\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/);
+      if (idMatch) finalUrl = `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
+    }
+    window.open(finalUrl, '_blank');
+  };
+
   const handleOpenModal = (d: Dossier | null = null) => {
     setSelectedDossier(d);
     setFormData(d ? { ...d } : { 
@@ -218,28 +228,20 @@ const DossiersPage = () => {
                     <p className="text-[10px] font-black uppercase text-gray-900">{d.namaPegawai}</p>
                     <p className="text-[9px] font-mono text-gray-400 font-bold tracking-tighter">NIP. {d.nip}</p>
                   </td>
-                  <td className="px-8 py-5 text-right">
+                   <td className="px-8 py-5 text-right">
                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                       <button onClick={() => d.fileUrl && window.open(d.fileUrl, '_blank')} className="h-10 w-10 flex items-center justify-center bg-blue-50 text-blue-600 border border-blue-100 rounded-xl shadow-sm hover:bg-blue-600 hover:text-white transition-all" title="Lihat"><i className="bi bi-eye-fill"></i></button>
+                       <button onClick={() => d.fileUrl && window.open(d.fileUrl, '_blank')} className="px-3 py-2 flex items-center justify-center bg-blue-50 text-blue-600 border border-blue-100 rounded-xl shadow-sm hover:bg-blue-600 hover:text-white transition-all text-[9px] font-black uppercase" title="Lihat"><i className="bi bi-eye mr-1.5"></i> Lihat</button>
                        <button 
-                         onClick={() => {
-                           if (!d.fileUrl) return;
-                           let url = d.fileUrl;
-                           if (url.includes('drive.google.com')) {
-                             const idMatch = url.match(/\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/);
-                             if (idMatch) url = `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
-                           }
-                           window.open(url, '_blank');
-                         }} 
-                         className="h-10 w-10 flex items-center justify-center bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl shadow-sm hover:bg-emerald-600 hover:text-white transition-all" 
-                         title="Download"
+                         onClick={() => handleDownload(d.fileUrl || '')} 
+                         className="px-3 py-2 flex items-center justify-center bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl shadow-sm hover:bg-emerald-600 hover:text-white transition-all text-[9px] font-black uppercase" 
+                         title="Unduh PDF"
                        >
-                         <i className="bi bi-download"></i>
+                         <i className="bi bi-download mr-1.5"></i> Unduh
                        </button>
                        {canEdit && (
                          <>
-                           <button onClick={() => handleOpenModal(d)} className="h-10 w-10 flex items-center justify-center bg-amber-50 text-amber-600 border border-amber-100 rounded-xl shadow-sm hover:bg-amber-600 hover:text-white transition-all" title="Edit"><i className="bi bi-pencil-square"></i></button>
-                           <button onClick={() => confirmDelete(d)} className="h-10 w-10 flex items-center justify-center bg-rose-50 text-rose-600 border border-rose-100 rounded-xl shadow-sm hover:bg-rose-600 hover:text-white transition-all" title="Hapus"><i className="bi bi-trash3-fill"></i></button>
+                           <button onClick={() => handleOpenModal(d)} className="h-9 w-9 flex items-center justify-center bg-amber-50 text-amber-600 border border-amber-100 rounded-xl shadow-sm hover:bg-amber-600 hover:text-white transition-all" title="Edit"><i className="bi bi-pencil-square"></i></button>
+                           <button onClick={() => confirmDelete(d)} className="h-9 w-9 flex items-center justify-center bg-rose-50 text-rose-600 border border-rose-100 rounded-xl shadow-sm hover:bg-rose-600 hover:text-white transition-all" title="Hapus"><i className="bi bi-trash3-fill"></i></button>
                          </>
                        )}
                     </div>
