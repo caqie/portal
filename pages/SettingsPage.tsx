@@ -34,6 +34,7 @@ const SettingsPage = () => {
   const [wfaSearch, setWfaSearch] = useState('');
   const [accessSearch, setAccessSearch] = useState('');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [userFormData, setUserFormData] = useState<Partial<AdminUser>>({ role: 'Viewer' });
 
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
@@ -880,21 +881,29 @@ const SettingsPage = () => {
                   <h4 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Manajemen User Cloud</h4>
                   <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Kelola akun administrator sistem</p>
                 </div>
-                <button onClick={() => { setUserFormData({ role: 'Viewer' }); setIsUserModalOpen(true); }} className="px-8 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg tracking-widest">+ Admin Baru</button>
+                <button onClick={() => { setUserFormData({ role: 'Viewer' }); setShowPassword(false); setIsUserModalOpen(true); }} className="px-8 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg tracking-widest">+ Admin Baru</button>
               </div>
               <div className="bg-white border border-gray-100 rounded-[2.5rem] overflow-x-auto custom-scrollbar shadow-sm">
                 <table className="w-full text-left">
                   <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-[0.2em]">
-                    <tr><th className="px-10 py-5">Identitas & NIP</th><th className="px-4 py-5 text-center">Role</th><th className="px-10 py-5 text-right">Opsi</th></tr>
+                    <tr><th className="px-10 py-5">Identitas & NIP</th><th className="px-4 py-5 text-center">Role</th><th className="px-4 py-5 text-center">Status</th><th className="px-10 py-5 text-right">Opsi</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {users.map(u => (
-                      <tr key={u.id} className="group hover:bg-blue-50/10 transition-colors">
+                    {users.map((u, i) => (
+                      <tr key={`${u.id}-${u.nip}-${i}`} className="group hover:bg-blue-50/10 transition-colors">
                         <td className="px-10 py-5"><p className="text-[11px] font-black text-gray-950 uppercase">{u.name}</p><p className="text-[9px] font-mono text-gray-400">NIP. {u.nip}</p></td>
                         <td className="px-4 py-5 text-center"><span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[8px] font-black uppercase border border-blue-100">{u.role}</span></td>
-                        <td className="px-10 py-5 text-right">
+                        <td className="px-4 py-5 text-center">
+                          <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${
+                            u.status === 'Nonaktif' 
+                            ? 'bg-rose-50 text-rose-600 border-rose-100' 
+                            : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                          }`}>
+                            {u.status || 'Aktif'}
+                          </span>
+                        </td>                        <td className="px-10 py-5 text-right">
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                                <button onClick={() => { setUserFormData(u); setIsUserModalOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 rounded-xl text-amber-500 hover:bg-amber-500 hover:text-white shadow-sm flex items-center justify-center transition-all"><i className="bi bi-pencil-square"></i></button>
+                                <button onClick={() => { setUserFormData(u); setShowPassword(false); setIsUserModalOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 rounded-xl text-amber-500 hover:bg-amber-500 hover:text-white shadow-sm flex items-center justify-center transition-all"><i className="bi bi-pencil-square"></i></button>
                                 {isSuperadmin && u.nip !== currentUser?.nip && (
                                     <button onClick={() => { if(window.confirm('Hapus user ini?')) handleUserAction('DELETE', u) }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 hover:bg-rose-500 hover:text-white shadow-sm flex items-center justify-center transition-all"><i className="bi bi-trash-fill"></i></button>
                                 )}
@@ -1007,8 +1016,45 @@ const SettingsPage = () => {
               <div className="flex-1 p-10 space-y-4 overflow-y-auto custom-scrollbar bg-white">
                  <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">NIP Pegawai</label><input type="text" className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={userFormData.nip || ''} onChange={e => setUserFormData({...userFormData, nip: e.target.value.replace(/\D/g, '')})} /></div>
                  <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Nama Lengkap</label><input type="text" className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black uppercase outline-none" value={userFormData.name || ''} onChange={e => setUserFormData({...userFormData, name: e.target.value})} /></div>
-                 <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Kata Sandi</label><input type="password" placeholder="••••••••" className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={userFormData.password || ''} onChange={e => setUserFormData({...userFormData, password: e.target.value})} /></div>
+                 <div className="space-y-1.5">
+                   <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Kata Sandi</label>
+                   <div className="relative group/pass">
+                     <input 
+                       type={showPassword ? "text" : "password"} 
+                       placeholder="••••••••" 
+                       className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none focus:border-blue-600 focus:bg-white transition-all shadow-sm" 
+                       value={userFormData.password || ''} 
+                       onChange={e => setUserFormData({...userFormData, password: e.target.value})} 
+                     />
+                     <button 
+                       type="button"
+                       onClick={() => setShowPassword(!showPassword)}
+                       className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center text-gray-400 hover:text-blue-600 transition-colors"
+                     >
+                       <i className={`bi ${showPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'} text-lg`}></i>
+                     </button>
+                   </div>
+                 </div>
                  <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Role Akses</label><select className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})}><option value="Superadmin">Superadmin</option><option value="Editor">Editor</option><option value="Viewer">Viewer</option></select></div>
+                 <div className="space-y-1.5">
+                   <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Status Akun</label>
+                   <div className="flex gap-2">
+                     {['Aktif', 'Nonaktif'].map((s) => (
+                       <button
+                         key={s}
+                         type="button"
+                         onClick={() => setUserFormData({...userFormData, status: s as any})}
+                         className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all border-2 ${
+                           (userFormData.status || 'Aktif') === s 
+                           ? 'bg-blue-600 border-blue-600 text-white shadow-lg' 
+                           : 'bg-gray-50 border-gray-100 text-gray-400'
+                         }`}
+                       >
+                         {s}
+                       </button>
+                     ))}
+                   </div>
+                 </div>
               </div>
               {/* STICKY FOOTER */}
               <div className="p-8 bg-gray-50 border-t shrink-0 flex gap-3 relative z-30">

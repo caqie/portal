@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogIn, User, Calendar, AlertCircle, ShieldCheck, Users, ArrowLeft } from 'lucide-react';
+import { LogIn, User, Calendar, AlertCircle, ShieldCheck, Users, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { fetchPesertaUkomFromSheets, fetchUsersFromSheets } from '../spreadsheetService';
 import { PesertaUkom, AdminUser } from '../types';
 import { useAuth } from '../AuthContext';
@@ -11,6 +11,7 @@ const UkomLoginPage: React.FC = () => {
   const [loginMode, setLoginMode] = useState<'PESERTA' | 'PENGAWAS'>('PESERTA');
   const [noPeserta, setNoPeserta] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [unlockPassword, setUnlockPassword] = useState('');
   const [isLocked, setIsLocked] = useState(false);
   const [error, setError] = useState('');
@@ -61,6 +62,11 @@ const UkomLoginPage: React.FC = () => {
         const user = users.find((u: AdminUser) => u.nip === noPeserta && u.password === password);
         
         if (user) {
+          if (user.status === 'Nonaktif') {
+            setError('Akun Anda dinonaktifkan. Silakan hubungi Superadmin.');
+            setLoading(false);
+            return;
+          }
           login(user);
           navigate('/ukom/admin'); // Redirect to admin/session list first
         } else {
@@ -166,16 +172,23 @@ const UkomLoginPage: React.FC = () => {
 
             <div className="space-y-2">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-4">Password</label>
-              <div className="relative">
+              <div className="relative group">
                 <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
                 <input 
-                  type="password" 
+                  type={showPassword ? "text" : "password"} 
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Masukkan Password"
-                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
+                  className="w-full pl-14 pr-12 py-4 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all"
                   required
                 />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center text-gray-400 hover:text-blue-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
               {loginMode === 'PESERTA' && (
                 <p className="text-[9px] text-gray-400 italic ml-4">Gunakan Password yang diberikan atau Tanggal Lahir (YYYY-MM-DD)</p>

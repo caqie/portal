@@ -339,7 +339,7 @@ const AppContent = () => {
               <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden h-9 w-9 md:h-10 md:w-10 flex items-center justify-center text-gray-400 bg-gray-50 rounded-xl shrink-0"><i className="bi bi-list text-xl md:text-2xl"></i></button>
               <div className="hidden sm:block">
                 <h2 className="text-xs md:text-sm font-black text-gray-950 tracking-tight">Portal SDM DJKI</h2>
-                <p className="text-[8px] md:text-[10px] text-gray-400 font-bold tracking-widest">DJKI Smart Hub 2025</p>
+                <p className="text-[8px] md:text-[10px] text-gray-400 font-bold tracking-widest">SISTEM MANAJEMEN SDM DJKI 2025</p>
               </div>
             </div>
             
@@ -379,7 +379,7 @@ const AppContent = () => {
                 </div>
              </div>
              <div className="hidden sm:flex bg-[#111827] h-full px-4 items-center gap-2 shrink-0 z-10 shadow-[-5px_0_15px_rgba(0,0,0,0.3)]">
-                <span className="text-[8px] font-bold text-slate-500 tracking-widest italic">{new Date().getFullYear()} © DJKI HUB</span>
+                <span className="text-[8px] font-bold text-slate-500 tracking-widest italic">{new Date().getFullYear()} © PORTAL SDM DJKI </span>
              </div>
           </div>
         </header>
@@ -428,11 +428,11 @@ const AppContent = () => {
           <footer className="mt-12 md:mt-16 pt-6 md:pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left shrink-0 pb-4">
             <div className="space-y-1">
               <p className="text-[9px] md:text-[10px] font-black text-gray-900 tracking-widest uppercase">{systemName}</p>
-              <p className="text-[7px] md:text-[8px] font-bold text-gray-400 tracking-widest uppercase">Sistem Manajemen SDM DJKI Kemenkumham RI © 2025</p>
+              <p className="text-[7px] md:text-[8px] font-bold text-gray-400 tracking-widest uppercase">Sistem Manajemen SDM DJKI KEMENKUM RI © 2025</p>
             </div>
             <div className="flex flex-col items-center md:items-end">
               <p className="text-[7px] md:text-[8px] font-black text-gray-400 tracking-widest mb-1 uppercase">Dikembangkan Oleh:</p>
-              <a href="https://caqiestudioproduction.com" target="_blank" rel="noopener noreferrer" className="text-[8px] md:text-[9px] font-black text-blue-600 hover:text-blue-700 tracking-widest transition-colors flex items-center gap-2 group uppercase">
+              <a href="https://caqiestudio.my.id" target="_blank" rel="noopener noreferrer" className="text-[8px] md:text-[9px] font-black text-blue-600 hover:text-blue-700 tracking-widest transition-colors flex items-center gap-2 group uppercase">
                 caqiestudioproduction.com
                 <i className="bi bi-box-arrow-up-right group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
               </a>

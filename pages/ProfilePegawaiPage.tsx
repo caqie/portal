@@ -64,7 +64,7 @@ const ProfilePegawaiPage = () => {
         fetchPegawaiFromSheets(), 
         fetchDossiersFromSheets(true)
       ]);
-      const found = pData.find(p => p.nip === nip);
+      const found = pData.find(p => (p.nip || '').replace(/\D/g, '') === (nip || '').replace(/\D/g, ''));
       if (found) {
         // Enrich data
         const enriched: Pegawai = {
@@ -170,7 +170,9 @@ const ProfilePegawaiPage = () => {
         }
 
         setPegawai(enriched);
-        setDossiers(dData.filter(d => d.nip === nip));
+        const filteredDossiers = dData.filter(d => (d.nip || '').replace(/\D/g, '') === (nip || '').replace(/\D/g, ''))
+          .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+        setDossiers(filteredDossiers);
       }
     } catch (e) {
       console.error(e);
@@ -427,7 +429,7 @@ const ProfilePegawaiPage = () => {
       if (res.success && res.fileUrl) {
         const payload: Dossier = {
           id: `DOS-${Date.now()}`,
-          nip: pegawai.nip,
+          nip: (pegawai.nip || '').replace(/\D/g, ''),
           namaPegawai: pegawai.nama,
           tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
           keterangan: dossierFormData.keterangan || '-',
@@ -518,7 +520,7 @@ const ProfilePegawaiPage = () => {
         
         const dossierPayload: Dossier = {
           id: `DOS-AUTO-${Date.now()}`,
-          nip: pegNip,
+          nip: (pegNip || '').replace(/\D/g, ''),
           namaPegawai: pegNama,
           tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
           keterangan: `Unggahan otomatis dari Riwayat ${field.replace('riwayat', '')}`,
@@ -539,7 +541,9 @@ const ProfilePegawaiPage = () => {
         
         // Refresh local dossiers state
         const dData = await fetchDossiersFromSheets(true); // Bypass cache to get latest
-        setDossiers(dData.filter(d => d.nip === pegNip));
+        const filteredDossiers = dData.filter(d => (d.nip || '').replace(/\D/g, '') === (pegNip || '').replace(/\D/g, ''))
+          .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+        setDossiers(filteredDossiers);
         
         setSuccessMsg(`Berkas "${dossierName || file.name}" berhasil diunggah dan tersimpan di Dossier serta memperbarui data induk.`);
         setShowSuccess(true);
@@ -1714,16 +1718,21 @@ const ProfilePegawaiPage = () => {
                       <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Arsip dokumen digital pegawai</p>
                     </div>
                   </div>
-                  {isEditing && (
-                    <button onClick={() => setIsAddDossierOpen(true)} className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-blue-100">
-                      <i className="bi bi-cloud-arrow-up-fill"></i> Tambah Berkas
+                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <button onClick={loadData} className="px-6 py-3 bg-white border border-gray-200 text-gray-600 rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 hover:bg-gray-50 transition-all">
+                      <i className="bi bi-arrow-clockwise"></i> Segarkan Berkas
                     </button>
-                  )}
+                    {isEditing && (
+                      <button onClick={() => setIsAddDossierOpen(true)} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-blue-100">
+                        <i className="bi bi-cloud-arrow-up-fill"></i> Tambah Berkas
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {dossiers.map(d => (
-                    <div key={d.id} className="p-5 md:p-6 bg-gray-50 border border-gray-100 rounded-2xl md:rounded-[2.5rem] hover:bg-white hover:border-blue-300 transition-all group flex items-center gap-4 md:gap-5">
+                  {dossiers.map((d, i) => (
+                    <div key={`${d.id}-${i}`} className="p-5 md:p-6 bg-gray-50 border border-gray-100 rounded-2xl md:rounded-[2.5rem] hover:bg-white hover:border-blue-300 transition-all group flex items-center gap-4 md:gap-5">
                       <div className="h-12 w-12 md:h-14 md:w-14 bg-white rounded-xl md:rounded-2xl flex items-center justify-center text-blue-600 text-2xl md:text-3xl shadow-sm shrink-0"><i className="bi bi-file-earmark-pdf-fill"></i></div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] md:text-[11px] font-black uppercase truncate text-gray-950">{d.fileName}</p>

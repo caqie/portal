@@ -8,6 +8,7 @@ import { DEFAULT_LOGO } from '../constants';
 const LoginPage = () => {
   const [nip, setNip] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -35,6 +36,11 @@ const LoginPage = () => {
       let foundUser = users.find(u => u.nip === nip && u.password === password);
 
       if (foundUser) {
+        if (foundUser.status === 'Nonaktif') {
+          setError('Akun Anda dinonaktifkan. Silakan hubungi Superadmin.');
+          setLoading(false);
+          return;
+        }
         // 2. KONEKSI KE SHEET PEGAWAI: Ambil detail profil lengkap berdasarkan NIP
         const pegawaiList = await fetchPegawaiFromSheets();
         const profileMatch = pegawaiList.find(p => p.nip === foundUser!.nip);
@@ -134,13 +140,20 @@ const LoginPage = () => {
               <div className="relative group">
                 <i className="bi bi-key absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors"></i>
                 <input 
-                  type="password" 
+                  type={showPassword ? "text" : "password"} 
                   required
                   placeholder="••••••••"
-                  className="w-full pl-11 pr-4 py-3 sm:py-4 bg-gray-50/50 border border-gray-200 rounded-xl sm:rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 text-[12px] sm:text-sm font-black text-gray-950 transition-all shadow-sm placeholder:text-gray-300"
+                  className="w-full pl-11 pr-12 py-3 sm:py-4 bg-gray-50/50 border border-gray-200 rounded-xl sm:rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 text-[12px] sm:text-sm font-black text-gray-950 transition-all shadow-sm placeholder:text-gray-300"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center text-gray-400 hover:text-blue-600 transition-colors"
+                >
+                  <i className={`bi ${showPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'} text-lg`}></i>
+                </button>
               </div>
             </div>
 

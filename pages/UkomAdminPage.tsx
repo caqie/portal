@@ -802,7 +802,7 @@ const UkomAdminPage: React.FC = () => {
               <tbody className="divide-y divide-gray-50">
                 {activeTab === 'HASIL' ? (
                   filteredHasil.map((h, i) => (
-                    <tr key={i} className="hover:bg-blue-50/30 transition-colors group">
+                    <tr key={`hasil-${h.noPeserta}-${i}`} className="hover:bg-blue-50/30 transition-colors group">
                       <td className="px-8 py-6">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${i < 3 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400'}`}>
                           {i + 1}
@@ -851,7 +851,7 @@ const UkomAdminPage: React.FC = () => {
                   ))
                 ) : activeTab === 'PESERTA' ? (
                   filteredPeserta.map((p, i) => (
-                    <tr key={i} className="hover:bg-blue-50/30 transition-colors group">
+                    <tr key={`peserta-${p.noPeserta}-${i}`} className="hover:bg-blue-50/30 transition-colors group">
                       <td className="px-8 py-6 text-xs font-bold text-gray-400">#{i + 1}</td>
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-3">

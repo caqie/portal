@@ -31,8 +31,8 @@ const DossiersPage = () => {
     setLoading(true);
     try {
       const [dData, pData] = await Promise.all([
-        fetchDossiersFromSheets(),
-        fetchPegawaiFromSheets()
+        fetchDossiersFromSheets(true),
+        fetchPegawaiFromSheets(true)
       ]);
       // Sort by newest upload (assuming ID or tanggal)
       setDossiers(dData.sort((a,b) => b.id.localeCompare(a.id)));
@@ -137,10 +137,12 @@ const DossiersPage = () => {
     }
     
     setSyncing(true);
-    const peg = pegawaiList.find(p => p.nip === formData.nip);
+    const cleanNip = (formData.nip || '').replace(/\D/g, '');
+    const peg = pegawaiList.find(p => (p.nip || '').replace(/\D/g, '') === cleanNip);
     const payload = {
       ...formData,
-      id: selectedDossier?.id || `DOS-${formData.nip}-${Date.now()}`,
+      nip: cleanNip,
+      id: selectedDossier?.id || `DOS-NEW-${cleanNip}-${Date.now()}`,
       namaPegawai: peg?.nama || 'ASN'
     };
 

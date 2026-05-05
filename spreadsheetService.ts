@@ -388,7 +388,15 @@ export const fetchDossiersFromSheets = (bypassCache = false) => fetchTableData<D
 
 export const fetchUsersFromSheets = (bypassCache = false) => fetchTableData<AdminUser>('USERS', 'portal_users_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
-    return { id: get('ID'), nip: get('NIP'), name: get('NAME'), password: get('PASSWORD'), role: get('ROLE') as any, foto: get('FOTO') };
+    return { 
+      id: get('ID'), 
+      nip: (get('NIP') || '').replace(/\D/g, ''), 
+      name: get('NAME'), 
+      password: get('PASSWORD'), 
+      role: (get('ROLE') as any) || 'Viewer', 
+      foto: get('FOTO'),
+      status: (get('STATUS') as any) || 'Aktif'
+    };
 }, bypassCache);
 
 export const fetchPelantikanFromSheets = (bypassCache = false) => fetchTableData<any>('PELANTIKAN', 'pelantikan_db', (cols, headers) => {
