@@ -241,11 +241,6 @@ const PegawaiPage = () => {
       setPegawaiList(enrichedData);
       setDossierList(dData);
       findDuplicatesAndInvalids(enrichedData);
-
-      if (bypassCache && pData.length > 0) {
-        setSuccessMsg("Data berhasil disinkronkan dengan Spreadsheet.");
-        setShowSuccess(true);
-      }
     } catch (e) { 
       console.error("Data loading error:", e); 
       if (bypassCache) {
@@ -612,16 +607,6 @@ const PegawaiPage = () => {
           <p className="text-[8px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-3 flex items-center gap-2"><i className="bi bi-shield-check text-blue-600"></i> Terintegrasi dengan Cloud Google Spreadsheet</p>
         </div>
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full lg:w-auto">
-           {canEdit && (
-             <button 
-               onClick={() => loadData(true)} 
-               disabled={syncing || loading}
-               className="h-10 md:h-14 px-3 md:px-6 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2"
-             >
-               <i className={`bi bi-arrow-clockwise text-base md:text-lg ${(syncing || loading) ? 'animate-spin' : ''}`}></i>
-               <span className="hidden xs:inline">Sinkronkan</span><span className="xs:hidden">Sync</span>
-             </button>
-           )}
            <button onClick={() => handleExportExcel('SHARE')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2"><i className="bi bi-file-earmark-spreadsheet-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Share</span><span className="xs:hidden">Shr</span></button>
            {canEdit && (<button onClick={() => handleExportExcel('FULL')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-600 text-white rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"><i className="bi bi-database-fill-down text-base md:text-lg"></i> <span className="hidden xs:inline">Full</span><span className="xs:hidden">Full</span></button>)}
            {canEdit && (<button onClick={() => { setSelectedPegawai(null); setFormData({status: 'Aktif', jenisPegawai: 'PNS', gender: 'L', unitKerja: UNIT_KERJA[0]}); setIsModalOpen(true); }} className="col-span-2 sm:w-auto h-10 md:h-14 px-4 md:px-10 bg-[#111827] text-white rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-2"><i className="bi bi-person-plus-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Registrasi Pegawai</span><span className="xs:hidden">Registrasi</span></button>)}
