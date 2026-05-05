@@ -135,6 +135,7 @@ const AbsensiOnlinePage = () => {
 
     loadHistory();
     const init = async () => {
+      setErrorMessage(null);
       try {
         await loadModels();
         const peg = await loadCurrentPegawai();
@@ -142,10 +143,11 @@ const AbsensiOnlinePage = () => {
           await prepareFaceMatcher(peg);
         } else if (peg && !peg.foto) {
           setStatus(prev => ({ ...prev, data: 'No Photo' }));
-          setErrorMessage("Foto profil belum tersedia. Unggah foto di modul Pegawai.");
+          setErrorMessage("Foto profil belum tersedia. Unggah foto di modul Pegawai agar sistem dapat mengenali Anda.");
         }
       } catch (err) {
-        setErrorMessage("Inisialisasi sistem biometrik gagal.");
+        console.error("Initialization error:", err);
+        setErrorMessage("Inisialisasi sistem biometrik gagal. Pastikan browser mendukung fitur ini dan koneksi internet stabil.");
       }
     };
     init();
@@ -209,13 +211,16 @@ const AbsensiOnlinePage = () => {
 
   const loadModels = async () => {
     try {
+      setStatus(prev => ({ ...prev, model: 'Loading...' }));
       // Use a reliable CDN for models
       const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
       
-      // Load models sequentially to avoid overwhelming the browser
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+      // Load models sequentially or in parallel
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+      ]);
       
       setModelsLoaded(true);
       setStatus(prev => ({ ...prev, model: 'Ready' }));
@@ -223,7 +228,8 @@ const AbsensiOnlinePage = () => {
     } catch (err) {
       console.error("Model loading failed:", err);
       setStatus(prev => ({ ...prev, model: 'Error' }));
-      setErrorMessage("Gagal memuat model AI biometrik. Periksa koneksi internet Anda.");
+      setErrorMessage("Gagal memuat model AI biometrik. Periksa koneksi internet Anda atau coba segarkan halaman.");
+      throw err;
     }
   };
 
@@ -277,16 +283,34 @@ const AbsensiOnlinePage = () => {
 
   const startCamera = async () => {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Browser tidak mendukung akses kamera.");
+      }
+      
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'user', width: 640, height: 480 } 
       });
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setStatus(prev => ({ ...prev, camera: 'Active' }));
         videoRef.current.onloadedmetadata = () => startDetection();
       }
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Camera access error:", err);
       setStatus(prev => ({ ...prev, camera: 'Denied' }));
+      
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setErrorMessage("Akses kamera ditolak. Mohon berikan izin penggunaan kamera di pengaturan browser Anda.");
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setErrorMessage("Kamera tidak ditemukan. Pastikan perangkat Anda memiliki kamera yang berfungsi.");
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        setErrorMessage("Kamera sedang digunakan oleh aplikasi lain. Tutup aplikasi tersebut dan coba lagi.");
+      } else if (err.name === 'OverconstrainedError') {
+        setErrorMessage("Kamera tidak mendukung resolusi yang diminta.");
+      } else {
+        setErrorMessage("Gagal menghubungkan ke kamera: " + (err.message || "Kesalahan tidak diketahui"));
+      }
     }
   };
 
@@ -533,17 +557,25 @@ const AbsensiOnlinePage = () => {
       </div>
 
       {errorMessage && (
-        <div className="bg-rose-50 border-2 border-rose-100 p-6 rounded-[2rem] flex items-center gap-4 animate-fadeIn">
+        <div className="bg-rose-50 border-2 border-rose-100 p-6 rounded-[2rem] flex flex-col md:flex-row items-center gap-4 animate-fadeIn">
           <div className="h-12 w-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-lg">
             <i className="bi bi-exclamation-triangle-fill text-xl"></i>
           </div>
-          <div>
+          <div className="flex-1">
             <h6 className="text-[11px] font-black text-rose-900 uppercase">System Error Detected</h6>
             <p className="text-[10px] font-bold text-rose-600 uppercase mt-1">{errorMessage}</p>
           </div>
-          <button onClick={() => setErrorMessage(null)} className="ml-auto text-rose-400 hover:text-rose-600">
-            <i className="bi bi-x-circle-fill text-xl"></i>
-          </button>
+          <div className="flex gap-2 w-full md:w-auto">
+            <button 
+              onClick={() => window.location.reload()} 
+              className="flex-1 md:flex-none px-4 py-2 bg-rose-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:bg-rose-700 transition-colors"
+            >
+              Coba Lagi
+            </button>
+            <button onClick={() => setErrorMessage(null)} className="flex-1 md:flex-none px-4 py-2 bg-white border border-rose-200 text-rose-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-50 transition-colors">
+              Tutup
+            </button>
+          </div>
         </div>
       )}
 
