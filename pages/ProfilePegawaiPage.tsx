@@ -345,10 +345,22 @@ const ProfilePegawaiPage = () => {
         
         // Auto-save to Dossier
         let dossierName = '';
-        if (field === 'riwayatJabatan') dossierName = `SK Jabatan - ${currentItem?.namaJabatan || 'Baru'}`;
-        else if (field === 'riwayatPangkat') dossierName = `SK Pangkat - ${currentItem?.pangkat || 'Baru'}`;
-        else if (field === 'riwayatPendidikan') dossierName = `Ijazah ${currentItem?.jenjang || 'Baru'} - ${currentItem?.institusi || ''}`;
-        else if (field === 'riwayatPelatihan') dossierName = `Sertifikat ${currentItem?.namaPelatihan || 'Baru'}`;
+        if (field === 'riwayatJabatan') {
+          const item = currentItem as any;
+          dossierName = `SK Jabatan - ${item?.namaJabatan || 'Baru'}`;
+        }
+        else if (field === 'riwayatPangkat') {
+          const item = currentItem as any;
+          dossierName = `SK Pangkat - ${item?.pangkat || 'Baru'}`;
+        }
+        else if (field === 'riwayatPendidikan') {
+          const item = currentItem as any;
+          dossierName = `Ijazah ${item?.jenjang || 'Baru'} - ${item?.institusi || ''}`;
+        }
+        else if (field === 'riwayatPelatihan') {
+          const item = currentItem as any;
+          dossierName = `Sertifikat ${item?.namaPelatihan || 'Baru'}`;
+        }
         
         const dossierPayload: Dossier = {
           id: `DOS-AUTO-${Date.now()}`,
@@ -361,6 +373,12 @@ const ProfilePegawaiPage = () => {
         };
         
         await syncTableRemote('DOSSIER', 'SAVE', dossierPayload);
+        
+        // Auto-save the employee record as well to persist the fileUrl in riwayat
+        await savePegawai({
+          ...pegawai,
+          [field]: (pegawai[field] as any[]).map((itm, i) => i === idx ? { ...itm, fileUrl: res.fileUrl } : itm)
+        });
         
         // Refresh local dossiers state
         const dData = await fetchDossiersFromSheets(true); // Bypass cache to get latest

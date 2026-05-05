@@ -178,9 +178,8 @@ const Dashboard = () => {
   const activePegawaiList = useMemo(() => {
     return pegawai.filter(p => {
       const s = (p.status || 'Aktif').trim().toUpperCase();
-      // Only include truly active statuses: "AKTIF" and "TUGAS BELAJAR"
-      // Exclude "TIDAK AKTIF" and "PENSIUN" as requested
-      return s === 'AKTIF' || s === 'TUGAS BELAJAR';
+      // Strictly include only "AKTIF" status as requested
+      return s === 'AKTIF';
     });
   }, [pegawai]);
 
@@ -368,9 +367,12 @@ const Dashboard = () => {
         if (filterJenisGender === 'Semua Jenis') return true;
         const jen = (p.jenisPegawai || '').toUpperCase();
         const target = filterJenisGender.toUpperCase();
-        if (target === 'PPPK') return jen.includes('PPPK');
-        if (target === 'PNS') return jen === 'PNS';
-        return jen.includes(target);
+        if (target === 'PPPK') {
+          const jen = (p.jenisPegawai || '').toUpperCase();
+          return jen.includes('PPPK') && !jen.includes('PARUH');
+        }
+        if (target === 'PNS') return (p.jenisPegawai || '').toUpperCase() === 'PNS';
+        return (p.jenisPegawai || '').toUpperCase().includes(target);
     });
     return { pria: filteredList.filter(p => p.gender === 'L').length, wanita: filteredList.filter(p => p.gender === 'P').length };
   }, [activePegawaiList, filterJenisGender]);
@@ -380,9 +382,12 @@ const Dashboard = () => {
         if (filterJenisEdu === 'Semua Jenis') return true;
         const jen = (p.jenisPegawai || '').toUpperCase();
         const target = filterJenisEdu.toUpperCase();
-        if (target === 'PPPK') return jen.includes('PPPK');
-        if (target === 'PNS') return jen === 'PNS';
-        return jen.includes(target);
+        if (target === 'PPPK') {
+          const jen = (p.jenisPegawai || '').toUpperCase();
+          return jen.includes('PPPK') && !jen.includes('PARUH');
+        }
+        if (target === 'PNS') return (p.jenisPegawai || '').toUpperCase() === 'PNS';
+        return (p.jenisPegawai || '').toUpperCase().includes(target);
     });
     const eduMap: Record<string, number> = {};
     filteredList.forEach(p => {
@@ -406,9 +411,12 @@ const Dashboard = () => {
         if (filterJenisGrade === 'Semua Jenis') return true;
         const jen = (p.jenisPegawai || '').toUpperCase();
         const target = filterJenisGrade.toUpperCase();
-        if (target === 'PPPK') return jen.includes('PPPK');
-        if (target === 'PNS') return jen === 'PNS';
-        return jen.includes(target);
+        if (target === 'PPPK') {
+          const jen = (p.jenisPegawai || '').toUpperCase();
+          return jen.includes('PPPK') && !jen.includes('PARUH');
+        }
+        if (target === 'PNS') return (p.jenisPegawai || '').toUpperCase() === 'PNS';
+        return (p.jenisPegawai || '').toUpperCase().includes(target);
     });
     const gradeMap: Record<string, number> = {};
     filteredList.forEach(p => {
@@ -688,7 +696,10 @@ const Dashboard = () => {
         <StatsCard title="Total ASN Aktif" value={activePegawaiList.length} icon="bi-people-fill" color="bg-blue-600" loading={loading} />
         <StatsCard title="Total PNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim() === 'PNS').length} icon="bi-person-vcard" color="bg-indigo-600" loading={loading} />
         <StatsCard title="Total CPNS" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().trim().includes('CPNS')).length} icon="bi-person-plus" color="bg-cyan-600" loading={loading} />
-        <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => (p.jenisPegawai || '').toUpperCase().includes('PPPK')).length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
+        <StatsCard title="Total PPPK" value={activePegawaiList.filter(p => {
+          const jen = (p.jenisPegawai || '').toUpperCase();
+          return jen.includes('PPPK') && !jen.includes('PARUH');
+        }).length} icon="bi-person-check" color="bg-sky-600" loading={loading} />
         <StatsCard title="PPPK Paruh Waktu" value={activePegawaiList.filter(p => (p.jenisPegawai||'').toUpperCase().includes('PARUH')).length} icon="bi-person-gear" color="bg-rose-600" loading={loading} />
       </div>
 

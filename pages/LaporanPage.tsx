@@ -50,15 +50,15 @@ const LaporanPage = () => {
 
   const stats = useMemo(() => {
     const active = pegawai.filter(p => {
-      const s = (p.status || 'Aktif').trim().toLowerCase();
-      // Dashboard uses s !== 'tidak aktif' && s !== 'pensiun'
-      return s !== 'tidak aktif' && s !== 'pensiun';
+      const s = (p.status || 'Aktif').trim().toUpperCase();
+      return s === 'AKTIF';
     });
     
     const getStatsForType = (typeKey: string) => {
       const list = active.filter(p => {
         const type = (p.jenisPegawai || '').toUpperCase().trim();
         if (typeKey.toUpperCase() === 'PNS') return type === 'PNS';
+        if (typeKey.toUpperCase() === 'PPPK') return type.includes('PPPK') && !type.includes('PARUH');
         return type.includes(typeKey.toUpperCase());
       });
       
@@ -90,6 +90,7 @@ const LaporanPage = () => {
       pns: getStatsForType('PNS'),
       cpns: getStatsForType('CPNS'),
       pppk: getStatsForType('PPPK'),
+      pppkParuh: getStatsForType('PARUH'),
       tasks: tasks.filter(t => t.bulan === selMonth && Number(t.tahun) === selYear),
       kegiatan: kegiatan.filter(k => {
           const kDate = new Date(k.tanggal);
@@ -274,6 +275,16 @@ const LaporanPage = () => {
                            <MiniTable 
                                 headers={['Unit Pengampu', 'Jumlah PPPK']} 
                                 rows={UNIT_KERJA.filter(u => stats.pppk.units[u] > 0).map(u => [u.toUpperCase(), stats.pppk.units[u]])}
+                              />
+                        </div>
+
+                        {/* 1.4 PPPK Paruh Waktu */}
+                        <div className="pl-4 space-y-3 mt-6">
+                           <p className="font-bold">1.4 Data PPPK Paruh Waktu</p>
+                           <p>Jumlah PPPK Paruh Waktu DJKI: <span className="font-bold">{stats.pppkParuh.total} Orang</span></p>
+                           <MiniTable 
+                                headers={['Unit Pengampu', 'Jumlah PPPK Paruh Waktu']} 
+                                rows={UNIT_KERJA.filter(u => stats.pppkParuh.units[u] > 0).map(u => [u.toUpperCase(), stats.pppkParuh.units[u]])}
                               />
                         </div>
                      </section>
