@@ -27,8 +27,8 @@ const LaporanPage = () => {
   const [selYear, setSelYear] = useState(new Date().getFullYear());
   const [nomorNota, setNomorNota] = useState(`HKI.1-PR.04.01-${Math.floor(Math.random() * 1000)}`);
   const [tanggalNota, setTanggalNota] = useState(new Date().toISOString().split('T')[0]);
-  const [signatoryNip, setSignatoryNip] = useState('197410061998031002'); 
-  const [signatoryData, setSignatoryData] = useState({ nama: 'ANDRIEANSJAH', jabatan: 'KETUA TIM KERJA PENGELOLAAN SDM' });
+  const [signatoryNip, setSignatoryNip] = useState('197012161993031002'); 
+  const [signatoryData, setSignatoryData] = useState({ nama: 'SARIMAN', jabatan: 'KETUA TIM KERJA PENGELOLAAN SDM' });
 
   useEffect(() => { loadAllData(); }, []);
 
