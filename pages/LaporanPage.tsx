@@ -32,10 +32,14 @@ const LaporanPage = () => {
 
   useEffect(() => { loadAllData(); }, []);
 
-  const loadAllData = async () => {
+  const loadAllData = async (bypass = false) => {
     setLoading(true);
     try {
-      const [p, t, k] = await Promise.all([fetchPegawaiFromSheets(), fetchTugasRutinFromSheets(), fetchKegiatanFromSheets()]);
+      const [p, t, k] = await Promise.all([
+        fetchPegawaiFromSheets(bypass), 
+        fetchTugasRutinFromSheets(bypass), 
+        fetchKegiatanFromSheets(bypass)
+      ]);
       setPegawai(p); setTasks(t); setKegiatan(k);
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
@@ -292,25 +296,57 @@ const LaporanPage = () => {
                      {/* 2. TUGAS RUTIN */}
                      <section className="space-y-4 pt-4 text-black">
                         <p className="font-bold">2. Tugas Rutin Kepegawaian</p>
-                        {stats.tasks.map((t, i) => (
-                           <div key={t.id} className="pl-4 border-l-2 border-black mb-6">
-                              <p className="font-bold text-[10pt] text-black">2.{i+1} {TASK_LABELS[t.jenis]}</p>
-                              <div className="mt-2 p-3 border-[1pt] border-black bg-white italic text-[9.5pt] leading-relaxed text-black">
-                                 {t.detail}
-                                 {t.data && Object.keys(t.data).length > 0 && (
-                                    <div className="mt-2 pt-2 border-t border-black/40 not-italic text-[8pt] grid grid-cols-2 gap-2 text-black">
-                                       {Object.entries(t.data as Record<string, any>).map(([k, v]) => v ? (
-                                          <div key={k} className="flex gap-2">
-                                             <span className="font-bold uppercase shrink-0 text-black">{k.replace(/_/g, ' ')}:</span>
-                                             <span className="truncate text-black font-semibold">{String(v)}</span>
-                                          </div>
-                                       ) : null)}
-                                    </div>
-                                 )}
-                              </div>
-                           </div>
-                        ))}
-                        {stats.tasks.length === 0 && <p className="pl-4 italic text-black opacity-60">Tidak ada realisasi tugas rutin yang dilaporkan.</p>}
+                        {(() => {
+                           // Group tasks by jenis
+                           const grouped = stats.tasks.reduce((acc, t) => {
+                              if (!acc[t.jenis]) acc[t.jenis] = [];
+                              acc[t.jenis].push(t);
+                              return acc;
+                           }, {} as Record<string, TugasRutin[]>);
+
+                           const groupEntries = Object.entries(grouped);
+
+                           if (groupEntries.length === 0) {
+                              return <p className="pl-4 italic text-black opacity-60">Tidak ada realisasi tugas rutin yang dilaporkan.</p>;
+                           }
+
+                           return groupEntries.map(([jenis, typeTasks], groupIdx) => {
+                              // Get unique keys from data across all tasks of this type
+                              const allDataKeys = Array.from(new Set(
+                                 typeTasks.flatMap(t => Object.keys(t.data || {}))
+                              )).filter(k => k);
+
+                              return (
+                                 <div key={jenis} className="pl-2 mb-8">
+                                    <p className="font-bold text-[10.5pt] text-black mb-2">2.{groupIdx + 1} {TASK_LABELS[jenis as TaskType] || jenis}</p>
+                                    <table className="w-full border-[1pt] border-black text-[7.5pt] border-collapse text-black">
+                                       <thead className="bg-[#f2f2f2] font-bold text-center">
+                                          <tr className="border-b-[1pt] border-black">
+                                             <th className="p-1 border-r-[1pt] border-black w-6">No.</th>
+                                             {allDataKeys.map(k => (
+                                                <th key={k} className="p-1 border-r-[1pt] border-black uppercase text-[7pt]">{k.replace(/_/g, ' ')}</th>
+                                             ))}
+                                             <th className="p-1 border-r-[1pt] border-black">Deskripsi Pelaksanaan</th>
+                                          </tr>
+                                       </thead>
+                                       <tbody>
+                                          {typeTasks.map((t, i) => (
+                                             <tr key={t.id} className="border-b-[1pt] border-black last:border-0 align-top">
+                                                <td className="p-1 border-r-[1pt] border-black text-center">{i + 1}</td>
+                                                {allDataKeys.map(k => (
+                                                   <td key={k} className="p-1 border-r-[1pt] border-black text-center">
+                                                      {(t.data as any)?.[k] || '-'}
+                                                   </td>
+                                                ))}
+                                                <td className="p-1 text-justify italic leading-snug">{t.detail || '-'}</td>
+                                             </tr>
+                                          ))}
+                                       </tbody>
+                                    </table>
+                                 </div>
+                              );
+                           });
+                        })()}
                      </section>
 
                      {/* 3. KEGIATAN */}

@@ -20,6 +20,12 @@ const KegiatanPage = () => {
   const [formData, setFormData] = useState<Partial<Kegiatan>>({});
   const [viewMode, setViewMode] = useState<'TABLE' | 'CALENDAR'>('CALENDAR');
 
+  const loadData = async (bypass = false) => {
+    const data = await fetchKegiatanFromSheets(bypass);
+    setKegiatanList(data);
+    localStorage.setItem('kegiatan_db', JSON.stringify(data));
+  };
+
   useEffect(() => { 
     const initLoad = async () => {
       // Migration check
@@ -29,8 +35,7 @@ const KegiatanPage = () => {
         localStorage.setItem('kegiatan_db', oldData);
       }
 
-      const data = await fetchKegiatanFromSheets();
-      setKegiatanList(data);
+      await loadData();
     };
     initLoad();
   }, []);
@@ -81,15 +86,14 @@ const KegiatanPage = () => {
       status: formData.status || 'Direncanakan'
     };
 
-    await syncTableRemote('KEGIATAN', 'SAVE', agendaPayload);
-    const updated = editingKegiatan 
-      ? kegiatanList.map(k => k.id === editingKegiatan.id ? agendaPayload : k) 
-      : [agendaPayload, ...kegiatanList];
-    
-    setKegiatanList(updated);
-    localStorage.setItem('kegiatan_db', JSON.stringify(updated));
-    setIsModalOpen(false);
-    setShowSuccess(true);
+    const ok = await syncTableRemote('KEGIATAN', 'SAVE', agendaPayload);
+    if (ok) {
+        await loadData(true);
+        setIsModalOpen(false);
+        setShowSuccess(true);
+    } else {
+        alert("Gagal sinkronisasi ke server.");
+    }
     setSyncing(false);
   };
 

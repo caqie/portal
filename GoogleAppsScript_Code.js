@@ -48,6 +48,8 @@ function doPost(e) {
     if (action === 'SAVE') return handleSave(ss, moduleName, payload);
     if (action === 'DELETE') return handleDelete(ss, moduleName, payload);
     if (action === 'GET') return handleGet(ss, moduleName);
+    if (action === 'AUDIT_DATABASE') return handleAuditDatabase(ss, payload);
+    if (action === 'DELETE_SHEET') return handleDeleteSheet(ss, payload);
     if (action === 'GET_GID_MAP') {
       var sheets = ss.getSheets();
       var gidMap = {};
@@ -305,4 +307,60 @@ function getOrCreateSheet(ss, moduleName, payload) {
     }
   }
   return sheet;
+}
+
+function handleAuditDatabase(ss, payload) {
+  try {
+    var sheets = ss.getSheets();
+    var auditResults = [];
+    var expectedSheets = payload.expectedSheets || []; // Array of {name: '', requiredColumns: []}
+    
+    sheets.forEach(function(sheet) {
+      var name = sheet.getName();
+      var id = sheet.getSheetId().toString();
+      var lastRow = sheet.getLastRow();
+      var lastCol = sheet.getLastColumn();
+      var headers = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+      
+      var matchingModule = expectedSheets.find(function(s) {
+        return s.name.toUpperCase() === name.toUpperCase().replace(/[\s_]/g, '');
+      });
+
+      var missingColumns = [];
+      if (matchingModule) {
+        matchingModule.requiredColumns.forEach(function(col) {
+          var found = headers.some(function(h) {
+            return h.toString().toUpperCase().replace(/[\s_]/g, '') === col.toUpperCase().replace(/[\s_]/g, '');
+          });
+          if (!found) missingColumns.push(col);
+        });
+      }
+
+      auditResults.push({
+        name: name,
+        id: id,
+        rowCount: lastRow,
+        columnCount: lastCol,
+        headers: headers,
+        isSystemSheet: !!matchingModule,
+        missingColumns: missingColumns,
+        isPlaceholder: (id === '333444555' || id === '777888999' || id === '1122334455')
+      });
+    });
+
+    return createResponse({ success: true, auditResults: auditResults });
+  } catch (e) { return createResponse({ success: false, message: e.toString() }); }
+}
+
+function handleDeleteSheet(ss, sheetId) {
+  try {
+     var sheets = ss.getSheets();
+     for (var i = 0; i < sheets.length; i++) {
+       if (sheets[i].getSheetId().toString() === sheetId.toString()) {
+         ss.deleteSheet(sheets[i]);
+         return createResponse({ success: true, message: "Sheet deleted." });
+       }
+     }
+     return createResponse({ success: false, message: "Sheet not found." });
+  } catch (e) { return createResponse({ success: false, message: e.toString() }); }
 }

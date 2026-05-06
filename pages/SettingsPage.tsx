@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai, SystemConfig, PageAccess } from '../types';
-import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig } from '../spreadsheetService';
+import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig, auditSpreadsheet, deleteSheetRemote, EXPECTED_COLUMNS_SCHEMA } from '../spreadsheetService';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO, APP_ROUTES, UNIT_KERJA, PANGKAT_MAP } from '../constants';
@@ -16,6 +16,8 @@ const SettingsPage = () => {
   const [uploading, setUploading] = useState(false);
   const [syncingGid, setSyncingGid] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [auditing, setAuditing] = useState(false);
+  const [auditResults, setAuditResults] = useState<any[]>([]);
   
   const appLogoInputRef = useRef<HTMLInputElement>(null);
   const templateLogoInputRef = useRef<HTMLInputElement>(null);
@@ -194,6 +196,58 @@ const SettingsPage = () => {
         alert("Gagal sinkronisasi GID. Periksa Apps Script URL.");
     }
     setSyncingGid(false);
+  };
+
+  const handleAudit = async () => {
+    setAuditing(true);
+    try {
+      const results = await auditSpreadsheet();
+      setAuditResults(results);
+      if (results.length === 0) alert("Audit selesai, tidak ada sheet yang ditemukan.");
+    } catch (e) {
+      alert("Gagal melakukan audit spreadsheet.");
+    }
+    setAuditing(false);
+  };
+
+  const handleDeleteSheet = async (sheetId: string, sheetName: string) => {
+    if (!confirm(`HAPUS SHEET "${sheetName}"? Tindakan ini permanen.`)) return;
+    setLoading(true);
+    const ok = await deleteSheetRemote(sheetId);
+    if (ok) {
+        setSuccessMsg(`Sheet "${sheetName}" berhasil dihapus.`);
+        setShowSuccess(true);
+        handleAudit(); // Refresh audit
+    } else {
+        alert("Gagal menghapus sheet.");
+    }
+    setLoading(false);
+  };
+
+  const handleFixSheet = async (sheetName: string) => {
+    const schema = (EXPECTED_COLUMNS_SCHEMA as any)[sheetName.toUpperCase()];
+    if (!schema) return;
+    
+    setLoading(true);
+    // Smart Sync will create missing columns if we send a dummy SAVE request
+    // with all expected keys but dummy data or partial update
+    const dummyPayload: any = { id: `INIT-${Date.now()}` };
+    schema.forEach((col: string) => {
+        dummyPayload[col.toLowerCase().replace(/[\s_]/g, '')] = "";
+    });
+    
+    // We send a SAVE with dummy data, its the easiest way to trigger getOrCreateSheet with headers
+    const ok = await syncTableRemote(sheetName, 'SAVE', dummyPayload);
+    if (ok) {
+        // Immediately DELETE the dummy row
+        await syncTableRemote(sheetName, 'DELETE', { id: dummyPayload.id });
+        setSuccessMsg(`Sheet "${sheetName}" telah diperbaiki dengan kolom standar.`);
+        setShowSuccess(true);
+        handleAudit();
+    } else {
+        alert("Gagal memperbaiki sheet.");
+    }
+    setLoading(false);
   };
 
   const downloadExcelTemplate = () => {
@@ -566,6 +620,10 @@ const SettingsPage = () => {
                        {syncingGid ? <div className="h-4 w-4 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div> : <i className="bi bi-arrow-repeat text-lg"></i>}
                        Sinkronkan Peta GID
                     </button>
+                    <button onClick={handleAudit} disabled={auditing} className="px-12 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-[10px] uppercase transition-all active:scale-95 flex items-center gap-3">
+                       {auditing ? <div className="h-4 w-4 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div> : <i className="bi bi-search text-lg"></i>}
+                       Audit & Perbaikan Sheet
+                    </button>
                  </div>
               </div>
 
@@ -576,6 +634,73 @@ const SettingsPage = () => {
                     <p className="text-[10px] text-amber-700 font-medium mt-2 leading-relaxed uppercase">Perubahan ID database dapat menyebabkan sistem tidak dapat memuat data jika ID tersebut tidak valid atau tidak memiliki izin akses yang tepat.</p>
                  </div>
               </div>
+
+              {auditResults.length > 0 && (
+                <div className="space-y-8 animate-fadeIn max-w-5xl">
+                   <div className="flex items-center justify-between">
+                      <h5 className="text-[12px] font-black text-gray-900 uppercase tracking-widest">Hasil Audit Spreadsheet</h5>
+                      <button onClick={() => setAuditResults([])} className="text-[10px] font-bold text-gray-400 uppercase hover:text-red-500">Tutup Hasil Audit</button>
+                   </div>
+
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {auditResults.map((sheet: any) => (
+                        <div key={sheet.id} className={`p-6 rounded-[2.5rem] border-2 transition-all ${sheet.isSystemSheet ? 'bg-white border-gray-100' : 'bg-red-50 border-red-200'}`}>
+                           <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                 <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-lg ${sheet.isSystemSheet ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}`}>
+                                    <i className={`bi ${sheet.isSystemSheet ? 'bi-file-earmark-spreadsheet' : 'bi-trash3-fill'}`}></i>
+                                 </div>
+                                 <div className="overflow-hidden">
+                                    <p className="text-[11px] font-black uppercase leading-tight truncate">{sheet.name}</p>
+                                    <p className="text-[9px] font-bold text-gray-400">ID: {sheet.id}</p>
+                                 </div>
+                              </div>
+                              {!sheet.isSystemSheet && (
+                                <button onClick={() => handleDeleteSheet(sheet.id, sheet.name)} className="px-4 py-1.5 bg-red-600 text-white rounded-xl text-[8px] font-black uppercase shadow-lg active:scale-95">Hapus</button>
+                              )}
+                           </div>
+
+                           <div className="grid grid-cols-2 gap-2 mb-4">
+                              <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                                 <p className="text-[8px] font-black text-gray-400 uppercase">Baris</p>
+                                 <p className="text-[14px] font-black text-gray-900">{sheet.rowCount}</p>
+                              </div>
+                              <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                                 <p className="text-[8px] font-black text-gray-400 uppercase">Kolom</p>
+                                 <p className="text-[14px] font-black text-gray-900">{sheet.columnCount}</p>
+                              </div>
+                           </div>
+
+                           {sheet.missingColumns.length > 0 && (
+                             <div className="mt-4 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                                <p className="text-[9px] font-black text-amber-800 uppercase mb-2">Kolom Kurang ({sheet.missingColumns.length}):</p>
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                   {sheet.missingColumns.map((col: string) => (
+                                     <span key={col} className="px-2 py-1 bg-amber-200 text-amber-900 rounded-lg text-[8px] font-black">{col}</span>
+                                   ))}
+                                </div>
+                                <button onClick={() => handleFixSheet(sheet.name)} className="w-full py-2 bg-amber-600 text-white rounded-xl text-[8px] font-black uppercase shadow-md active:scale-95">Perbaiki Kolom</button>
+                             </div>
+                           )}
+
+                           {sheet.isPlaceholder && (
+                             <div className="mt-4 p-4 bg-red-100 rounded-2xl border border-red-200">
+                                <p className="text-[9px] font-black text-red-800 uppercase">GID Placeholder</p>
+                                <p className="text-[8px] text-red-700 font-bold mt-1 tracking-tight leading-relaxed uppercase">Gunakan "Sinkronkan Peta GID" untuk memperbarui ID sheet ini.</p>
+                             </div>
+                           )}
+
+                           {sheet.isSystemSheet && sheet.missingColumns.length === 0 && !sheet.isPlaceholder && (
+                             <div className="mt-2 flex items-center gap-2 text-emerald-600">
+                               <i className="bi bi-check-circle-fill"></i>
+                               <span className="text-[9px] font-black uppercase">Konfigurasi Valid</span>
+                             </div>
+                           )}
+                        </div>
+                      ))}
+                   </div>
+                </div>
+              )}
             </div>
           )}
 

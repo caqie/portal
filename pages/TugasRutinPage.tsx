@@ -26,10 +26,10 @@ const TugasRutinPage = () => {
 
   useEffect(() => { loadData(); }, []);
 
-  const loadData = async () => {
+  const loadData = async (bypass = false) => {
     setLoading(true);
     try {
-      const data = await fetchTugasRutinFromSheets();
+      const data = await fetchTugasRutinFromSheets(bypass);
       setTasks([...data].sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
@@ -48,33 +48,46 @@ const TugasRutinPage = () => {
   // Mengubah signature menjadi React.MouseEvent<HTMLButtonElement> karena tombol di luar form
   const handleSave = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault(); // Mencegah form submit default jika ada
-    setSyncing(true);
-    const taskId = editingTask?.id || `TR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     
     // Validasi sederhana
     if (!formData.jenis) {
-        alert("Pilih kategori administrasi terlebih dahulu.");
-        setSyncing(false);
+        alert("Silakan pilih kategori administrasi terlebih dahulu.");
+        return;
+    }
+    if (!formData.bulan) {
+        alert("Silakan pilih bulan laporan.");
         return;
     }
 
-    const payload = { 
-      ...formData, 
-      id: taskId, 
+    setSyncing(true);
+    const taskId = editingTask?.id || `TR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    
+    const payload: TugasRutin = { 
+      id: taskId,
+      timestamp: new Date().toISOString(),
+      bulan: formData.bulan || '',
+      tahun: formData.tahun || new Date().getFullYear(),
+      jenis: formData.jenis as any,
       detail: '', // Detail dikosongkan sesuai request sebelumnya
-      timestamp: new Date().toISOString() 
+      data: formData.data || {}
     };
 
-    const ok = await syncTableRemote('TUGAS_RUTIN', 'SAVE', payload);
-    if(ok) { 
-      setSuccessMsg(`Data log ${TASK_LABELS[formData.jenis || ''] || 'tugas'} berhasil disinkronkan.`);
-      await loadData();
-      setIsModalOpen(false); 
-      setShowSuccess(true); 
-    } else {
-        alert("Gagal menyimpan data. Silakan coba lagi.");
+    try {
+      const ok = await syncTableRemote('TUGAS_RUTIN', 'SAVE', payload);
+      if(ok) { 
+        setSuccessMsg(`Data log ${TASK_LABELS[formData.jenis || ''] || 'tugas'} berhasil disinkronkan.`);
+        await loadData(true);
+        setIsModalOpen(false); 
+        setShowSuccess(true); 
+      } else {
+          alert("Gagal menyimpan data ke server. Pastikan URL Apps Script sudah benar.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Terjadi kesalahan teknis saat menyimpan.");
+    } finally {
+      setSyncing(false);
     }
-    setSyncing(false);
   };
 
   const handleDeleteTask = async () => {

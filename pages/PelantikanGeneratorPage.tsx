@@ -116,10 +116,10 @@ const PelantikanGeneratorPage = () => {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (bypass = false) => {
     setLoading(true);
     try {
-      const [p, h] = await Promise.all([fetchPegawaiFromSheets(), fetchPelantikanFromSheets()]);
+      const [p, h] = await Promise.all([fetchPegawaiFromSheets(bypass), fetchPelantikanFromSheets(bypass)]);
       setPegawaiList(p);
       setHistoryList(h || []);
     } catch (e) {
@@ -173,24 +173,33 @@ const PelantikanGeneratorPage = () => {
     
     const p = pegawaiList.find(x => x.nip === itemToDelete.asnNip);
     const deletePayload = { 
-      id: itemToDelete.id, 
-      nip: itemToDelete.asnNip,
-      nama: p?.nama || 'Unknown'
+      id: itemToDelete.id || '', 
+      nip: itemToDelete.asnNip || '',
+      nama: p?.nama || 'Dokumen Pelantikan'
     };
 
-    if (!deletePayload.id && !deletePayload.nip && !deletePayload.nama) {
-        alert("Gagal menghapus: Identifikat data tidak ditemukan.");
+    if (!deletePayload.id && !deletePayload.nip) {
+        alert("Gagal menghapus: Identifikasi data (ID atau NIP) tidak ditemukan.");
+        setIsConfirmOpen(false);
         return;
     }
 
     setSyncing(true);
-    const ok = await syncTableRemote('PELANTIKAN', 'DELETE', deletePayload);
-    if (ok) {
-      logActivity('DELETE', 'Pelantikan', `Hapus Dokumen Pelantikan: ${deletePayload.nama} (ID: ${deletePayload.id})`);
-      await loadData();
-      setIsConfirmOpen(false);
+    try {
+      const ok = await syncTableRemote('PELANTIKAN', 'DELETE', deletePayload);
+      if (ok) {
+        logActivity('DELETE', 'Pelantikan', `Hapus Dokumen Pelantikan: ${deletePayload.nama} (ID: ${deletePayload.id})`);
+        await loadData(true);
+        setIsConfirmOpen(false);
+      } else {
+        alert("Gagal menghapus data dari server.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Terjadi kesalahan teknis saat menghapus.");
+    } finally {
+      setSyncing(false);
     }
-    setSyncing(false);
   };
 
   const handleEdit = (item: any) => {

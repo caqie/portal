@@ -33,6 +33,29 @@ export const DEFAULT_GIDS = {
   UKOM_SESSIONS: '1122334455'
 };
 
+export const EXPECTED_COLUMNS_SCHEMA = {
+  USERS: ['ID', 'NIP', 'NAME', 'PASSWORD', 'ROLE', 'STATUS'],
+  PEGAWAI: ['ID', 'NIP', 'NAMA', 'JABATAN', 'UNIT KERJA', 'GOL RUANG', 'JENIS PEGAWAI', 'STATUS'],
+  DOSSIER: ['ID', 'NIP', 'NAMAPEGAWAI', 'FILENAME', 'FILEURL'],
+  SKP: ['ID', 'NIP', 'NAMAPEGAWAI', 'TAHUN', 'PREDIKATKINERJA'],
+  PAK: ['ID', 'NIP', 'NAMAPEGAWAI', 'NOMOR', 'JUMLAHKREDIT'],
+  KENAIKAN: ['ID', 'NIP', 'NAMAPEGAWAI', 'DARI', 'MENJADI', 'STATUS'],
+  PENGEMBANGAN: ['ID', 'NIP', 'NAMAPEGAWAI', 'NAMAKEGIATAN', 'JUMLAHJPL', 'TAHUN'],
+  KGB: ['ID', 'NIP', 'NAMAPEGAWAI', 'TMTLAMA', 'TMTBARU', 'GAJIBARU', 'STATUS'],
+  TUGAS_RUTIN: ['ID', 'TIMESTAMP', 'BULAN', 'TAHUN', 'JENIS', 'DATA'],
+  KEGIATAN: ['ID', 'JUDULKEGIATAN', 'TANGGAL', 'TEMPAT', 'STATUS'],
+  ABK_ANJAB: ['ID', 'NAMAJABATAN', 'UNITKERJA', 'KEBUTUHANPEGAWAI'],
+  PELANTIKAN: ['ID', 'NOMOR', 'ASNNIP', 'DATA'],
+  PENSIUN: ['ID', 'NIP', 'NAMAPEGAWAI', 'DATA'],
+  MAGANG_PKL: ['ID', 'NAMA', 'INSTITUSI', 'STATUS'],
+  PERSURATAN: ['ID', 'JENISSURAT', 'NOMORSURAT', 'PREHAL', 'STATUS'],
+  SATYA_LENCANA: ['ID', 'NIP', 'NAMAPEGAWAI', 'KATEGORI', 'TAHUNTERIMA'],
+  KEUANGAN: ['ID', 'NAMAKEGIATAN', 'TANGGAL', 'STATUS'],
+  BANK_SOAL: ['IDSOAL', 'PERTANYAAN', 'JAWABANBENAR'],
+  PESERTA_UKOM: ['NOPESERTA', 'NAMA', 'JENJANG'],
+  HASIL_UKOM: ['NOPESERTA', 'NAMA', 'TOTALNILAI']
+};
+
 const getDbConfig = () => {
   const savedId = localStorage.getItem('db_spreadsheet_id');
   const savedCloud = localStorage.getItem('portal_cloud_config');
@@ -260,12 +283,12 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
   }, bypassCache);
 };
 
-export const fetchSatyaLencanaFromSheets = () => fetchTableData<SatyaLencanaRecord>('SATYA_LENCANA', 'satya_lencana_db', (cols, headers) => {
+export const fetchSatyaLencanaFromSheets = (bypassCache = false) => fetchTableData<SatyaLencanaRecord>('SATYA_LENCANA', 'satya_lencana_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), kategori: get('KATEGORI'), tahunTerima: parseInt(get('TAHUNTERIMA')) || new Date().getFullYear(), nomorKeppres: get('NOMORKEPPRES'), fileSertifikatUrl: get('FILESERTIFIKATURL') } as SatyaLencanaRecord;
-});
+}, bypassCache);
 
-export const fetchABKAnjabFromSheets = () => fetchTableData<ABKAnjab>('ABK_ANJAB', 'abk_db', (cols, headers) => {
+export const fetchABKAnjabFromSheets = (bypassCache = false) => fetchTableData<ABKAnjab>('ABK_ANJAB', 'abk_db', (cols, headers) => {
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
   const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
   return { 
@@ -282,19 +305,19 @@ export const fetchABKAnjabFromSheets = () => fetchTableData<ABKAnjab>('ABK_ANJAB
     kondisiFisik: get('KONDISIFISIK'), jamKerjaEfektif: parseInt(get('JAMKERJAEFEKTIF')) || 75000,
     uraianTugas: getJson('URAIANTUGAS')
   };
-});
+}, bypassCache);
 
-export const fetchPersuratanFromSheets = () => fetchTableData<PersuratanRecord>('PERSURATAN', 'portal_persuratan_db', (cols, headers) => {
+export const fetchPersuratanFromSheets = (bypassCache = false) => fetchTableData<PersuratanRecord>('PERSURATAN', 'portal_persuratan_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), jenisSurat: get('JENISSURAT'), nomorSurat: get('NOMORSURAT'), tanggalSurat: get('TANGGALSURAT'), perihal: get('PERIHAL'), lampiran: get('LAMPIRAN'), tujuan: get('TUJUAN'), dari: get('DARI'), isiRingkas: get('ISIRINGKAS'), pjbNama: get('PJBNAMA'), pjbNip: get('PJBNIP'), pjbJabatan: get('PJBJABATAN'), status: get('STATUS'), statusBaca: get('STATUSBACA'), statusProses: get('STATUSPROSES'), pengirimNip: get('PENGIRIMNIP') } as PersuratanRecord;
-});
+}, bypassCache);
 
-export const fetchPengembanganFromSheets = () => fetchTableData<Pengembangan>('PENGEMBANGAN', 'portal_pengembangan_db', (cols, headers) => {
+export const fetchPengembanganFromSheets = (bypassCache = false) => fetchTableData<Pengembangan>('PENGEMBANGAN', 'portal_pengembangan_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), namaKegiatan: get('NAMAKEGIATAN'), jumlahJpl: parseFloat(get('JUMLAHJPL')) || 0, tahun: parseInt(get('TAHUN')) || new Date().getFullYear(), fileSertifikatUrl: get('FILESERTIFIKATURL') } as Pengembangan;
-});
+}, bypassCache);
 
-export const fetchKGBFromSheets = () => fetchTableData<KGB>('KGB', 'portal_kgb_db', (cols, headers) => {
+export const fetchKGBFromSheets = (bypassCache = false) => fetchTableData<KGB>('KGB', 'portal_kgb_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { 
       id: get('ID'), 
@@ -326,19 +349,19 @@ export const fetchKGBFromSheets = () => fetchTableData<KGB>('KGB', 'portal_kgb_d
       perpanjanganPerjanjianKerja: get('PERPANJANGANPERJANJIANKERJA'),
       jenisPegawai: get('JENISPEGAWAI') as any
     } as KGB;
-});
+}, bypassCache);
 
-export const fetchSKPFromSheets = () => fetchTableData<any>('SKP', 'skp_db', (cols, headers) => {
+export const fetchSKPFromSheets = (bypassCache = false) => fetchTableData<any>('SKP', 'skp_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), tahun: get('TAHUN'), predikatKinerja: get('PREDIKATKINERJA') };
-});
+}, bypassCache);
 
-export const fetchMagangPKLFromSheets = () => fetchTableData<any>('MAGANG_PKL', 'portal_magang_db', (cols, headers) => {
+export const fetchMagangPKLFromSheets = (bypassCache = false) => fetchTableData<any>('MAGANG_PKL', 'portal_magang_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { id: get('ID'), nama: get('NAMA'), institusi: get('INSTITUSI'), status: get('STATUS') };
-});
+}, bypassCache);
 
-export const fetchTugasRutinFromSheets = () => fetchTableData<TugasRutin>('TUGAS_RUTIN', 'tugas_rutin_db', (cols, headers) => {
+export const fetchTugasRutinFromSheets = (bypassCache = false) => fetchTableData<TugasRutin>('TUGAS_RUTIN', 'tugas_rutin_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     const dataStr = get('DATA');
     let parsedData = {};
@@ -352,9 +375,9 @@ export const fetchTugasRutinFromSheets = () => fetchTableData<TugasRutin>('TUGAS
       detail: get('DETAIL'),
       data: parsedData
     };
-});
+}, bypassCache);
 
-export const fetchKegiatanFromSheets = () => fetchTableData<Kegiatan>('KEGIATAN', 'kegiatan_db', (cols, headers) => {
+export const fetchKegiatanFromSheets = (bypassCache = false) => fetchTableData<Kegiatan>('KEGIATAN', 'kegiatan_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     return { 
       id: get('ID'), 
@@ -371,7 +394,7 @@ export const fetchKegiatanFromSheets = () => fetchTableData<Kegiatan>('KEGIATAN'
       linkDriveFoto: get('LINKDRIVEFOTO'),
       status: get('STATUS')
     } as Kegiatan;
-});
+}, bypassCache);
 
 export const fetchDossiersFromSheets = (bypassCache = false) => fetchTableData<Dossier>('DOSSIER', 'portal_dossiers_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
@@ -549,7 +572,7 @@ export const syncGidMap = async (): Promise<boolean> => {
     }
 };
 
-export const fetchKeuanganFromSheets = () => fetchTableData<KeuanganRecord>('KEUANGAN', 'portal_keuangan_db', (cols, headers) => {
+export const fetchKeuanganFromSheets = (bypassCache = false) => fetchTableData<KeuanganRecord>('KEUANGAN', 'portal_keuangan_db', (cols, headers) => {
   const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
   const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
   return { 
@@ -570,11 +593,11 @@ export const fetchKeuanganFromSheets = () => fetchTableData<KeuanganRecord>('KEU
     configBiaya: getJson('CONFIGBIAYA'),
     configSpd: getJson('CONFIGSPD')
   } as KeuanganRecord;
-});
+}, bypassCache);
 
 export const syncKeuanganRemote = (action: 'SAVE' | 'DELETE', data: any) => syncTableRemote('KEUANGAN', action, data);
 
-export const fetchAbsensiConfig = async (): Promise<AbsensiConfig> => {
+export const fetchAbsensiConfig = async (bypassCache = false): Promise<AbsensiConfig> => {
   const data = await fetchTableData<AbsensiConfig>('CONFIG', 'portal_absensi_config', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
@@ -588,7 +611,7 @@ export const fetchAbsensiConfig = async (): Promise<AbsensiConfig> => {
       simpegApiUrl: get('SIMPEGAPIURL'),
       simpegApiKey: get('SIMPEGAPIKEY')
     } as AbsensiConfig;
-  });
+  }, bypassCache);
   return data.length > 0 ? data[0] : { 
     id: 'ABSENSI_GLOBAL', 
     officeWifiSsid: '', 
@@ -845,6 +868,60 @@ export const findPegawaiByNip = async (nip: string): Promise<Pegawai | null> => 
 
 export const saveHasilUkom = (hasil: HasilUkom) => syncTableRemote('HASIL_UKOM', 'SAVE', hasil);
 export const savePesertaUkom = (peserta: PesertaUkom) => syncTableRemote('PESERTA_UKOM', 'SAVE', peserta);
+
+/**
+ * MAPPING & AUDIT TOOLS
+ */
+
+export const auditSpreadsheet = async () => {
+    const { appsScriptUrl, spreadsheetId } = getDbConfig();
+    if (!appsScriptUrl || appsScriptUrl.trim() === '') return [];
+    
+    const expected = Object.keys(EXPECTED_COLUMNS_SCHEMA).map(key => ({
+        name: key,
+        requiredColumns: (EXPECTED_COLUMNS_SCHEMA as any)[key]
+    }));
+
+    try {
+        const res = await fetch(appsScriptUrl, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'AUDIT_DATABASE',
+                spreadsheetId,
+                payload: { expectedSheets: expected }
+            })
+        });
+        const data = await res.json();
+        return data.auditResults || [];
+    } catch (e) {
+        console.error("Audit failed:", e);
+        return [];
+    }
+};
+
+export const deleteSheetRemote = async (sheetId: string) => {
+    const { appsScriptUrl, spreadsheetId } = getDbConfig();
+    if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
+    
+    try {
+        const res = await fetch(appsScriptUrl, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'DELETE_SHEET',
+                spreadsheetId,
+                payload: sheetId
+            })
+        });
+        const data = await res.json();
+        return data.success === true;
+    } catch (e) {
+        return false;
+    }
+};
 export const lockPesertaUkom = (noPeserta: string) => syncTableRemote('PESERTA_UKOM', 'SAVE', { noPeserta, isLocked: true });
 export const unlockPesertaUkom = (noPeserta: string, unlockPassword: string) => syncTableRemote('PESERTA_UKOM', 'SAVE', { noPeserta, isLocked: false, unlockPassword });
 export const deletePesertaUkom = (noPeserta: string) => syncTableRemote('PESERTA_UKOM', 'DELETE', { id: noPeserta, noPeserta });

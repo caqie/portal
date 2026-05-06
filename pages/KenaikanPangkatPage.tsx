@@ -49,10 +49,10 @@ const KenaikanPangkatPage = () => {
 
   useEffect(() => { loadData(); }, []);
 
-  const loadData = async () => {
+  const loadData = async (bypass = false) => {
     setLoading(true);
     try {
-      const [pRes, kRes] = await Promise.all([fetchPegawaiFromSheets(), fetchKenaikanFromSheets()]);
+      const [pRes, kRes] = await Promise.all([fetchPegawaiFromSheets(bypass), fetchKenaikanFromSheets(bypass)]);
       setPegawaiList(pRes);
       setHistory(kRes || []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
@@ -92,7 +92,7 @@ const KenaikanPangkatPage = () => {
         setSelectedKenaikan(newRecord); 
         setActiveView('preview'); 
         setShowSuccess(true); 
-        loadData(); 
+        await loadData(true); 
       }
     } catch (e) { alert("Gagal sinkronisasi data."); } finally { setSyncing(false); }
   };
