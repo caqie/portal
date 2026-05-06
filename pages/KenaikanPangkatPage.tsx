@@ -192,7 +192,11 @@ const KenaikanPangkatPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={async () => {
          if(itemToDelete) {
            setSyncing(true);
-           const ok = await syncTableRemote('KENAIKAN', 'DELETE', { id: itemToDelete.id });
+           const ok = await syncTableRemote('KENAIKAN', 'DELETE', { 
+             id: itemToDelete.id, 
+             nip: itemToDelete.nip,
+             nama: itemToDelete.namaPegawai 
+           });
            if(ok) { loadData(); setIsConfirmOpen(false); }
            setSyncing(false);
          }

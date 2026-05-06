@@ -12,7 +12,7 @@ import html2canvas from 'html2canvas';
 // @ts-ignore
 import { jsPDF } from 'jspdf';
 
-const LOGO_GARUDA_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/National_emblem_of_Indonesia_Garuda_Pancasila.svg/800px-National_emblem_of_Indonesia_Garuda_Pancasila.svg.png";
+const LOGO_GARUDA_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/National_emblem_of_Indonesia_Garuda_Pancasila_gold.svg/1024px-National_emblem_of_Indonesia_Garuda_Pancasila_gold.svg.png";
 
 // Helper Function: Angka Terbilang
 const terbilang = (nilai: number) => {
@@ -170,10 +170,23 @@ const PelantikanGeneratorPage = () => {
 
   const handleDelete = async () => {
     if (!itemToDelete) return;
+    
+    const p = pegawaiList.find(x => x.nip === itemToDelete.asnNip);
+    const deletePayload = { 
+      id: itemToDelete.id, 
+      nip: itemToDelete.asnNip,
+      nama: p?.nama || 'Unknown'
+    };
+
+    if (!deletePayload.id && !deletePayload.nip && !deletePayload.nama) {
+        alert("Gagal menghapus: Identifikat data tidak ditemukan.");
+        return;
+    }
+
     setSyncing(true);
-    const ok = await syncTableRemote('PELANTIKAN', 'DELETE', { id: itemToDelete.id });
+    const ok = await syncTableRemote('PELANTIKAN', 'DELETE', deletePayload);
     if (ok) {
-      logActivity('DELETE', 'Pelantikan', `Hapus Dokumen Pelantikan ID: ${itemToDelete.id}`);
+      logActivity('DELETE', 'Pelantikan', `Hapus Dokumen Pelantikan: ${deletePayload.nama} (ID: ${deletePayload.id})`);
       await loadData();
       setIsConfirmOpen(false);
     }
@@ -447,7 +460,7 @@ const PelantikanGeneratorPage = () => {
                     <div className="h-full flex flex-col text-[11pt] leading-snug font-arial text-black">
                        {/* HEADER */}
                        <div className="flex flex-col items-center text-center mb-10 pt-4">
-                          <img src={LOGO_GARUDA_URL} style={{ width: '80px', height: 'auto' }} className="mb-6" crossOrigin="anonymous" />
+                          <img src={LOGO_GARUDA_URL} style={{ width: '85px', height: 'auto' }} className="mb-6" crossOrigin="anonymous" />
                           <h1 className="font-bold uppercase tracking-widest text-[13pt] mb-1">BERITA ACARA</h1>
                           <h2 className="font-bold uppercase tracking-widest text-[11pt] mb-1">PENGAMBILAN SUMPAH JABATAN PEGAWAI NEGERI SIPIL</h2>
                           <p className="font-normal text-[11pt]">NOMOR : {formData.nomor || 'HKI.1-KP.03.04-...'}</p>

@@ -116,7 +116,10 @@ const MagangPKLPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={async () => {
          if (!itemToDelete) return;
          setSyncing(true);
-         await syncTableRemote('MAGANG_PKL', 'DELETE', { id: itemToDelete.id });
+         await syncTableRemote('MAGANG_PKL', 'DELETE', { 
+           id: itemToDelete.id,
+           nama: itemToDelete.nama
+         });
          await loadData();
          setIsConfirmOpen(false);
          setSyncing(false);

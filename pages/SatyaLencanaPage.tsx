@@ -131,7 +131,11 @@ const SatyaLencanaPage = () => {
   const handleDelete = async () => {
     if (!itemToDelete) return;
     setSyncing(true);
-    const ok = await syncTableRemote('SATYA_LENCANA', 'DELETE', { id: itemToDelete.id });
+    const ok = await syncTableRemote('SATYA_LENCANA', 'DELETE', { 
+      id: itemToDelete.id, 
+      nip: itemToDelete.nip,
+      nama: itemToDelete.namaPegawai 
+    });
     if (ok) {
       logActivity('DELETE', 'Satyalencana', `Hapus Data Penerima: ${itemToDelete.namaPegawai}`);
       await loadData();

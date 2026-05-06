@@ -117,7 +117,11 @@ const DossiersPage = () => {
     if (!itemToDelete) return;
     setSyncing(true);
     try {
-      const success = await syncTableRemote('DOSSIER', 'DELETE', { id: itemToDelete.id });
+      const success = await syncTableRemote('DOSSIER', 'DELETE', { 
+        id: itemToDelete.id,
+        nip: itemToDelete.nip,
+        nama: itemToDelete.namaPegawai
+      });
       if (success) {
         logActivity('DELETE', 'Dossier', `Hapus berkas: ${itemToDelete.fileName}`);
         await loadData();

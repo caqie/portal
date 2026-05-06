@@ -17,6 +17,8 @@ import { jsPDF } from 'jspdf';
 import htmlDocx from 'html-docx-js-typescript';
 import { saveAs } from 'file-saver';
 
+const LOGO_GARUDA_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/National_emblem_of_Indonesia_Garuda_Pancasila_gold.svg/1024px-National_emblem_of_Indonesia_Garuda_Pancasila_gold.svg.png";
+
 const SpmtSppPage = () => {
   const navigate = useNavigate();
   const { canEdit, logActivity, isSuperadmin } = useAuth();
@@ -38,7 +40,7 @@ const SpmtSppPage = () => {
 
   const [formData, setFormData] = useState<Partial<SpmtSppRecord>>({
     type: 'SPP',
-    nomor: 'HKI.1-KP.04.01-45',
+    nomor: 'W.1-KP.04.01-45',
     pejabatNip: '197101272000031002', 
     pegawaiNip: '',
     nomorSK: '',
@@ -92,7 +94,11 @@ const SpmtSppPage = () => {
   const handleDelete = async () => {
     if (!itemToDelete) return;
     setSyncing(true);
-    const ok = await syncTableRemote('SPMT_SPP', 'DELETE', { id: itemToDelete.id });
+    const ok = await syncTableRemote('SPMT_SPP', 'DELETE', { 
+      id: itemToDelete.id, 
+      nip: itemToDelete.pegawaiNip,
+      nama: pegawaiList.find(p => p.nip === itemToDelete.pegawaiNip)?.nama || 'ASN'
+    });
     if (ok) {
       logActivity('DELETE', 'TND', `Hapus Dokumen: ${itemToDelete.id}`);
       await loadInitialData();
@@ -224,7 +230,7 @@ const SpmtSppPage = () => {
               <p className="text-[9px] font-bold text-gray-400 uppercase ml-4 mb-2 tracking-widest">Pilih Jenis Dokumen (Template)</p>
               <div className="flex gap-2">
                   <button onClick={() => setFormData({...formData, type: 'SPP', menimbang: defaultMenimbang, dasar: defaultDasar })} className={`flex-1 py-4 text-[11px] font-black uppercase rounded-xl transition-all ${formData.type==='SPP'?'bg-blue-600 text-white shadow-lg':'bg-white text-gray-500 hover:bg-gray-100'}`}>
-                    SURAT PERINTAH (SPP)
+                    SURAT PERNYATAAN PELANTIKAN (SPP)
                   </button>
                   <button onClick={() => setFormData({...formData, type: 'SPMT', menimbang: '', dasar: '' })} className={`flex-1 py-4 text-[11px] font-black uppercase rounded-xl transition-all ${formData.type==='SPMT'?'bg-blue-600 text-white shadow-lg':'bg-white text-gray-500 hover:bg-gray-100'}`}>
                     SURAT PERNYATAAN (SPMT)
@@ -289,43 +295,49 @@ const SpmtSppPage = () => {
               </div>
            </div>
            
-           <div className="bg-gray-200 py-10 flex justify-center overflow-x-auto no-scrollbar">
-              <div ref={pdfRef} className="bg-white shadow-2xl font-arial leading-tight text-black" style={{ width: '210mm', minHeight: '297mm', color: '#000000', fontSize: '11pt', padding: '2cm 2cm 2.5cm 3cm' }}>
+            <div className="bg-gray-200 py-10 flex justify-center overflow-x-auto no-scrollbar">
+              <div ref={pdfRef} className="bg-white shadow-2xl font-arial leading-tight text-black" style={{ width: '210mm', minHeight: '297mm', color: '#000000', fontSize: '11pt', padding: '1.5cm 2cm 2.5cm 2.5cm' }}>
                  
                   {/* KOP SURAT RESMI */}
-                  <div className="flex items-start gap-4 border-b-[0.5pt] border-black pb-2 mb-6 text-black">
-                     <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" style={{ width: '20.04mm', height: '22.90mm' }} crossOrigin="anonymous" />
+                  <div className="flex items-start gap-4 border-b-[0.5pt] border-black pb-2 mb-4 text-black">
+                     <img src={LOGO_PENGAYOMAN_URL} style={{ width: '20.04mm', height: '22.90mm' }} crossOrigin="anonymous" />
                      <div className="flex-1 text-center">
-                        <p style={{ fontSize: '12pt' }} className="uppercase leading-tight font-normal">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                        <p style={{ fontSize: '12pt' }} className="font-bold uppercase leading-tight">DIREKTORAT JENERAL KEKAYAAN INTELEKTUAL</p>
+                        <p style={{ fontSize: '13pt' }} className="uppercase leading-tight font-black tracking-tighter">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
+                        <p style={{ fontSize: '13pt' }} className="font-bold uppercase leading-tight tracking-tight">DIREKTORAT JENERAL KEKAYAAN INTELEKTUAL</p>
                         <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Jalan H.R. Rasuna Said Kav 8-9, Kuningan, Jakarta Selatan 12940</p>
-                        <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Call Center: 152</p>
-                        <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Laman: www.dgip.go.id. Pos-el: halodjki@dgip.go.id</p>
+                        <p style={{ fontSize: '10pt' }} className="leading-tight font-normal">Telepon (021) 5737054 Laman: www.dgip.go.id</p>
                       </div>
                    </div>
+
+                  <div className="flex flex-col items-center mb-8">
+                     <img src={LOGO_GARUDA_URL} style={{ width: '60px', height: 'auto' }} className="mb-4" crossOrigin="anonymous" />
+                  </div>
 
                  {activeDoc.type === 'SPP' ? (
                    /* --- TEMPLATE 1: SURAT PERINTAH (SPP) --- */
                    <div>
                       <div className="text-center mb-8">
-                        <h1 className="text-[12pt] font-bold uppercase underline leading-tight">SURAT PERINTAH</h1>
+                        <h1 className="text-[12pt] font-bold uppercase underline leading-tight">SURAT PERNYATAAN PELANTIKAN</h1>
                         <p className="text-[11.5pt] font-bold mt-1">NOMOR {activeDoc.nomor}</p>
                         <p className="text-[11.5pt] font-bold uppercase mt-2">{activeDoc.signatureLabel}</p>
                       </div>
                       
                       <div className="text-[11.5pt] leading-[1.6]">
-                        <p className="font-bold mb-1">Menimbang :</p>
-                        <p className="text-justify mb-6 text-justify" style={{ textIndent: '2cm' }}>{activeDoc.menimbang || "..."}</p>
-                        
-                        <p className="font-bold mb-1">Dasar :</p>
-                        <div className="text-justify mb-6 pl-8" style={{ whiteSpace: 'pre-line' }}>
-                           {activeDoc.dasar || "..."}
+                        <p className="mb-2">Yang bertanda tangan di bawah ini:</p>
+                        <div className="mb-4 ml-8">
+                           <table className="w-full">
+                              <tbody>
+                                 <tr><td className="w-40 py-0.5 align-top">Nama</td><td className="w-2 align-top">:</td><td className="font-bold uppercase align-top">{pjb?.nama || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">NIP</td><td className="w-2 align-top">:</td><td className="align-top">{pjb?.nip || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">Pangkat/Gol.Ruang</td><td className="w-2 align-top">:</td><td className="align-top">{pjb?.pangkat || '-'}</td></tr>
+                                 <tr><td className="w-40 py-0.5 align-top">Jabatan</td><td className="w-2 align-top">:</td><td className="align-top uppercase">{pjb?.jabatan || '-'}</td></tr>
+                              </tbody>
+                           </table>
                         </div>
 
-                        <p className="font-bold mb-4">MEMERINTAHKAN:</p>
-                        <div className="mb-4">
-                           <p className="font-bold mb-2">Kepada :</p>
-                           <table className="w-full ml-8">
+                        <p className="mb-2">Menyatakan dengan sesungguhnya, bahwa:</p>
+                        <div className="mb-4 ml-8">
+                           <table className="w-full">
                               <tbody>
                                  <tr><td className="w-40 py-0.5 align-top">Nama</td><td className="w-2 align-top">:</td><td className="font-bold uppercase align-top">{peg?.nama || '-'}</td></tr>
                                  <tr><td className="w-40 py-0.5 align-top">NIP</td><td className="w-2 align-top">:</td><td className="align-top">{peg?.nip || '-'}</td></tr>
@@ -335,12 +347,14 @@ const SpmtSppPage = () => {
                            </table>
                         </div>
 
-                        <div className="mb-8">
-                           <p className="font-bold mb-2">Untuk :</p>
-                           <p className="text-justify ml-8">
-                              Melaksanakan Tugas sebagai <span className="font-bold uppercase">{activeDoc.jabatanBaru || peg?.jabatan}</span> pada <span className="font-bold uppercase">{activeDoc.unitKerja}</span> Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum.
-                           </p>
-                        </div>
+                        <p className="text-justify mb-4">
+                           Berdasarkan Keputusan <span className="font-bold uppercase">{activeDoc.signatureLabel}</span> Nomor <span className="font-bold">{activeDoc.nomorSK || '...'}</span> tanggal <span className="font-bold">{formatDate(activeDoc.tanggalLantikAtauSpmt || '')}</span>, 
+                           telah dilantik oleh <span className="font-bold uppercase">{activeDoc.signatureLabel}</span> dalam jabatan <span className="font-bold uppercase">{activeDoc.jabatanBaru || peg?.jabatan}</span> pada <span className="font-bold uppercase">{activeDoc.unitKerja}</span> Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum.
+                        </p>
+                        
+                        <p className="text-justify mb-2">
+                           Demikian Surat Pernyataan Pelantikan ini saya buat dengan sesungguhnya untuk dapat dipergunakan sebagaimana mestinya.
+                        </p>
                       </div>
 
                       <div className="mt-20 ml-auto w-[55%] text-center text-[11.5pt] leading-tight">

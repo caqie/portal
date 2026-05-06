@@ -283,7 +283,7 @@ const SettingsPage = () => {
           for (let i = 1; i < matches.length; i++) {
             const m = matches[i];
             if (!processedIds.has(m.id)) {
-              const ok = await syncTableRemote('PEGAWAI', 'DELETE', { id: m.id, nip: m.nip });
+              const ok = await syncTableRemote('PEGAWAI', 'DELETE', { id: m.id, nip: m.nip, nama: m.nama });
               if (ok) { processedIds.add(m.id); removed++; }
             }
           }
@@ -416,7 +416,10 @@ const SettingsPage = () => {
     setLoading(true);
     const targetUser = userData || (userFormData as AdminUser);
     if (action === 'SAVE' && !targetUser.id) targetUser.id = `USR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const success = await syncTableRemote('USERS', action === 'SAVE' ? 'SAVE' : 'DELETE', targetUser);
+    const payload = action === 'DELETE' 
+      ? { ...targetUser, nama: targetUser.name } 
+      : targetUser;
+    const success = await syncTableRemote('USERS', action === 'SAVE' ? 'SAVE' : 'DELETE', payload);
     if (success) {
       setTimeout(async () => {
         const u = await fetchUsersFromSheets();

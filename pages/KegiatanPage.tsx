@@ -96,7 +96,10 @@ const KegiatanPage = () => {
   const handleDelete = async () => {
     if (!editingKegiatan) return;
     const updated = kegiatanList.filter(k => k.id !== editingKegiatan.id);
-    await syncTableRemote('KEGIATAN', 'DELETE', editingKegiatan);
+    await syncTableRemote('KEGIATAN', 'DELETE', { 
+      id: editingKegiatan.id,
+      nama: editingKegiatan.judulKegiatan
+    });
     setKegiatanList(updated);
     localStorage.setItem('kegiatan_db', JSON.stringify(updated));
     setIsConfirmOpen(false);

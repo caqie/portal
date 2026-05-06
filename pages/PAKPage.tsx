@@ -248,7 +248,11 @@ const PAKPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={async () => {
          if(!pakToDelete) return;
          setSyncing(true);
-         const ok = await syncTableRemote('PAK', 'DELETE', { id: pakToDelete.id });
+         const ok = await syncTableRemote('PAK', 'DELETE', { 
+           id: pakToDelete.id, 
+           nip: pakToDelete.nip, 
+           nama: pakToDelete.namaPegawai 
+         });
          if(ok) { setPakList(prev => prev.filter(s => s.id !== pakToDelete.id)); setIsConfirmOpen(false); }
          setSyncing(false);
       }} />

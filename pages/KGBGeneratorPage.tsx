@@ -247,7 +247,11 @@ const KGBGeneratorPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={async () => {
          if(itemToDelete) {
            setSyncing(true);
-           const ok = await syncTableRemote('KGB', 'DELETE', { id: itemToDelete.id });
+           const ok = await syncTableRemote('KGB', 'DELETE', { 
+      id: itemToDelete.id, 
+      nip: itemToDelete.nip,
+      nama: itemToDelete.namaPegawai 
+    });
            if(ok) {
                await loadInitialData();
                setIsConfirmOpen(false);

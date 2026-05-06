@@ -203,7 +203,10 @@ const PersuratanPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={async () => {
         if (!itemToDelete) return;
         setSyncing(true);
-        await syncTableRemote('PERSURATAN', 'DELETE', { id: itemToDelete.id });
+        await syncTableRemote('PERSURATAN', 'DELETE', { 
+          id: itemToDelete.id,
+          nama: itemToDelete.perihal
+        });
         await loadData();
         setIsConfirmOpen(false);
         setSyncing(false);

@@ -103,7 +103,11 @@ const PensiunPage = () => {
     if (!itemToDelete) return;
     setSyncing(true);
     try {
-      const ok = await syncTableRemote('PENSIUN', 'DELETE', { id: itemToDelete.id });
+      const ok = await syncTableRemote('PENSIUN', 'DELETE', { 
+        id: itemToDelete.id, 
+        nip: itemToDelete.nip,
+        nama: itemToDelete.namaPegawai
+      });
       if (ok) {
         setSavedDpcpList(prev => prev.filter(i => i.id !== itemToDelete.id));
         setIsConfirmOpen(false);

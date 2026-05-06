@@ -236,13 +236,21 @@ const ABKAnjabPage = () => {
   const handleDelete = async () => {
     if (!itemToDelete) return;
     setSyncing(true);
-    const ok = await syncTableRemote('ABK_ANJAB', 'DELETE', { id: itemToDelete.id });
-    if (ok) {
-      logActivity('DELETE', 'ABK', `Hapus Analisis Jabatan: ${itemToDelete.namaJabatan}`);
-      setAbkList(prev => prev.filter(i => i.id !== itemToDelete.id));
-      setIsConfirmOpen(false);
+    try {
+      const ok = await syncTableRemote('ABK_ANJAB', 'DELETE', { 
+        id: itemToDelete.id,
+        nama: itemToDelete.namaJabatan
+      });
+      if (ok) {
+        logActivity('DELETE', 'ABK', `Hapus Analisis Jabatan: ${itemToDelete.namaJabatan}`);
+        setAbkList(prev => prev.filter(i => i.id !== itemToDelete.id));
+        setIsConfirmOpen(false);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSyncing(false);
     }
-    setSyncing(false);
   };
 
   const handleDownloadPdf = async () => {

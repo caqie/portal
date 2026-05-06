@@ -273,7 +273,8 @@ const UkomAdminPage: React.FC = () => {
 
   const handleDeleteSession = async (id: string) => {
     if (!window.confirm('Hapus sesi ini?')) return;
-    const success = await deleteUkomSession(id);
+    const sessionToRemove = sessions.find(s => s.id === id);
+    const success = await deleteUkomSession(id, sessionToRemove?.namaSesi);
     if (success) {
       alert('Sesi berhasil dihapus.');
       loadData();
@@ -972,7 +973,7 @@ const UkomAdminPage: React.FC = () => {
                           <button 
                             onClick={async () => {
                               if (window.confirm('Hapus soal ini?')) {
-                                const success = await deleteBankSoal(s.id);
+                                const success = await deleteBankSoal(s.id, s.pertanyaan);
                                 if (success) {
                                   alert('Soal berhasil dihapus.');
                                   loadData();

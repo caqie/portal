@@ -401,12 +401,25 @@ export const fetchUsersFromSheets = (bypassCache = false) => fetchTableData<Admi
 
 export const fetchPelantikanFromSheets = (bypassCache = false) => fetchTableData<any>('PELANTIKAN', 'pelantikan_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
-    return { id: get('ID'), nomor: get('NOMOR'), asnNip: get('ASNNIP'), data: get('DATA') };
+    const id = get('ID');
+    const nip = get('ASNNIP') || get('ASN_NIP') || get('NIP') || get('NIPASN');
+    const nomor = get('NOMOR');
+    const data = get('DATA');
+    
+    if (!id && !nip && !nomor) return null;
+    
+    return { id, nomor, asnNip: nip, data };
 }, bypassCache);
 
 export const fetchPensiunFromSheets = (bypassCache = false) => fetchTableData<any>('PENSIUN', 'pensiun_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
-    return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), data: get('DATA') };
+    const id = get('ID');
+    const nip = get('NIP') || get('ASNNIP') || get('ASN_NIP');
+    const nama = get('NAMAPEGAWAI') || get('NAMA');
+    
+    if (!id && !nip && !nama) return null;
+    
+    return { id, nip, namaPegawai: nama, data: get('DATA') };
 }, bypassCache);
 
 export const fetchPAKFromSheets = (bypassCache = false) => fetchTableData<any>('PAK', 'pak_db', (cols, headers) => {
@@ -803,7 +816,7 @@ export const fetchUkomSessionsFromSheets = () => fetchTableData<any>('UKOM_SESSI
 });
 
 export const saveUkomSession = (session: any) => syncTableRemote('UKOM_SESSIONS', 'SAVE', session);
-export const deleteUkomSession = (id: string) => syncTableRemote('UKOM_SESSIONS', 'DELETE', { id });
+export const deleteUkomSession = (id: string, nama?: string) => syncTableRemote('UKOM_SESSIONS', 'DELETE', { id, nama });
 
 export const savePegawai = async (pegawai: Partial<Pegawai>): Promise<boolean> => {
   // Filter out fields that are typically calculated by ArrayFormula in the spreadsheet
@@ -837,7 +850,7 @@ export const unlockPesertaUkom = (noPeserta: string, unlockPassword: string) => 
 export const deletePesertaUkom = (noPeserta: string) => syncTableRemote('PESERTA_UKOM', 'DELETE', { id: noPeserta, noPeserta });
 export const saveBankSoalBulk = (soalList: BankSoal[]) => syncTableRemote('BANK_SOAL', 'SAVE', soalList);
 export const saveBankSoal = (soal: BankSoal) => syncTableRemote('BANK_SOAL', 'SAVE', soal);
-export const deleteBankSoal = (id: string) => syncTableRemote('BANK_SOAL', 'DELETE', { id });
+export const deleteBankSoal = (id: string, nama?: string) => syncTableRemote('BANK_SOAL', 'DELETE', { id, nama });
 
 export const getRetirementDetails = (nip: string, jabatan: string) => {
   const cleanNip = (nip || '').replace(/\D/g, '');

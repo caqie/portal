@@ -128,7 +128,11 @@ const PengembanganPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={async () => {
         if (!itemToDelete) return;
         setSyncing(true);
-        await syncTableRemote('PENGEMBANGAN', 'DELETE', { id: itemToDelete.id });
+        await syncTableRemote('PENGEMBANGAN', 'DELETE', { 
+          id: itemToDelete.id,
+          nip: itemToDelete.nip,
+          nama: itemToDelete.namaPegawai
+        });
         await loadData();
         setIsConfirmOpen(false);
         setSyncing(false);

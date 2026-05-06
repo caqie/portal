@@ -216,7 +216,11 @@ const SKPPage = () => {
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={async () => {
          if(!itemToDelete) return;
          setSyncing(true);
-         const ok = await syncTableRemote('SKP', 'DELETE', { id: itemToDelete.id });
+         const ok = await syncTableRemote('SKP', 'DELETE', { 
+           id: itemToDelete.id, 
+           nip: itemToDelete.nip,
+           nama: itemToDelete.namaPegawai
+         });
          if(ok) { setSkpList(prev => prev.filter(s => s.id !== itemToDelete.id)); setIsConfirmOpen(false); }
          setSyncing(false);
       }} />

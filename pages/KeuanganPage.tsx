@@ -102,7 +102,11 @@ const KeuanganPage = () => {
   const handleDelete = async () => {
     if (!selectedId) return;
     setSyncing(true);
-    const success = await syncKeuanganRemote('DELETE', { id: selectedId });
+    const activity = records.find(r => r.id === selectedId);
+    const success = await syncKeuanganRemote('DELETE', { 
+      id: selectedId,
+      nama: activity?.namaKegiatan
+    });
     if (success) {
       logActivity('DELETE', 'Keuangan', `Hapus kegiatan keuangan ID: ${selectedId}`);
       setShowConfirm(false);

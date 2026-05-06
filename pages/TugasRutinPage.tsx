@@ -20,8 +20,9 @@ const TugasRutinPage = () => {
   const [taskToDelete, setTaskToDelete] = useState<TugasRutin | null>(null);
   const [syncing, setSyncing] = useState(false);
 
+  const currentYear = new Date().getFullYear();
   const [filterMonth, setFilterMonth] = useState(BULAN[new Date().getMonth()]);
-  const [filterYear, setFilterYear] = useState(new Date().getFullYear());
+  const [filterYear, setFilterYear] = useState(currentYear);
 
   useEffect(() => { loadData(); }, []);
 
@@ -80,7 +81,11 @@ const TugasRutinPage = () => {
     if(!taskToDelete) return;
     setSyncing(true);
     try {
-      const ok = await syncTableRemote('TUGAS_RUTIN', 'DELETE', { id: taskToDelete.id });
+      const ok = await syncTableRemote('TUGAS_RUTIN', 'DELETE', { 
+        id: taskToDelete.id,
+        jenis: taskToDelete.jenis,
+        nama: TASK_LABELS[taskToDelete.jenis] || taskToDelete.jenis
+      });
       if(ok) {
         logActivity('DELETE', 'Tugas Rutin', `Hapus log: ${TASK_LABELS[taskToDelete.jenis]}`);
         setSuccessMsg("Data log tugas berhasil dihapus secara permanen.");
@@ -398,7 +403,7 @@ const TugasRutinPage = () => {
             {BULAN.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         <select className="px-8 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black outline-none focus:border-blue-600 shadow-inner" value={filterYear} onChange={e => setFilterYear(Number(e.target.value))}>
-            {[2025, 2024, 2023].map(y => <option key={y} value={y}>{y}</option>)}
+            {[currentYear + 1, currentYear, currentYear - 1, currentYear - 2, currentYear - 3].map(y => <option key={y} value={y}>{y}</option>)}
         </select>
         <div className="flex-1 flex justify-end">
            <span className="px-6 py-4 bg-blue-50 text-blue-600 rounded-[1.8rem] text-[10px] font-black border border-blue-100">{filteredTasks.length} Catatan Periode Ini</span>
