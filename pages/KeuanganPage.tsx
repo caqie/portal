@@ -56,6 +56,8 @@ const KeuanganPage = () => {
     configSpd: {
       nomorSpdPrefix: '',
       tanggalSpd: new Date().toISOString().split('T')[0],
+      tanggalBerangkat: new Date().toISOString().split('T')[0],
+      tanggalPulang: new Date().toISOString().split('T')[0],
       tujuanPerjalanan: ''
     }
   });
@@ -134,6 +136,8 @@ const KeuanganPage = () => {
       jabatan: '',
       nomorSpd: formData.configSpd?.nomorSpdPrefix || '',
       tanggalSpd: formData.configSpd?.tanggalSpd || new Date().toISOString().split('T')[0],
+      tanggalBerangkat: formData.configSpd?.tanggalBerangkat || new Date().toISOString().split('T')[0],
+      tanggalPulang: formData.configSpd?.tanggalPulang || new Date().toISOString().split('T')[0],
       tujuanPerjalanan: formData.configSpd?.tujuanPerjalanan || '',
       kategori: 'SPPD',
       rincianBiaya: [],
@@ -247,7 +251,7 @@ const KeuanganPage = () => {
     setFormData({
       ...formData,
       configSpd: {
-        ...(formData.configSpd || { nomorSpdPrefix: '', tanggalSpd: '', tujuanPerjalanan: '' }),
+        ...(formData.configSpd || { nomorSpdPrefix: '', tanggalSpd: '', tanggalBerangkat: '', tanggalPulang: '', tujuanPerjalanan: '' }),
         [field]: value
       }
     });
@@ -676,8 +680,18 @@ const KeuanganPage = () => {
                       <input type="text" placeholder="Contoh: SPD/001/DJKI/2024" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.configSpd?.nomorSpdPrefix || ''} onChange={e => updateConfigSpd('nomorSpdPrefix', e.target.value)} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1 text-center bg-blue-50/50 p-2 rounded-xl border border-blue-100">
+                         <label className="text-[8px] font-black text-blue-600 block mb-1">DARI (BERANGKAT)</label>
+                         <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-[11px] font-bold outline-none focus:border-blue-600 shadow-sm" value={formData.configSpd?.tanggalBerangkat || ''} onChange={e => updateConfigSpd('tanggalBerangkat', e.target.value)} />
+                      </div>
+                      <div className="space-y-1 text-center bg-rose-50/50 p-2 rounded-xl border border-rose-100">
+                         <label className="text-[8px] font-black text-rose-600 block mb-1">SAMPAI (PULANG)</label>
+                         <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-[11px] font-bold outline-none focus:border-blue-600 shadow-sm" value={formData.configSpd?.tanggalPulang || ''} onChange={e => updateConfigSpd('tanggalPulang', e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-[8px] font-black text-gray-400 ml-2">Tanggal SPD</label>
+                        <label className="text-[8px] font-black text-gray-400 ml-2">Tanggal SPD (SK)</label>
                         <input type="date" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.configSpd?.tanggalSpd || ''} onChange={e => updateConfigSpd('tanggalSpd', e.target.value)} />
                       </div>
                       <div className="space-y-1">
@@ -742,13 +756,23 @@ const KeuanganPage = () => {
                       </div>
                       <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
+                          <div className="space-y-1 overflow-hidden">
+                            <label className="text-[8px] font-black text-gray-400 ml-3">Tanggal SPD (SK)</label>
+                            <input type="date" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.tanggalSpd} onChange={e => updatePeserta(pIdx, 'tanggalSpd', e.target.value)} />
+                          </div>
+                          <div className="space-y-1 overflow-hidden">
                             <label className="text-[8px] font-black text-gray-400 ml-3">Nomor SPD</label>
                             <input type="text" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.nomorSpd} onChange={e => updatePeserta(pIdx, 'nomorSpd', e.target.value)} />
                           </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 bg-gray-100/50 p-3 rounded-2xl border border-gray-200">
                           <div className="space-y-1">
-                            <label className="text-[8px] font-black text-gray-400 ml-3">Tanggal SPD</label>
-                            <input type="date" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.tanggalSpd} onChange={e => updatePeserta(pIdx, 'tanggalSpd', e.target.value)} />
+                             <label className="text-[7.5px] font-black text-blue-600 ml-1">TGL BERANGKAT</label>
+                             <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-600" value={p.tanggalBerangkat || ''} onChange={e => updatePeserta(pIdx, 'tanggalBerangkat', e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                             <label className="text-[7.5px] font-black text-rose-600 ml-1">TGL PULANG</label>
+                             <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-600" value={p.tanggalPulang || ''} onChange={e => updatePeserta(pIdx, 'tanggalPulang', e.target.value)} />
                           </div>
                         </div>
                         <div className="space-y-1">
@@ -768,6 +792,8 @@ const KeuanganPage = () => {
                              list[pIdx].totalJumlah = rb.reduce((acc, curr) => acc + curr.total, 0);
                              list[pIdx].nomorSpd = formData.configSpd?.nomorSpdPrefix || list[pIdx].nomorSpd;
                              list[pIdx].tanggalSpd = formData.configSpd?.tanggalSpd || list[pIdx].tanggalSpd;
+                             list[pIdx].tanggalBerangkat = formData.configSpd?.tanggalBerangkat || list[pIdx].tanggalBerangkat;
+                             list[pIdx].tanggalPulang = formData.configSpd?.tanggalPulang || list[pIdx].tanggalPulang;
                              list[pIdx].tujuanPerjalanan = formData.configSpd?.tujuanPerjalanan || list[pIdx].tujuanPerjalanan;
                              setFormData({ ...formData, peserta: list });
                            }} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-sm">
@@ -932,9 +958,11 @@ const KeuanganPage = () => {
                             <div className="grid grid-cols-[150px_10px_1fr] gap-x-2 items-start">
                               <span className="shrink-0 font-medium">Untuk Pembayaran</span><span>:</span>
                               <span className="leading-normal">
-                                Biaya {formData.namaKegiatan} {currentPeserta?.tujuanPerjalanan} pada tanggal {currentPeserta?.tanggalSpd 
-                                  ? new Date(currentPeserta.tanggalSpd).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) 
-                                  : '-'}. 
+                                Biaya {formData.namaKegiatan} {currentPeserta?.tujuanPerjalanan ? `Ke ${currentPeserta.tujuanPerjalanan}` : ''} pada tanggal {currentPeserta?.tanggalBerangkat && currentPeserta?.tanggalPulang && currentPeserta.tanggalBerangkat !== currentPeserta.tanggalPulang
+                                  ? `${new Date(currentPeserta.tanggalBerangkat).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})} sampai dengan ${new Date(currentPeserta.tanggalPulang).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}`
+                                  : (currentPeserta?.tanggalBerangkat 
+                                    ? new Date(currentPeserta.tanggalBerangkat).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) 
+                                    : (currentPeserta?.tanggalSpd ? new Date(currentPeserta.tanggalSpd).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'}) : '-'))}. 
                               </span>
                             </div>
 
@@ -1107,14 +1135,14 @@ const KeuanganPage = () => {
                     <p className="font-bold uppercase text-center  tracking-wide mb-12">PERHITUNGAN SPD RAMPUNG</p>
                     
                     <div className="flex flex-col items-center">
-                       <div className="space-y-2 text-[10pt] w-fit border-b border-black pb-6 mb-20">
+                       <div className="space-y-2 text-[10pt] w-fit mb-20">
                           <div className="grid grid-cols-[200px_10px_1fr] items-center text-left">
                             <span>Ditetapkan Sejumlah</span><span>:</span><span>Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span>
                           </div>
                           <div className="grid grid-cols-[200px_10px_1fr] items-center text-left">
                             <span>Yang telah dibayar semula</span><span>:</span><span>-</span>
                           </div>
-                          <div className="grid grid-cols-[200px_10px_1fr] items-center text-left font-bold">
+                          <div className="grid grid-cols-[200px_10px_1fr] items-center text-left font-bold border-t border-black pt-2 mt-2">
                             <span>Sisa Kurang / Lebih</span><span>:</span><span>-</span>
                           </div>
                        </div>
@@ -1260,7 +1288,9 @@ const KeuanganPage = () => {
                          <div className="grid grid-cols-[180px_10px_1fr] items-start">
                             <span>Untuk pembayaran</span><span>:</span>
                             <span className="leading-tight text-justify">
-                              Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan} {currentPeserta?.tujuanPerjalanan ? `Ke ${currentPeserta.tujuanPerjalanan}` : ''} pada tanggal {currentPeserta?.tanggalSpd ? new Date(currentPeserta.tanggalSpd).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"}) : '-'}
+                              Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan} {currentPeserta?.tujuanPerjalanan ? `Ke ${currentPeserta.tujuanPerjalanan}` : ''} pada tanggal {currentPeserta?.tanggalBerangkat && currentPeserta?.tanggalPulang && currentPeserta.tanggalBerangkat !== currentPeserta.tanggalPulang
+                                ? `${new Date(currentPeserta.tanggalBerangkat).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})} sampai dengan ${new Date(currentPeserta.tanggalPulang).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}`
+                                : (currentPeserta?.tanggalBerangkat ? new Date(currentPeserta.tanggalBerangkat).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"}) : (currentPeserta?.tanggalSpd ? new Date(currentPeserta.tanggalSpd).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"}) : '-'))}
                             </span>
                          </div>
                          
@@ -1341,7 +1371,9 @@ const KeuanganPage = () => {
                       <div className="space-y-4">
                          <div className="flex gap-4">
                             <span className="w-4">1.</span>
-                            <p>Perhitungan yang terdapat dalam pertanggungjawaban Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan} Sebesar <span className="font-bold">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span></p>
+                            <p>Perhitungan yang terdapat dalam pertanggungjawaban Biaya Perjalanan dinas dalam rangka {formData.namaKegiatan} {currentPeserta?.tujuanPerjalanan ? `Ke ${currentPeserta.tujuanPerjalanan}` : ''} pada tanggal {currentPeserta?.tanggalBerangkat && currentPeserta?.tanggalPulang && currentPeserta.tanggalBerangkat !== currentPeserta.tanggalPulang
+                                ? `${new Date(currentPeserta.tanggalBerangkat).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})} sampai dengan ${new Date(currentPeserta.tanggalPulang).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'})}`
+                                : (currentPeserta?.tanggalBerangkat ? new Date(currentPeserta.tanggalBerangkat).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"}) : (currentPeserta?.tanggalSpd ? new Date(currentPeserta.tanggalSpd).toLocaleDateString("id-ID", {day: "numeric", month: "long", year: "numeric"}) : '-'))} Sebesar <span className="font-bold">Rp {(currentPeserta?.totalJumlah || 0).toLocaleString('id-ID')}</span></p>
                          </div>
                          {rincianRiil && rincianRiil.length > 0 && (
                             <div className="flex gap-4">

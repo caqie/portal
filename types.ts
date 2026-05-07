@@ -231,6 +231,8 @@ export interface KeuanganPeserta {
   jabatan: string;
   nomorSpd: string;
   tanggalSpd: string;
+  tanggalBerangkat?: string;
+  tanggalPulang?: string;
   tujuanPerjalanan: string;
   kategori: 'SPPD' | 'Fullboard' | 'Halfboard' | 'Transport' | 'Honorarium' | 'Lainnya';
   rincianBiaya: { item: string; rate: number; qty: number; total: number }[];
@@ -262,6 +264,8 @@ export interface KeuanganRecord {
   configSpd?: {
     nomorSpdPrefix: string;
     tanggalSpd: string;
+    tanggalBerangkat?: string;
+    tanggalPulang?: string;
     tujuanPerjalanan: string;
   };
 }
