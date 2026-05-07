@@ -500,7 +500,7 @@ const KeuanganPage = () => {
               <button onClick={() => handlePrintAllDocuments(formData as KeuanganRecord, previewType)} className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg flex items-center gap-2 active:scale-95 transition-all">
                 <i className="bi bi-printer-fill"></i> Cetak Semua ({formData.peserta?.length})
               </button>
-              <button onClick={() => setActiveView('list')} className="px-8 py-3 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black text-[10px] uppercase shadow-sm">Kembali</button>
+              <button onClick={() => setActiveView('editor')} className="px-8 py-3 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black text-[10px] uppercase shadow-sm">Kembali</button>
             </div>
           ) : (
             <button onClick={() => setActiveView('list')} className="px-8 py-3 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black text-[10px] uppercase shadow-sm">Batal</button>
@@ -1343,7 +1343,7 @@ const KeuanganPage = () => {
 
               {(previewType === 'sptjm' || previewType === 'all') && (
                 <div className={previewType === 'all' ? 'page-break pt-10' : ''}>
-                   <div className="space-y-6 text-[11pt] font-tahoma text-black">
+                   <div className="space-y-6 text-[10pt] font-tahoma text-black">
                    <div className="flex items-center border-b-2 border-black pb-4">
                       <img src="https://lh3.googleusercontent.com/d/167R3ZH6_bKeNbjZ-FituldKmzu3FOoAR" className="h-24 w-24 object-contain" />
                       <div className="text-center flex-1 pr-12">
@@ -1356,7 +1356,7 @@ const KeuanganPage = () => {
                    </div>
 
                    <div className="text-center py-6">
-                     <h2 className="text-[12pt] font-bold underline uppercase tracking-wider">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK</h2>
+                     <h2 className="text-[11pt] font-bold underline uppercase tracking-wider">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK</h2>
                    </div>
 
                    <div className="space-y-6 text-justify leading-relaxed">
@@ -1394,7 +1394,7 @@ const KeuanganPage = () => {
                      <div className="text-center w-80 space-y-24">
                         <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Yang membuat pernyataan,</p>
                         <div className="space-y-1">
-                          <p className="text-[10pt] font-bold uppercase">{currentPeserta?.nama}</p>
+                          <p className="font-bold uppercase">{currentPeserta?.nama}</p>
                           <p>NIP. {currentPeserta?.nip || '-'}</p>
                         </div>
                       </div>
