@@ -108,38 +108,53 @@ const LaporanPage = () => {
     setLoading(true);
     try {
       const canvas = await html2canvas(pdfRef.current, { 
-        scale: 2.5, 
+        scale: 3, 
         useCORS: true, 
         backgroundColor: "#ffffff",
-        logging: false
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 1200
       });
+      
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      const imgWidth = pdfWidth;
+      // Add margins to the PDF output
+      const marginX = 10; 
+      const marginY = 15;
+      
+      const imgWidth = pdfWidth - (2 * marginX);
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      const pageHeight = pdfHeight - (2 * marginY);
       let heightLeft = imgHeight;
-      let position = 0;
+      let position = marginY;
 
       // Page 1
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
+      pdf.addImage(imgData, 'PNG', marginX, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
 
       // Additional pages
-      while (heightLeft >= 1) { // Prevent tiny slivers at the end
-        position = heightLeft - imgHeight;
+      while (heightLeft > 0) {
+        position = (heightLeft - imgHeight) + marginY;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
+        pdf.addImage(imgData, 'PNG', marginX, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
       }
 
       pdf.save(`LAPORAN_BULANAN_SDM_${selMonth.toUpperCase()}_${selYear}.pdf`);
       logActivity('DOWNLOAD', 'Laporan', `Cetak PDF Nota Dinas Laporan ${selMonth} ${selYear}`);
       setShowSuccess(true);
-    } catch (e) { alert("Gagal cetak PDF."); } finally { setLoading(false); }
+    } catch (e) { 
+      console.error(e);
+      alert("Gagal cetak PDF."); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const MiniTable = ({ headers, rows }: { headers: string[], rows: (string|number)[][] }) => (
@@ -400,6 +415,15 @@ const LaporanPage = () => {
       <style>{`
         .font-arial { font-family: Arial, Helvetica, sans-serif !important; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; }
+          .page-break { page-break-before: always; }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          thead { display: table-header-group; }
+          tfoot { display: table-footer-group; }
+        }
       `}</style>
     </div>
   );
