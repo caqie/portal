@@ -23,14 +23,26 @@ const PegawaiPage = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterUnit, setFilterUnit] = useState('Semua Unit');
-  const [filterJenis, setFilterJenis] = useState('Semua Jenis');
-  const [filterStatus, setFilterStatus] = useState('Semua Status');
-  const [minGolongan, setMinGolongan] = useState('Semua');
-  const [maxGolongan, setMaxGolongan] = useState('Semua');
-  const [minAge, setMinAge] = useState<string>('');
-  const [maxAge, setMaxAge] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState(sessionStorage.getItem('pegawai_searchTerm') || '');
+  const [filterUnit, setFilterUnit] = useState(sessionStorage.getItem('pegawai_filterUnit') || 'Semua Unit');
+  const [filterJenis, setFilterJenis] = useState(sessionStorage.getItem('pegawai_filterJenis') || 'Semua Jenis');
+  const [filterStatus, setFilterStatus] = useState(sessionStorage.getItem('pegawai_filterStatus') || 'Semua Status');
+  const [minGolongan, setMinGolongan] = useState(sessionStorage.getItem('pegawai_minGolongan') || 'Semua');
+  const [maxGolongan, setMaxGolongan] = useState(sessionStorage.getItem('pegawai_maxGolongan') || 'Semua');
+  const [minAge, setMinAge] = useState<string>(sessionStorage.getItem('pegawai_minAge') || '');
+  const [maxAge, setMaxAge] = useState<string>(sessionStorage.getItem('pegawai_maxAge') || '');
+
+  // Persist filters to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('pegawai_searchTerm', searchTerm);
+    sessionStorage.setItem('pegawai_filterUnit', filterUnit);
+    sessionStorage.setItem('pegawai_filterJenis', filterJenis);
+    sessionStorage.setItem('pegawai_filterStatus', filterStatus);
+    sessionStorage.setItem('pegawai_minGolongan', minGolongan);
+    sessionStorage.setItem('pegawai_maxGolongan', maxGolongan);
+    sessionStorage.setItem('pegawai_minAge', minAge);
+    sessionStorage.setItem('pegawai_maxAge', maxAge);
+  }, [searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -685,6 +697,22 @@ const PegawaiPage = () => {
               onChange={e => setMaxAge(e.target.value)} 
             />
           </div>
+          <button 
+            onClick={() => {
+              setSearchTerm('');
+              setFilterUnit('Semua Unit');
+              setFilterJenis('Semua Jenis');
+              setFilterStatus('Semua Status');
+              setMinGolongan('Semua');
+              setMaxGolongan('Semua');
+              setMinAge('');
+              setMaxAge('');
+            }}
+            className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-slate-100/50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none hover:bg-rose-50 hover:text-rose-600 transition-all text-slate-400 flex items-center justify-center gap-2"
+          >
+            <i className="bi bi-arrow-counterclockwise text-sm"></i>
+            Reset Filter
+          </button>
         </div>
       </div>
 
