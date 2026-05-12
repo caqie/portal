@@ -44,11 +44,22 @@ const LaporanPage = () => {
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
+  const formatSignatoryName = (name: string) => {
+    if (!name) return '';
+    const parts = name.split(',');
+    if (parts.length > 1) {
+      const mainName = parts[0].toUpperCase();
+      const titles = parts.slice(1).join(',');
+      return `${mainName}, ${titles.trim()}`;
+    }
+    return name.toUpperCase();
+  };
+
   const handleSignatoryChange = (nip: string) => {
     const p = pegawai.find(x => x.nip === nip);
     if (p) {
       setSignatoryNip(nip);
-      setSignatoryData({ nama: p.nama.toUpperCase(), jabatan: p.jabatan?.toUpperCase() || 'PEJABAT TERKAIT' });
+      setSignatoryData({ nama: p.nama, jabatan: p.jabatan?.toUpperCase() || 'PEJABAT TERKAIT' });
     }
   };
 
@@ -157,16 +168,21 @@ const LaporanPage = () => {
     }
   };
 
+  const handlePrintBrowser = () => {
+    window.print();
+    logActivity('DOWNLOAD', 'Laporan', `Cetak Browser Nota Dinas Laporan ${selMonth} ${selYear}`);
+  };
+
   const MiniTable = ({ headers, rows }: { headers: string[], rows: (string|number)[][] }) => (
-    <table className="w-full border-[1pt] border-black text-center text-[7.5pt] border-collapse my-2 text-black">
-      <thead className="bg-[#f2f2f2]">
+    <table className="w-full border-[1pt] border-black text-center text-[7.5pt] border-collapse my-2 text-black break-inside-avoid">
+      <thead className="bg-[#f2f2f2] display-table-header-group">
         <tr className="border-b-[1pt] border-black">
-          {headers.map((h, i) => <th key={i} className="border-r-[1pt] border-black p-1 font-bold text-black">{h}</th>)}
+          {headers.map((h, i) => <th key={i} className="border-r-[1pt] border-black p-1 font-bold text-black uppercase">{h}</th>)}
         </tr>
       </thead>
       <tbody>
         {rows.map((row, i) => (
-          <tr key={i} className="border-b-[1pt] border-black last:border-0">
+          <tr key={i} className="border-b-[1pt] border-black last:border-0 break-inside-avoid">
             {row.map((cell, j) => <td key={j} className="border-r-[1pt] border-black p-1 last:border-0 text-black">{cell}</td>)}
           </tr>
         ))}
@@ -185,10 +201,14 @@ const LaporanPage = () => {
             <i className="bi bi-file-earmark-bar-graph text-blue-600"></i> Format Standar Naskah Dinas (A4)
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 no-print">
+          <button onClick={handlePrintBrowser} className="px-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
+            <i className="bi bi-printer-fill text-lg"></i>
+            Print Browser
+          </button>
           <button onClick={handleDownloadPdf} disabled={loading} className="px-10 py-4 bg-gray-950 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
             {loading ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill text-lg"></i>} 
-            Cetak PDF (A4)
+            Download PDF
           </button>
         </div>
       </div>
@@ -239,11 +259,11 @@ const LaporanPage = () => {
                      <p>Dengan hormat kami melaporkan hasil pekerjaan Tim Kerja Pengelolaan Sumber Daya Manusia pada bulan {selMonth} {selYear}, sebagai berikut:</p>
                      
                      {/* 1. DATA PEGAWAI */}
-                     <section className="space-y-4">
+                     <section className="space-y-4 break-inside-avoid">
                         <p className="font-bold">1. Data Pegawai</p>
                         
                         {/* 1.1 PNS */}
-                        <div className="pl-4 space-y-3">
+                        <div className="pl-4 space-y-3 break-inside-avoid">
                            <p className="font-bold">1.1 Data PNS</p>
                            <p>Jumlah PNS DJKI: <span className="font-bold">{stats.pns.total} Orang</span></p>
                            
@@ -254,7 +274,7 @@ const LaporanPage = () => {
                            />
 
                            <p className="text-[9pt] font-bold italic mt-3">b. Berdasarkan Unit Kerja</p>
-                           <div className="grid grid-cols-2 gap-x-4">
+                           <div className="grid grid-cols-2 gap-x-4 break-inside-avoid">
                               <MiniTable 
                                 headers={['Unit', 'Jumlah']} 
                                 rows={UNIT_KERJA.slice(0,4).map(u => [u.replace('Direktorat Jenderal Kekayaan Intelektual', 'DJKI').substring(0, 30), stats.pns.units[u]])}
@@ -265,7 +285,7 @@ const LaporanPage = () => {
                               />
                            </div>
 
-                           <div className="grid grid-cols-2 gap-x-6 mt-4">
+                           <div className="grid grid-cols-2 gap-x-6 mt-4 break-inside-avoid">
                               <div>
                                  <p className="text-[9pt] font-bold italic">c. Berdasarkan Jenis Kelamin</p>
                                  <MiniTable headers={['Jenis Kelamin', 'Laki-Laki', 'Perempuan']} rows={[['Jumlah', stats.pns.gender.L, stats.pns.gender.P]]} />
@@ -278,7 +298,7 @@ const LaporanPage = () => {
                         </div>
 
                         {/* 1.2 CPNS */}
-                        <div className="pl-4 space-y-3 mt-6">
+                        <div className="pl-4 space-y-3 mt-6 break-inside-avoid">
                            <p className="font-bold">1.2 Data CPNS</p>
                            <p>Jumlah CPNS DJKI: <span className="font-bold">{stats.cpns.total} Orang</span></p>
                            <MiniTable 
@@ -288,7 +308,7 @@ const LaporanPage = () => {
                         </div>
 
                         {/* 1.3 PPPK */}
-                        <div className="pl-4 space-y-3 mt-6">
+                        <div className="pl-4 space-y-3 mt-6 break-inside-avoid">
                            <p className="font-bold">1.3 Data PPPK</p>
                            <p>Jumlah PPPK DJKI: <span className="font-bold">{stats.pppk.total} Orang</span></p>
                            <MiniTable 
@@ -298,7 +318,7 @@ const LaporanPage = () => {
                         </div>
 
                         {/* 1.4 PPPK Paruh Waktu */}
-                        <div className="pl-4 space-y-3 mt-6">
+                        <div className="pl-4 space-y-3 mt-6 break-inside-avoid">
                            <p className="font-bold">1.4 Data PPPK Paruh Waktu</p>
                            <p>Jumlah PPPK Paruh Waktu DJKI: <span className="font-bold">{stats.pppkParuh.total} Orang</span></p>
                            <MiniTable 
@@ -309,7 +329,7 @@ const LaporanPage = () => {
                      </section>
 
                      {/* 2. TUGAS RUTIN */}
-                     <section className="space-y-4 pt-4 text-black">
+                     <section className="space-y-4 pt-4 text-black break-inside-avoid">
                         <p className="font-bold">2. Tugas Rutin Kepegawaian</p>
                         {(() => {
                            // Group tasks by jenis
@@ -332,21 +352,21 @@ const LaporanPage = () => {
                               )).filter(k => k);
 
                               return (
-                                 <div key={jenis} className="pl-2 mb-8">
-                                    <p className="font-bold text-[10.5pt] text-black mb-2">2.{groupIdx + 1} {TASK_LABELS[jenis as TaskType] || jenis}</p>
+                                 <div key={jenis} className="pl-2 mb-8 break-inside-avoid">
+                                    <p className="font-bold text-[10.5pt] text-black mb-2 uppercase">2.{groupIdx + 1} {TASK_LABELS[jenis as TaskType] || jenis}</p>
                                     <table className="w-full border-[1pt] border-black text-[7.5pt] border-collapse text-black">
-                                       <thead className="bg-[#f2f2f2] font-bold text-center">
+                                       <thead className="bg-[#f2f2f2] font-bold text-center display-table-header-group">
                                           <tr className="border-b-[1pt] border-black">
                                              <th className="p-1 border-r-[1pt] border-black w-6">No.</th>
                                              {allDataKeys.map(k => (
                                                 <th key={k} className="p-1 border-r-[1pt] border-black uppercase text-[7pt]">{k.replace(/_/g, ' ')}</th>
                                              ))}
-                                             <th className="p-1 border-r-[1pt] border-black">Deskripsi Pelaksanaan</th>
+                                             <th className="p-1 border-r-[1pt] border-black uppercase text-[7.5pt]">Deskripsi Pelaksanaan</th>
                                           </tr>
                                        </thead>
                                        <tbody>
                                           {typeTasks.map((t, i) => (
-                                             <tr key={t.id} className="border-b-[1pt] border-black last:border-0 align-top">
+                                             <tr key={t.id} className="border-b-[1pt] border-black last:border-0 align-top break-inside-avoid">
                                                 <td className="p-1 border-r-[1pt] border-black text-center">{i + 1}</td>
                                                 {allDataKeys.map(k => (
                                                    <td key={k} className="p-1 border-r-[1pt] border-black text-center">
@@ -365,22 +385,22 @@ const LaporanPage = () => {
                      </section>
 
                      {/* 3. KEGIATAN */}
-                     <section className="space-y-4 pt-4 text-black">
+                     <section className="space-y-4 pt-4 text-black break-inside-avoid">
                         <p className="font-bold">3. Kegiatan</p>
                         <table className="w-full border-[1pt] border-black text-[7.5pt] border-collapse text-black">
-                           <thead className="bg-[#f2f2f2] font-bold text-center">
+                           <thead className="bg-[#f2f2f2] font-bold text-center display-table-header-group">
                               <tr className="border-b-[1pt] border-black">
                                  <th className="p-1 border-r-[1pt] border-black w-6 text-black">No.</th>
-                                 <th className="p-1 border-r-[1pt] border-black w-24 text-black">Tanggal</th>
-                                 <th className="p-1 border-r-[1pt] border-black text-black">Judul Kegiatan</th>
-                                 <th className="p-1 border-r-[1pt] border-black text-black">Tempat</th>
-                                 <th className="p-1 border-r-[1pt] border-black w-10 text-black">Peserta</th>
-                                 <th className="p-1 text-black">Laporan Singkat</th>
+                                 <th className="p-1 border-r-[1pt] border-black w-24 text-black uppercase">Tanggal</th>
+                                 <th className="p-1 border-r-[1pt] border-black text-black uppercase">Judul Kegiatan</th>
+                                 <th className="p-1 border-r-[1pt] border-black text-black uppercase">Tempat</th>
+                                 <th className="p-1 border-r-[1pt] border-black w-10 text-black uppercase">Peserta</th>
+                                 <th className="p-1 text-black uppercase">Laporan Singkat</th>
                               </tr>
                            </thead>
                            <tbody>
                               {stats.kegiatan.map((k, i) => (
-                                 <tr key={k.id} className="border-b-[1pt] border-black last:border-0 align-top">
+                                 <tr key={k.id} className="border-b-[1pt] border-black last:border-0 align-top break-inside-avoid">
                                     <td className="p-1 border-r-[1pt] border-black text-center text-black">{i+1}</td>
                                     <td className="p-1 border-r-[1pt] border-black text-black">{k.tanggal}</td>
                                     <td className="p-1 border-r-[1pt] border-black font-bold uppercase text-black">{k.judulKegiatan}</td>
@@ -395,15 +415,16 @@ const LaporanPage = () => {
                      </section>
 
                      {/* PENUTUP */}
-                     <div className="pt-6 text-black">
+                     <div className="pt-6 text-black break-inside-avoid">
                         <p>Terkait dengan hal-hal yang kami laporkan, mohon kiranya Bapak berkenan memberikan arahan lebih lanjut.</p>
                         <p className="mt-2">Atas perhatian dan perkenan Bapak, kami ucapkan terima kasih.</p>
                      </div>
 
                      {/* TANDA TANGAN */}
-                     <div className="mt-14 ml-[55%] text-left text-[10.5pt] leading-tight text-black">
+                     <div className="mt-14 ml-[55%] text-left text-[10.5pt] leading-tight text-black break-inside-avoid">
                         <p className="font-normal text-black">Ketua Tim Kerja Pengelolaan Sumber Daya Manusia,</p>
-                        <p className="font-normal mt-28 text-black">{signatoryData.nama}</p>
+                        <div className="h-24"></div>
+                        <p className="font-normal text-black font-bold">{formatSignatoryName(signatoryData.nama)}</p>
                         <p className="mt-1 text-black">NIP {signatoryNip}</p>
                      </div>
                   </div>
@@ -417,12 +438,21 @@ const LaporanPage = () => {
         .no-scrollbar::-webkit-scrollbar { display: none; }
         @media print {
           .no-print { display: none !important; }
-          body { background: white !important; }
-          .page-break { page-break-before: always; }
-          table { page-break-inside: auto; }
-          tr { page-break-inside: avoid; page-break-after: auto; }
-          thead { display: table-header-group; }
-          tfoot { display: table-footer-group; }
+          body { background: white !important; margin: 0 !important; padding: 0 !important; }
+          @page { size: A4; margin: 0; }
+          .xl\\:col-span-8 { width: 100% !important; margin: 0 !important; padding: 0 !important; }
+          .bg-gray-400\\/10 { background: none !important; padding: 0 !important; border-radius: 0 !important; width: 100% !important; }
+          .shadow-2xl { shadow: none !important; box-shadow: none !important; }
+          .font-arial { 
+            width: 210mm !important; 
+            min-height: 297mm !important; 
+            padding: 2cm 2cm 2.5cm 3cm !important; 
+            margin: 0 auto !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+          .display-table-header-group { display: table-header-group !important; }
         }
       `}</style>
     </div>

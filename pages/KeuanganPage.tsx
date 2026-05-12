@@ -6,6 +6,7 @@ import { UNIT_KERJA } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
+import { Plus, Search, Trash2, Edit, Eye, Download, Printer, X, Save, RefreshCw, User } from 'lucide-react';
 import * as XLSX from 'xlsx';
 // @ts-ignore
 import html2canvas from 'html2canvas';
@@ -26,6 +27,9 @@ const KeuanganPage = () => {
   const [selectedPesertaIdx, setSelectedPesertaIdx] = useState<number>(0);
   const [docDate, setDocDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [docCity, setDocCity] = useState<string>('Bogor');
+  const [showPesertaModal, setShowPesertaModal] = useState(false);
+  const [editingPesertaIdx, setEditingPesertaIdx] = useState<number | null>(null);
+  const [pesertaForm, setPesertaForm] = useState<Partial<KeuanganPeserta>>({});
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('Semua Status');
@@ -44,6 +48,8 @@ const KeuanganPage = () => {
     unitKerja: UNIT_KERJA[0],
     status: 'Draft',
     transactionId: `RE-SEK/${new Date().getFullYear()}/IV/0103`,
+    kotaTtd: 'Bogor',
+    tanggalDokumen: new Date().toISOString().split('T')[0],
     keterangan: '',
     peserta: [],
     configBiaya: {
@@ -64,6 +70,17 @@ const KeuanganPage = () => {
 
   useEffect(() => { loadData(); }, []);
 
+  const formatSignatoryName = (name: string) => {
+    if (!name) return '';
+    const parts = name.split(',');
+    if (parts.length > 1) {
+      const mainName = parts[0].toUpperCase();
+      const titles = parts.slice(1).join(',');
+      return `${mainName}, ${titles.trim()}`;
+    }
+    return name.toUpperCase();
+  };
+
   const loadData = async (bypass = false) => {
     setLoading(true);
     try {
@@ -80,6 +97,11 @@ const KeuanganPage = () => {
       return matchSearch && matchStatus;
     }).sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
   }, [records, searchTerm, filterStatus]);
+
+  const handlePrintBrowser = () => {
+    window.print();
+    logActivity('DOWNLOAD', 'Keuangan', `Cetak Browser Dokumen ${previewType.toUpperCase()} - ${currentPeserta?.nama || 'Semua'}`);
+  };
 
   const handleSave = async () => {
     if (!formData.namaKegiatan || !formData.mataAnggaran) {
@@ -129,11 +151,12 @@ const KeuanganPage = () => {
     if (p) setFormData({ ...formData, bendaharaNip: nip, bendaharaNama: p.nama });
   };
 
-  const addPeserta = () => {
+  const openAddPesertaModal = () => {
     const newPeserta: KeuanganPeserta = {
       id: `P-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       nama: '',
       jabatan: '',
+      nip: '',
       nomorSpd: formData.configSpd?.nomorSpdPrefix || '',
       tanggalSpd: formData.configSpd?.tanggalSpd || new Date().toISOString().split('T')[0],
       tanggalBerangkat: formData.configSpd?.tanggalBerangkat || new Date().toISOString().split('T')[0],
@@ -144,7 +167,6 @@ const KeuanganPage = () => {
       totalJumlah: 0
     };
 
-    // Auto-populate rincian biaya based on config
     if (formData.configBiaya) {
       const rb = [];
       if (formData.configBiaya.uangHarian > 0) rb.push({ item: 'Uang Harian', rate: formData.configBiaya.uangHarian, qty: 1, total: formData.configBiaya.uangHarian });
@@ -155,10 +177,92 @@ const KeuanganPage = () => {
       newPeserta.rincianBiaya = rb;
       newPeserta.totalJumlah = rb.reduce((acc, curr) => acc + curr.total, 0);
     } else {
-      newPeserta.rincianBiaya = [{ item: '', rate: 0, qty: 1, total: 0 }];
+      newPeserta.rincianBiaya = [{ item: 'Uang Harian', rate: 0, qty: 1, total: 0 }];
     }
 
-    setFormData({ ...formData, peserta: [...(formData.peserta || []), newPeserta] });
+    setPesertaForm(newPeserta);
+    setEditingPesertaIdx(null);
+    setShowPesertaModal(true);
+  };
+
+  const openEditPesertaModal = (idx: number) => {
+    setPesertaForm({ ...(formData.peserta?.[idx] || {}) });
+    setEditingPesertaIdx(idx);
+    setShowPesertaModal(true);
+  };
+
+  const savePesertaModal = () => {
+    if (!pesertaForm.nama) {
+      alert("Nama peserta harus diisi.");
+      return;
+    }
+    const list = [...(formData.peserta || [])];
+    if (editingPesertaIdx !== null) {
+      list[editingPesertaIdx] = pesertaForm as KeuanganPeserta;
+    } else {
+      list.push(pesertaForm as KeuanganPeserta);
+    }
+    setFormData({ ...formData, peserta: list });
+    setShowPesertaModal(false);
+  };
+
+  const closePesertaModal = () => {
+    setShowPesertaModal(false);
+    setEditingPesertaIdx(null);
+    setPesertaForm({});
+  };
+
+  const updatePesertaForm = (field: keyof KeuanganPeserta, value: any) => {
+    setPesertaForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePesertaSelectForm = (nip: string) => {
+    const p = pegawai.find(x => x.nip === nip);
+    if (p) {
+      setPesertaForm(prev => ({ ...prev, nip: p.nip, nama: p.nama, jabatan: p.jabatan }));
+    }
+  };
+
+  const addRincianForm = () => {
+    const rb = [...(pesertaForm.rincianBiaya || [])];
+    rb.push({ item: '', rate: 0, qty: 1, total: 0 });
+    setPesertaForm(prev => ({ ...prev, rincianBiaya: rb }));
+  };
+
+  const updateRincianForm = (rIdx: number, field: string, value: any) => {
+    const rb = [...(pesertaForm.rincianBiaya || [])];
+    rb[rIdx] = { ...rb[rIdx], [field]: value };
+    if (field === 'rate' || field === 'qty') {
+      rb[rIdx].total = (rb[rIdx].rate || 0) * (rb[rIdx].qty || 0);
+    }
+    const total = rb.reduce((acc, curr) => acc + (curr.total || 0), 0);
+    setPesertaForm(prev => ({ ...prev, rincianBiaya: rb, totalJumlah: total }));
+  };
+
+  const removeRincianForm = (rIdx: number) => {
+    const rb = (pesertaForm.rincianBiaya || []).filter((_, i) => i !== rIdx);
+    const total = rb.reduce((acc, curr) => acc + (curr.total || 0), 0);
+    setPesertaForm(prev => ({ ...prev, rincianBiaya: rb, totalJumlah: total }));
+  };
+
+  const resetPesertaToStandard = () => {
+    const rb: any[] = [];
+    if (formData.configBiaya?.uangHarian) rb.push({ item: 'Uang Harian', rate: formData.configBiaya.uangHarian, qty: 1, total: formData.configBiaya.uangHarian });
+    if (formData.configBiaya?.penginapan) rb.push({ item: 'Biaya Penginapan', rate: formData.configBiaya.penginapan, qty: 1, total: formData.configBiaya.penginapan });
+    if (formData.configBiaya?.transport) rb.push({ item: 'Biaya Transport', rate: formData.configBiaya.transport, qty: 1, total: formData.configBiaya.transport });
+    if (formData.configBiaya?.fullboard) rb.push({ item: 'Uang Harian Fullboard', rate: formData.configBiaya.fullboard, qty: 1, total: formData.configBiaya.fullboard });
+    if (formData.configBiaya?.halfboard) rb.push({ item: 'Uang Harian Halfboard', rate: formData.configBiaya.halfboard, qty: 1, total: formData.configBiaya.halfboard });
+    
+    setPesertaForm(prev => ({
+      ...prev,
+      rincianBiaya: rb,
+      totalJumlah: rb.reduce((acc, curr) => acc + curr.total, 0),
+      nomorSpd: formData.configSpd?.nomorSpdPrefix || prev.nomorSpd,
+      tanggalSpd: formData.configSpd?.tanggalSpd || prev.tanggalSpd,
+      tanggalBerangkat: formData.configSpd?.tanggalBerangkat || prev.tanggalBerangkat,
+      tanggalPulang: formData.configSpd?.tanggalPulang || prev.tanggalPulang,
+      tujuanPerjalanan: formData.configSpd?.tujuanPerjalanan || prev.tujuanPerjalanan,
+    }));
   };
 
   const updatePeserta = (idx: number, field: keyof KeuanganPeserta, value: any) => {
@@ -480,22 +584,46 @@ const KeuanganPage = () => {
             <i className="bi bi-cash-stack text-emerald-600"></i> Manajemen Kegiatan & Peserta
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 no-print">
           {activeView === 'list' ? (
             <>
               <button onClick={handleDownloadAllActivitiesExcel} className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-emerald-200 flex items-center gap-2 active:scale-95 transition-all">
                 <i className="bi bi-file-earmark-excel"></i> Rekap Excel
               </button>
               {(canEdit || isSuperadmin) && (
-                <button onClick={() => { setFormData({ namaKegiatan: '', tanggal: new Date().toISOString().split('T')[0], mataAnggaran: '', tahunAnggaran: new Date().getFullYear().toString(), ppkNip: '', ppkNama: '', bendaharaNip: '', bendaharaNama: '', unitKerja: UNIT_KERJA[0], status: 'Draft', transactionId: `RE-SEK/${new Date().getFullYear()}/IV/0103`, peserta: [] }); setActiveView('editor'); }} className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center gap-2 active:scale-95 transition-all">
+                <button onClick={() => { 
+                  const today = new Date().toISOString().split('T')[0];
+                  setFormData({ 
+                    namaKegiatan: '', 
+                    tanggal: today, 
+                    mataAnggaran: '', 
+                    tahunAnggaran: new Date().getFullYear().toString(), 
+                    ppkNip: '', 
+                    ppkNama: '', 
+                    bendaharaNip: '', 
+                    bendaharaNama: '', 
+                    unitKerja: UNIT_KERJA[0], 
+                    status: 'Draft', 
+                    transactionId: `RE-SEK/${new Date().getFullYear()}/IV/0103`, 
+                    kotaTtd: 'Bogor',
+                    tanggalDokumen: today,
+                    peserta: [] 
+                  }); 
+                  setDocCity('Bogor');
+                  setDocDate(today);
+                  setActiveView('editor'); 
+                }} className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center gap-2 active:scale-95 transition-all">
                   <i className="bi bi-plus-lg"></i> Buat Kegiatan Baru
                 </button>
               )}
             </>
           ) : activeView === 'preview' ? (
             <div className="flex gap-2">
-              <button onClick={handleDownloadPdf} className="px-6 py-3 bg-gray-950 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg flex items-center gap-2">
-                <i className="bi bi-file-earmark-pdf-fill"></i> Cetak PDF
+              <button onClick={handlePrintBrowser} className="px-6 py-3 bg-orange-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg flex items-center gap-2 hover:bg-orange-700 transition-all active:scale-95">
+                <i className="bi bi-printer-fill"></i> Cetak Browser
+              </button>
+              <button onClick={handleDownloadPdf} className="px-6 py-3 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg flex items-center gap-2">
+                <i className="bi bi-file-earmark-pdf-fill"></i> Simpan PDF
               </button>
               <button onClick={() => handlePrintAllDocuments(formData as KeuanganRecord, previewType)} className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg flex items-center gap-2 active:scale-95 transition-all">
                 <i className="bi bi-printer-fill"></i> Cetak Semua ({formData.peserta?.length})
@@ -554,9 +682,14 @@ const KeuanganPage = () => {
                     <button onClick={() => handleDownloadFullBundle(r)} className="h-12 w-12 bg-white border border-gray-100 text-rose-600 rounded-2xl flex items-center justify-center hover:text-rose-700 hover:border-rose-100 transition-all shadow-sm" title="Download Semua PDF (Kuitansi, Rincian, dll)">
                       <i className="bi bi-file-earmark-pdf"></i>
                     </button>
-                    {(canEdit || isSuperadmin) && (
+                      {(canEdit || isSuperadmin) && (
                       <>
-                        <button onClick={() => { setFormData(r); setActiveView('editor'); }} className="h-12 px-6 bg-white border border-gray-100 text-gray-600 rounded-2xl flex items-center gap-2 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm font-black text-[10px] uppercase">
+                        <button onClick={() => { 
+                          setFormData(r); 
+                          setDocCity(r.kotaTtd || 'Bogor');
+                          setDocDate(r.tanggalDokumen || r.tanggal);
+                          setActiveView('editor'); 
+                        }} className="h-12 px-6 bg-white border border-gray-100 text-gray-600 rounded-2xl flex items-center gap-2 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm font-black text-[10px] uppercase">
                           <i className="bi bi-pencil-square"></i> Edit & Peserta
                         </button>
                         <button onClick={() => { setSelectedId(r.id); setShowConfirm(true); }} className="h-12 w-12 bg-white border border-gray-100 text-gray-400 rounded-2xl flex items-center justify-center hover:text-rose-600 hover:border-rose-100 transition-all shadow-sm">
@@ -594,6 +727,22 @@ const KeuanganPage = () => {
                   <div className="space-y-2">
                     <label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Tahun</label>
                     <input type="number" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.tahunAnggaran} onChange={e => setFormData({ ...formData, tahunAnggaran: e.target.value })} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Kota TTD Dokumen</label>
+                    <input type="text" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.kotaTtd || ''} onChange={e => {
+                      setFormData({ ...formData, kotaTtd: e.target.value });
+                      setDocCity(e.target.value);
+                    }} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-gray-400 ml-3 tracking-widest">Tanggal Dokumen</label>
+                    <input type="date" className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" value={formData.tanggalDokumen || ''} onChange={e => {
+                      setFormData({ ...formData, tanggalDokumen: e.target.value });
+                      setDocDate(e.target.value);
+                    }} />
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -711,130 +860,85 @@ const KeuanganPage = () => {
             <div className="space-y-8">
               <div className="flex justify-between items-center border-b pb-4">
                 <div className="flex flex-col">
-                  <h5 className="text-[10px] font-black text-blue-600 tracking-widest">3. Daftar Peserta & Perincian</h5>
+                  <h5 className="text-[10px] font-black text-blue-600 tracking-widest uppercase">3. Daftar Peserta & Perincian</h5>
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => handleDownloadExcelParticipants(formData as KeuanganRecord)} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-sm hover:bg-emerald-100 transition-all">
-                      <i className="bi bi-file-earmark-excel"></i> Excel Peserta
+                      <Download size={12} /> Excel Peserta
                     </button>
                     <button onClick={() => handleDownloadFullBundle(formData as KeuanganRecord)} className="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-sm hover:bg-rose-100 transition-all">
-                      <i className="bi bi-file-earmark-pdf"></i> Download Semua PDF
+                      <Download size={12} /> Download Semua PDF
                     </button>
                   </div>
                 </div>
-                <button onClick={addPeserta} className="px-6 py-3 bg-blue-50 text-blue-600 rounded-2xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-blue-100 transition-all">
-                  <i className="bi bi-person-plus-fill"></i> Tambah Peserta
+                <button onClick={openAddPesertaModal} className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase flex items-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95">
+                  <Plus size={16} /> Tambah Peserta
                 </button>
               </div>
 
-              <div className="space-y-12">
-                {(formData.peserta || []).map((p, pIdx) => (
-                  <div key={p.id} className="bg-gray-50/50 p-8 md:p-10 rounded-[3rem] border border-gray-100 space-y-8 relative group">
-                    <button onClick={() => removePeserta(pIdx)} className="absolute top-6 right-6 h-10 w-10 bg-white text-rose-600 rounded-xl flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-all">
-                      <i className="bi bi-x-lg"></i>
-                    </button>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-6">
-                        <SearchableSelect label={`Peserta #${pIdx + 1}`} options={pegawai.map(x => ({ value: x.nip, label: x.nama, subLabel: x.jabatan }))} value={p.nip || ''} onChange={(nip) => handlePesertaSelect(pIdx, nip)} />
-                        {!p.nip && (
-                          <div className="grid grid-cols-1 gap-4">
-                            <input type="text" placeholder="Nama Lengkap (Input Manual)" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.nama} onChange={e => updatePeserta(pIdx, 'nama', e.target.value)} />
-                            <input type="text" placeholder="Jabatan (Input Manual)" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.jabatan} onChange={e => updatePeserta(pIdx, 'jabatan', e.target.value)} />
-                          </div>
-                        )}
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 ml-3">Kategori</label>
-                          <select className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.kategori} onChange={e => updatePeserta(pIdx, 'kategori', e.target.value)}>
-                            <option>SPPD</option>
-                            <option>Fullboard</option>
-                            <option>Halfboard</option>
-                            <option>Transport</option>
-                            <option>Honorarium</option>
-                            <option>Lainnya</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1 overflow-hidden">
-                            <label className="text-[8px] font-black text-gray-400 ml-3">Tanggal SPD (SK)</label>
-                            <input type="date" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.tanggalSpd} onChange={e => updatePeserta(pIdx, 'tanggalSpd', e.target.value)} />
-                          </div>
-                          <div className="space-y-1 overflow-hidden">
-                            <label className="text-[8px] font-black text-gray-400 ml-3">Nomor SPD</label>
-                            <input type="text" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.nomorSpd} onChange={e => updatePeserta(pIdx, 'nomorSpd', e.target.value)} />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 bg-gray-100/50 p-3 rounded-2xl border border-gray-200">
-                          <div className="space-y-1">
-                             <label className="text-[7.5px] font-black text-blue-600 ml-1">TGL BERANGKAT</label>
-                             <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-600" value={p.tanggalBerangkat || ''} onChange={e => updatePeserta(pIdx, 'tanggalBerangkat', e.target.value)} />
-                          </div>
-                          <div className="space-y-1">
-                             <label className="text-[7.5px] font-black text-rose-600 ml-1">TGL PULANG</label>
-                             <input type="date" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-[10px] font-bold outline-none focus:border-blue-600" value={p.tanggalPulang || ''} onChange={e => updatePeserta(pIdx, 'tanggalPulang', e.target.value)} />
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 ml-3">Tujuan Perjalanan</label>
-                          <input type="text" placeholder="Contoh: Jakarta - Bogor" className="w-full px-5 py-3 bg-white border border-gray-200 rounded-xl text-[12px] font-bold outline-none" value={p.tujuanPerjalanan} onChange={e => updatePeserta(pIdx, 'tujuanPerjalanan', e.target.value)} />
-                        </div>
-                        <div className="flex justify-end gap-2 pt-4">
-                           <button onClick={() => {
-                             const list = [...(formData.peserta || [])];
-                             const rb = [];
-                             if (formData.configBiaya?.uangHarian) rb.push({ item: 'Uang Harian', rate: formData.configBiaya.uangHarian, qty: 1, total: formData.configBiaya.uangHarian });
-                             if (formData.configBiaya?.penginapan) rb.push({ item: 'Biaya Penginapan', rate: formData.configBiaya.penginapan, qty: 1, total: formData.configBiaya.penginapan });
-                             if (formData.configBiaya?.transport) rb.push({ item: 'Biaya Transport', rate: formData.configBiaya.transport, qty: 1, total: formData.configBiaya.transport });
-                             if (formData.configBiaya?.fullboard) rb.push({ item: 'Uang Harian Fullboard', rate: formData.configBiaya.fullboard, qty: 1, total: formData.configBiaya.fullboard });
-                             if (formData.configBiaya?.halfboard) rb.push({ item: 'Uang Harian Halfboard', rate: formData.configBiaya.halfboard, qty: 1, total: formData.configBiaya.halfboard });
-                             list[pIdx].rincianBiaya = rb;
-                             list[pIdx].totalJumlah = rb.reduce((acc, curr) => acc + curr.total, 0);
-                             list[pIdx].nomorSpd = formData.configSpd?.nomorSpdPrefix || list[pIdx].nomorSpd;
-                             list[pIdx].tanggalSpd = formData.configSpd?.tanggalSpd || list[pIdx].tanggalSpd;
-                             list[pIdx].tanggalBerangkat = formData.configSpd?.tanggalBerangkat || list[pIdx].tanggalBerangkat;
-                             list[pIdx].tanggalPulang = formData.configSpd?.tanggalPulang || list[pIdx].tanggalPulang;
-                             list[pIdx].tujuanPerjalanan = formData.configSpd?.tujuanPerjalanan || list[pIdx].tujuanPerjalanan;
-                             setFormData({ ...formData, peserta: list });
-                           }} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-sm">
-                             <i className="bi bi-arrow-counterclockwise"></i> Reset ke Standar
-                           </button>
-                           <button onClick={() => { setFormData(formData); setSelectedPesertaIdx(pIdx); setPreviewType('kuitansi'); setActiveView('preview'); }} className="px-4 py-2 bg-white border border-gray-200 text-emerald-600 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-sm">
-                             <i className="bi bi-printer"></i> Cetak Dokumen
-                           </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Rincian Biaya Peserta</p>
-                        <button onClick={() => addRincian(pIdx)} className="text-[9px] font-black text-blue-600 uppercase">Tambah Baris</button>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <div className="space-y-2 min-w-[600px]">
-                          {p.rincianBiaya.map((r, rIdx) => (
-                            <div key={`${rIdx}-${r.item}`} className="grid grid-cols-12 gap-2 items-center">
-                              <div className="col-span-5"><input type="text" placeholder="Perincian" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-[11px] font-bold outline-none" value={r.item} onChange={e => updateRincian(pIdx, rIdx, 'item', e.target.value)} /></div>
-                              <div className="col-span-3"><input type="text" placeholder="Satuan" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-[11px] font-bold outline-none" value={formatRupiah(r.rate)} onChange={e => updateRincian(pIdx, rIdx, 'rate', parseRawValue(e.target.value))} /></div>
-                              <div className="col-span-1"><input type="number" placeholder="Qty" className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-[11px] font-bold outline-none text-center" value={r.qty} onChange={e => updateRincian(pIdx, rIdx, 'qty', parseInt(e.target.value))} /></div>
-                              <div className="col-span-2 text-right font-black text-[10px] text-gray-600">{formatCurrency(r.total)}</div>
-                              <div className="col-span-1 text-right"><button onClick={() => removeRincian(pIdx, rIdx)} className="text-rose-400 hover:text-rose-600"><i className="bi bi-trash3"></i></button></div>
+              <div className="bg-white border border-gray-100 rounded-3xl shadow-sm overflow-hidden">
+                <div className="overflow-x-auto custom-scrollbar pb-3">
+                  <table className="w-full text-left border-collapse min-w-[1000px]">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">No</th>
+                      <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Nama / NIP</th>
+                      <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Kategori</th>
+                      <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Tujuan / SPD</th>
+                      <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Total Biaya</th>
+                      <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {(formData.peserta || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">Belum ada peserta ditambahkan</td>
+                      </tr>
+                    ) : (
+                      (formData.peserta || []).map((p, pIdx) => (
+                        <tr key={p.id} className="hover:bg-gray-50/50 transition-all group">
+                          <td className="px-6 py-4 text-[11px] font-bold text-gray-500">{pIdx + 1}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="text-[11px] font-black text-gray-900 uppercase">{p.nama}</span>
+                              <span className="text-[9px] font-bold text-gray-400">NIP. {p.nip || '-'}</span>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex justify-end pt-4 border-t border-gray-200">
-                        <p className="text-[10px] font-black text-gray-400 uppercase mr-4">Total Peserta:</p>
-                        <p className="text-[12px] font-black text-gray-900">{formatCurrency(p.totalJumlah)}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {(!formData.peserta || formData.peserta.length === 0) && (
-                  <div className="py-10 text-center border-2 border-dashed border-gray-100 rounded-[3rem] text-gray-400 font-bold uppercase text-[10px] tracking-widest">Belum ada peserta ditambahkan</div>
-                )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[8px] font-black uppercase border border-blue-100">{p.kategori}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-bold text-gray-600">{p.tujuanPerjalanan}</span>
+                              <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">{p.nomorSpd}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-[11px] font-black text-gray-900">{formatCurrency(p.totalJumlah)}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-center gap-2">
+                              <button onClick={() => {
+                                setSelectedPesertaIdx(pIdx);
+                                setPreviewType('kuitansi');
+                                setActiveView('preview');
+                                setDocCity(formData.kotaTtd || 'Bogor');
+                                setDocDate(formData.tanggalDokumen || formData.tanggal || new Date().toISOString().split('T')[0]);
+                              }} className="h-8 w-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center hover:bg-blue-100 transition-all" title="View / Print">
+                                <Eye size={14} />
+                              </button>
+                              <button onClick={() => openEditPesertaModal(pIdx)} className="h-8 w-8 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center hover:bg-amber-100 transition-all" title="Edit">
+                                <Edit size={14} />
+                              </button>
+                              <button onClick={() => removePeserta(pIdx)} className="h-8 w-8 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center hover:bg-rose-100 transition-all" title="Hapus">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
+            </div>
             </div>
 
             <div className="pt-10 border-t flex justify-center">
@@ -847,10 +951,192 @@ const KeuanganPage = () => {
         </div>
       )}
 
+      {/* Participant Modal */}
+      {showPesertaModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={closePesertaModal}></div>
+          <div className="bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl relative overflow-hidden animate-modalEnter flex flex-col max-h-[90vh]">
+            <div className="px-6 md:px-10 py-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <div>
+                <h3 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
+                  {editingPesertaIdx !== null ? 'Edit Peserta' : 'Tambah Peserta'}
+                </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Lengkapi data perjalanan & biaya</p>
+              </div>
+              <button onClick={closePesertaModal} className="h-10 w-10 bg-white border border-gray-200 text-gray-400 rounded-xl flex items-center justify-center hover:text-rose-600 transition-all">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar space-y-10">
+              {/* Peserta Info Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <SearchableSelect 
+                    label="Pilih Pegawai" 
+                    options={pegawai.map(x => ({ value: x.nip, label: x.nama, subLabel: x.jabatan }))} 
+                    value={pesertaForm.nip || ''} 
+                    onChange={handlePesertaSelectForm} 
+                  />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                       <label className="text-[9px] font-black text-gray-400 ml-3 uppercase tracking-widest">Nama Lengkap</label>
+                       <input 
+                         type="text" 
+                         placeholder="Nama Lengkap" 
+                         className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" 
+                         value={pesertaForm.nama || ''} 
+                         onChange={e => updatePesertaForm('nama', e.target.value)} 
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[9px] font-black text-gray-400 ml-3 uppercase tracking-widest">Jabatan</label>
+                       <input 
+                         type="text" 
+                         placeholder="Jabatan" 
+                         className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" 
+                         value={pesertaForm.jabatan || ''} 
+                         onChange={e => updatePesertaForm('jabatan', e.target.value)} 
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[9px] font-black text-gray-400 ml-3 uppercase tracking-widest">Kategori Perjalanan</label>
+                       <select 
+                         className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" 
+                         value={pesertaForm.kategori || 'SPPD'} 
+                         onChange={e => updatePesertaForm('kategori', e.target.value)}
+                       >
+                         <option>SPPD</option>
+                         <option>Fullboard</option>
+                         <option>Halfboard</option>
+                         <option>Transport</option>
+                         <option>Honorarium</option>
+                         <option>Lainnya</option>
+                       </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-gray-400 ml-3 uppercase tracking-widest">Nomor SPD</label>
+                      <input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600" value={pesertaForm.nomorSpd || ''} onChange={e => updatePesertaForm('nomorSpd', e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-gray-400 ml-3 uppercase tracking-widest">Tanggal SPD</label>
+                      <input type="date" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-[12px] font-bold outline-none focus:border-blue-600" value={pesertaForm.tanggalSpd || ''} onChange={e => updatePesertaForm('tanggalSpd', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="space-y-1">
+                       <label className="text-[8px] font-black text-blue-600 ml-2 uppercase">Keberangkatan</label>
+                       <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={pesertaForm.tanggalBerangkat || ''} onChange={e => updatePesertaForm('tanggalBerangkat', e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[8px] font-black text-rose-600 ml-2 uppercase">Kepulangan</label>
+                       <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={pesertaForm.tanggalPulang || ''} onChange={e => updatePesertaForm('tanggalPulang', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-gray-400 ml-3 uppercase tracking-widest">Tujuan Perjalanan</label>
+                    <input 
+                      type="text" 
+                      placeholder="Contoh: Jakarta - Bogor" 
+                      className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all" 
+                      value={pesertaForm.tujuanPerjalanan || ''} 
+                      onChange={e => updatePesertaForm('tujuanPerjalanan', e.target.value)} 
+                    />
+                  </div>
+
+                  <button 
+                    onClick={resetPesertaToStandard}
+                    className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 border border-blue-100 hover:bg-blue-100 transition-all"
+                  >
+                    <RefreshCw size={14} /> Reset ke Config Standar
+                  </button>
+                </div>
+              </div>
+
+              {/* Rincian Biaya Section */}
+              <div className="space-y-6 pt-6 border-t border-gray-100">
+                <div className="flex justify-between items-center">
+                  <h6 className="text-[10px] font-black text-gray-900 uppercase tracking-widest">Rincian Biaya</h6>
+                  <button onClick={addRincianForm} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase flex items-center gap-2 hover:bg-blue-700 shadow-md shadow-blue-100 transition-all">
+                    <Plus size={14} /> Tambah Baris
+                  </button>
+                </div>
+
+                <div className="bg-gray-50 rounded-3xl p-4 md:p-6 border border-gray-100 overflow-hidden">
+                  <div className="overflow-x-auto custom-scrollbar pb-2">
+                    <div className="space-y-3 min-w-[850px] py-1">
+                      {(pesertaForm.rincianBiaya || []).map((r, rIdx) => (
+                        <div key={rIdx} className="grid grid-cols-12 gap-3 items-center">
+                          <div className="col-span-5">
+                            <input 
+                              type="text" 
+                              placeholder="Deskripsi Biaya" 
+                              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600" 
+                              value={r.item} 
+                              onChange={e => updateRincianForm(rIdx, 'item', e.target.value)} 
+                            />
+                          </div>
+                          <div className="col-span-3">
+                            <input 
+                              type="text" 
+                              placeholder="Nilai" 
+                              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600" 
+                              value={formatRupiah(r.rate)} 
+                              onChange={e => updateRincianForm(rIdx, 'rate', parseRawValue(e.target.value))} 
+                            />
+                          </div>
+                          <div className="col-span-1">
+                            <input 
+                              type="number" 
+                              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none text-center" 
+                              value={r.qty} 
+                              onChange={e => updateRincianForm(rIdx, 'qty', parseInt(e.target.value) || 0)} 
+                            />
+                          </div>
+                          <div className="col-span-2 text-right font-black text-[11px] text-gray-900 pr-2">
+                            {formatCurrency(r.total)}
+                          </div>
+                          <div className="col-span-1 flex justify-end">
+                            <button onClick={() => removeRincianForm(rIdx)} className="h-9 w-9 bg-white text-rose-400 rounded-xl flex items-center justify-center hover:text-rose-600 transition-all border border-gray-100 shadow-sm">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end items-center gap-6">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Biaya Peserta</span>
+                    <span className="text-xl font-black text-gray-900">{formatCurrency(pesertaForm.totalJumlah || 0)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 md:px-10 py-6 md:py-8 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+              <button onClick={closePesertaModal} className="px-8 py-3 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black text-[10px] uppercase shadow-sm active:scale-95 transition-all">
+                Batal
+              </button>
+              <button onClick={savePesertaModal} className="px-10 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-blue-100 flex items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all">
+                <Save size={16} /> Simpan Peserta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeView === 'preview' && (
         <div className="space-y-8">
           <div className="flex flex-col gap-4 no-print max-w-2xl mx-auto">
-            <div className="flex overflow-x-auto gap-4 py-2 custom-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div className="flex overflow-x-auto gap-4 py-2 custom-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 no-print">
                {['kuitansi', 'rincian', 'riil', 'spb', 'sptjm', 'all'].map(type => (
                 <button key={type} onClick={() => setPreviewType(type as any)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase transition-all shrink-0 ${previewType === type ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-400 border border-gray-100'}`}>
                   {type === 'all' ? 'Cetak Semua' : type.replace(/_/g, ' ')}
@@ -861,7 +1147,7 @@ const KeuanganPage = () => {
             {previewType === 'all' && (
               <div className="flex justify-center no-print mt-2">
                 <button 
-                  onClick={() => window.print()}
+                  onClick={handlePrintBrowser}
                   className="px-8 py-4 bg-orange-600 text-white rounded-[1.5rem] font-black text-[11px] uppercase shadow-xl shadow-orange-100 flex items-center gap-3 hover:bg-orange-700 transition-all transform hover:-translate-y-1 active:scale-95"
                 >
                   <i className="bi bi-printer text-[14px]"></i> Cetak Sekarang (Langsung ke Printer)
@@ -869,23 +1155,77 @@ const KeuanganPage = () => {
               </div>
             )}
             
-            <div className="flex justify-center gap-6 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+            <div className="flex justify-center gap-6 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm no-print">
               <div className="space-y-1 flex-1">
                 <label className="text-[8px] font-black text-gray-400 ml-2 tracking-widest">Kota TTD</label>
-                <input type="text" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600 transition-all" value={docCity} onChange={e => setDocCity(e.target.value)} />
+                <input type="text" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600 transition-all" value={docCity} onChange={e => {
+                  setDocCity(e.target.value);
+                  setFormData(prev => ({ ...prev, kotaTtd: e.target.value }));
+                }} />
               </div>
               <div className="space-y-1 flex-1">
                 <label className="text-[8px] font-black text-gray-400 ml-2 tracking-widest">Tanggal Dokumen</label>
-                <input type="date" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600 transition-all" value={docDate} onChange={e => setDocDate(e.target.value)} />
+                <input type="date" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600 transition-all" value={docDate} onChange={e => {
+                  setDocDate(e.target.value);
+                  setFormData(prev => ({ ...prev, tanggalDokumen: e.target.value }));
+                }} />
+              </div>
+              <div className="flex flex-col justify-end">
+                <button 
+                  onClick={handleSave} 
+                  disabled={syncing}
+                  className="px-4 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase shadow-lg shadow-blue-100 flex items-center gap-2 hover:bg-blue-700 active:scale-95 transition-all"
+                >
+                  {syncing ? <div className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-check"></i>}
+                  Simpan
+                </button>
               </div>
             </div>
           </div>
 
         
 
-                    <div className="bg-gray-100 p-2 md:p-4 overflow-x-auto custom-scrollbar">
+          {currentPeserta ? (
+            <div className="bg-gray-100 p-2 md:p-4 overflow-x-auto custom-scrollbar no-bg-print">
+                       <style>
+                         {`
+                           @media print {
+                             @page {
+                               size: ${previewType === 'kuitansi' ? 'A5 landscape' : 'A4 portrait'};
+                               margin: 0;
+                             }
+                             body * {
+                               visibility: hidden;
+                             }
+                             .no-bg-print {
+                               background: white !important;
+                               padding: 0 !important;
+                             }
+                             #printable-content, #printable-content * {
+                               visibility: visible;
+                             }
+                             #printable-content {
+                               position: absolute;
+                               left: 0;
+                               top: 0;
+                               width: 100%;
+                               margin: 0;
+                               padding: 0;
+                               box-shadow: none !important;
+                             }
+                             .no-print {
+                               display: none !important;
+                             }
+                             .page-break {
+                               page-break-after: always !important;
+                               display: block !important;
+                             }
+                           }
+                         `}
+                       </style>
                       <div 
                         ref={pdfRef} 
+                        id="printable-content"
                         className={`bg-white shadow-xl mx-auto ${previewType === 'all' ? 'print:shadow-none print:m-0 print:w-full' : ''}`}
                         style={{ 
                           width: "210mm", 
@@ -993,7 +1333,7 @@ const KeuanganPage = () => {
                                   <p>Pejabat Pembuat Komitmen</p>
                                 </div>
                                 <div>
-                                  <p className="font-bold underline uppercase">{formData.ppkNama}</p>
+                                  <p className="font-bold">{formatSignatoryName(formData.ppkNama || '')}</p>
                                   <p>NIP. {formData.ppkNip}</p>
                                 </div>
                               </div>
@@ -1004,7 +1344,7 @@ const KeuanganPage = () => {
                                   <p>Yang Menerima,</p>
                                 </div>
                                 <div>
-                                  <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
+                                  <p className="font-bold">{formatSignatoryName(currentPeserta?.nama || '')}</p>
                                   <p>NIP. {currentPeserta?.nip}</p>
                                 </div>
                               </div>
@@ -1014,7 +1354,7 @@ const KeuanganPage = () => {
                               <p className="">Lunas dibayar tanggal, {new Date(docDate).toLocaleDateString("id-ID", {day:"numeric",month:"long",year:"numeric"})}</p>
                               <p>Bendahara Pengeluaran</p>
                               <div className="mt-12">
-                                <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
+                                <p className="font-bold">{formatSignatoryName(formData.bendaharaNama || '')}</p>
                                 <p>NIP. {formData.bendaharaNip}</p>
                               </div>
                             </div>
@@ -1106,7 +1446,7 @@ const KeuanganPage = () => {
                          <p className="pt-8 text-center">Bendahara Pengeluaran</p>
                        </div>
                        <div className="space-y-1">
-                         <p className="font-bold  uppercase">{formData.bendaharaNama}</p>
+                         <p className="font-bold">{formatSignatoryName(formData.bendaharaNama || '')}</p>
                          <p className="text-[9pt]">NIP. {formData.bendaharaNip}</p>
                        </div>
                      </div>
@@ -1125,7 +1465,7 @@ const KeuanganPage = () => {
                          <p className="pt-8 text-center">Yang Menerima</p>
                        </div>
                        <div className="space-y-1">
-                         <p className="font-bold  uppercase">{currentPeserta?.nama}</p>
+                         <p className="font-bold">{formatSignatoryName(currentPeserta?.nama || '')}</p>
                          <p className="text-[9pt]">NIP. {currentPeserta?.nip || '-'}</p>
                        </div>
                      </div>
@@ -1153,7 +1493,7 @@ const KeuanganPage = () => {
                              <p>Pejabat Pembuat Komitmen</p>
                            </div>
                            <div className="space-y-1">
-                             <p className="font-bold underline uppercase">{formData.ppkNama}</p>
+                             <p className="font-bold">{formatSignatoryName(formData.ppkNama || '')}</p>
                              <p className="text-[9pt]">NIP. {formData.ppkNip}</p>
                            </div>
                          </div>
@@ -1185,7 +1525,7 @@ const KeuanganPage = () => {
                    <div className="space-y-4">
                      <p>Yang bertandatangan di bawah ini:</p>
                      <div className="pl-10 space-y-1">
-                        <div className="grid grid-cols-[120px_10px_1fr]"><span>Nama</span><span>:</span><span className="font-bold uppercase">{currentPeserta?.nama}</span></div>
+                        <div className="grid grid-cols-[120px_10px_1fr]"><span>Nama</span><span>:</span><span className="font-bold">{formatSignatoryName(currentPeserta?.nama || '')}</span></div>
                         <div className="grid grid-cols-[120px_10px_1fr]"><span>NIP</span><span>:</span><span>{currentPeserta?.nip || '-'}</span></div>
                         <div className="grid grid-cols-[120px_10px_1fr]"><span>Jabatan</span><span>:</span><span className="uppercase">{currentPeserta?.jabatan}</span></div>
                      </div>
@@ -1226,14 +1566,14 @@ const KeuanganPage = () => {
                     <div className="text-center space-y-20">
                       <p>Mengetahui / Menyetujui<br/>Pejabat Pembuat Komitmen,</p>
                       <div className="space-y-1">
-                        <p className="font-bold underline uppercase">{formData.ppkNama}</p>
+                        <p className="font-bold">{formatSignatoryName(formData.ppkNama || '')}</p>
                         <p className="text-[9pt]">NIP. {formData.ppkNip}</p>
                       </div>
                     </div>
                     <div className="text-center space-y-20">
                       <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Pelaksana SPD,</p>
                       <div className="space-y-1">
-                        <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
+                        <p className="font-bold">{formatSignatoryName(currentPeserta?.nama || '')}</p>
                         <p className="text-[9pt]">NIP. {currentPeserta?.nip || '-'}</p>
                       </div>
                     </div>
@@ -1284,7 +1624,7 @@ const KeuanganPage = () => {
                       </div>
 
                       <div className="space-y-1 py-2 border-b border-black mb-2">
-                         <div className="grid grid-cols-[180px_10px_1fr]"><span>Kepada</span><span>:</span><span className="font-bold uppercase">{currentPeserta?.nama}</span></div>
+                         <div className="grid grid-cols-[180px_10px_1fr]"><span>Kepada</span><span>:</span><span className="font-bold">{formatSignatoryName(currentPeserta?.nama || '')}</span></div>
                          <div className="grid grid-cols-[180px_10px_1fr] items-start">
                             <span>Untuk pembayaran</span><span>:</span>
                             <span className="leading-tight text-justify">
@@ -1313,14 +1653,14 @@ const KeuanganPage = () => {
                           <div className="flex flex-col h-full justify-between min-h-[120px]">
                             <p className="leading-tight">Setuju/lunas dibayar, tgl {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Bendahara Pengeluaran,</p>
                             <div className="space-y-0.5">
-                              <p className="font-bold underline uppercase">{formData.bendaharaNama}</p>
+                              <p className="font-bold">{formatSignatoryName(formData.bendaharaNama || '')}</p>
                               <p>NIP. {formData.bendaharaNip}</p>
                             </div>
                           </div>
                           <div className="flex flex-col h-full justify-between min-h-[120px]">
                             <p className="leading-tight">Diterima tanggal {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Penerima Uang/ Uang Muka Kerja,</p>
                             <div className="space-y-0.5">
-                              <p className="font-bold underline uppercase">{currentPeserta?.nama}</p>
+                              <p className="font-bold">{formatSignatoryName(currentPeserta?.nama || '')}</p>
                               <p>NIP. {currentPeserta?.nip || '-'}</p>
                             </div>
                           </div>
@@ -1329,7 +1669,7 @@ const KeuanganPage = () => {
                                 <p className="leading-tight">a.n. Kuasa Pengguna Anggaran<br/>Pejabat Pembuat Komitmen,</p>
                             </div>
                             <div className="space-y-0.5 mt-auto">
-                              <p className="font-bold underline uppercase">{formData.ppkNama}</p>
+                              <p className="font-bold">{formatSignatoryName(formData.ppkNama || '')}</p>
                               <p>NIP. {formData.ppkNip}</p>
                             </div>
                           </div>
@@ -1362,7 +1702,7 @@ const KeuanganPage = () => {
                    <div className="space-y-6 text-justify leading-relaxed">
                      <p>Yang bertanda tangan di bawah ini:</p>
                      <div className="pl-10 space-y-2">
-                        <div className="grid grid-cols-[130px_10px_1fr]"><span>Nama</span><span>:</span><span className="font-bold uppercase">{currentPeserta?.nama}</span></div>
+                        <div className="grid grid-cols-[130px_10px_1fr]"><span>Nama</span><span>:</span><span className="font-bold">{formatSignatoryName(currentPeserta?.nama || '')}</span></div>
                         <div className="grid grid-cols-[130px_10px_1fr]"><span>NIP</span><span>:</span><span>{currentPeserta?.nip || '-'}</span></div>
                         <div className="grid grid-cols-[130px_10px_1fr]"><span>Jabatan</span><span>:</span><span className="uppercase">{currentPeserta?.jabatan}</span></div>
                      </div>
@@ -1394,7 +1734,7 @@ const KeuanganPage = () => {
                      <div className="text-center w-80 space-y-24">
                         <p>{docCity}, {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>Yang membuat pernyataan,</p>
                         <div className="space-y-1">
-                          <p className="font-bold uppercase">{currentPeserta?.nama}</p>
+                          <p className="font-bold">{formatSignatoryName(currentPeserta?.nama || '')}</p>
                           <p>NIP. {currentPeserta?.nip || '-'}</p>
                         </div>
                       </div>
@@ -1405,8 +1745,17 @@ const KeuanganPage = () => {
 
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="bg-white rounded-[2.5rem] p-20 text-center border-2 border-dashed border-gray-100 max-w-2xl mx-auto shadow-sm">
+            <div className="h-16 w-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <User size={32} className="text-gray-300" />
+            </div>
+            <h3 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Pilih Peserta</h3>
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-2">Pilih peserta dari daftar untuk melihat dokumen</p>
+          </div>
+        )}
+      </div>
+    )}
     </div>
   );
 };

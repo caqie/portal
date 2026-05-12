@@ -50,7 +50,7 @@ export const EXPECTED_COLUMNS_SCHEMA = {
   MAGANG_PKL: ['ID', 'NAMA', 'INSTITUSI', 'STATUS'],
   PERSURATAN: ['ID', 'JENISSURAT', 'NOMORSURAT', 'PREHAL', 'STATUS'],
   SATYA_LENCANA: ['ID', 'NIP', 'NAMAPEGAWAI', 'KATEGORI', 'TAHUNTERIMA'],
-  KEUANGAN: ['ID', 'NAMAKEGIATAN', 'TANGGAL', 'STATUS'],
+  KEUANGAN: ['ID', 'NAMAKEGIATAN', 'TANGGAL', 'STATUS', 'MATAANGGARAN', 'TAHUNANGGARAN', 'PPKNIP', 'PPKNAMA', 'BENDAHARANIP', 'BENDAHARANAMA', 'UNITKERJA', 'KETERANGAN', 'TRANSACTIONID', 'KOTATTD', 'TANGGALDOKUMEN', 'PESERTA', 'CONFIGBIAYA', 'CONFIGSPD'],
   BANK_SOAL: ['IDSOAL', 'PERTANYAAN', 'JAWABANBENAR'],
   PESERTA_UKOM: ['NOPESERTA', 'NAMA', 'JENJANG'],
   HASIL_UKOM: ['NOPESERTA', 'NAMA', 'TOTALNILAI']
@@ -589,6 +589,8 @@ export const fetchKeuanganFromSheets = (bypassCache = false) => fetchTableData<K
     status: (get('STATUS') || 'Draft') as any, 
     keterangan: get('KETERANGAN'), 
     transactionId: get('TRANSACTIONID'),
+    kotaTtd: get('KOTATTD') || 'Bogor',
+    tanggalDokumen: get('TANGGALDOKUMEN'),
     peserta: getJson('PESERTA'),
     configBiaya: getJson('CONFIGBIAYA'),
     configSpd: getJson('CONFIGSPD')

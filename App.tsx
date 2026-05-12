@@ -260,7 +260,7 @@ const AppContent = () => {
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[110] lg:hidden animate-fadeIn" onClick={() => setIsSidebarOpen(false)}></div>
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-[120] bg-[#0f172a] transition-all duration-500 lg:relative lg:translate-x-0 border-r border-white/5 flex-shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-20 md:w-24' : 'w-64 md:w-72'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-[120] bg-[#0f172a] transition-all duration-500 lg:relative lg:translate-x-0 border-r border-white/5 flex-shrink-0 no-print ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isCollapsed ? 'w-20 md:w-24' : 'w-64 md:w-72'}`}>
         <div className="flex flex-col h-full relative">
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)} 
@@ -333,7 +333,7 @@ const AppContent = () => {
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
-        <header className="bg-white border-b border-gray-100 shrink-0 z-[100]">
+        <header className="bg-white border-b border-gray-100 shrink-0 z-[100] no-print">
           <div className="h-16 md:h-20 flex items-center justify-between px-4 md:px-8">
             <div className="flex items-center gap-3 md:gap-4">
               <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden h-9 w-9 md:h-10 md:w-10 flex items-center justify-center text-gray-400 bg-gray-50 rounded-xl shrink-0"><i className="bi bi-list text-xl md:text-2xl"></i></button>
@@ -425,7 +425,7 @@ const AppContent = () => {
             )}
           </div>
 
-          <footer className="mt-12 md:mt-16 pt-6 md:pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left shrink-0 pb-4">
+          <footer className="mt-12 md:mt-16 pt-6 md:pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left shrink-0 pb-4 no-print">
             <div className="space-y-1">
               <p className="text-[9px] md:text-[10px] font-black text-gray-900 tracking-widest uppercase">{systemName}</p>
               <p className="text-[7px] md:text-[8px] font-bold text-gray-400 tracking-widest uppercase">Sistem Manajemen SDM DJKI KEMENKUM RI © 2025</p>

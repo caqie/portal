@@ -253,6 +253,8 @@ export interface KeuanganRecord {
   status: 'Draft' | 'Diajukan' | 'Disetujui' | 'Ditolak';
   keterangan?: string;
   transactionId?: string;
+  kotaTtd?: string;
+  tanggalDokumen?: string;
   peserta: KeuanganPeserta[];
   configBiaya?: {
     uangHarian: number;
