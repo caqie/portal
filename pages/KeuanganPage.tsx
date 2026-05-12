@@ -1190,7 +1190,7 @@ const KeuanganPage = () => {
                         <div className="grid grid-cols-[120px_10px_1fr]"><span>Jabatan</span><span>:</span><span className="uppercase">{currentPeserta?.jabatan}</span></div>
                      </div>
 
-                     <p className="leading-relaxed">Berdasarkan Surat Perjalanan Dinas (SPD) Nomor: <span className="font-bold">{currentPeserta?.nomorSpd}</span> Tanggal <span className="font-bold">{currentPeserta?.tanggalSpd}</span>, dengan ini kami menyatakan dengan sesungguhnya bahwa:</p>
+                     <p className="leading-relaxed">Berdasarkan Surat Perjalanan Dinas (SPD) Nomor: <span className="font-bold">{currentPeserta?.nomorSpd}</span> Tanggal <span className="font-bold">{currentPeserta?.tanggalSpd ? new Date(currentPeserta.tanggalSpd).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}</span>, dengan ini kami menyatakan dengan sesungguhnya bahwa:</p>
                      
                      <div className="space-y-2">
                         <p>1. Biaya transport pegawai dan/atau biaya penginapan di bawah ini yang tidak dapat diperoleh bukti-bukti pengeluarannya meliputi:</p>
