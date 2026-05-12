@@ -64,10 +64,10 @@ const KeuanganPage = () => {
 
   useEffect(() => { loadData(); }, []);
 
-  const loadData = async () => {
+  const loadData = async (bypass = false) => {
     setLoading(true);
     try {
-      const [data, p] = await Promise.all([fetchKeuanganFromSheets(), fetchPegawaiFromSheets()]);
+      const [data, p] = await Promise.all([fetchKeuanganFromSheets(bypass), fetchPegawaiFromSheets(bypass)]);
       setRecords(data);
       setPegawai(p);
     } catch (e) { console.error(e); } finally { setLoading(false); }
@@ -94,7 +94,7 @@ const KeuanganPage = () => {
       logActivity(formData.id ? 'UPDATE' : 'CREATE', 'Keuangan', `${formData.id ? 'Update' : 'Tambah'} kegiatan keuangan: ${formData.namaKegiatan}`);
       setShowSuccess(true);
       setActiveView('list');
-      loadData();
+      loadData(true);
     } else {
       alert("Gagal menyimpan data.");
     }
@@ -112,7 +112,7 @@ const KeuanganPage = () => {
     if (success) {
       logActivity('DELETE', 'Keuangan', `Hapus kegiatan keuangan ID: ${selectedId}`);
       setShowConfirm(false);
-      loadData();
+      loadData(true);
     } else {
       alert("Gagal menghapus data.");
     }
@@ -1266,7 +1266,7 @@ const KeuanganPage = () => {
 
                    <div className="flex justify-center gap-10 py-1 border-b border-black mb-2">
                         <p>Tanggal : {new Date(docDate || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                        <p>Nomor : .........................</p>
+                        <p>Nomor : {formData.transactionId || '.........................'}</p>
                    </div>
 
                    <div className="space-y-0 text-[9.5pt] flex-1">
