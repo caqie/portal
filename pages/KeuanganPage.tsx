@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { KeuanganRecord, KeuanganPeserta, Pegawai } from '../types';
 import { fetchKeuanganFromSheets, syncKeuanganRemote, fetchPegawaiFromSheets } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
-import { UNIT_KERJA } from '../constants';
+import { UNIT_KERJA, formatPegawaiName } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -899,7 +899,7 @@ const KeuanganPage = () => {
                           <td className="px-6 py-4 text-[11px] font-bold text-gray-500">{pIdx + 1}</td>
                           <td className="px-6 py-4">
                             <div className="flex flex-col">
-                              <span className="text-[11px] font-black text-gray-900 uppercase">{p.nama}</span>
+                              <span className="text-[11px] font-black text-gray-900">{formatPegawaiName(p.nama)}</span>
                               <span className="text-[9px] font-bold text-gray-400">NIP. {p.nip || '-'}</span>
                             </div>
                           </td>

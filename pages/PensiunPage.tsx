@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, syncTableRemote, getRetirementDetails, fetchPensiunFromSheets, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai } from '../types';
 import { useAuth } from '../AuthContext';
-import { UNIT_KERJA, normalizeUnitName } from '../constants';
+import { UNIT_KERJA, normalizeUnitName, formatPegawaiName } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -369,7 +369,7 @@ const PensiunPage = () => {
                       {savedDpcpList.map(p => (
                          <tr key={p.id} className="hover:bg-blue-50/5 group transition-all">
                             <td className="px-10 py-5">
-                               <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{p.namaPegawai}</p>
+                               <p className="text-[11px] font-black text-gray-950 mb-1">{formatPegawaiName(p.namaPegawai)}</p>
                             </td>
                             <td className="px-4 py-5 text-[10px] font-mono text-blue-600 font-bold uppercase">NIP. {p.nip}</td>
                             <td className="px-10 py-5 text-right">

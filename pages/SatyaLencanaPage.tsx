@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, fetchSatyaLencanaFromSheets, syncTableRemote, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai, SatyaLencanaRecord } from '../types';
 import { useAuth } from '../AuthContext';
+import { formatPegawaiName } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -219,7 +220,7 @@ const SatyaLencanaPage = () => {
                     {eligiblePegawai.map((p, i) => (
                       <tr key={`${p.nip}-${i}`} className="hover:bg-blue-50/5 group transition-colors">
                          <td className="px-10 py-6">
-                            <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{p.nama}</p>
+                            <p className="text-[11px] font-black text-gray-950 mb-1">{formatPegawaiName(p.nama)}</p>
                             <p className="text-[9px] font-mono text-blue-600 font-bold uppercase">NIP. {p.nip}</p>
                          </td>
                          <td className="px-4 py-6 font-black text-gray-700">{p.workingYears} TAHUN</td>
@@ -262,7 +263,7 @@ const SatyaLencanaPage = () => {
                     {filteredPenerima.map(r => (
                       <tr key={r.id} className="hover:bg-blue-50/5 group transition-colors">
                          <td className="px-10 py-6">
-                            <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{r.namaPegawai}</p>
+                            <p className="text-[11px] font-black text-gray-950 mb-1">{formatPegawaiName(r.namaPegawai)}</p>
                             <p className="text-[9px] font-mono text-gray-400 font-bold uppercase">NIP. {r.nip}</p>
                          </td>
                          <td className="px-4 py-6">
@@ -312,7 +313,7 @@ const SatyaLencanaPage = () => {
               </div>
               
               <form onSubmit={handleSave} className="p-10 overflow-y-auto custom-scrollbar space-y-8">
-                 <SearchableSelect label="Pegawai Penerima" options={pegawaiList.map(p => ({ value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.unitKerja}` }))} value={formData.nip || ''} onChange={v => setFormData({...formData, nip: v})} />
+                 <SearchableSelect label="Pegawai Penerima" options={pegawaiList.map(p => ({ value: p.nip, label: formatPegawaiName(p.nama), subLabel: `NIP. ${p.nip} - ${p.unitKerja}` }))} value={formData.nip || ''} onChange={v => setFormData({...formData, nip: v})} />
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-6">

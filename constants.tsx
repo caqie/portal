@@ -170,6 +170,78 @@ export const GELAR_MAP: Record<string, { bidang: string, jenjang: string }> = {
   'dr.': { bidang: 'Dokter', jenjang: 'PROFESI' },
   'drg.': { bidang: 'Dokter Gigi', jenjang: 'PROFESI' },
   'Bc.IP': { bidang: 'Pemasyarakatan (Kedinasan)', jenjang: 'DIV' },
+  'Prof.': { bidang: 'Profesor', jenjang: 'GELAR_KEHORMATAN' },
+  'H.': { bidang: 'Haji', jenjang: 'GELAR_KEAGAMAAN' },
+  'Hj.': { bidang: 'Hajjah', jenjang: 'GELAR_KEAGAMAAN' },
+  'Pdt.': { bidang: 'Pendeta', jenjang: 'GELAR_KEAGAMAAN' },
+};
+
+/**
+ * Helper to format Pegawai Name correctly:
+ * - Proper capitalization for Degrees/Titles (Gelar)
+ * - ALL CAPS for the actual Name
+ */
+export const formatPegawaiName = (nama: string): string => {
+  if (!nama) return '';
+  
+  // Use a case-insensitive lookup map for titles
+  const gelarLookup: Record<string, string> = {};
+  Object.keys(GELAR_MAP).forEach(k => {
+    gelarLookup[k.toLowerCase()] = k;
+    // Also map without dots for more robust matching
+    gelarLookup[k.toLowerCase().replace(/\./g, '')] = k;
+  });
+
+  // 1. Split into Name Part and Suffix Part (separated by first comma and subsequent)
+  // Example: "DR. IR. BUDI SANTOSO, S.H., M.H."
+  const mainParts = nama.split(',');
+  const prefixAndName = mainParts[0].trim();
+  const suffixes = mainParts.slice(1).map(s => s.trim());
+
+  // 2. Process Prefix and Name
+  // Example: "DR. IR. BUDI SANTOSO" -> ["DR.", "IR.", "BUDI", "SANTOSO"]
+  const words = prefixAndName.split(/\s+/);
+  const formattedWords = words.map(word => {
+    const lowerWord = word.toLowerCase();
+    const cleanLowerWord = lowerWord.replace(/[.,]/g, '');
+    
+    // Check if it's a known title
+    if (gelarLookup[lowerWord]) return gelarLookup[lowerWord];
+    if (gelarLookup[cleanLowerWord]) return gelarLookup[cleanLowerWord];
+    
+    // If word ends with dot and is not a known title, maybe it's an initial or unknown title
+    if (word.endsWith('.')) {
+      // Try to find if it corresponds to a title without its trailing dots
+      const match = Object.keys(gelarLookup).find(k => k.startsWith(cleanLowerWord));
+      if (match && match.length < cleanLowerWord.length + 2) return gelarLookup[match];
+    }
+
+    // Default to Uppercase for the name part
+    return word.toUpperCase();
+  });
+
+  const formattedMainPart = formattedWords.join(' ');
+
+  // 3. Process Suffixes
+  const formattedSuffixes = suffixes.map(suffix => {
+    const lowerSuffix = suffix.toLowerCase();
+    const cleanLowerSuffix = lowerSuffix.replace(/[.,]/g, '');
+    
+    if (gelarLookup[lowerSuffix]) return gelarLookup[lowerSuffix];
+    if (gelarLookup[cleanLowerSuffix]) return gelarLookup[cleanLowerSuffix];
+    
+    // If not found, keep it as is but maybe Title Case or just Uppercase?
+    // User said "gelar sesuai penulisan", so if it's unknown we might want to keep it 
+    // but usually if it's a degree it should be in GELAR_MAP.
+    // Let's assume if it's not in map, it might be a weird degree - try to proper case it?
+    // Actually, Indonesian degrees are mostly uppercase with dots.
+    return suffix; 
+  });
+
+  if (formattedSuffixes.length > 0) {
+    return `${formattedMainPart}, ${formattedSuffixes.join(', ')}`;
+  }
+  return formattedMainPart;
 };
 
 /**

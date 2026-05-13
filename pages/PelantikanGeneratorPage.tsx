@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, syncTableRemote, fetchPelantikanFromSheets, uploadFileToDrive } from '../spreadsheetService'; // Asumsi path ini benar
 import { Pegawai } from '../types'; // Asumsi path ini benar
 import { useAuth } from '../AuthContext';
+import { formatPegawaiName } from '../constants';
 import SearchableSelect from '../components/SearchableSelect';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -517,14 +518,14 @@ const PelantikanGeneratorPage = () => {
                              <div className="flex flex-col items-center">
                                 <p className="mb-24">Yang mengangkat sumpah,</p>
                                 <div className="space-y-0.5">
-                                  <p className="font-bold uppercase underline leading-none">{formData.asnNama}</p>
+                                  <p className="font-bold underline leading-none">{formatPegawaiName(formData.asnNama || '')}</p>
                                   <p>NIP {formData.asnNip}</p>
                                 </div>
                              </div>
                              <div className="flex flex-col items-center">
                                 <p className="mb-4">Pejabat<br/>Yang mengambil sumpah,</p>
                                 <div className="mt-[4.5rem]">
-                                  <p className="font-bold uppercase underline leading-none">{formData.pjbNama}</p>
+                                  <p className="font-bold underline leading-none">{formatPegawaiName(formData.pjbNama || '')}</p>
                                   <p>NIP {formData.pjbNip}</p>
                                 </div>
                              </div>
@@ -535,12 +536,12 @@ const PelantikanGeneratorPage = () => {
                              <div className="grid grid-cols-2 gap-x-20 w-full text-center text-[10.5pt]">
                                 <div className="flex flex-col items-center">
                                    <div className="h-24"></div>
-                                   <p className="font-bold uppercase underline leading-none">{formData.saksi1Nama}</p>
+                                   <p className="font-bold underline leading-none">{formatPegawaiName(formData.saksi1Nama || '')}</p>
                                    <p>NIP {formData.saksi1Nip}</p>
                                 </div>
                                 <div className="flex flex-col items-center">
                                    <div className="h-24"></div>
-                                   <p className="font-bold uppercase underline leading-none">{formData.saksi2Nama}</p>
+                                   <p className="font-bold underline leading-none">{formatPegawaiName(formData.saksi2Nama || '')}</p>
                                    <p>NIP {formData.saksi2Nip}</p>
                                 </div>
                              </div>
@@ -567,7 +568,7 @@ const PelantikanGeneratorPage = () => {
                      
                   {/* PEMBUKA */}
                   <div className="text-center flex flex-col items-center">
-                    <p>Saya, <span className="font-bold uppercase">{formData.asnNama || '...'}</span>, sebagai <span className="font-bold uppercase">{formData.asnJabatan || '...'}</span>, menyatakan sebagai berikut :</p>
+                    <p>Saya, <span className="font-bold">{formatPegawaiName(formData.asnNama || '')}</span>, sebagai <span className="font-bold uppercase">{formData.asnJabatan || '...'}</span>, menyatakan sebagai berikut :</p>
                   </div>
 
                   {/* ISI 7 POIN (SESUAI DOKUMEN PDF) */}

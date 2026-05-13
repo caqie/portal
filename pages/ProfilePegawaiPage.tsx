@@ -5,7 +5,7 @@ import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFrom
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
-import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, BANK_LIST } from '../constants';
+import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, BANK_LIST, formatPegawaiName } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 // @ts-ignore
 import html2canvas from 'html2canvas';
@@ -644,13 +644,13 @@ const ProfilePegawaiPage = () => {
 
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 md:mb-12">
         <div className="flex items-center gap-4 md:gap-6 w-full lg:w-auto">
-          <button onClick={() => navigate('/pegawai')} className="h-10 w-10 md:h-12 md:w-12 bg-white border border-gray-100 text-gray-400 rounded-xl md:rounded-2xl flex items-center justify-center hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm shrink-0">
+          <button onClick={() => navigate(-1)} className="h-10 w-10 md:h-12 md:w-12 bg-white border border-gray-100 text-gray-400 rounded-xl md:rounded-2xl flex items-center justify-center hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm shrink-0">
             <i className="bi bi-arrow-left"></i>
           </button>
           <div className="min-w-0">
             <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter truncate">Profil Lengkap Pegawai</h3>
             <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 flex items-center gap-2 truncate">
-              <i className="bi bi-person-badge-fill text-blue-600"></i> {pegawai.nama} • NIP. {pegawai.nip}
+              <i className="bi bi-person-badge-fill text-blue-600"></i> {formatPegawaiName(pegawai.nama)} • NIP. {pegawai.nip}
             </p>
           </div>
         </div>
@@ -704,7 +704,7 @@ const ProfilePegawaiPage = () => {
               {uploading && <div className="absolute inset-x-0 bottom-0 top-0 bg-blue-600/50 rounded-2xl md:rounded-[2rem] flex items-center justify-center z-20"><div className="h-6 w-6 md:h-8 md:w-8 border-2 md:border-4 border-white/30 border-t-white rounded-full animate-spin"></div></div>}
             </div>
             <div>
-              <h4 className="font-black text-gray-900 uppercase tracking-tight leading-tight text-sm md:text-base">{pegawai.nama}</h4>
+              <h4 className="font-black text-gray-900 tracking-tight leading-tight text-sm md:text-base">{formatPegawaiName(pegawai.nama)}</h4>
               <p className="text-[8px] md:text-[9px] font-black text-blue-600 uppercase tracking-widest mt-1.5 md:mt-2">{pegawai.jabatan}</p>
               <p className="text-[7px] md:text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-1">{pegawai.unitKerja}</p>
             </div>
@@ -1849,7 +1849,7 @@ const ProfilePegawaiPage = () => {
                   <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">I. DATA PRIBADI</p>
                   <table className="w-full border-collapse">
                      <tbody>
-                        <tr><td className="w-[180px] py-1">1. Nama Lengkap</td><td className="w-4 py-1 text-center">:</td><td className="py-1 font-bold uppercase underline">{pegawai.nama}</td></tr>
+                        <tr><td className="w-[180px] py-1">1. Nama Lengkap</td><td className="w-4 py-1 text-center">:</td><td className="py-1 font-bold underline">{formatPegawaiName(pegawai.nama)}</td></tr>
                         <tr><td className="py-1">2. NIP</td><td className="py-1 text-center">:</td><td className="py-1 font-bold">{pegawai.nip}</td></tr>
                         <tr><td className="py-1">3. NIK</td><td className="py-1 text-center">:</td><td className="py-1">{pegawai.nik || '-'}</td></tr>
                         <tr><td className="py-1">4. Tempat, Tgl Lahir</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{pegawai.tempatLahir || '-'}, {pegawai.tanggalLahir || '-'}</td></tr>
@@ -1913,7 +1913,7 @@ const ProfilePegawaiPage = () => {
                <div className="text-center w-[250px] mr-10">
                   <p className="text-[10pt]">Jakarta, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   <p className="mt-1 mb-28 uppercase font-bold text-[10pt]">Pegawai Bersangkutan,</p>
-                  <p className="font-bold uppercase underline leading-none text-[11pt]">{pegawai.nama}</p>
+                  <p className="font-bold underline leading-none text-[11pt]">{formatPegawaiName(pegawai.nama)}</p>
                   <p className="mt-1 text-[10pt]">NIP {pegawai.nip}</p>
                </div>
             </div>
@@ -1982,7 +1982,7 @@ const ProfilePegawaiPage = () => {
                 referrerPolicy="no-referrer"
               />
               <div className="mt-4 md:mt-6 text-center text-white pb-2">
-                <h5 className="font-black uppercase tracking-tight text-base md:text-xl">{pegawai.nama}</h5>
+                <h5 className="font-black tracking-tight text-base md:text-xl">{formatPegawaiName(pegawai.nama)}</h5>
                 <p className="text-[9px] md:text-[10px] uppercase font-bold tracking-[0.3em] text-white/50 mt-1">NIP. {pegawai.nip}</p>
               </div>
             </div>

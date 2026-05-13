@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, fetchPengembanganFromSheets, syncTableRemote, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai, Pengembangan } from '../types';
 import { useAuth } from '../AuthContext';
+import { formatPegawaiName } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -186,7 +187,7 @@ const PengembanganPage = () => {
                        {p.foto ? <img src={p.foto} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-indigo-600 font-black text-xl">{p.nama.charAt(0)}</div>}
                     </div>
                     <div className="min-w-0">
-                       <h4 className="text-[12px] font-black text-gray-950 uppercase truncate leading-tight">{p.nama}</h4>
+                       <h4 className="text-[12px] font-black text-gray-950 truncate leading-tight">{formatPegawaiName(p.nama)}</h4>
                        <p className="text-[8px] font-bold text-gray-400 mt-1 uppercase tracking-widest">{p.jenisPegawai} • {p.totalJp} JP</p>
                     </div>
                     {p.isEligible ? (
@@ -229,7 +230,7 @@ const PengembanganPage = () => {
                  {riwayatList.filter(r => r.tahun === filterYear).map(r => (
                    <tr key={r.id} className="hover:bg-blue-50/5 group transition-colors">
                       <td className="px-10 py-5">
-                         <p className="text-[11px] font-black text-gray-950 uppercase">{r.namaPegawai}</p>
+                         <p className="text-[11px] font-black text-gray-950">{formatPegawaiName(r.namaPegawai)}</p>
                          <p className="text-[9px] font-bold text-indigo-600">{r.tanggalMulai} s/d {r.tanggalSelesai}</p>
                       </td>
                       <td className="px-4 py-5">

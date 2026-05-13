@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, fetchPAKFromSheets, syncTableRemote, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai, PAKRecord } from '../types';
 import { useAuth } from '../AuthContext';
-import { AK_KOEFISIEN, PREDIKAT_MULTIPLIER } from '../constants';
+import { AK_KOEFISIEN, PREDIKAT_MULTIPLIER, formatPegawaiName } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -287,7 +287,7 @@ const PAKPage = () => {
                  {pakList.map(p => (
                     <tr key={p.id} className="hover:bg-blue-50/5 group transition-all">
                        <td className="px-10 py-5">
-                          <p className="text-[11px] font-black text-gray-950 uppercase mb-1">{p.namaPegawai}</p>
+                          <p className="text-[11px] font-black text-gray-950 mb-1">{formatPegawaiName(p.namaPegawai)}</p>
                           <p className="text-[9px] font-mono text-blue-600 font-bold uppercase">NIP. {p.nip}</p>
                        </td>
                        <td className="px-4 py-5 text-[10px] font-bold text-gray-500">{p.nomor}</td>

@@ -4,7 +4,7 @@ import { Pegawai, Dossier } from '../types';
 import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, findPegawaiByNip } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
-import { normalizeUnitName, UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, DEFAULT_LOGO, BANK_LIST } from '../constants';
+import { normalizeUnitName, UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, DEFAULT_LOGO, BANK_LIST, formatPegawaiName } from '../constants';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -750,7 +750,7 @@ const PegawaiPage = () => {
                    </div>
                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <h4 className={`text-[10px] md:text-[13px] font-black truncate leading-tight uppercase ${isDup || isInv ? 'text-rose-700' : 'text-gray-950'}`}>{p.nama || '(Nama Kosong)'}</h4>
+                        <h4 className={`text-[10px] md:text-[13px] font-black truncate leading-tight ${isDup || isInv ? 'text-rose-700' : 'text-gray-950'}`}>{formatPegawaiName(p.nama || '(Nama Kosong)')}</h4>
                         {(isDup || isInv) && <i className="bi bi-exclamation-triangle-fill text-rose-500 text-[10px]" title={isInv ? "Data Tidak Valid" : "NIP Duplikat"}></i>}
                       </div>
                       <p className="text-[7px] md:text-[9px] font-mono text-gray-400 mt-1 uppercase tracking-tighter md:tracking-normal">NIP. {p.nip || 'TIDAK TERDETEKSI'}</p>

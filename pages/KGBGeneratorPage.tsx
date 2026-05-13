@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, fetchKGBFromSheets, syncTableRemote, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai, KGB } from '../types';
 import { useAuth } from '../AuthContext';
-import { DEFAULT_LOGO, getGajiEstimasi, normalizeUnitName } from '../constants';
+import { DEFAULT_LOGO, getGajiEstimasi, normalizeUnitName, formatPegawaiName } from '../constants';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -408,7 +408,7 @@ const KGBGeneratorPage = () => {
                        return (
                           <tr key={p.id} className="hover:bg-blue-50/5 group transition-all">
                              <td className="px-10 py-6">
-                                <p className="text-[11px] font-black text-gray-950 uppercase leading-none">{p.nama}</p>
+                                <p className="text-[11px] font-black text-gray-950 leading-none">{formatPegawaiName(p.nama)}</p>
                                 <p className="text-[9px] font-mono text-blue-600 font-bold uppercase mt-1.5 tracking-tighter">NIP. {p.nip}</p>
                              </td>
                              <td className="px-4 py-6">
@@ -558,7 +558,7 @@ const KGBGeneratorPage = () => {
 
                  {/* DATA PEGAWAI */}
                  <div className="text-[11pt] space-y-1 mb-6">
-                    <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>1.</span><span>Nama</span><span>:</span><span className="font-bold uppercase">{formData.namaPegawai}</span></div>
+                    <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>1.</span><span>Nama</span><span>:</span><span className="font-bold">{formatPegawaiName(formData.namaPegawai || '')}</span></div>
                     <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>2.</span><span>NIP</span><span>:</span><span>{formData.nip}</span></div>
                     <div className="grid grid-cols-[30px_180px_10px_1fr]"><span>3.</span><span>{formData.jenisPegawai === 'PNS' ? 'Pangkat / Golongan ruang' : 'Golongan/Jabatan'}</span><span>:</span><span className="uppercase">{formData.pangkatGol}</span></div>
                     {formData.jenisPegawai === 'PNS' ? (
@@ -613,7 +613,7 @@ const KGBGeneratorPage = () => {
                     <p>Sekretaris Direktorat Jenderal</p>
                     <p>Kekayaan Intelektual,</p>
                     <p className="mb-24 uppercase font-bold"></p>
-                    <p className="font-bold uppercase underline leading-none">{formData.pjbNama}</p>
+                    <p className="font-bold underline leading-none">{formatPegawaiName(formData.pjbNama || '')}</p>
                  </div>
 
                  {/* TEMBUSAN */}

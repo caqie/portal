@@ -71,7 +71,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         <div className="min-w-0 flex-1">
           {selectedOption ? (
             <div className="flex flex-col">
-              <span className="text-[11px] font-black text-gray-950 uppercase truncate">
+              <span className="text-[11px] font-black text-gray-950 truncate">
                 {selectedOption.label}
               </span>
               {selectedOption.subLabel && (
@@ -119,7 +119,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     value === opt.value ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : ''
                   }`}
                 >
-                  <p className={`text-[10px] font-black uppercase ${value === opt.value ? 'text-blue-700' : 'text-gray-950'}`}>
+                  <p className={`text-[10px] font-black ${value === opt.value ? 'text-blue-700' : 'text-gray-950'}`}>
                     {opt.label}
                   </p>
                   {opt.subLabel && (

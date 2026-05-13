@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets, fetchKGBFromSheets, fetchKegiatanFromSheets, fetchAbsensiHistoryFromSheets } from '../spreadsheetService';
 import { Pegawai, Pengembangan, KGB, Kegiatan, AbsensiRecord } from '../types';
 import { useAuth } from '../AuthContext';
-import { UNIT_KERJA, normalizeUnitName } from '../constants';
+import { UNIT_KERJA, normalizeUnitName, formatPegawaiName } from '../constants';
 import * as XLSX from 'xlsx';
 import CalendarView from '../components/CalendarView';
 
@@ -1267,7 +1267,7 @@ const Dashboard = () => {
                  {(reminders[notifTab] || []).map((item, i) => (
                     <div key={`${item.nip || item.nama || i}-${i}`} className="p-4 md:p-5 bg-gray-50/50 border border-gray-100 rounded-2xl md:rounded-[2rem] flex items-center gap-4 md:gap-5 hover:bg-blue-50 transition-all shadow-sm group">
                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] md:text-[11px] font-black text-gray-950 truncate uppercase">{item.nama || 'Tanpa Nama'}</p>
+                          <p className="text-[10px] md:text-[11px] font-black text-gray-950 truncate">{formatPegawaiName(item.nama || 'Tanpa Nama')}</p>
                           <p className="text-[8px] md:text-[9px] font-bold text-gray-400 mt-1 uppercase">{item.tmt || item.tmtTerakhir || '-'}</p>
                        </div>
                        <span className="shrink-0 px-2.5 md:px-3 py-1 bg-white border rounded-lg text-[8px] md:text-[9px] font-black text-gray-500 uppercase">{item.sisa || item.keterangan || item.pengabdian || '-'}</span>

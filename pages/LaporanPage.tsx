@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { TugasRutin, Kegiatan, Pegawai, TaskType } from '../types';
-import { BULAN, UNIT_KERJA, normalizeUnitName, TASK_LABELS, PANGKAT_MAP } from '../constants';
+import { BULAN, UNIT_KERJA, normalizeUnitName, TASK_LABELS, PANGKAT_MAP, formatPegawaiName } from '../constants';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import { fetchPegawaiFromSheets, fetchTugasRutinFromSheets, fetchKegiatanFromSheets } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
@@ -45,14 +45,7 @@ const LaporanPage = () => {
   };
 
   const formatSignatoryName = (name: string) => {
-    if (!name) return '';
-    const parts = name.split(',');
-    if (parts.length > 1) {
-      const mainName = parts[0].toUpperCase();
-      const titles = parts.slice(1).join(',');
-      return `${mainName}, ${titles.trim()}`;
-    }
-    return name.toUpperCase();
+    return formatPegawaiName(name);
   };
 
   const handleSignatoryChange = (nip: string) => {
