@@ -876,7 +876,7 @@ const KeuanganPage = () => {
               </div>
 
               <div className="bg-white border border-gray-100 rounded-3xl shadow-sm overflow-hidden">
-                <div className="overflow-x-auto custom-scrollbar pb-3">
+                <div className="overflow-x-auto custom-scrollbar pb-3 touch-pan-x">
                   <table className="w-full text-left border-collapse min-w-[1000px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
@@ -885,7 +885,7 @@ const KeuanganPage = () => {
                       <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Kategori</th>
                       <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Tujuan / SPD</th>
                       <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Total Biaya</th>
-                      <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Aksi</th>
+                      <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center sticky right-0 bg-gray-50 border-l border-gray-100 min-w-[120px] shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)]">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -913,7 +913,7 @@ const KeuanganPage = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-[11px] font-black text-gray-900">{formatCurrency(p.totalJumlah)}</td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-4 sticky right-0 bg-white shadow-[-10px_0_15px_-5px_rgba(0,0,0,0.05)] border-l border-gray-50 min-w-[120px]">
                             <div className="flex items-center justify-center gap-2">
                               <button onClick={() => {
                                 setSelectedPesertaIdx(pIdx);
@@ -1070,42 +1070,42 @@ const KeuanganPage = () => {
                 </div>
 
                 <div className="bg-gray-50 rounded-3xl p-4 md:p-6 border border-gray-100 overflow-hidden">
-                  <div className="overflow-x-auto custom-scrollbar pb-2">
-                    <div className="space-y-3 min-w-[850px] py-1">
+                  <div className="overflow-x-auto custom-scrollbar pb-2 touch-pan-x">
+                    <div className="space-y-3 min-w-[700px] md:min-w-[850px] py-1">
                       {(pesertaForm.rincianBiaya || []).map((r, rIdx) => (
-                        <div key={rIdx} className="grid grid-cols-12 gap-3 items-center">
-                          <div className="col-span-5">
+                        <div key={rIdx} className="grid grid-cols-12 gap-2 md:gap-3 items-center">
+                          <div className="col-span-4 md:col-span-5">
                             <input 
                               type="text" 
-                              placeholder="Deskripsi Biaya" 
-                              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600" 
+                              placeholder="Deskripsi" 
+                              className="w-full px-3 md:px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[10px] md:text-[11px] font-bold outline-none focus:border-blue-600" 
                               value={r.item} 
                               onChange={e => updateRincianForm(rIdx, 'item', e.target.value)} 
                             />
                           </div>
-                          <div className="col-span-3">
+                          <div className="col-span-3 md:col-span-3">
                             <input 
                               type="text" 
                               placeholder="Nilai" 
-                              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-600" 
+                              className="w-full px-3 md:px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[10px] md:text-[11px] font-bold outline-none focus:border-blue-600" 
                               value={formatRupiah(r.rate)} 
                               onChange={e => updateRincianForm(rIdx, 'rate', parseRawValue(e.target.value))} 
                             />
                           </div>
-                          <div className="col-span-1">
+                          <div className="col-span-2 md:col-span-1">
                             <input 
                               type="number" 
-                              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none text-center" 
+                              className="w-full px-2 md:px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[10px] md:text-[11px] font-bold outline-none text-center" 
                               value={r.qty} 
                               onChange={e => updateRincianForm(rIdx, 'qty', parseInt(e.target.value) || 0)} 
                             />
                           </div>
-                          <div className="col-span-2 text-right font-black text-[11px] text-gray-900 pr-2">
+                          <div className="col-span-2 md:col-span-2 text-right font-black text-[10px] md:text-[11px] text-gray-900 pr-1 md:pr-2">
                             {formatCurrency(r.total)}
                           </div>
                           <div className="col-span-1 flex justify-end">
-                            <button onClick={() => removeRincianForm(rIdx)} className="h-9 w-9 bg-white text-rose-400 rounded-xl flex items-center justify-center hover:text-rose-600 transition-all border border-gray-100 shadow-sm">
-                              <Trash2 size={16} />
+                            <button onClick={() => removeRincianForm(rIdx)} className="h-8 w-8 md:h-9 md:w-9 bg-white text-rose-400 rounded-xl flex items-center justify-center hover:text-rose-600 transition-all border border-gray-100 shadow-sm">
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </div>

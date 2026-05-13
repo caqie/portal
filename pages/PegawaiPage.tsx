@@ -32,7 +32,7 @@ const PegawaiPage = () => {
   const [minAge, setMinAge] = useState<string>(sessionStorage.getItem('pegawai_minAge') || '');
   const [maxAge, setMaxAge] = useState<string>(sessionStorage.getItem('pegawai_maxAge') || '');
 
-  // Persist filters to sessionStorage
+  // Persist filters and scroll to sessionStorage
   useEffect(() => {
     sessionStorage.setItem('pegawai_searchTerm', searchTerm);
     sessionStorage.setItem('pegawai_filterUnit', filterUnit);
@@ -43,6 +43,25 @@ const PegawaiPage = () => {
     sessionStorage.setItem('pegawai_minAge', minAge);
     sessionStorage.setItem('pegawai_maxAge', maxAge);
   }, [searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge]);
+
+  // Restore scroll position
+  useEffect(() => {
+    const savedScrollPosition = sessionStorage.getItem('pegawai_scrollPosition');
+    if (savedScrollPosition && !loading) {
+      window.scrollTo(0, parseInt(savedScrollPosition));
+      // Optional: clear it after restoration if we only want it once per "back"
+      // sessionStorage.removeItem('pegawai_scrollPosition');
+    }
+  }, [loading]);
+
+  // Save scroll position before leaving or on scroll (debounce/throttle ideally, but let's do it on scroll for simplicity)
+  useEffect(() => {
+    const handleScroll = () => {
+      sessionStorage.setItem('pegawai_scrollPosition', window.scrollY.toString());
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -361,7 +380,7 @@ const PegawaiPage = () => {
     const min = minAge ? parseInt(minAge) : 0;
     const max = maxAge ? parseInt(maxAge) : 200;
 
-    return pegawaiList.filter(p => {
+    return (pegawaiList || []).filter(p => {
       const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
       const match = searchStr.includes(term);
       const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
@@ -389,7 +408,7 @@ const PegawaiPage = () => {
     const counts: Record<string, number> = {
       'Aktif': 0, 'Tidak Aktif': 0, 'Pensiun': 0, 'Tugas Belajar': 0
     };
-    filteredForCounts.forEach(p => {
+    (filteredForCounts || []).forEach(p => {
       const status = p.status || 'Aktif';
       if (counts[status] !== undefined) counts[status]++;
     });
@@ -718,7 +737,7 @@ const PegawaiPage = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
         {loading ? Array(6).fill(0).map((_,i) => <div key={i} className="h-32 md:h-44 bg-white rounded-2xl md:rounded-[3rem] animate-pulse"></div>) : 
-         filteredPegawai.map((p, i) => {
+         (filteredPegawai || []).map((p, i) => {
            const pNip = (p.nip || '').replace(/\D/g, '');
            const isDup = duplicateNips.includes(pNip);
            const isInv = invalidItems.some(inv => inv.id === p.id || (inv.nip && inv.nip === p.nip));
