@@ -1,5 +1,5 @@
 
-import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom } from './types';
+import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom, PenilaianTalenta, TalentPool, AssessmentTalenta, NineBoxTalenta, PengembanganTalenta } from './types';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8dTUPkAb1f8EeH3DxXjTd9IZ-yAMUWxSfci9ZBLkMf3gxH3as4GlALPtER6JM-BWD/exec';
@@ -30,7 +30,12 @@ export const DEFAULT_GIDS = {
   BANK_SOAL: '1585181979',
   PESERTA_UKOM: '2100046442',
   HASIL_UKOM: '777888999',
-  UKOM_SESSIONS: '1122334455'
+  UKOM_SESSIONS: '1122334455',
+  PENILAIAN_TALENTA: '718101',
+  TALENT_POOL: '718102',
+  ASSESSMENT_TALENTA: '718103',
+  NINEBOX: '718104',
+  PENGEMBANGAN_TALENTA: '718105'
 };
 
 export const EXPECTED_COLUMNS_SCHEMA = {
@@ -53,7 +58,12 @@ export const EXPECTED_COLUMNS_SCHEMA = {
   KEUANGAN: ['ID', 'NAMAKEGIATAN', 'TANGGAL', 'STATUS', 'MATAANGGARAN', 'TAHUNANGGARAN', 'PPKNIP', 'PPKNAMA', 'BENDAHARANIP', 'BENDAHARANAMA', 'UNITKERJA', 'KETERANGAN', 'TRANSACTIONID', 'KOTATTD', 'TANGGALDOKUMEN', 'PESERTA', 'CONFIGBIAYA', 'CONFIGSPD'],
   BANK_SOAL: ['IDSOAL', 'PERTANYAAN', 'JAWABANBENAR'],
   PESERTA_UKOM: ['NOPESERTA', 'NAMA', 'JENJANG'],
-  HASIL_UKOM: ['NOPESERTA', 'NAMA', 'TOTALNILAI']
+  HASIL_UKOM: ['NOPESERTA', 'NAMA', 'TOTALNILAI'],
+  PENILAIAN_TALENTA: ['ID', 'PEGAWAI_ID', 'NILAI_SKP', 'KOMPETENSI', 'INTEGRITAS', 'DISIPLIN', 'LEADERSHIP', 'TEAMWORK', 'INOVASI', 'KOMUNIKASI', 'PENDIDIKAN', 'PENGALAMAN', 'TOTAL_NILAI', 'KATEGORI_TALENTA', 'CREATED_AT'],
+  TALENT_POOL: ['ID', 'PEGAWAI_ID', 'RANKING', 'STATUS_TALENTA', 'READINESS_LEVEL', 'REKOMENDASI_JABATAN', 'CREATED_AT'],
+  ASSESSMENT_TALENTA: ['ID', 'PEGAWAI_ID', 'HASIL_ASSESSMENT', 'POTENSI', 'KOMPETENSI', 'ASSESSOR', 'CATATAN', 'TANGGAL_ASSESSMENT'],
+  NINEBOX: ['ID', 'PEGAWAI_ID', 'KINERJA', 'POTENSI', 'POSISI_BOX', 'REKOMENDASI'],
+  PENGEMBANGAN_TALENTA: ['ID', 'PEGAWAI_ID', 'JENIS_PENGEMBANGAN', 'NAMA_PELATIHAN', 'PENYELENGGARA', 'TANGGAL_MULAI', 'TANGGAL_SELESAI', 'STATUS']
 };
 
 const getDbConfig = () => {
@@ -946,3 +956,78 @@ export const getRetirementDetails = (nip: string, jabatan: string) => {
   let sisaMasaKerja = diffDays <= 0 ? "Pensiun" : `${Math.floor(diffDays / 12)} thn ${diffDays % 12} bln`;
   return { tmtPensiun, sisaMasaKerja, bup: usiaPensiun };
 };
+
+export const fetchPenilaianTalentaFromSheets = (bypassCache = false) => fetchTableData<PenilaianTalenta>('PENILAIAN_TALENTA', 'talenta_penilaian_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return {
+      id: get('ID'),
+      pegawai_id: get('PEGAWAIID') || get('PEGAWAI_ID') || get('NIP'),
+      nilai_skp: parseFloat(get('NILAISKP')) || parseFloat(get('NILAI_SKP')) || 0,
+      kompetensi: parseFloat(get('KOMPETENSI')) || 0,
+      integritas: parseFloat(get('INTEGRITAS')) || 0,
+      disiplin: parseFloat(get('DISIPLIN')) || 0,
+      leadership: parseFloat(get('LEADERSHIP')) || 0,
+      teamwork: parseFloat(get('TEAMWORK')) || 0,
+      inovasi: parseFloat(get('INOVASI')) || 0,
+      komunikasi: parseFloat(get('KOMUNIKASI')) || 0,
+      pendidikan: get('PENDIDIKAN'),
+      pengalaman: parseFloat(get('PENGALAMAN')) || 0,
+      total_nilai: parseFloat(get('TOTALNILAI')) || parseFloat(get('TOTAL_NILAI')) || 0,
+      kategori_talenta: get('KATEGORITALENTA') || get('KATEGORI_TALENTA'),
+      created_at: get('CREATEDAT') || get('CREATED_AT') || new Date().toISOString()
+    } as PenilaianTalenta;
+}, bypassCache);
+
+export const fetchTalentPoolFromSheets = (bypassCache = false) => fetchTableData<TalentPool>('TALENT_POOL', 'talenta_talent_pool_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return {
+      id: get('ID'),
+      pegawai_id: get('PEGAWAIID') || get('PEGAWAI_ID') || get('NIP'),
+      ranking: parseInt(get('RANKING')) || 0,
+      status_talenta: get('STATUSTALENTA') || get('STATUS_TALENTA'),
+      readiness_level: get('READINESSLEVEL') || get('READINESS_LEVEL'),
+      rekomendasi_jabatan: get('REKOMENDASIJABATAN') || get('REKOMENDASI_JABATAN'),
+      created_at: get('CREATEDAT') || get('CREATED_AT') || new Date().toISOString()
+    } as TalentPool;
+}, bypassCache);
+
+export const fetchAssessmentTalentaFromSheets = (bypassCache = false) => fetchTableData<AssessmentTalenta>('ASSESSMENT_TALENTA', 'talenta_assessment_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return {
+      id: get('ID'),
+      pegawai_id: get('PEGAWAIID') || get('PEGAWAI_ID') || get('NIP'),
+      hasil_assessment: get('HASILASSESSMENT') || get('HASIL_ASSESSMENT'),
+      potensi: parseFloat(get('POTENSI')) || 0,
+      kompetensi: parseFloat(get('KOMPETENSI')) || 0,
+      assessor: get('ASSESSOR'),
+      catatan: get('CATATAN'),
+      tanggal_assessment: get('TANGGALASSESSMENT') || get('TANGGAL_ASSESSMENT')
+    } as AssessmentTalenta;
+}, bypassCache);
+
+export const fetchNineBoxFromSheets = (bypassCache = false) => fetchTableData<NineBoxTalenta>('NINEBOX', 'talenta_ninebox_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return {
+      id: get('ID'),
+      pegawai_id: get('PEGAWAIID') || get('PEGAWAI_ID') || get('NIP'),
+      kinerja: parseFloat(get('KINERJA')) || 0,
+      potensi: parseFloat(get('POTENSI')) || 0,
+      posisi_box: get('POSISIBOX') || get('POSISI_BOX'),
+      rekomendasi: get('REKOMENDASI')
+    } as NineBoxTalenta;
+}, bypassCache);
+
+export const fetchPengembanganTalentaFromSheets = (bypassCache = false) => fetchTableData<PengembanganTalenta>('PENGEMBANGAN_TALENTA', 'talenta_pengembangan_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return {
+      id: get('ID'),
+      pegawai_id: get('PEGAWAIID') || get('PEGAWAI_ID') || get('NIP'),
+      jenis_pengembangan: get('JENISPENGEMBANGAN') || get('JENIS_PENGEMBANGAN'),
+      nama_pelatihan: get('NAMAPELATIHAN') || get('NAMA_PELATIHAN'),
+      penyelenggara: get('PENYELENGGARA'),
+      tanggal_mulai: get('TANGGALMULAI') || get('TANGGAL_MULAI'),
+      tanggal_selesai: get('TANGGALSELESAI') || get('TANGGAL_SELESAI'),
+      status: get('STATUS')
+    } as PengembanganTalenta;
+}, bypassCache);
+

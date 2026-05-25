@@ -496,3 +496,64 @@ export interface PerilakuKerjaRow {
   ekspektasi: string;
   umpanBalik: string;
 }
+
+// === ASN TALENT MANAGEMENT ===
+export interface PenilaianTalenta {
+  id: string;
+  pegawai_id: string; // NIP
+  nilai_skp: number;
+  kompetensi: number;
+  integritas: number;
+  disiplin: number;
+  leadership: number;
+  teamwork: number;
+  inovasi: number;
+  komunikasi: number;
+  pendidikan: string;
+  pengalaman: number;
+  total_nilai: number;
+  kategori_talenta: string;
+  created_at: string;
+}
+
+export interface TalentPool {
+  id: string;
+  pegawai_id: string; // NIP
+  ranking: number;
+  status_talenta: string;
+  readiness_level: string;
+  rekomendasi_jabatan: string;
+  created_at: string;
+}
+
+export interface AssessmentTalenta {
+  id: string;
+  pegawai_id: string; // NIP
+  hasil_assessment: string;
+  potensi: number;
+  kompetensi: number;
+  assessor: string;
+  catatan: string;
+  tanggal_assessment: string;
+}
+
+export interface NineBoxTalenta {
+  id: string;
+  pegawai_id: string; // NIP
+  kinerja: number;
+  potensi: number;
+  posisi_box: string;
+  rekomendasi: string;
+}
+
+export interface PengembanganTalenta {
+  id: string;
+  pegawai_id: string; // NIP
+  jenis_pengembangan: string;
+  nama_pelatihan: string;
+  penyelenggara: string;
+  tanggal_mulai: string;
+  tanggal_selesai: string;
+  status: string;
+}
+

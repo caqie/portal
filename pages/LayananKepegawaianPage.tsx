@@ -53,6 +53,7 @@ const LayananKepegawaianPage = () => {
   const { user } = useAuth();
 
   const services = [
+    { id: 'talenta', icon: 'bi-star-half', label: 'Manajemen Talenta ASN', description: 'Perhitungan Talenta, Talent Pool, Sembilan Kotak (Nine Box Matrix), & Kesiapan Promosi', color: 'violet', route: '/talenta' },
     { id: 'bangkom', icon: 'bi-mortarboard-fill', label: 'Bangkom & Pelatihan', description: 'Monitoring Kewajiban Minimal 20 JP PNS & 24 JP PPPK / Tahun', color: 'indigo', route: '/pengembangan' },
     { id: 'pangkat', icon: 'bi-award-fill', label: 'Kenaikan Pangkat', description: 'Usulan Kenaikan Pangkat Reguler & Istimewa (Prestasi Luar Biasa)', color: 'blue', route: '/kenaikan-pangkat' },
     { id: 'skp', icon: 'bi-graph-up-arrow', label: 'E-Kinerja (SKP)', description: 'Evaluasi & Penilaian Kinerja Pegawai (Permenpan 6/2022)', color: 'blue', route: '/skp' },

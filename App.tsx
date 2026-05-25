@@ -33,6 +33,7 @@ import UkomDashboardPage from './pages/UkomDashboardPage';
 import UkomExamPage from './pages/UkomExamPage';
 import UkomAdminPage from './pages/UkomAdminPage';
 import UkomSupervisorPage from './pages/UkomSupervisorPage';
+import TalentaPage from './pages/TalentaPage';
 import { DEFAULT_LOGO, APP_ROUTES } from './constants';
 import { syncGidMap, fetchSystemConfig } from './spreadsheetService';
 import { SystemConfig } from './types';
@@ -288,7 +289,10 @@ const AppContent = () => {
             {hasAccess('/pegawai') && <SidebarItem to="/pegawai" icon="bi-person-vcard-fill" label="Database Pegawai" active={location.pathname === '/pegawai'} collapsed={isCollapsed} />}
             
             {hasAccess('/layanan') && (
-              <SidebarItem to="/layanan" icon="bi-briefcase-fill" label="Layanan Karir" active={['/layanan', '/kenaikan-pangkat', '/skp', '/pak', '/anjab-abk', '/pensiun', '/kgb-gen', '/spmt-spp', '/pelantikan-gen', '/satya-lencana', '/magang-pkl', '/pengembangan'].some(p => location.pathname.startsWith(p))} collapsed={isCollapsed} />
+              <SidebarItem to="/layanan" icon="bi-briefcase-fill" label="Layanan Karir" active={['/layanan', '/kenaikan-pangkat', '/skp', '/pak', '/anjab-abk', '/pensiun', '/kgb-gen', '/spmt-spp', '/pelantikan-gen', '/satya-lencana', '/magang-pkl', '/pengembangan', '/talenta'].some(p => location.pathname.startsWith(p))} collapsed={isCollapsed} />
+            )}
+            {hasAccess('/talenta') && (
+              <SidebarItem to="/talenta" icon="bi-star-half" label="Manajemen Talenta" active={location.pathname === '/talenta'} collapsed={isCollapsed} />
             )}
             
             {(hasAccess('/persuratan') || hasAccess('/tugas-rutin') || hasAccess('/kegiatan') || hasAccess('/laporan') || hasAccess('/keuangan') || hasAccess('/dossiers')) && (
@@ -418,6 +422,7 @@ const AppContent = () => {
                   <Route path="/magang-pkl" element={<MagangPKLPage />} />
                   <Route path="/persuratan" element={<PersuratanPage />} />
                   <Route path="/pengembangan" element={< PengembanganPage />} />
+                  <Route path="/talenta" element={<TalentaPage />} />
                   <Route path="/ukom/admin" element={<UkomAdminPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
