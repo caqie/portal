@@ -25,6 +25,125 @@ const INITIAL_PERILAKU: PerilakuKerjaRow[] = [
   { poin: 'Kolaboratif', deskripsi: 'Memberi kesempatan kepada berbagai pihak untuk berkontribusi', ekspektasi: 'Ekspektasi Khusus Pimpinan: Aktif bersinergi dengan unit lain.', umpanBalik: 'Kolaborasi yang baik dengan bagian keuangan.' }
 ];
 
+const getCurveData = (capaian: string) => {
+  const raw = (capaian || '').toUpperCase();
+  let key = 'BAIK';
+  if (raw.includes('ISTIMEWA')) key = 'ISTIMEWA';
+  else if (raw.includes('SANGAT KURANG')) key = 'SANGAT_KURANG';
+  else if (raw.includes('KURANG')) key = 'KURANG';
+  else if (raw.includes('CUKUP') || raw.includes('BUTUH PERBAIKAN')) key = 'CUKUP';
+  
+  const curves: Record<string, string> = {
+    ISTIMEWA: "M 20 130 C 100 130, 200 130, 300 85 C 340 60, 360 20, 380 20 C 390 20, 410 80, 420 130",
+    BAIK: "M 20 130 C 80 130, 140 120, 200 100 C 250 80, 280 20, 300 20 C 320 20, 360 85, 380 95 C 395 105, 410 120, 420 130",
+    CUKUP: "M 20 130 C 50 130, 100 105, 140 70 C 180 35, 200 20, 220 20 C 240 20, 260 35, 300 70 C 340 105, 390 130, 420 130",
+    KURANG: "M 20 130 C 30 120, 45 105, 60 95 C 80 85, 120 20, 140 20 C 160 20, 190 80, 220 85 C 280 100, 340 125, 420 130",
+    SANGAT_KURANG: "M 20 130 C 30 80, 50 20, 60 20 C 80 20, 100 60, 140 80 C 200 115, 300 130, 420 130"
+  };
+
+  const curvePoints: Record<string, { x: number; y: number }[]> = {
+    ISTIMEWA: [
+      { x: 60, y: 128 },
+      { x: 140, y: 125 },
+      { x: 220, y: 115 },
+      { x: 300, y: 80 },
+      { x: 380, y: 20 }
+    ],
+    BAIK: [
+      { x: 60, y: 128 },
+      { x: 140, y: 120 },
+      { x: 220, y: 85 },
+      { x: 300, y: 20 },
+      { x: 380, y: 95 }
+    ],
+    CUKUP: [
+      { x: 60, y: 118 },
+      { x: 140, y: 70 },
+      { x: 220, y: 20 },
+      { x: 300, y: 70 },
+      { x: 380, y: 118 }
+    ],
+    KURANG: [
+      { x: 60, y: 95 },
+      { x: 140, y: 20 },
+      { x: 220, y: 85 },
+      { x: 300, y: 120 },
+      { x: 380, y: 128 }
+    ],
+    SANGAT_KURANG: [
+      { x: 60, y: 20 },
+      { x: 140, y: 80 },
+      { x: 220, y: 115 },
+      { x: 300, y: 125 },
+      { x: 380, y: 128 }
+    ]
+  };
+
+  return {
+    key,
+    dPath: curves[key],
+    fillPath: curves[key] + " L 420 130 L 20 130 Z",
+    points: curvePoints[key]
+  };
+};
+
+const renderCurve = (capaian: string) => {
+  const { key, dPath, fillPath, points } = getCurveData(capaian);
+  const gradId = `curveGrad-${key}`;
+  return (
+    <svg width="100%" viewBox="0 0 440 180" className="mx-auto" style={{ maxWidth: '440px' }}>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Horizontal Baseline */}
+      <line x1="20" y1="130" x2="420" y2="130" stroke="#000" strokeWidth="2" />
+      
+      {/* Fill Under Curve */}
+      <path d={fillPath} fill={`url(#${gradId})`} />
+      
+      {/* Main Curve Line */}
+      <path d={dPath} fill="none" stroke="#2563eb" strokeWidth="3" />
+
+      {/* Projection Dashed Lines and Points */}
+      {points.map((p, idx) => {
+        const isPeak = (key === 'ISTIMEWA' && idx === 4) ||
+                       (key === 'BAIK' && idx === 3) ||
+                       (key === 'CUKUP' && idx === 2) ||
+                       (key === 'KURANG' && idx === 1) ||
+                       (key === 'SANGAT_KURANG' && idx === 0);
+        return (
+          <g key={idx}>
+            {/* Vertical dashed line */}
+            <line x1={p.x} y1="130" x2={p.x} y2={p.y} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3,3" />
+            {/* Point dot */}
+            <circle cx={p.x} cy={p.y} r={isPeak ? "6" : "4"} fill={isPeak ? "#ef4444" : "#3b82f6"} stroke="#fff" strokeWidth="1.5" />
+            {/* Mini tag for peak */}
+            {isPeak && (
+              <g>
+                <rect x={p.x - 20} y={p.y - 18} width="40" height="12" rx="3" fill="#ef4444" />
+                <text x={p.x} y={p.y - 10} textAnchor="middle" fontSize="6px" fill="#fff" fontWeight="bold">PUNCAK</text>
+              </g>
+            )}
+          </g>
+        );
+      })}
+
+      {/* X-Axis labels */}
+      <text x="60" y="145" textAnchor="middle" fontSize="7px" fontWeight="bold" fill="#334155">Sangat Kurang</text>
+      <text x="140" y="145" textAnchor="middle" fontSize="7px" fontWeight="bold" fill="#334155">Kurang</text>
+      <text x="220" y="145" textAnchor="middle" fontSize="7px" fontWeight="bold" fill="#334155">Butuh Perbaikan</text>
+      <text x="300" y="145" textAnchor="middle" fontSize="7px" fontWeight="bold" fill="#334155">Baik</text>
+      <text x="380" y="145" textAnchor="middle" fontSize="7px" fontWeight="bold" fill="#334155">Sangat Baik</text>
+
+      {/* X Axis Legend */}
+      <text x="220" y="165" textAnchor="middle" fontSize="9px" fontWeight="800" fill="#0f172a" letterSpacing="1">PREDIKAT KINERJA INDIVIDU PEGAWAI</text>
+    </svg>
+  );
+};
+
 const SKPPage = () => {
   const navigate = useNavigate();
   const { canEdit, isSuperadmin, logActivity } = useAuth();
@@ -37,7 +156,38 @@ const SKPPage = () => {
   const [editorStep, setEditorStep] = useState<'identitas' | 'hasil_kerja' | 'perilaku' | 'lampiran'>('identitas');
   const [selectedSKP, setSelectedSKP] = useState<any | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
+
+  const calculatePredikatKinerja = (hasil: string, perilaku: string) => {
+    const h = (hasil || '').toUpperCase();
+    const p = (perilaku || '').toUpperCase();
+    
+    if (h === 'DI ATAS EKSPEKTASI') {
+      if (p === 'DI ATAS EKSPEKTASI') return 'SANGAT BAIK';
+      if (p === 'SESUAI EKSPEKTASI') return 'BAIK';
+      if (p === 'DI BAWAH EKSPEKTASI') return 'KURANG / MISCONDUCT';
+    } else if (h === 'SESUAI EKSPEKTASI') {
+      if (p === 'DI ATAS EKSPEKTASI') return 'BAIK';
+      if (p === 'SESUAI EKSPEKTASI') return 'BAIK';
+      if (p === 'DI BAWAH EKSPEKTASI') return 'KURANG / MISCONDUCT';
+    } else if (h === 'DI BAWAH EKSPEKTASI') {
+      if (p === 'DI ATAS EKSPEKTASI') return 'BUTUH PERBAIKAN';
+      if (p === 'SESUAI EKSPEKTASI') return 'BUTUH PERBAIKAN';
+      if (p === 'DI BAWAH EKSPEKTASI') return 'SANGAT KURANG';
+    }
+    return 'BAIK';
+  };
+
+  const getPredikatBadgeStyle = (predikat: string) => {
+    const p = (predikat || '').toUpperCase();
+    if (p === 'SANGAT BAIK') return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (p === 'BAIK') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (p.includes('BUTUH PERBAIKAN')) return 'bg-amber-50 text-amber-700 border-amber-200';
+    if (p.includes('KURANG') && p.includes('MISCONDUCT')) return 'bg-orange-50 text-orange-750 border-orange-200';
+    if (p === 'SANGAT KURANG') return 'bg-rose-50 text-rose-700 border-rose-200';
+    return 'bg-gray-50 text-gray-700 border-gray-200';
+  };
 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<SKPRecord | null>(null);
@@ -67,6 +217,16 @@ const SKPPage = () => {
   });
 
   useEffect(() => { loadInitialData(); }, []);
+
+  const calculatedPredikat = useMemo(() => {
+    return calculatePredikatKinerja(formData.ratingHasilKerja, formData.ratingPerilaku);
+  }, [formData.ratingHasilKerja, formData.ratingPerilaku]);
+
+  useEffect(() => {
+    if (formData.predikatKinerja !== calculatedPredikat) {
+      setFormData((prev: any) => ({ ...prev, predikatKinerja: calculatedPredikat }));
+    }
+  }, [calculatedPredikat]);
 
   const loadInitialData = async () => {
     setLoading(true);
@@ -258,7 +418,7 @@ const SKPPage = () => {
                        </td>
                        <td className="px-4 py-5 text-center font-black text-gray-400">{s.tahun}</td>
                        <td className="px-4 py-5 text-center">
-                          <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase border ${s.predikatKinerja === 'SANGAT BAIK' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>{s.predikatKinerja}</span>
+                          <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase border transition-all ${getPredikatBadgeStyle(s.predikatKinerja)}`}>{s.predikatKinerja}</span>
                        </td>
                        <td className="px-10 py-5 text-right">
                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
@@ -308,12 +468,90 @@ const SKPPage = () => {
                          </div>
                       </div>
                       <div className="space-y-6">
-                         <h5 className="text-[10px] font-black text-rose-600 uppercase border-b pb-3 tracking-widest">B. Rating Kinerja Akhir</h5>
-                         <div className="grid grid-cols-2 gap-4">
-                            <div><label className={labelClass}>Capaian Organisasi</label><select className={inputClass} value={formData.capaianOrganisasi} onChange={e=>setFormData({...formData, capaianOrganisasi: e.target.value})}><option>BAIK</option><option>ISTIMEWA</option><option>CUKUP</option></select></div>
-                            <div><label className={labelClass}>Rating Hasil Kerja</label><select className={inputClass} value={formData.ratingHasilKerja} onChange={e=>setFormData({...formData, ratingHasilKerja: e.target.value})}><option>SESUAI EKSPEKTASI</option><option>DI ATAS EKSPEKTASI</option><option>DI BAWAH EKSPEKTASI</option></select></div>
-                            <div><label className={labelClass}>Rating Perilaku</label><select className={inputClass} value={formData.ratingPerilaku} onChange={e=>setFormData({...formData, ratingPerilaku: e.target.value})}><option>SESUAI EKSPEKTASI</option><option>DI ATAS EKSPEKTASI</option><option>DI BAWAH EKSPEKTASI</option></select></div>
-                            <div><label className={labelClass}>Predikat Kinerja</label><select className={inputClass} value={formData.predikatKinerja} onChange={e=>setFormData({...formData, predikatKinerja: e.target.value})}><option>BAIK</option><option>SANGAT BAIK</option><option>BUTUH PERBAIKAN</option><option>KURANG</option></select></div>
+                         <div className="flex justify-between items-center border-b pb-3 mb-4">
+                            <h5 className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-2">
+                               <i className="bi bi-star-fill text-rose-500 animate-pulse"></i> B. Rating Kinerja Akhir (Permen PANRB 6/2022)
+                            </h5>
+                            <button type="button" onClick={() => setShowGuide(true)} className="text-[9px] font-black uppercase text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all">
+                               <i className="bi bi-book"></i> Panduan &amp; Matriks
+                            </button>
+                         </div>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+                            
+                            {/* Capaian Organisasi */}
+                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2">
+                               <label className={labelClass}>Capaian Organisasi</label>
+                               <select className={`${inputClass} bg-white shadow-sm border-gray-200`} value={formData.capaianOrganisasi} onChange={e=>setFormData({...formData, capaianOrganisasi: e.target.value})}>
+                                  <option>BAIK</option>
+                                  <option>ISTIMEWA</option>
+                                  <option>CUKUP / BUTUH PERBAIKAN</option>
+                                  <option>KURANG</option>
+                                  <option>SANGAT KURANG</option>
+                               </select>
+                               <div className="text-[9.5px] font-semibold leading-relaxed p-2.5 rounded-xl bg-white border border-slate-100 text-gray-500">
+                                  {formData.capaianOrganisasi === 'ISTIMEWA' && "✓ Melampaui target & trajectory yang ditetapkan pimpinan (Sangat memuaskan)."}
+                                  {formData.capaianOrganisasi === 'BAIK' && "✓ Hasil kerja tepat sasaran, memenuhi target, & sesuai standar kualitas."}
+                                  {formData.capaianOrganisasi?.includes('CUKUP') && "✓ Menunjukkan progres positif namun masih butuh bimbingan & perbaikan."}
+                                  {formData.capaianOrganisasi === 'KURANG' && "✓ Sebagian sasaran strategis tidak terpenihu atau di bawah standar."}
+                                  {formData.capaianOrganisasi === 'SANGAT KURANG' && "✓ Realisasi kerja sangat jauh di bawah target (Critical gap)."}
+                               </div>
+                            </div>
+
+                            {/* Rating Hasil Kerja */}
+                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2">
+                               <label className={labelClass}>Rating Hasil Kerja</label>
+                               <select className={`${inputClass} bg-white shadow-sm border-gray-200`} value={formData.ratingHasilKerja} onChange={e=>setFormData({...formData, ratingHasilKerja: e.target.value})}>
+                                  <option>SESUAI EKSPEKTASI</option>
+                                  <option>DI ATAS EKSPEKTASI</option>
+                                  <option>DI BAWAH EKSPEKTASI</option>
+                               </select>
+                               <div className="text-[9.5px] font-semibold leading-relaxed p-2.5 rounded-xl bg-white border border-slate-100 text-gray-500 font-semibold">
+                                  {formData.ratingHasilKerja === 'DI ATAS EKSPEKTASI' && "Seluruh hasil kerja di atas ekspektasi & tidak ada hasil utama di bawah ekspektasi. Umpan balik pimpinan positif."}
+                                  {formData.ratingHasilKerja === 'SESUAI EKSPEKTASI' && "Sebagian besar hasil kerja sesuai target, hanya sebagian sangat kecil hasil utama di bawah ekspektasi."}
+                                  {formData.ratingHasilKerja === 'DI BAWAH EKSPEKTASI' && "Sebagian besar/seluruh hasil kerja tidak memenuhi standar yang ditentukan pimpinan."}
+                                </div>
+                            </div>
+
+                            {/* Rating Perilaku */}
+                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2">
+                               <label className={labelClass}>Rating Perilaku Kerja</label>
+                               <select className={`${inputClass} bg-white shadow-sm border-gray-200`} value={formData.ratingPerilaku} onChange={e=>setFormData({...formData, ratingPerilaku: e.target.value})}>
+                                  <option>SESUAI EKSPEKTASI</option>
+                                  <option>DI ATAS EKSPEKTASI</option>
+                                  <option>DI BAWAH EKSPEKTASI</option>
+                               </select>
+                               <div className="text-[9.5px] font-semibold leading-relaxed p-2.5 rounded-xl bg-white border border-slate-100 text-gray-500 font-semibold">
+                                  {formData.ratingPerilaku === 'DI ATAS EKSPEKTASI' && "Konsisten mendemonstrasikan nilai BerAKHLAK & menjadi penggerak/role model di lingkungan kerja."}
+                                  {formData.ratingPerilaku === 'SESUAI EKSPEKTASI' && "Konsisten running nilai dasar ASN BerAKHLAK untuk diri pribadi secara penuh."}
+                                  {formData.ratingPerilaku === 'DI BAWAH EKSPEKTASI' && "Belum secara konsisten mendemonstrasikan asas dasar perilaku BerAKHLAK, butuh perbaikan."}
+                                </div>
+                            </div>
+
+                            {/* Predikat Kinerja */}
+                            <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 space-y-2">
+                               <div className="flex justify-between items-center">
+                                  <label className="text-[9px] font-black text-blue-800 uppercase tracking-widest pl-3 block mb-1">Predikat Kinerja</label>
+                                  <span className="text-[8px] font-black text-blue-600 uppercase tracking-widest bg-blue-100/30 px-2 py-0.5 rounded border border-blue-200/50">TERHITUNG OTOMATIS</span>
+                               </div>
+                               <div className="relative">
+                                  <input 
+                                     type="text" 
+                                     readOnly 
+                                     className={`${inputClass} bg-white border-blue-200 text-blue-900 border font-extrabold text-[11px] uppercase shadow-inner block pr-12`}
+                                     value={formData.predikatKinerja} 
+                                  />
+                                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                     <i className="bi bi-cpu-fill text-blue-500 text-sm animate-pulse"></i>
+                                  </div>
+                               </div>
+                               <div className="text-[9.5px] font-semibold leading-relaxed p-2.5 rounded-xl bg-white border border-blue-100/50 text-blue-950/80">
+                                  <span>Matriks Persilangan Regulasi:</span>
+                                  <p className="font-extrabold mt-1 text-[10px] text-blue-700 font-semibold">
+                                     Hasil Kerja ({formData.ratingHasilKerja}) + Perilaku ({formData.ratingPerilaku}) ➔ {formData.predikatKinerja}
+                                  </p>
+                                </div>
+                             </div>
+
                          </div>
                       </div>
                    </div>
@@ -466,11 +704,28 @@ const SKPPage = () => {
                         </div>
 
                         <div>
-                           <SectionHeader title="3. HASIL EVALUASI KINERJA" />
+                           <SectionHeader title="3. ATASAN PEJABAT PENILAI KINERJA" />
+                           <table className="w-full border-collapse border border-black text-[9pt] mb-6">
+                              <tbody>
+                                 <tr className="border border-black"><td className="w-10 p-2 border-r border-black text-center">1</td><td className="w-48 p-2 border-r border-black">Nama</td><td className="p-2 font-bold uppercase">{pAtasan?.nama || '-'}</td></tr>
+                                 <tr className="border border-black"><td className="w-10 p-2 border-r border-black text-center">2</td><td className="p-2 border-r border-black">NIP</td><td className="p-2">{activeRecord.atasanPenilaiNip || '-'}</td></tr>
+                                 <tr className="border border-black"><td className="w-10 p-2 border-r border-black text-center">3</td><td className="p-2 border-r border-black">Jabatan</td><td className="p-2 uppercase">{pAtasan?.jabatan || '-'}</td></tr>
+                              </tbody>
+                           </table>
+                        </div>
+
+                        <div>
+                           <SectionHeader title="4. HASIL EVALUASI KINERJA" />
                            <div className="border border-black p-6 space-y-4">
                               <div className="flex justify-between items-center">
                                  <span className="text-[10pt] font-bold">A. CAPAIAN KINERJA ORGANISASI</span>
                                  <span className="px-6 py-2 bg-gray-100 border border-black text-[12pt] font-black">{activeRecord.capaianOrganisasi}</span>
+                              </div>
+                              <div className="border border-black p-4 flex flex-col items-center bg-gray-50/20 rounded-xl space-y-2">
+                                 <p className="text-[8.5pt] font-black tracking-widest uppercase text-center text-gray-700">POLA DISTRIBUSI PENILAIAN KINERJA PEGAWAI (ORGANISASI {activeRecord.capaianOrganisasi})</p>
+                                 <div className="w-full bg-white border border-gray-200/50 p-2 rounded-lg">
+                                    {renderCurve(activeRecord.capaianOrganisasi)}
+                                 </div>
                               </div>
                               <div className="flex justify-between items-center">
                                  <span className="text-[10pt] font-bold">B. RATING HASIL KERJA</span>
@@ -588,6 +843,136 @@ const SKPPage = () => {
             </div>
          </div>
       )}
+       {/* PANDUAN & MATRIKS MODAL */}
+       {showGuide && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn no-print text-black">
+             <div className="bg-white rounded-[2.5rem] w-full max-w-4xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh] animate-modalEnter">
+                
+                {/* Modal Header */}
+                <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                   <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                         <i className="bi bi-book-half text-lg animate-bounce"></i>
+                      </div>
+                      <div className="text-left">
+                         <h4 className="text-xs font-black text-gray-900 uppercase">Panduan &amp; Matriks Penilaian Kinerja</h4>
+                         <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Permen PANRB Nomor 6 Tahun 2022</p>
+                      </div>
+                   </div>
+                   <button onClick={() => setShowGuide(false)} className="h-10 w-10 text-gray-400 hover:text-gray-950 bg-white border border-gray-100 rounded-xl flex items-center justify-center hover:shadow-sm transition-all">
+                      <i className="bi bi-x-lg text-sm"></i>
+                   </button>
+                </div>
+
+                {/* Modal Content */}
+                <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1 text-left">
+                   
+                   {/* 1. Rumus SKP Category */}
+                   <div className="space-y-4">
+                      <h5 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
+                         <span className="h-2 w-2 bg-blue-600 rounded-full"></span> 1. Klasifikasi Penilaian SKP
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-semibold">
+                         <div className="p-4 rounded-2xl bg-blue-50/40 border border-blue-200/20 space-y-1">
+                            <span className="text-[9px] font-black text-blue-800 uppercase tracking-widest block">DI ATAS EKSPEKTASI</span>
+                            <div className="text-[11px] font-black text-blue-950 mt-1">Nilai SKP &gt; 100 Poin</div>
+                            <p className="text-[9.5px] leading-relaxed text-blue-900/80 font-medium pt-1">Sebagian besar atau seluruh hasil kerja Anda melampaui target yang ditetapkan, serta memberikan dampak tambahan yang positif bagi unit kerja atau instansi. (Sesuai dengan panduan penetapan kementerian/lembaga).</p>
+                         </div>
+                         <div className="p-4 rounded-2xl bg-emerald-50/40 border border-emerald-200/20 space-y-1">
+                            <span className="text-[9px] font-black text-emerald-800 uppercase tracking-widest block">SESUAI EKSPEKTASI</span>
+                            <div className="text-[11px] font-black text-emerald-950 mt-1">Nilai SKP 90 - 100 Poin</div>
+                            <p className="text-[9.5px] leading-relaxed text-emerald-900/80 font-medium pt-1">Hasil kerja Anda tepat sasaran, memenuhi target, dan sesuai dengan standar kualitas yang telah ditentukan.</p>
+                         </div>
+                         <div className="p-4 rounded-2xl bg-rose-50/40 border border-rose-200/20 space-y-1">
+                            <span className="text-[9px] font-black text-rose-800 uppercase tracking-widest block">DI BAWAH EKSPEKTASI</span>
+                            <div className="text-[11px] font-black text-rose-950 mt-1">Nilai SKP &lt; 90 Poin</div>
+                            <p className="text-[9.5px] leading-relaxed text-rose-900/80 font-medium pt-1">Hasil kerja tidak mencapai target dan memerlukan perbaikan, evaluasi, bimbingan, atau pembinaan lebih lanjut.</p>
+                         </div>
+                      </div>
+                   </div>
+
+                   {/* 2. Matriks Persilangan */}
+                   <div className="space-y-4">
+                      <h5 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
+                         <span className="h-2 w-2 bg-indigo-600 rounded-full"></span> 2. Matriks Kuadran Predikat Kinerja ASN
+                      </h5>
+                      <div className="overflow-x-auto rounded-3xl border border-gray-150 shadow-sm max-w-full">
+                         <table className="w-full text-center border-collapse text-xs">
+                            <thead>
+                               <tr className="bg-gray-50 border-b border-gray-150">
+                                  <th className="p-4 font-black text-gray-400 text-[8px] uppercase tracking-wider border-r border-gray-150 w-36">Hasil Kerja \ Perilaku</th>
+                                  <th className="p-4 font-black text-rose-900 text-[9px] uppercase tracking-wider bg-rose-50/30 border-r border-gray-150">DI BAWAH EKSPEKTASI</th>
+                                  <th className="p-4 font-black text-emerald-105 text-[9px] uppercase tracking-wider bg-emerald-50/30 border-r border-gray-150">SESUAI EKSPEKTASI</th>
+                                  <th className="p-4 font-black text-blue-900 text-[9px] uppercase tracking-wider bg-blue-50/30">DI ATAS EKSPEKTASI</th>
+                               </tr>
+                            </thead>
+                            <tbody>
+                               <tr className="border-b border-gray-150">
+                                  <td className="p-4 font-black bg-blue-50/30 border-r border-gray-150 text-[9px] uppercase text-left">DI ATAS EKSPEKTASI</td>
+                                  <td className="p-4 border-r border-gray-150 bg-yellow-50/65">
+                                     <span className="px-2 py-1 rounded bg-orange-100 text-orange-900 text-[9px] font-black uppercase">KURANG / MISCONDUCT</span>
+                                  </td>
+                                  <td className="p-4 border-r border-gray-150 bg-emerald-50/40">
+                                     <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-900 text-[9px] font-black uppercase">BAIK</span>
+                                  </td>
+                                  <td className="p-4 bg-blue-50/45">
+                                     <span className="px-2 py-1 rounded bg-blue-100 text-blue-900 text-[9px] font-black uppercase">SANGAT BAIK</span>
+                                  </td>
+                               </tr>
+                               <tr className="border-b border-gray-150">
+                                  <td className="p-4 font-black bg-emerald-50/30 border-r border-gray-150 text-[9px] uppercase text-left">SESUAI EKSPEKTASI</td>
+                                  <td className="p-4 border-r border-gray-150 bg-yellow-50/65">
+                                     <span className="px-2 py-1 rounded bg-orange-100 text-orange-900 text-[9px] font-black uppercase">KURANG / MISCONDUCT</span>
+                                  </td>
+                                  <td className="p-4 border-r border-gray-150 bg-emerald-50/40">
+                                     <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-900 text-[9px] font-black uppercase">BAIK</span>
+                                  </td>
+                                  <td className="p-4 bg-emerald-50/45">
+                                     <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-900 text-[9px] font-black uppercase">BAIK</span>
+                                  </td>
+                               </tr>
+                               <tr>
+                                  <td className="p-4 font-black bg-rose-50/30 border-r border-gray-150 text-[9px] uppercase text-left">DI BAWAH EKSPEKTASI</td>
+                                  <td className="p-4 border-r border-gray-150 bg-red-50/45">
+                                     <span className="px-2 py-1 rounded bg-red-100 text-red-900 text-[9px] font-black uppercase">SANGAT KURANG</span>
+                                  </td>
+                                  <td className="p-4 border-r border-gray-150 bg-amber-50/45">
+                                     <span className="px-2 py-1 rounded bg-amber-100 text-amber-900 text-[9px] font-black uppercase">BUTUH PERBAIKAN</span>
+                                  </td>
+                                  <td className="p-4 bg-amber-50/45">
+                                     <span className="px-2 py-1 rounded bg-amber-100 text-amber-900 text-[9px] font-black uppercase">BUTUH PERBAIKAN</span>
+                                  </td>
+                               </tr>
+                            </tbody>
+                         </table>
+                      </div>
+                   </div>
+
+                   {/* 3. Core Values BerAKHLAK */}
+                   <div className="space-y-4">
+                      <h5 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2">
+                         <span className="h-2 w-2 bg-emerald-600 rounded-full"></span> 3. Core Values BerAKHLAK ASN
+                      </h5>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                         <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100"><strong className="text-[9px] text-gray-900 uppercase block mb-1">Berorientasi Pelayanan</strong><p className="text-[9.5px] leading-relaxed text-gray-500 font-medium">Memahami &amp; memenuhi kebutuhan masyarakat dengan ramah, solutif, cekatan &amp; dapat diandalkan.</p></div>
+                         <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100"><strong className="text-[9px] text-gray-900 uppercase block mb-1">Akuntabel</strong><p className="text-[9.5px] leading-relaxed text-gray-500 font-medium font-semibold">Melaksanakan tugas secara jujur, bertanggung jawab, cermat, disiplin, berintegritas tinggi.</p></div>
+                         <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100"><strong className="text-[9px] text-gray-900 uppercase block mb-1">Kompeten</strong><p className="text-[9.5px] leading-relaxed text-gray-500 font-medium">Meningkatkan kompetensi diri untuk menjawab tantangan, membantu orang lain belajar.</p></div>
+                         <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100"><strong className="text-[9px] text-gray-900 uppercase block mb-1">Harmonis</strong><p className="text-[9.5px] leading-relaxed text-gray-500 font-medium font-semibold">Saling peduli, menghargai perbedaan latar belakang, membangun lingkungan kerja kondusif.</p></div>
+                      </div>
+                   </div>
+
+                </div>
+
+                {/* Modal Footer */}
+                <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+                   <button onClick={() => setShowGuide(false)} className="px-8 h-12 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase shadow-lg transition-all hover:bg-slate-950">
+                      Saya Mengerti
+                   </button>
+                </div>
+
+             </div>
+          </div>
+       )}
     </div>
   );
 };

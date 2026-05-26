@@ -190,13 +190,13 @@ const AppContent = () => {
   const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   const isPageInMaintenance = (path: string) => {
-    if (systemConfig.maintenance.all) return true;
-    return systemConfig.maintenance.pages.includes(path);
+    if (systemConfig.maintenance?.all) return true;
+    return (systemConfig.maintenance?.pages || []).includes(path);
   };
 
   const hasAccess = (path: string) => {
     if (isSuperadmin) return true;
-    const access = systemConfig.pageAccess.find(a => a.route === path);
+    const access = (systemConfig.pageAccess || []).find(a => a.route === path);
     if (!access) {
       // Default access rules if not configured
       if (['/settings', '/logs'].includes(path)) return isSuperadmin;
@@ -204,8 +204,8 @@ const AppContent = () => {
       return true;
     }
     
-    const roleMatch = access.roles.includes(user?.role || '');
-    const nipMatch = access.nips.includes(user?.nip || '');
+    const roleMatch = (access.roles || []).includes(user?.role || '');
+    const nipMatch = (access.nips || []).includes(user?.nip || '');
     
     return roleMatch || nipMatch;
   };

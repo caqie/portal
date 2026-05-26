@@ -7,7 +7,7 @@ interface CalendarViewProps {
   onDateClick?: (date: string, events: Kegiatan[]) => void;
 }
 
-const CalendarView: React.FC<CalendarViewProps> = ({ events, onDateClick }) => {
+const CalendarView: React.FC<CalendarViewProps> = ({ events = [], onDateClick }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();

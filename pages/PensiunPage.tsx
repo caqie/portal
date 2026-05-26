@@ -215,13 +215,13 @@ const PensiunPage = () => {
         mkSebelumPnsTahun: '0',
         mkSebelumPnsBulan: '0',
         unitKerjaHeader: p.unitKerja || formData.unitKerjaHeader,
-        istriSuami: p.keluarga?.filter(k => k.hubungan.toUpperCase().includes('ISTRI') || k.hubungan.toUpperCase().includes('SUAMI')).map(k => ({
+        istriSuami: (p.keluarga || []).filter(k => k.hubungan.toUpperCase().includes('ISTRI') || k.hubungan.toUpperCase().includes('SUAMI')).map(k => ({
           nama: k.nama,
           tglLahir: k.tanggalLahir || '',
           kawinTgl: '',
           urutan: '1'
         })) || [{ nama: '', tglLahir: '', kawinTgl: '', urutan: '1' }],
-        anak: p.keluarga?.filter(k => k.hubungan.toUpperCase().includes('ANAK')).map(k => ({
+        anak: (p.keluarga || []).filter(k => k.hubungan.toUpperCase().includes('ANAK')).map(k => ({
           nama: k.nama,
           tglLahir: k.tanggalLahir || '',
           kandung: 'YA',

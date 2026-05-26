@@ -134,6 +134,16 @@ export const getServerTime = async (): Promise<Date> => {
   }
 };
 
+const safeParseArray = (raw: string | null): any[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+};
+
 export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, storageKey: string, mapper: (cols: string[], headers: string[]) => T | null, bypassCache = false): Promise<T[]> => {
   const { spreadsheetId } = getDbConfig();
 
@@ -163,7 +173,13 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
   try {
     const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`;
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+    if (!response.ok) {
+      if (response.status === 400 || response.status === 404) {
+        console.warn(`Table/Sheet for ${gidKey} (GID ${gid}) is not yet initialized or does not exist in the spreadsheet (HTTP ${response.status}). Returning empty array.`);
+        return safeParseArray(localStorage.getItem(storageKey));
+      }
+      throw new Error(`HTTP Error ${response.status}`);
+    }
     
     const csvText = await response.text();
     if (csvText.includes('<!DOCTYPE html>')) {
@@ -199,8 +215,7 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
   } catch (error) {
     console.error(`Error fetching table data for ${gidKey}:`, error);
     if (bypassCache) throw error; // Re-throw to inform parent caller during sync
-    const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : [];
+    return safeParseArray(localStorage.getItem(storageKey));
   }
 };
 

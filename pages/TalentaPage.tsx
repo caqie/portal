@@ -63,12 +63,12 @@ export default function TalentaPage() {
   const [filterKategori, setFilterKategori] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Assessment/Evaluation form state
+  // Assessment/Evaluation form state (aligned with BKN 411/2025 Standard)
   const [formPenilaian, setFormPenilaian] = useState({
     id: '',
-    nilai_skp: 80,
-    kompetensi: 80,
-    integritas: 80,
+    nilai_skp: 80,       // Storing Sumbu Y (Kinerja) Score (0-100)
+    kompetensi: 80,      // Storing Sumbu X (Potensial) Score (0-100)
+    integritas: 100,
     disiplin: 80,
     leadership: 80,
     teamwork: 80,
@@ -76,7 +76,87 @@ export default function TalentaPage() {
     komunikasi: 80,
     pendidikan: 'S1',
     pengalaman: 3,
+
+    // BKN 411/2025 Standard Sub-components
+    bkn_kinerja_utama: 80,            // Penilaian Kinerja (SKP) (60%)
+    bkn_penghargaan: 0,               // Penghargaan (15%)
+    bkn_penugasan_tim: 0,             // Penugasan Tim Kerja (15%)
+    bkn_umpan_balik_360: 80,          // Umpan Balik 360 (10%)
+    
+    bkn_penilaian_kompetensi: 80,     // Sumbu X: Penilaian Kompetensi (20%)
+    bkn_pengembangan_kompetensi: 0,   // Sumbu X: Pengembangan Kompetensi (10%)
+    bkn_pengalaman_jabatan: 60,       // Sumbu X: Pengalaman Jabatan (10%)
+    bkn_penilaian_potensi: 80,        // Sumbu X: Penilaian Potensi (25%)
+    bkn_pendidikan: 'S1',             // Sumbu X: Pendidikan Formal (10%)
+    bkn_kesesuaian_ilmu: 100,         // Sumbu X: Kesesuaian Bidang Ilmu (10%)
+    bkn_rekam_disiplin: 100,          // Sumbu X: Rekam Jejak Disiplin (15%)
+
+    // Experience calculation items (averaged into bkn_pengalaman_jabatan)
+    exp_lama_jabatan: 60,
+    exp_keragaman_riwayat: 60,
+    exp_penugasan_nondefinitif: 0,
+
+    // Potential rating items (summed/converted to bkn_penilaian_potensi)
+    pot_intel: 3,
+    pot_inter: 3,
+    pot_diri: 3,
+    pot_kritis: 3,
+    pot_masalah: 3,
+    pot_emosi: 3,
+    pot_belajar: 3,
+    pot_motivasi: 3,
+
+    // Adaptive technical competency integration (Tabel 14 & 16)
+    target_jenjang: 'Jabatan Administrator',
+    nilai_kompetensi_teknis: 80,
+    integrasi_kemampuan_teknis: false,
   });
+
+  // Helper to pack and unpack extra BKN attributes into the DB created_at timestamp column
+  const packBknMetadata = (createdAt: string, data: any) => {
+    const cleanTime = createdAt.split(';')[0];
+    return `${cleanTime};${JSON.stringify(data)}`;
+  };
+
+  const unpackBknData = (record: PenilaianTalenta) => {
+    const defaultData = {
+      bkn_kinerja_utama: record.leadership ?? 80,
+      bkn_penghargaan: record.inovasi ?? 0,
+      bkn_penugasan_tim: record.komunikasi ?? 0,
+      bkn_umpan_balik_360: record.teamwork ?? 80,
+      bkn_penilaian_kompetensi: record.inovasi ?? 80,
+      bkn_pengembangan_kompetensi: record.komunikasi ?? 0,
+      bkn_pengalaman_jabatan: record.pengalaman ? Math.min(record.pengalaman * 10, 100) : 60,
+      bkn_penilaian_potensi: record.disiplin ?? 80,
+      bkn_pendidikan: record.pendidikan ?? 'S1',
+      bkn_kesesuaian_ilmu: 100,
+      bkn_rekam_disiplin: record.integritas ?? 100,
+      exp_lama_jabatan: 60,
+      exp_keragaman_riwayat: 60,
+      exp_penugasan_nondefinitif: 0,
+      pot_intel: 3,
+      pot_inter: 3,
+      pot_diri: 3,
+      pot_kritis: 3,
+      pot_masalah: 3,
+      pot_emosi: 3,
+      pot_belajar: 3,
+      pot_motivasi: 3,
+      target_jenjang: 'Jabatan Administrator',
+      nilai_kompetensi_teknis: 80,
+      integrasi_kemampuan_teknis: false
+    };
+
+    if (!record.created_at) return defaultData;
+    const parts = record.created_at.split(';');
+    if (parts.length < 2) return defaultData;
+    try {
+      const parsed = JSON.parse(parts[1]);
+      return { ...defaultData, ...parsed };
+    } catch (e) {
+      return defaultData;
+    }
+  };
 
   // Competency/Development form state
   const [formPengembangan, setFormPengembangan] = useState({
@@ -133,19 +213,79 @@ export default function TalentaPage() {
     return pegawaiList.find(p => p.id === idOrNip || p.nip === idOrNip);
   };
 
-  // 3. Formula Formula automatically calculated total_nilai:
-  // total_nilai = (skp*0.30)+(kompetensi*0.20)+(leadership*0.15)+(integritas*0.10)+(disiplin*0.10)+(teamwork*0.05)+(inovasi*0.05)+(komunikasi*0.05)
+  // Formula otomatis sesuai Keputusan Kepala BKN Nomor 411 Tahun 2025
+  const calculateBknSumbuY = (data: any) => {
+    // Penilaian Kinerja (Kinerja Utama): Bobot 60%
+    const skpVal = parseFloat(data.bkn_kinerja_utama ?? data.leadership ?? data.nilai_skp ?? 80);
+    // Kinerja Penguat:
+    const penghargaanVal = parseFloat(data.bkn_penghargaan ?? data.inovasi ?? 0);
+    const penugasanVal = parseFloat(data.bkn_penugasan_tim ?? data.komunikasi ?? 0);
+    const umpanBalikVal = parseFloat(data.bkn_umpan_balik_360 ?? data.teamwork ?? 80);
+
+    const sumbuY = (skpVal * 0.60) + (penghargaanVal * 0.15) + (penugasanVal * 0.15) + (umpanBalikVal * 0.10);
+    return parseFloat(sumbuY.toFixed(2));
+  };
+
+  const calculateBknSumbuX = (data: any) => {
+    // 1. Penilaian Kompetensi (Bobot 20%)
+    const kompetensiVal = parseFloat(data.bkn_penilaian_kompetensi ?? data.inovasi ?? data.kompetensi ?? 80);
+    // 2. Pengembangan Kompetensi (Bobot 10%)
+    const pengembanganVal = parseFloat(data.bkn_pengembangan_kompetensi ?? data.komunikasi ?? 0);
+    // 3. Pengalaman Jabatan (Bobot 10%)
+    const pengalamanVal = parseFloat(data.bkn_pengalaman_jabatan ?? (data.pengalaman ? Math.min(data.pengalaman * 10, 100) : 60));
+    // 4. Penilaian Potensi (Bobot 25%)
+    const potensiVal = parseFloat(data.bkn_penilaian_potensi ?? data.disiplin ?? 80);
+    
+    // 5. Tingkat Pendidikan Formal (Bobot 10%)
+    const pendStr = data.bkn_pendidikan ?? data.pendidikan ?? 'S1';
+    const pendScoreMap: Record<string, number> = { 'S3': 100, 'S2': 90, 'S1': 80, 'D4': 80, 'D3': 70, 'SLTA': 60 };
+    const pendVal = pendScoreMap[pendStr] || 80;
+    
+    // 6. Kesesuaian Bidang Ilmu (Bobot 10%)
+    const kesesuaianVal = parseFloat(data.bkn_kesesuaian_ilmu ?? 100);
+    
+    // 7. Verifikasi Rekam Jejak Disiplin (Bobot 15%)
+    const disiplinVal = parseFloat(data.bkn_rekam_disiplin ?? data.integritas ?? 100);
+
+    const sumbuX = 
+      (kompetensiVal * 0.20) + 
+      (pengembanganVal * 0.10) + 
+      (pengalamanVal * 0.10) + 
+      (potensiVal * 0.25) + 
+      (pendVal * 0.10) + 
+      (kesesuaianVal * 0.10) + 
+      (disiplinVal * 0.15);
+
+    return parseFloat(sumbuX.toFixed(2));
+  };
+
   const calculateTotalNilai = (data: any) => {
-    const rawVal = 
-      (parseFloat(data.nilai_skp) || 0) * 0.30 +
-      (parseFloat(data.kompetensi) || 0) * 0.20 +
-      (parseFloat(data.leadership) || 0) * 0.15 +
-      (parseFloat(data.integritas) || 0) * 0.10 +
-      (parseFloat(data.disiplin) || 0) * 0.10 +
-      (parseFloat(data.teamwork) || 0) * 0.05 +
-      (parseFloat(data.inovasi) || 0) * 0.05 +
-      (parseFloat(data.komunikasi) || 0) * 0.05;
-    return parseFloat(rawVal.toFixed(2));
+    const sumbuY = calculateBknSumbuY(data);
+    const sumbuX = calculateBknSumbuX(data);
+    const talentaScore = (0.50 * sumbuY) + (0.50 * sumbuX);
+
+    // Apply adaptive competencies if enabled
+    if (data.integrasi_kemampuan_teknis) {
+      let bobotTalenta = 0.60;
+      let bobotTeknis = 0.40;
+      if (data.target_jenjang === 'JPT Madya') {
+        bobotTalenta = 0.80;
+        bobotTeknis = 0.20;
+      } else if (data.target_jenjang === 'JPT Pratama') {
+        bobotTalenta = 0.70;
+        bobotTeknis = 0.30;
+      } else if (data.target_jenjang === 'Jabatan Administrator') {
+        bobotTalenta = 0.60;
+        bobotTeknis = 0.40;
+      } else if (data.target_jenjang === 'Jabatan Pengawas') {
+        bobotTalenta = 0.50;
+        bobotTeknis = 0.50;
+      }
+      const finalScore = (bobotTalenta * talentaScore) + (bobotTeknis * (parseFloat(data.nilai_kompetensi_teknis) || 80));
+      return parseFloat(finalScore.toFixed(2));
+    }
+
+    return parseFloat(talentaScore.toFixed(2));
   };
 
   const getKategoriTalenta = (score: number): 'Future Leader' | 'High Potential' | 'Talent Ready' | 'Need Development' => {
@@ -155,10 +295,32 @@ export default function TalentaPage() {
     return 'Need Development';
   };
 
-  // Calculate ninebox placement coordinates automatically derived:
+  const getSkpCategory = (score: number) => {
+    if (score > 100) {
+      return {
+        label: 'Di Atas Ekspektasi',
+        description: 'Sebagian besar atau seluruh hasil kerja Anda melampaui target yang ditetapkan, serta memberikan dampak tambahan yang positif bagi unit kerja atau instansi. (Nilai Akhir Kinerja > 100)',
+        color: 'text-indigo-600 bg-indigo-50 border-indigo-100'
+      };
+    } else if (score >= 90) {
+      return {
+        label: 'Sesuai Ekspektasi',
+        description: 'Hasil kerja Anda tepat sasaran, memenuhi target, dan sesuai dengan standar kualitas yang telah ditentukan. (Nilai Akhir Kinerja 90 - 100)',
+        color: 'text-emerald-600 bg-emerald-50 border-emerald-100'
+      };
+    } else {
+      return {
+        label: 'Di Bawah Ekspektasi',
+        description: 'Hasil kerja tidak mencapai target dan memerlukan perbaikan atau pembinaan. (Nilai Akhir Kinerja < 90)',
+        color: 'text-rose-600 bg-rose-50 border-rose-100'
+      };
+    }
+  };
+
+  // Calculate ninebox placement coordinates based precisely on BKN 411/2025 thresholds (80 and 60)
   const classifyScoreRange = (score: number) => {
-    if (score >= 85) return 'HIGH';
-    if (score >= 70) return 'MEDIUM';
+    if (score >= 80) return 'HIGH';
+    if (score >= 60) return 'MEDIUM';
     return 'LOW';
   };
 
@@ -167,14 +329,14 @@ export default function TalentaPage() {
     const potType = classifyScoreRange(potensiScore);
 
     if (kinType === 'HIGH' && potType === 'HIGH') return { box: 'Box 9: Future Star', rec: 'Promosi / Penugasan Khusus / Akselerasi Karir' };
-    if (kinType === 'HIGH' && potType === 'MEDIUM') return { box: 'Box 8: High Performer', rec: 'Pengembangan Kompetensi / Rotasi Jabatan' };
-    if (kinType === 'HIGH' && potType === 'LOW') return { box: 'Box 7: High Professional', rec: 'Pertahankan Performa / Mentoring Rekan Kerja' };
-    if (kinType === 'MEDIUM' && potType === 'HIGH') return { box: 'Box 6: High Potential', rec: 'Coaching Kepemimpinan / Project Akselerasi' };
-    if (kinType === 'MEDIUM' && potType === 'MEDIUM') return { box: 'Box 5: Core Employee', rec: 'Pelatihan Kompetensi / Jalur Karir Pendamping' };
-    if (kinType === 'MEDIUM' && potType === 'LOW') return { box: 'Box 4: Effective Employee', rec: 'Coaching Kompetensi Spesifik / Penyegaran Tugas' };
-    if (kinType === 'LOW' && potType === 'HIGH') return { box: 'Box 3: Enigma', rec: 'Evaluasi Penempatan Kerja / Program Re-edukasi' };
-    if (kinType === 'LOW' && potType === 'MEDIUM') return { box: 'Box 2: Dilemma', rec: 'Penyusunan PIP (Performance Improvement Plan) / Konseling' };
-    return { box: 'Box 1: Low Performer', rec: 'PIP Intensif / Mutasi ke Posisi Lebih Sesuai' };
+    if (kinType === 'HIGH' && potType === 'MEDIUM') return { box: 'Box 7: High Professional', rec: 'Rotasi Jabatan / Pengembangan Kepemimpinan / Suksesor' };
+    if (kinType === 'HIGH' && potType === 'LOW') return { box: 'Box 4: Effective Employee', rec: 'Bimbingan Teknis / Peningkatan Potensi / Mentoring' };
+    if (kinType === 'MEDIUM' && potType === 'HIGH') return { box: 'Box 8: High Performer', rec: 'Coaching / Tugas Belajar / Peningkatan Kinerja' };
+    if (kinType === 'MEDIUM' && potType === 'MEDIUM') return { box: 'Box 5: Core Employee', rec: 'Pengembangan Kompetensi / Jalur Karir Mandiri' };
+    if (kinType === 'MEDIUM' && potType === 'LOW') return { box: 'Box 2: Dilemma', rec: 'Pembinaan Kinerja / Pelatihan Terfokus' };
+    if (kinType === 'LOW' && potType === 'HIGH') return { box: 'Box 6: High Potential', rec: 'Evaluasi Jabatan / Program Re-edukasi' };
+    if (kinType === 'LOW' && potType === 'MEDIUM') return { box: 'Box 3: Enigma', rec: 'Performance Improvement Plan (PIP) / Pendampingan' };
+    return { box: 'Box 1: Low Performer', rec: 'PIP Intensif / Penempatan Ulang' };
   };
 
   // Handle select employee in Evaluation Form
@@ -182,6 +344,7 @@ export default function TalentaPage() {
     if (selectedPegawaiId) {
       const existingPenilaian = penilaianList.find(p => p.pegawai_id === selectedPegawaiId || p.pegawai_id === findPegawai(selectedPegawaiId)?.nip);
       if (existingPenilaian) {
+        const bknData = unpackBknData(existingPenilaian);
         setFormPenilaian({
           id: existingPenilaian.id,
           nilai_skp: existingPenilaian.nilai_skp || 80,
@@ -194,6 +357,7 @@ export default function TalentaPage() {
           komunikasi: existingPenilaian.komunikasi || 80,
           pendidikan: existingPenilaian.pendidikan || 'S1',
           pengalaman: existingPenilaian.pengalaman || 3,
+          ...bknData
         });
       } else {
         // Prepare blank default evaluation
@@ -202,7 +366,7 @@ export default function TalentaPage() {
           id: `TAL-${selectedPegawaiId}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`,
           nilai_skp: 80,
           kompetensi: 80,
-          integritas: 80,
+          integritas: 100,
           disiplin: 80,
           leadership: 80,
           teamwork: 80,
@@ -210,6 +374,38 @@ export default function TalentaPage() {
           komunikasi: 80,
           pendidikan: peg?.pendidikan || 'S1',
           pengalaman: parseInt(peg?.masaKerja || '0') || 3,
+
+          // BKN 411/2025 Standard Default Sub-components
+          bkn_kinerja_utama: 80,
+          bkn_penghargaan: 0,
+          bkn_penugasan_tim: 0,
+          bkn_umpan_balik_360: 80,
+          bkn_penilaian_kompetensi: 80,
+          bkn_pengembangan_kompetensi: 0,
+          bkn_pengalaman_jabatan: 60,
+          bkn_penilaian_potensi: 80,
+          bkn_pendidikan: peg?.pendidikan || 'S1',
+          bkn_kesesuaian_ilmu: 100,
+          bkn_rekam_disiplin: 100,
+
+          // Experience calculation items (averaged into bkn_pengalaman_jabatan)
+          exp_lama_jabatan: 60,
+          exp_keragaman_riwayat: 60,
+          exp_penugasan_nondefinitif: 0,
+
+          // Potential rating items (summed/converted to bkn_penilaian_potensi)
+          pot_intel: 3,
+          pot_inter: 3,
+          pot_diri: 3,
+          pot_kritis: 3,
+          pot_masalah: 3,
+          pot_emosi: 3,
+          pot_belajar: 3,
+          pot_motivasi: 3,
+
+          target_jenjang: 'Jabatan Administrator',
+          nilai_kompetensi_teknis: 80,
+          integrasi_kemampuan_teknis: false,
         });
       }
     }
@@ -230,49 +426,81 @@ export default function TalentaPage() {
     }
 
     setSubmitting(true);
+    
+    // Perform live calculation of Sumbu Y, Sumbu X, and overall score
+    const sumbuY = calculateBknSumbuY(formPenilaian);
+    const sumbuX = calculateBknSumbuX(formPenilaian);
     const total_nilai = calculateTotalNilai(formPenilaian);
     const kategori_talenta = getKategoriTalenta(total_nilai);
+
+    const bknObj = {
+      bkn_kinerja_utama: formPenilaian.bkn_kinerja_utama,
+      bkn_penghargaan: formPenilaian.bkn_penghargaan,
+      bkn_penugasan_tim: formPenilaian.bkn_penugasan_tim,
+      bkn_umpan_balik_360: formPenilaian.bkn_umpan_balik_360,
+      bkn_penilaian_kompetensi: formPenilaian.bkn_penilaian_kompetensi,
+      bkn_pengembangan_kompetensi: formPenilaian.bkn_pengembangan_kompetensi,
+      bkn_pengalaman_jabatan: formPenilaian.bkn_pengalaman_jabatan,
+      bkn_penilaian_potensi: formPenilaian.bkn_penilaian_potensi,
+      bkn_pendidikan: formPenilaian.bkn_pendidikan,
+      bkn_kesesuaian_ilmu: formPenilaian.bkn_kesesuaian_ilmu,
+      bkn_rekam_disiplin: formPenilaian.bkn_rekam_disiplin,
+      exp_lama_jabatan: formPenilaian.exp_lama_jabatan,
+      exp_keragaman_riwayat: formPenilaian.exp_keragaman_riwayat,
+      exp_penugasan_nondefinitif: formPenilaian.exp_penugasan_nondefinitif,
+      pot_intel: formPenilaian.pot_intel,
+      pot_inter: formPenilaian.pot_inter,
+      pot_diri: formPenilaian.pot_diri,
+      pot_kritis: formPenilaian.pot_kritis,
+      pot_masalah: formPenilaian.pot_masalah,
+      pot_emosi: formPenilaian.pot_emosi,
+      pot_belajar: formPenilaian.pot_belajar,
+      pot_motivasi: formPenilaian.pot_motivasi,
+      target_jenjang: formPenilaian.target_jenjang,
+      nilai_kompetensi_teknis: formPenilaian.nilai_kompetensi_teknis,
+      integrasi_kemampuan_teknis: formPenilaian.integrasi_kemampuan_teknis
+    };
 
     const payloadPenilaian: PenilaianTalenta = {
       id: formPenilaian.id || `TAL-${peg.nip}-${Date.now()}`,
       pegawai_id: peg.nip, // save NIP consistently
-      nilai_skp: formPenilaian.nilai_skp,
-      kompetensi: formPenilaian.kompetensi,
-      integritas: formPenilaian.integritas,
-      disiplin: formFormPenilaianValue('disiplin'),
-      leadership: formFormPenilaianValue('leadership'),
-      teamwork: formFormPenilaianValue('teamwork'),
-      inovasi: formFormPenilaianValue('inovasi'),
-      komunikasi: formFormPenilaianValue('komunikasi'),
-      pendidikan: formPenilaian.pendidikan,
-      pengalaman: formPenilaian.pengalaman,
+      nilai_skp: sumbuY,    // Save calculated Sumbu Y (Kinerja)
+      kompetensi: sumbuX,   // Save calculated Sumbu X (Potensial)
+      integritas: formPenilaian.bkn_rekam_disiplin,
+      disiplin: Math.round(formPenilaian.bkn_penilaian_potensi),
+      leadership: formPenilaian.bkn_kinerja_utama,
+      teamwork: formPenilaian.bkn_umpan_balik_360,
+      inovasi: formPenilaian.bkn_penilaian_kompetensi,
+      komunikasi: formPenilaian.bkn_pengembangan_kompetensi,
+      pendidikan: formPenilaian.bkn_pendidikan,
+      pengalaman: formPenilaian.bkn_pengalaman_jabatan,
       total_nilai,
       kategori_talenta,
-      created_at: new Date().toISOString()
+      created_at: packBknMetadata(new Date().toISOString(), bknObj)
     };
 
-    // Auto calculate and update NineBox coordinates directly
-    const nbInfo = calculateNineBoxPos(formPenilaian.nilai_skp, formPenilaian.kompetensi);
+    // Auto calculate and update NineBox coordinates directly using BKN thresholds (80 and 60)
+    const nbInfo = calculateNineBoxPos(sumbuY, sumbuX);
     const payloadNineBox: NineBoxTalenta = {
       id: `NB-${peg.nip}`,
       pegawai_id: peg.nip,
-      kinerja: formPenilaian.nilai_skp,
-      potensi: formPenilaian.kompetensi,
+      kinerja: sumbuY,
+      potensi: sumbuX,
       posisi_box: nbInfo.box,
       rekomendasi: nbInfo.rec
     };
 
-    // Determine ranking on talent_pool
+    // Determine readiness level
     const existingPool = talentPoolList.find(t => t.pegawai_id === peg.nip);
     let rl = 'Medium';
-    if (total_nilai >= 90) rl = 'High';
-    else if (total_nilai < 70) rl = 'Low';
+    if (total_nilai >= 80) rl = 'High';
+    else if (total_nilai < 60) rl = 'Low';
 
     const payloadTalentPool: TalentPool = {
       id: existingPool?.id || `TP-${peg.nip}`,
       pegawai_id: peg.nip,
       ranking: existingPool?.ranking || (talentPoolList.length + 1),
-      status_talenta: total_nilai >= 90 && parseInt(peg.masaKerja || '0') >= 5 ? 'Layak Promosi' : 'Kader Potensial',
+      status_talenta: total_nilai >= 80 && parseInt(peg.masaKerja || '0') >= 5 ? 'Layak Promosi' : 'Kader Potensial',
       readiness_level: rl,
       rekomendasi_jabatan: peg.jabatan,
       created_at: new Date().toISOString()
@@ -287,7 +515,7 @@ export default function TalentaPage() {
       const [res1, res2, res3] = await Promise.all([p1, p2, p3]);
 
       if (res1 && res2 && res3) {
-        showAlert('success', `Berhasil menyimpan penilaian untuk ${peg.nama}. Total Nilai: ${total_nilai} (${kategori_talenta})`);
+        showAlert('success', `Berhasil menyimpan penilaian untuk ${peg.nama} (BKN-411/2025). Total Nilai: ${total_nilai} (${kategori_talenta})`);
         loadData(true); // force reload sheets
       } else {
         showAlert('danger', 'Gagal mensinkronisasikan satu atau lebih sheet data.');
@@ -1014,148 +1242,375 @@ export default function TalentaPage() {
                   </div>
 
                   {selectedPegawaiId && (
-                    <div className="space-y-6 animate-fadeIn">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* SKP */}
-                        <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Penilaian SKP (Kinerja) (Bobot 30%)</label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            max="100" 
-                            required 
-                            className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500"
-                            value={formPenilaian.nilai_skp}
-                            onChange={(e) => setFormPenilaian({ ...formPenilaian, nilai_skp: parseFloat(e.target.value) || 0 })}
-                          />
+                    <div className="space-y-8 animate-fadeIn text-[#1e293b]">
+                      
+                      {/* INFORMASI UMUM */}
+                      <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                          <p className="text-[10px] font-black uppercase text-blue-700 tracking-wider">Metode Penilaian</p>
+                          <p className="text-[11px] font-bold text-gray-700 mt-0.5">Keputusan Kepala BKN Nomor 411 Tahun 2025 tentang Manajemen Talenta ASN</p>
+                        </div>
+                        <span className="px-3 py-1 bg-blue-600 text-white font-black text-[9px] uppercase tracking-widest rounded-xl">Regulasi Resmi</span>
+                      </div>
+
+                      {/* BAGIAN I: SUMBU KINERJA (Y) */}
+                      <div className="p-6 bg-slate-50/70 rounded-3xl border border-slate-100 space-y-6">
+                        <div className="flex justify-between items-center border-b border-slate-200/60 pb-3">
+                          <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
+                            <span className="h-5 w-5 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px]">Y</span>
+                            Sumbu Kinerja (Y) - Bobot 100%
+                          </h5>
+                          <span className="text-xs font-black text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg font-mono">
+                            Skor: {calculateBknSumbuY(formPenilaian).toFixed(2)} / 100
+                          </span>
                         </div>
 
-                        {/* KOMPETENSI */}
-                        <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Kompetensi Teknis/Sosiokultural (Bobot 20%)</label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            max="100" 
-                            required 
-                            className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500"
-                            value={formPenilaian.kompetensi}
-                            onChange={(e) => setFormPenilaian({ ...formPenilaian, kompetensi: parseFloat(e.target.value) || 0 })}
-                          />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* 1. Kinerja Utama (60%) */}
+                          <div className="space-y-1.5 col-span-1 md:col-span-2">
+                            <label className="text-[9px] font-black text-gray-700 uppercase tracking-wider flex justify-between">
+                              <span>1. Kinerja Utama / Hasil Kerja SKP (Bobot 60%)</span>
+                              <span className="text-gray-400">Parameter Utama</span>
+                            </label>
+                            <select
+                              className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500 shadow-sm"
+                              value={formPenilaian.bkn_kinerja_utama}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setFormPenilaian({ ...formPenilaian, bkn_kinerja_utama: val, nilai_skp: val });
+                              }}
+                            >
+                              <option value="110">Di Atas Ekspektasi (Sangat Baik / Terpuji) - [110 Poin]</option>
+                              <option value="100">Sesuai Ekspektasi (Baik) - [100 Poin]</option>
+                              <option value="80">Sesuai Ekspektasi (Cukup) - [80 Poin]</option>
+                              <option value="60">Di Bawah Ekspektasi (Kurang) - [60 Poin]</option>
+                              <option value="40">Di Bawah Ekspektasi (Sangat Kurang) - [40 Poin]</option>
+                            </select>
+                            <p className="text-[9px] text-gray-400 font-medium">Berdasarkan hasil SKP akhir tahun pegawai bersangkutan.</p>
+                          </div>
+
+                          {/* 2. Penghargaan (15%) */}
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-black text-gray-700 uppercase tracking-wider block">
+                              2. Kinerja Penguat: Penghargaan (Bobot 15%)
+                            </label>
+                            <select
+                              className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500 shadow-sm"
+                              value={formPenilaian.bkn_penghargaan}
+                              onChange={(e) => setFormPenilaian({ ...formPenilaian, bkn_penghargaan: parseFloat(e.target.value) || 0 })}
+                            >
+                              <option value="100">Penghargaan Tingkat Internasional - [100 Poin]</option>
+                              <option value="85">Penghargaan Tingkat Nasional - [85 Poin]</option>
+                              <option value="70">Satyalancana Karya Satya / Lintas Instansi - [70 Poin]</option>
+                              <option value="50">Penghargaan Instansi Internal (DJKI/Kemenkumham) - [50 Poin]</option>
+                              <option value="0">Tidak Memiliki Penghargaan Khusus - [0 Poin]</option>
+                            </select>
+                          </div>
+
+                          {/* 3. Penugasan Tim Kerja (15%) */}
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-black text-gray-700 uppercase tracking-wider block">
+                              3. Penugasan khusus / Tim Kerja (Bobot 15%)
+                            </label>
+                            <select
+                              className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500 shadow-sm"
+                              value={formPenilaian.bkn_penugasan_tim}
+                              onChange={(e) => setFormPenilaian({ ...formPenilaian, bkn_penugasan_tim: parseFloat(e.target.value) || 0 })}
+                            >
+                              <option value="100">Ketua Tim Kerja Lintas Instansi/Nasional - [100 Poin]</option>
+                              <option value="85">Ketua Tim Kerja Internal DJKI - [85 Poin]</option>
+                              <option value="70">Anggota Tim Kerja Lintas Instansi - [70 Poin]</option>
+                              <option value="50">Anggota Tim Kerja Internal DJKI - [50 Poin]</option>
+                              <option value="0">Bukan Bagian dari Penugasan Tim Khusus - [0 Poin]</option>
+                            </select>
+                          </div>
+
+                          {/* 4. Umpan Balik Perilaku 360 (10%) */}
+                          <div className="space-y-1.5 col-span-1 md:col-span-2">
+                            <label className="text-[9px] font-black text-gray-700 uppercase tracking-wider block">
+                              4. Umpan Balik Perilaku Kerja 360 Derajat (Bobot 10%)
+                            </label>
+                            <select
+                              className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500 shadow-sm"
+                              value={formPenilaian.bkn_umpan_balik_360}
+                              onChange={(e) => setFormPenilaian({ ...formPenilaian, bkn_umpan_balik_360: parseFloat(e.target.value) || 0 })}
+                            >
+                              <option value="100">Sangat Positif (Seluruh Pihak Melampaui) - [100 Poin]</option>
+                              <option value="85">Positif (Mayoritas Sesuai ekspektasi) - [85 Poin]</option>
+                              <option value="70">Cukup (Ada catatan perbaikan dari rekan) - [70 Poin]</option>
+                              <option value="40">Negatif (Membutuhkan pembinaan komunikasi) - [40 Poin]</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* BAGIAN II: SUMBU POTENSIAL (X) */}
+                      <div className="p-6 bg-slate-50/70 rounded-3xl border border-slate-100 space-y-6">
+                        <div className="flex justify-between items-center border-b border-slate-200/60 pb-3">
+                          <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
+                            <span className="h-5 w-5 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-[10px]">X</span>
+                            Sumbu Potensial (X) - Bobot 100%
+                          </h5>
+                          <span className="text-xs font-black text-teal-600 bg-teal-50 px-2.5 py-0.5 rounded-lg font-mono">
+                            Skor: {calculateBknSumbuX(formPenilaian).toFixed(2)} / 100
+                          </span>
                         </div>
 
-                        {/* LEADERSHIP */}
-                        <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Leadership / Kepemimpinan (Bobot 15%)</label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            max="100" 
-                            required 
-                            className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500"
-                            value={formPenilaian.leadership}
-                            onChange={(e) => setFormPenilaian({ ...formPenilaian, leadership: parseFloat(e.target.value) || 0 })}
-                          />
+                        <div className="space-y-6">
+                          
+                          {/* 1. Kompetensi (40% Total: 20% Asesmen, 10% Pengembangan, 10% Pengalaman) */}
+                          <div className="p-4 bg-white rounded-2xl border border-slate-100/80 space-y-4">
+                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest border-b pb-1">1. Pilar Kompetensi Kerja (Bobot 40% dari Sumbu Potensial)</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Penilaian Kompetensi (20%) */}
+                              <div className="space-y-1">
+                                <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block font-sans">A. Nilai Penilaian Kompetensi Asesmen (20%)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  className="bg-slate-50 border border-gray-200 text-[#1e293b] rounded-xl px-3 py-2 text-xs font-bold w-full focus:outline-blue-500"
+                                  value={formPenilaian.bkn_penilaian_kompetensi}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setFormPenilaian({ ...formPenilaian, bkn_penilaian_kompetensi: val, inovasi: val });
+                                  }}
+                                />
+                              </div>
+
+                              {/* Pengembangan Kompetensi (10%) */}
+                              <div className="space-y-1">
+                                <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block font-sans">B. Pengembangan Kompetensi (10%)</label>
+                                <select
+                                  className="bg-slate-50 border border-gray-200 text-[#1e293b] rounded-xl px-3 py-2 text-xs font-bold w-full focus:outline-blue-500"
+                                  value={formPenilaian.bkn_pengembangan_kompetensi}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setFormPenilaian({ ...formPenilaian, bkn_pengembangan_kompetensi: val });
+                                  }}
+                                >
+                                  <option value="100">&ge; 20 JP Pelatihan Kompeten Setahun - [100 Poin]</option>
+                                  <option value="80">10-19 JP Pelatihan Kompeten - [80 Poin]</option>
+                                  <option value="60">5-9 JP Pelatihan / Workshop - [60 Poin]</option>
+                                  <option value="40">1-4 JP Pelatihan - [40 Poin]</option>
+                                  <option value="0">Tidak Ada Pelatihan Diikuti - [0 Poin]</option>
+                                </select>
+                              </div>
+
+                              {/* Pengalaman Jabatan (10% - Rata-rata dari metrics pengalaman) */}
+                              <div className="col-span-1 md:col-span-2 p-3 bg-slate-50 rounded-xl space-y-3">
+                                <span className="text-[8px] font-extrabold text-slate-500 uppercase tracking-wider block font-sans">C. Pengalaman Jabatan Komulatif (10%) - Rerata: {formPenilaian.bkn_pengalaman_jabatan} Poin</span>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <div>
+                                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Lama Masa Kerja</span>
+                                    <select
+                                      className="bg-white border border-gray-100 text-[10px] font-bold rounded-lg px-2 py-1 w-full"
+                                      value={formPenilaian.exp_lama_jabatan}
+                                      onChange={(e) => {
+                                        const val = parseFloat(e.target.value) || 0;
+                                        const newAvg = Math.round((val + formPenilaian.exp_keragaman_riwayat + formPenilaian.exp_penugasan_nondefinitif) / 3);
+                                        setFormPenilaian({ ...formPenilaian, exp_lama_jabatan: val, bkn_pengalaman_jabatan: newAvg });
+                                      }}
+                                    >
+                                      <option value="100">&ge; 5 Tahun - [100]</option>
+                                      <option value="80">3 - 4 Tahun - [80]</option>
+                                      <option value="60">1 - 2 Tahun - [60]</option>
+                                      <option value="40">&lt; 1 Tahun - [40]</option>
+                                    </select>
+                                  </div>
+
+                                  <div>
+                                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Keragaman Riwayat</span>
+                                    <select
+                                      className="bg-white border border-gray-100 text-[10px] font-bold rounded-lg px-2 py-1 w-full"
+                                      value={formPenilaian.exp_keragaman_riwayat}
+                                      onChange={(e) => {
+                                        const val = parseFloat(e.target.value) || 0;
+                                        const newAvg = Math.round((formPenilaian.exp_lama_jabatan + val + formPenilaian.exp_penugasan_nondefinitif) / 3);
+                                        setFormPenilaian({ ...formPenilaian, exp_keragaman_riwayat: val, bkn_pengalaman_jabatan: newAvg });
+                                      }}
+                                    >
+                                      <option value="100">Lintas Instansi - [100]</option>
+                                      <option value="80">Lintas Unit Kerja DJKI - [80]</option>
+                                      <option value="60">Hanya di 1 Unit Kerja - [60]</option>
+                                    </select>
+                                  </div>
+
+                                  <div>
+                                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Tugas Non-Definitif</span>
+                                    <select
+                                      className="bg-white border border-gray-100 text-[10px] font-bold rounded-lg px-2 py-1 w-full"
+                                      value={formPenilaian.exp_penugasan_nondefinitif}
+                                      onChange={(e) => {
+                                        const val = parseFloat(e.target.value) || 0;
+                                        const newAvg = Math.round((formPenilaian.exp_lama_jabatan + formPenilaian.exp_keragaman_riwayat + val) / 3);
+                                        setFormPenilaian({ ...formPenilaian, exp_penugasan_nondefinitif: val, bkn_pengalaman_jabatan: newAvg });
+                                      }}
+                                    >
+                                      <option value="100">Pj. Kepala Daerah - [100]</option>
+                                      <option value="80">Plt. Jabatan Tinggi - [80]</option>
+                                      <option value="60">Plt. Jabatan Setara - [60]</option>
+                                      <option value="40">Plh. Jabatan Setara - [40]</option>
+                                      <option value="0">Tidak Ada - [0]</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 2. Potensi (25% Total - Berdasarkan 8 subindokator potensi) */}
+                          <div className="p-4 bg-white rounded-2xl border border-slate-100/80 space-y-4">
+                            <div className="flex justify-between items-center border-b pb-1">
+                              <p className="text-[10px] font-black text-[#14b8a6] uppercase tracking-widest">2. Penilaian Potensi Individu (Bobot 25% dari Sumbu Potensial)</p>
+                              <span className="text-[10px] font-black font-mono text-teal-600">Terhitung: {formPenilaian.bkn_penilaian_potensi.toFixed(0)} Poin</span>
+                            </div>
+
+                            <p className="text-[9px] text-[#475569] leading-relaxed">Asesmen 8 aspek potensi manusia (Poin skala 0 - 5 untuk masing-masing pilar di bawah):</p>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50/50 p-3 rounded-xl">
+                              {[
+                                { key: 'pot_intel', name: 'Agility Intel' },
+                                { key: 'pot_inter', name: 'Interpersonal' },
+                                { key: 'pot_diri', name: 'Mawas Diri' },
+                                { key: 'pot_kritis', name: 'Kritis Kreatif' },
+                                { key: 'pot_masalah', name: 'Selesaikan Masalah' },
+                                { key: 'pot_emosi', name: 'Emosi Stabil' },
+                                { key: 'pot_belajar', name: 'Kecap Belajar' },
+                                { key: 'pot_motivasi', name: 'Motivasi Achv' },
+                              ].map((item) => (
+                                <div key={item.key} className="space-y-1">
+                                  <span className="text-[7.5px] font-extrabold text-slate-500 uppercase tracking-widest block truncate text-center">{item.name}</span>
+                                  <select
+                                    className="bg-white border border-gray-100 text-[10px] font-bold text-slate-800 rounded-lg px-1.5 py-0.5 w-full text-center shadow-sm"
+                                    value={(formPenilaian as any)[item.key]}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      const nextPen = { ...formPenilaian, [item.key]: val };
+                                      // recalculate out of a total max sum of 40 points mapped to scale 100
+                                      const sum = nextPen.pot_intel + nextPen.pot_inter + nextPen.pot_diri + nextPen.pot_kritis +
+                                                  nextPen.pot_masalah + nextPen.pot_emosi + nextPen.pot_belajar + nextPen.pot_motivasi;
+                                      const calcPot = parseFloat(((sum / 40) * 100).toFixed(2));
+                                      setFormPenilaian({ ...nextPen, bkn_penilaian_potensi: calcPot, disiplin: calcPot });
+                                    }}
+                                  >
+                                    <option value="5">5 - Istimewa</option>
+                                    <option value="4">4 - Sangat Baik</option>
+                                    <option value="3">3 - Baik / Rata2</option>
+                                    <option value="2">2 - Cukup</option>
+                                    <option value="1">1 - Kurang</option>
+                                    <option value="0">0 - Nihil</option>
+                                  </select>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 3. Kualifikasi Pendidikan (10% + 10%) */}
+                          <div className="p-4 bg-white rounded-2xl border border-slate-100/80 space-y-4">
+                            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest border-b pb-1 col-span-2">3. Pilar Kualifikasi (Pendidikan Formal & Kesesuaian Ilmu) (Bobot 20%)</p>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest">A. Tingkat Pendidikan Formal (Bobot 10%)</label>
+                                <select 
+                                  className="bg-slate-50 border border-gray-200 text-[#1e293b] rounded-xl px-3 py-2 text-xs font-bold w-full focus:outline-blue-500"
+                                  value={formPenilaian.bkn_pendidikan}
+                                  onChange={(e) => setFormPenilaian({ ...formPenilaian, bkn_pendidikan: e.target.value, pendidikan: e.target.value })}
+                                >
+                                  <option value="S3">Doktor (S3) - [100 Poin]</option>
+                                  <option value="S2">Magister (S2) - [90 Poin]</option>
+                                  <option value="S1">Sarjana (S1 / D4) - [80 Poin]</option>
+                                  <option value="D3">Diploma III (D3) - [70 Poin]</option>
+                                  <option value="SLTA">SLTA / Sederajat - [60 Poin]</option>
+                                </select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest">B. Kesesuaian Bidang Ilmu (Bobot 10%)</label>
+                                <select 
+                                  className="bg-slate-50 border border-gray-200 text-[#1e293b] rounded-xl px-3 py-2 text-xs font-bold w-full focus:outline-blue-500"
+                                  value={formPenilaian.bkn_kesesuaian_ilmu}
+                                  onChange={(e) => setFormPenilaian({ ...formPenilaian, bkn_kesesuaian_ilmu: parseFloat(e.target.value) || 0 })}
+                                >
+                                  <option value="100">Sangat Relevan dengan Tugas Jabatan - [100 Poin]</option>
+                                  <option value="75">Cukup Relevan dengan rumpun tugas - [75 Poin]</option>
+                                  <option value="50">Tidak Relevan - [50 Poin]</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 4. Rekam Jejak Disiplin / Integritas (15%) */}
+                          <div className="space-y-2 p-4 bg-white rounded-2xl border border-slate-100/80">
+                            <label className="text-[10px] font-black text-[#dc2626] uppercase tracking-widest block border-b pb-1 col-span-2 text-rose-600">4. Verifikasi Rekam Jejak Disiplin, Kode Etik & Integritas (Bobot 15%)</label>
+                            <select
+                              className="bg-slate-50 border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500 shadow-sm"
+                              value={formPenilaian.bkn_rekam_disiplin}
+                              onChange={(e) => setFormPenilaian({ ...formPenilaian, bkn_rekam_disiplin: parseFloat(e.target.value) || 0, integritas: parseFloat(e.target.value) || 0 })}
+                            >
+                              <option value="100">Bersih / Tidak Pernah Dijatuhi Hukuman Disiplin (Hukdis) - [100 Poin]</option>
+                              <option value="75">Pernah Dijatuhi Hukdis Ringan - [75 Poin]</option>
+                              <option value="50">Pernah Dijatuhi Hukdis Sedang - [50 Poin]</option>
+                              <option value="25">Pernah Dijatuhi Hukdis Berat (Telah Dilewati) - [25 Poin]</option>
+                              <option value="0">Sedang Menjalani Hukdis Aktif atau Kasus Hukum - [0 Poin]</option>
+                            </select>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      {/* BAGIAN III: ADAPTASI KOMPETENSI TEKNIS */}
+                      <div className="p-6 bg-[#f0fdf4]/80 rounded-3xl border border-[#bbf7d0]/40 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-[#15803d] tracking-wider">Integrasi Kemampuan Teknis (Tabel 14 & 16 BKN)</p>
+                            <p className="text-[11px] font-bold text-gray-700 mt-0.5">Adaptasi khusus sukesi kualifikasi teknis spesifik jabatan</p>
+                          </div>
+                          
+                          <label className="relative inline-flex items-center cursor-pointer select-none">
+                            <input 
+                              type="checkbox" 
+                              className="sr-only peer"
+                              checked={formPenilaian.integrasi_kemampuan_teknis}
+                              onChange={(e) => setFormPenilaian({ ...formPenilaian, integrasi_kemampuan_teknis: e.target.checked })}
+                            />
+                            <div className="w-11 h-6 bg-slate-300 rounded-full peer peer-focus:ring-2 peer-focus:ring-emerald-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                            <span className="ml-2 text-[10px] font-black uppercase text-slate-700 font-sans">Aktif</span>
+                          </label>
                         </div>
 
-                        {/* INTEGRITAS */}
-                        <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Integritas / Nilai Pancasila (Bobot 10%)</label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            max="100" 
-                            required 
-                            className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500"
-                            value={formPenilaian.integritas}
-                            onChange={(e) => setFormPenilaian({ ...formPenilaian, integritas: parseFloat(e.target.value) || 0 })}
-                          />
-                        </div>
+                        {formPenilaian.integrasi_kemampuan_teknis && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-[#bbf7d0]/30 animate-fadeIn text-[#15803d]">
+                            <div className="space-y-1">
+                              <span className="text-[8px] font-black uppercase tracking-wider block">Target Jenjang Jabatan</span>
+                              <select
+                                className="bg-white border border-[#bbf7d0] text-slate-800 rounded-xl px-3 py-2 text-xs font-bold w-full"
+                                value={formPenilaian.target_jenjang}
+                                onChange={(e) => setFormPenilaian({ ...formPenilaian, target_jenjang: e.target.value })}
+                              >
+                                <option value="JPT Madya">JPT Madya (80% Talenta, 20% Teknis)</option>
+                                <option value="JPT Pratama">JPT Pratama (70% Talenta, 30% Teknis)</option>
+                                <option value="Jabatan Administrator">Jabatan Administrator (60% Talenta, 40% Teknis)</option>
+                                <option value="Jabatan Pengawas">Jabatan Pengawas (50% Talenta, 50% Teknis)</option>
+                              </select>
+                            </div>
 
-                        {/* DISIPLIN */}
-                        <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Tingkat Kedisiplinan (Bobot 10%)</label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            max="100" 
-                            required 
-                            className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500"
-                            value={formPenilaian.disiplin}
-                            onChange={(e) => setFormPenilaian({ ...formPenilaian, disiplin: parseFloat(e.target.value) || 0 })}
-                          />
-                        </div>
-
-                        {/* TEAMWORK */}
-                        <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Kolaborasi & Teamwork (Bobot 5%)</label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            max="100" 
-                            required 
-                            className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500"
-                            value={formPenilaian.teamwork}
-                            onChange={(e) => setFormPenilaian({ ...formPenilaian, teamwork: parseFloat(e.target.value) || 0 })}
-                          />
-                        </div>
-
-                        {/* INOVASI */}
-                        <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Inovasi Kreativitas (Bobot 5%)</label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            max="100" 
-                            required 
-                            className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500"
-                            value={formPenilaian.inovasi}
-                            onChange={(e) => setFormPenilaian({ ...formPenilaian, inovasi: parseFloat(e.target.value) || 0 })}
-                          />
-                        </div>
-
-                        {/* KOMUNIKASI */}
-                        <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Kemampuan Komunikasi (Bobot 5%)</label>
-                          <input 
-                            type="number" 
-                            min="0" 
-max="100" 
-                            required 
-                            className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500"
-                            value={formPenilaian.komunikasi}
-                            onChange={(e) => setFormPenilaian({ ...formPenilaian, komunikasi: parseFloat(e.target.value) || 0 })}
-                          />
-                        </div>
-
-                        {/* PENDIDIKAN */}
-                        <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Tingkat Pendidikan Terakhir</label>
-                          <select 
-                            className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500"
-                            value={formPenilaian.pendidikan}
-                            onChange={(e) => setFormPenilaian({ ...formPenilaian, pendidikan: e.target.value })}
-                          >
-                            <option value="D3">D3</option>
-                            <option value="D4">D4 / Sarjana Terapan</option>
-                            <option value="S1">S1 / Sarjana</option>
-                            <option value="S2">S2 / Magister</option>
-                            <option value="S3">S3 / Doktor</option>
-                          </select>
-                        </div>
-
-                        {/* PENGALAMAN */}
-                        <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-gray-700 uppercase tracking-widest">Pengalaman Kerja (Tahun)</label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            required 
-                            className="bg-white border border-gray-200 text-[#1e293b] rounded-xl px-4 py-3 text-xs font-bold w-full focus:outline-blue-500"
-                            value={formPenilaian.pengalaman}
-                            onChange={(e) => setFormPenilaian({ ...formPenilaian, pengalaman: parseInt(e.target.value) || 0 })}
-                          />
-                        </div>
+                            <div className="space-y-1">
+                              <span className="text-[8px] font-black uppercase tracking-wider block">Nilai Asesmen Teknis Spesifik (0 - 100)</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                className="bg-white border border-[#bbf7d0] text-slate-800 rounded-xl px-3 py-2 text-xs font-bold w-full"
+                                value={formPenilaian.nilai_kompetensi_teknis}
+                                onChange={(e) => setFormPenilaian({ ...formPenilaian, nilai_kompetensi_teknis: parseFloat(e.target.value) || 0 })}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
@@ -1195,44 +1650,77 @@ max="100"
                         </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <p className="text-[10px] font-bold text-slate-400">Pecahan Formula Regresi SDM:</p>
-                        <div className="flex justify-between items-center text-[10px] text-slate-300">
-                          <span>SKP *(30%)</span>
-                          <span>{(formPenilaian.nilai_skp * 0.3).toFixed(1)}</span>
+                      <div className="space-y-4">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Metrik Sumbu BKN-411/2025:</p>
+                        
+                        {/* SUMBU Y KINERJA DETAILS */}
+                        <div className="p-3 bg-slate-800/80 rounded-xl space-y-1.5 border border-white/5">
+                          <div className="flex justify-between text-[10px] font-extrabold text-indigo-400">
+                            <span>SUMBU Y (Kinerja)</span>
+                            <span>{calculateBknSumbuY(formPenilaian).toFixed(2)} Poin</span>
+                          </div>
+                          <div className="text-[9.5px]/4 text-slate-300 space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">1. Kinerja Utama (60%):</span>
+                              <span>{(formPenilaian.bkn_kinerja_utama * 0.6).toFixed(1)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">2. Penghargaan (15%):</span>
+                              <span>{(formPenilaian.bkn_penghargaan * 0.15).toFixed(1)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">3. Penugasan Kerja (15%):</span>
+                              <span>{(formPenilaian.bkn_penugasan_tim * 0.15).toFixed(1)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">4. Umpan Balik 360 (10%):</span>
+                              <span>{(formPenilaian.bkn_umpan_balik_360 * 0.10).toFixed(1)}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center text-[10px] text-slate-300">
-                          <span>Kompetensi *(20%)</span>
-                          <span>{(formPenilaian.kompetensi * 0.2).toFixed(1)}</span>
+
+                        {/* SUMBU X POTENSIAL DETAILS */}
+                        <div className="p-3 bg-slate-800/80 rounded-xl space-y-1.5 border border-white/5">
+                          <div className="flex justify-between text-[10px] font-extrabold text-teal-400">
+                            <span>SUMBU X (Potensial)</span>
+                            <span>{calculateBknSumbuX(formPenilaian).toFixed(2)} Poin</span>
+                          </div>
+                          <div className="text-[9.5px]/4 text-slate-300 space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">1. Pilar Kompetensi (40%):</span>
+                              <span>{((formPenilaian.bkn_penilaian_kompetensi * 0.20) + (formPenilaian.bkn_pengembangan_kompetensi * 0.10) + (formPenilaian.bkn_pengalaman_jabatan * 0.10)).toFixed(1)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">2. Pilar Potensi (25%):</span>
+                              <span>{(formPenilaian.bkn_penilaian_potensi * 0.25).toFixed(1)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">3. Pilar Kualifikasi (20%):</span>
+                              <span>{(((formPenilaian.bkn_pendidikan === 'S3' ? 100 : formPenilaian.bkn_pendidikan === 'S2' ? 90 : formPenilaian.bkn_pendidikan === 'S1' ? 80 : formPenilaian.bkn_pendidikan === 'D3' ? 70 : 60) * 0.10) + (formPenilaian.bkn_kesesuaian_ilmu * 0.10)).toFixed(1)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">4. Disiplin & Integritas (15%):</span>
+                              <span>{(formPenilaian.bkn_rekam_disiplin * 0.15).toFixed(1)}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center text-[10px] text-slate-300">
-                          <span>Leadership *(15%)</span>
-                          <span>{(formPenilaian.leadership * 0.15).toFixed(1)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px] text-slate-300">
-                          <span>Integritas & Disiplin *(20%)</span>
-                          <span>{((formPenilaian.integritas * 0.1) + (formPenilaian.disiplin * 0.1)).toFixed(1)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px] text-slate-300">
-                          <span>Teamwork, Kom, Inovasi *(15%)</span>
-                          <span>{((formPenilaian.teamwork * 0.05) + (formPenilaian.inovasi * 0.05) + (formPenilaian.komunikasi * 0.05)).toFixed(1)}</span>
-                        </div>
+
                       </div>
 
                       {/* CALCULATED VALUE OUTCOME */}
                       <div className="p-4 bg-slate-800 rounded-2xl border border-white/5 space-y-2">
-                        <span className="text-[8px] font-black text-blue-400 tracking-widest uppercase">Skor Akumulasi Akhir</span>
+                        <span className="text-[8px] font-black text-blue-400 tracking-widest uppercase">Skor Akumulasi Total Akhir</span>
                         <div className="text-3xl font-black text-white">{calculateTotalNilai(formPenilaian)}</div>
                         <div className="text-[9px] font-black text-slate-300">
-                          Kategori: <span className="text-blue-400 font-bold uppercase">{getKategoriTalenta(calculateTotalNilai(formPenilaian))}</span>
+                          Kategori Evaluasi: <span className="text-blue-400 font-bold uppercase">{getKategoriTalenta(calculateTotalNilai(formPenilaian))}</span>
                         </div>
                       </div>
 
                       {/* CORE COORDINATE NINEBOX DISPLAY */}
                       <div>
                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status Penempatan 9-Box</span>
-                        <p className="text-xs font-extrabold text-[#10b981]">{calculateNineBoxPos(formPenilaian.nilai_skp, formPenilaian.kompetensi).box}</p>
-                        <p className="text-[9px] text-slate-400 leading-relaxed mt-1">{calculateNineBoxPos(formPenilaian.nilai_skp, formPenilaian.kompetensi).rec}</p>
+                        <p className="text-xs font-extrabold text-[#10b981]">{calculateNineBoxPos(calculateBknSumbuY(formPenilaian), calculateBknSumbuX(formPenilaian)).box}</p>
+                        <p className="text-[9pt] text-slate-400 leading-relaxed mt-1">{calculateNineBoxPos(calculateBknSumbuY(formPenilaian), calculateBknSumbuX(formPenilaian)).rec}</p>
                       </div>
                     </div>
                   ) : (
@@ -1362,7 +1850,15 @@ max="100"
                           <span className="block truncate max-w-[200px]">{p.jabatan}</span>
                           <span className="text-[9px] text-slate-400 block uppercase font-bold">{p.unit_kerja}</span>
                         </td>
-                        <td className="py-4 text-center font-bold text-slate-600 font-mono">{p.nilai_skp}</td>
+                        <td className="py-4 text-center font-mono">
+                          <span className="font-extrabold text-[#111827] text-[12px] block">{p.nilai_skp}</span>
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-wider mt-1 border shadow-xs ${
+                            p.nilai_skp > 100 ? 'bg-indigo-50 border-indigo-100 text-indigo-700' :
+                            p.nilai_skp >= 90 ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'
+                          }`}>
+                            {p.nilai_skp > 100 ? 'Di Atas' : p.nilai_skp >= 90 ? 'Sesuai' : 'Di Bawah'}
+                          </span>
+                        </td>
                         <td className="py-4 text-center font-bold text-slate-600 font-mono">{p.kompetensi}</td>
                         <td className="py-4 text-center font-bold text-slate-600 font-mono">{p.leadership}</td>
                         <td className="py-4 text-center text-slate-500 font-mono">{p.masa_kerja} Tahun</td>

@@ -90,24 +90,27 @@ const SettingsPage = () => {
 
   const toggleMaintenancePage = (path: string) => {
     setSystemConfig(prev => {
-      const exists = prev.maintenance.pages.includes(path);
+      const maintenance = prev?.maintenance || { all: false, pages: [] };
+      const pages = maintenance.pages || [];
+      const exists = pages.includes(path);
       const newPages = exists 
-        ? prev.maintenance.pages.filter(p => p !== path)
-        : [...prev.maintenance.pages, path];
-      return { ...prev, maintenance: { ...prev.maintenance, pages: newPages } };
+        ? pages.filter(p => p !== path)
+        : [...pages, path];
+      return { ...prev, maintenance: { ...maintenance, pages: newPages } };
     });
   };
 
   const updatePageAccess = (path: string, field: 'roles' | 'nips', value: string) => {
     setSystemConfig(prev => {
-      const existing = prev.pageAccess.find(a => a.route === path);
+      const pageAccess = prev?.pageAccess || [];
+      const existing = pageAccess.find(a => a.route === path);
       const values = value.split(',').map(v => v.trim()).filter(v => v !== '');
       
       let newAccess: PageAccess[];
       if (existing) {
-        newAccess = prev.pageAccess.map(a => a.route === path ? { ...a, [field]: values } : a);
+        newAccess = pageAccess.map(a => a.route === path ? { ...a, [field]: values } : a);
       } else {
-        newAccess = [...prev.pageAccess, { route: path, roles: field === 'roles' ? values : [], nips: field === 'nips' ? values : [] }];
+        newAccess = [...pageAccess, { route: path, roles: field === 'roles' ? values : [], nips: field === 'nips' ? values : [] }];
       }
       return { ...prev, pageAccess: newAccess };
     });
@@ -115,16 +118,17 @@ const SettingsPage = () => {
 
   const toggleRoleAccess = (path: string, role: string) => {
     setSystemConfig(prev => {
-      const existing = prev.pageAccess.find(a => a.route === path);
+      const pageAccess = prev?.pageAccess || [];
+      const existing = pageAccess.find(a => a.route === path);
       let newAccess: PageAccess[];
       
       if (existing) {
-        const roles = existing.roles.includes(role)
-          ? existing.roles.filter(r => r !== role)
-          : [...existing.roles, role];
-        newAccess = prev.pageAccess.map(a => a.route === path ? { ...a, roles } : a);
+        const roles = (existing.roles || []).includes(role)
+          ? (existing.roles || []).filter(r => r !== role)
+          : [...(existing.roles || []), role];
+        newAccess = pageAccess.map(a => a.route === path ? { ...a, roles } : a);
       } else {
-        newAccess = [...prev.pageAccess, { route: path, roles: [role], nips: [] }];
+        newAccess = [...pageAccess, { route: path, roles: [role], nips: [] }];
       }
       return { ...prev, pageAccess: newAccess };
     });
@@ -132,14 +136,15 @@ const SettingsPage = () => {
 
   const bulkRoleAccess = (path: string, action: 'all' | 'none') => {
     setSystemConfig(prev => {
-      const existing = prev.pageAccess.find(a => a.route === path);
+      const pageAccess = prev?.pageAccess || [];
+      const existing = pageAccess.find(a => a.route === path);
       const allRoles = ['Superadmin', 'Editor', 'Viewer'];
       let newAccess: PageAccess[];
       
       if (existing) {
-        newAccess = prev.pageAccess.map(a => a.route === path ? { ...a, roles: action === 'all' ? allRoles : [] } : a);
+        newAccess = pageAccess.map(a => a.route === path ? { ...a, roles: action === 'all' ? allRoles : [] } : a);
       } else {
-        newAccess = [...prev.pageAccess, { route: path, roles: action === 'all' ? allRoles : [], nips: [] }];
+        newAccess = [...pageAccess, { route: path, roles: action === 'all' ? allRoles : [], nips: [] }];
       }
       return { ...prev, pageAccess: newAccess };
     });
@@ -906,13 +911,13 @@ const SettingsPage = () => {
                         <div 
                           key={route.path}
                           onClick={() => toggleMaintenancePage(route.path)}
-                          className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${systemConfig.maintenance.pages.includes(route.path) ? 'bg-amber-500 border-amber-500 text-white shadow-md' : 'bg-white border-gray-50 text-gray-900 hover:border-amber-200'}`}
+                          className={`flex items-center justify-between p-4 rounded-2xl border-2 cursor-pointer transition-all ${(systemConfig.maintenance?.pages || []).includes(route.path) ? 'bg-amber-500 border-amber-500 text-white shadow-md' : 'bg-white border-gray-50 text-gray-900 hover:border-amber-200'}`}
                         >
                           <div className="flex items-center gap-3">
                             <i className={`bi ${route.icon} text-lg`}></i>
                             <span className="text-[10px] font-black uppercase">{route.label}</span>
                           </div>
-                          {systemConfig.maintenance.pages.includes(route.path) && <i className="bi bi-cone-striped"></i>}
+                          {(systemConfig.maintenance?.pages || []).includes(route.path) && <i className="bi bi-cone-striped"></i>}
                         </div>
                       ))}
                     </div>
@@ -940,7 +945,7 @@ const SettingsPage = () => {
                     </div>
                     <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
                       {APP_ROUTES.filter(r => r.label.toLowerCase().includes(accessSearch.toLowerCase()) || r.path.toLowerCase().includes(accessSearch.toLowerCase())).map(route => {
-                        const access = systemConfig.pageAccess.find(a => a.route === route.path);
+                        const access = (systemConfig.pageAccess || []).find(a => a.route === route.path);
                         return (
                           <div key={route.path} className="p-6 bg-gray-50/50 rounded-[2rem] border border-gray-100 space-y-6">
                             <div className="flex items-center justify-between gap-4">
