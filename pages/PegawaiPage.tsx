@@ -65,6 +65,21 @@ const PegawaiPage = () => {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   
+  const [isJenisDropdownOpen, setIsJenisDropdownOpen] = useState(false);
+  const jenisDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (jenisDropdownRef.current && !jenisDropdownRef.current.contains(event.target as Node)) {
+        setIsJenisDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+  
   const [isAddDossierOpen, setIsAddDossierOpen] = useState(false);
   const [dossierFormData, setDossierFormData] = useState<Partial<Dossier>>({ fileName: '', keterangan: '' });
   
@@ -322,7 +337,8 @@ const PegawaiPage = () => {
       const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
       const match = searchStr.includes(term);
       const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
-      const jenisMatch = filterJenis === 'Semua Jenis' || (p.jenisPegawai || '').toUpperCase() === filterJenis.toUpperCase();
+      const selectedSubJenis = filterJenis === 'Semua Jenis' || !filterJenis ? [] : filterJenis.split(',').filter(Boolean);
+      const jenisMatch = selectedSubJenis.length === 0 || selectedSubJenis.map(s => s.toLowerCase()).includes((p.jenisPegawai || '').trim().toLowerCase());
       const statusMatch = filterStatus === 'Semua Status' || (p.status || 'Aktif') === filterStatus;
       
       // Golongan range match
@@ -384,7 +400,8 @@ const PegawaiPage = () => {
       const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
       const match = searchStr.includes(term);
       const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
-      const jenisMatch = filterJenis === 'Semua Jenis' || (p.jenisPegawai || '').toUpperCase() === filterJenis.toUpperCase();
+      const selectedSubJenis = filterJenis === 'Semua Jenis' || !filterJenis ? [] : filterJenis.split(',').filter(Boolean);
+      const jenisMatch = selectedSubJenis.length === 0 || selectedSubJenis.map(s => s.toLowerCase()).includes((p.jenisPegawai || '').trim().toLowerCase());
       
       let ageMatch = true;
       if (minAge || maxAge) {
@@ -654,13 +671,62 @@ const PegawaiPage = () => {
               <option>Semua Unit</option>
               {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
           </select>
-          <select className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterJenis} onChange={e => setFilterJenis(e.target.value)}>
-              <option>Semua Jenis</option>
-              <option value="PNS">PNS</option>
-              <option value="CPNS">CPNS</option>
-              <option value="PPPK">PPPK</option>
-              <option value="PPPK Paruh Waktu">PPPK Paruh Waktu</option>
-          </select>
+          <div ref={jenisDropdownRef} className="relative w-full">
+            <button 
+              type="button"
+              onClick={() => setIsJenisDropdownOpen(!isJenisDropdownOpen)}
+              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none"
+            >
+              <span className="truncate">
+                {filterJenis === 'Semua Jenis' || !filterJenis
+                  ? 'Semua Jenis'
+                  : filterJenis.split(',').join(' + ')}
+              </span>
+              <i className={`bi bi-chevron-${isJenisDropdownOpen ? 'up' : 'down'} text-gray-400 text-xs`}></i>
+            </button>
+            {isJenisDropdownOpen && (
+              <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl p-3 space-y-2 max-h-60 overflow-y-auto">
+                <label className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
+                  <input 
+                    type="checkbox"
+                    checked={filterJenis === 'Semua Jenis' || !filterJenis}
+                    onChange={() => setFilterJenis('Semua Jenis')}
+                    className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-[9px] md:text-[11px] font-black uppercase tracking-wider text-gray-700">Semua Jenis</span>
+                </label>
+                <div className="h-px bg-gray-100 my-1"></div>
+                {['PNS', 'CPNS', 'PPPK', 'PPPK Paruh Waktu'].map(jenis => {
+                  const currentList = filterJenis === 'Semua Jenis' ? [] : filterJenis.split(',').filter(Boolean);
+                  const isChecked = currentList.includes(jenis);
+                  const handleCheckboxChange = () => {
+                    let newList: string[];
+                    if (isChecked) {
+                      newList = currentList.filter(item => item !== jenis);
+                    } else {
+                      newList = [...currentList, jenis];
+                    }
+                    if (newList.length === 0) {
+                      setFilterJenis('Semua Jenis');
+                    } else {
+                      setFilterJenis(newList.join(','));
+                    }
+                  };
+                  return (
+                    <label key={jenis} className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
+                      <input 
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={handleCheckboxChange}
+                        className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span className="text-[9px] md:text-[11px] font-black uppercase tracking-wider text-gray-800">{jenis}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <select className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
               <option>Semua Status</option>
               <option value="Aktif">AKTIF</option>
