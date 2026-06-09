@@ -86,6 +86,9 @@ const PegawaiPage = () => {
   const [selectedPegawai, setSelectedPegawai] = useState<Pegawai | null>(null);
   const [formData, setFormData] = useState<Partial<Pegawai>>({});
   
+  const [selectedNipsForBulk, setSelectedNipsForBulk] = useState<string[]>([]);
+  const [showBulkSummary, setShowBulkSummary] = useState(false);
+  
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -488,6 +491,43 @@ const PegawaiPage = () => {
     XLSX.writeFile(wb, `Data_Pegawai_DJKI_${type}_${Date.now()}.xlsx`);
   };
 
+  const handleExportSelectedExcel = () => {
+    if (selectedNipsForBulk.length === 0) return;
+    const wb = XLSX.utils.book_new();
+    const exportPegawai = pegawaiList.filter(p => p.nip && selectedNipsForBulk.includes(p.nip));
+
+    const data = exportPegawai.map((p, index) => ({
+      'No': index + 1,
+      'NIP': p.nip,
+      'NAMA': p.nama,
+      'NIK': p.nik || '-',
+      'Gol/Ruang': p.golRuang || '-',
+      'Pangkat': p.pangkat || '-',
+      'Jabatan': p.jabatan || '-',
+      'Unit Kerja': p.unitKerja || '-',
+      'Bagian': p.bagian || '-',
+      'Sub Bagian': p.subBagian || '-',
+      'Jenis Pegawai': p.jenisPegawai || '-',
+      'Status': p.status || '-',
+      'Gender': p.gender || '-',
+      'Tempat Lahir': p.tempatLahir || '-',
+      'Tanggal Lahir': p.tanggalLahir || '-',
+      'Usia': p.usia || '-',
+      'Pendidikan': p.pendidikan || '-',
+      'Jurusan': p.jurusan || '-',
+      'No HP': p.noHp || '-',
+      'Email': p.email || '-',
+      'NPWP': p.npwp || '-',
+      'BPJS': p.noBpjs || '-',
+      'Bank': p.namaBank || '-',
+      'No Rekening': p.noRekeningGaji || '-'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, "Pegawai Terpilih");
+    XLSX.writeFile(wb, `Data_Pegawai_Terpilih_${Date.now()}.xlsx`);
+  };
+
   const handleUploadPhoto = async () => {
     if (!tempPhotoFile) return;
     setUploading(true);
@@ -801,6 +841,59 @@ const PegawaiPage = () => {
         </div>
       </div>
 
+      {/* Selection Bulk Controls */}
+      <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse"></div>
+          <p className="text-[10px] md:text-xs font-black uppercase text-gray-700 tracking-wider">
+            Terpilih: <span className="text-blue-600 font-extrabold text-xs md:text-sm">{selectedNipsForBulk.length}</span> Pegawai
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+          <button 
+            type="button"
+            onClick={() => {
+              const visibleNips = (filteredPegawai || []).map(p => p.nip).filter(Boolean);
+              setSelectedNipsForBulk(prev => {
+                const merged = new Set([...prev, ...visibleNips]);
+                return Array.from(merged);
+              });
+            }}
+            disabled={filteredPegawai.length === 0}
+            className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200/60 text-slate-700 rounded-xl text-[8px] md:text-[9px] font-black uppercase disabled:opacity-50 transition-all flex items-center gap-1 cursor-pointer"
+          >
+            <i className="bi bi-check-all text-xs"></i> Centang Semua ({filteredPegawai.length})
+          </button>
+          <button 
+            type="button"
+            onClick={() => setSelectedNipsForBulk([])}
+            disabled={selectedNipsForBulk.length === 0}
+            className="px-3 py-2 bg-slate-50 hover:bg-rose-50 hover:text-rose-600 border border-slate-200/60 text-slate-500 rounded-xl text-[8px] md:text-[9px] font-black uppercase disabled:opacity-50 transition-all flex items-center gap-1 cursor-pointer"
+          >
+            <i className="bi bi-trash text-xs"></i> Bersihkan Pilihan
+          </button>
+          
+          {selectedNipsForBulk.length > 0 && (
+            <>
+              <button 
+                type="button"
+                onClick={handleExportSelectedExcel}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[8px] md:text-[9px] font-black uppercase hover:bg-emerald-700 shadow-md shadow-emerald-600/25 transition-all flex items-center gap-1.5 animate-fadeIn"
+              >
+                <i className="bi bi-file-earmark-spreadsheet text-xs"></i> Ekspor Excel ({selectedNipsForBulk.length})
+              </button>
+              <button 
+                type="button"
+                onClick={() => setShowBulkSummary(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-[8px] md:text-[9px] font-black uppercase hover:bg-blue-700 shadow-md shadow-blue-600/25 transition-all flex items-center gap-1.5 animate-fadeIn"
+              >
+                <i className="bi bi-eye text-xs"></i> Ambil / Lihat Data ({selectedNipsForBulk.length})
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
         {loading ? Array(6).fill(0).map((_,i) => <div key={i} className="h-32 md:h-44 bg-white rounded-2xl md:rounded-[3rem] animate-pulse"></div>) : 
          (filteredPegawai || []).map((p, i) => {
@@ -811,6 +904,21 @@ const PegawaiPage = () => {
            return (
              <div key={`${p.nip}-${i}`} onClick={() => navigate(`/pegawai/${p.nip}`)} className={`bg-white p-3 md:p-7 rounded-xl md:rounded-[3rem] border shadow-sm group hover:shadow-2xl transition-all cursor-pointer relative overflow-hidden ${isDup || isInv ? 'border-rose-200 bg-rose-50/10' : 'border-gray-100'}`}>
                 <div className="flex items-center gap-3 md:gap-6">
+                   <div className="flex items-center shrink-0">
+                     <input 
+                       type="checkbox" 
+                       checked={selectedNipsForBulk.includes(p.nip)}
+                       onChange={(e) => {
+                         e.stopPropagation();
+                         const nip = p.nip;
+                         setSelectedNipsForBulk(prev => 
+                           prev.includes(nip) ? prev.filter(n => n !== nip) : [...prev, nip]
+                         );
+                       }}
+                       onClick={(e) => e.stopPropagation()}
+                       className="w-4 h-4 md:w-5 md:h-5 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer shrink-0 transition-all"
+                     />
+                   </div>
                    <div className={`h-12 w-12 md:h-20 md:w-20 rounded-lg md:rounded-[1.8rem] overflow-hidden border-2 md:border-4 border-white shadow-xl group-hover:scale-105 transition-transform shrink-0 ${isDup || isInv ? 'bg-rose-100' : 'bg-blue-50'}`}>
                       {p.foto ? <img src={getPhotoUrl(p.foto)} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className={`h-full w-full flex items-center justify-center font-black text-lg md:text-3xl ${isDup || isInv ? 'text-rose-600' : 'text-blue-600'}`}>{p.nama ? p.nama.charAt(0) : '?'}</div>}
                    </div>
@@ -1135,6 +1243,163 @@ const PegawaiPage = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkSummary && (
+        <div className="fixed inset-0 z-[3500] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-sm animate-fadeIn" onClick={() => setShowBulkSummary(false)}></div>
+          <div className="relative bg-white w-full max-w-4xl rounded-3xl md:rounded-[2.5rem] shadow-2xl overflow-hidden animate-modalEnter border border-white/20 flex flex-col max-h-[85vh] z-50">
+            <div className="p-6 md:p-8 bg-gray-50 border-b flex justify-between items-center shrink-0">
+              <div>
+                <h4 className="text-lg md:text-xl font-black uppercase text-gray-950 tracking-tighter">Ringkasan Pegawai Terpilih</h4>
+                <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Personnel Selection Summary ({selectedNipsForBulk.length} Orang)</p>
+              </div>
+              <button onClick={() => setShowBulkSummary(false)} className="h-10 w-10 flex items-center justify-center text-gray-400 hover:text-rose-500 bg-white border border-gray-100 rounded-xl transition-all">
+                <i className="bi bi-x-lg text-lg"></i>
+              </button>
+            </div>
+
+            <div className="p-6 md:p-8 overflow-y-auto flex-1 space-y-6 custom-scrollbar">
+              {/* Copy Tools */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const selectedList = pegawaiList.filter(p => p.nip && selectedNipsForBulk.includes(p.nip));
+                    const text = selectedList.map((p, idx) => `${idx + 1}. ${p.nama} (NIP. ${p.nip}) - ${p.jabatan || '-'}`).join('\n');
+                    navigator.clipboard.writeText(text);
+                    alert("Daftar info pegawai berhasil disalin ke clipboard!");
+                  }}
+                  className="p-3 bg-blue-50 hover:bg-blue-100/70 text-blue-600 rounded-2xl text-[9px] md:text-[10px] font-black uppercase flex flex-col items-center justify-center gap-1.5 border border-blue-100 transition-all text-center cursor-pointer"
+                >
+                  <i className="bi bi-clipboard-data text-base"></i>
+                  Salin Info Pegawai
+                </button>
+                
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const selectedList = pegawaiList.filter(p => p.nip && selectedNipsForBulk.includes(p.nip));
+                    const text = selectedList.map(p => p.email || '').filter(Boolean).join(', ');
+                    navigator.clipboard.writeText(text);
+                    alert("Daftar email berhasil disalin ke clipboard!");
+                  }}
+                  className="p-3 bg-indigo-50 hover:bg-indigo-100/70 text-indigo-600 rounded-2xl text-[9px] md:text-[10px] font-black uppercase flex flex-col items-center justify-center gap-1.5 border border-indigo-100 transition-all text-center cursor-pointer"
+                >
+                  <i className="bi bi-envelope-at text-base"></i>
+                  Salin Semua Email
+                </button>
+
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const selectedList = pegawaiList.filter(p => p.nip && selectedNipsForBulk.includes(p.nip));
+                    const text = selectedList.map(p => p.noHp || '').filter(Boolean).join(', ');
+                    navigator.clipboard.writeText(text);
+                    alert("Daftar nomor HP berhasil disalin ke clipboard!");
+                  }}
+                  className="p-3 bg-emerald-50 hover:bg-emerald-100/70 text-emerald-600 rounded-2xl text-[9px] md:text-[10px] font-black uppercase flex flex-col items-center justify-center gap-1.5 border border-emerald-100 transition-all text-center cursor-pointer"
+                >
+                  <i className="bi bi-telephone text-base"></i>
+                  Salin Semua No HP/WA
+                </button>
+              </div>
+
+              {/* Selected List - Table */}
+              <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-inner">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100 text-[8px] md:text-[9px] font-black uppercase tracking-wider text-gray-400">
+                      <th className="p-3 text-center w-12">No</th>
+                      <th className="p-3">Nama / NIP</th>
+                      <th className="p-3">Jabatan</th>
+                      <th className="p-3">Unit Kerja</th>
+                      <th className="p-3 text-center w-16">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 text-[10px] md:text-xs">
+                    {pegawaiList.filter(p => p.nip && selectedNipsForBulk.includes(p.nip)).map((p, index) => (
+                      <tr key={p.nip} className="hover:bg-gray-50/50">
+                        <td className="p-3 text-center font-bold text-gray-400">{index + 1}</td>
+                        <td className="p-3">
+                          <p className="font-black text-gray-900 leading-tight">{p.nama}</p>
+                          <p className="text-[8px] font-mono text-gray-400 mt-0.5">NIP. {p.nip}</p>
+                        </td>
+                        <td className="p-3 text-gray-700 font-medium">{p.jabatan || '-'}</td>
+                        <td className="p-3 text-gray-500 font-bold uppercase text-[9px] tracking-wide">{p.unitKerja?.replace('Direktorat ', '').toUpperCase() || '-'}</td>
+                        <td className="p-3 text-center">
+                          <button 
+                            type="button"
+                            onClick={() => setSelectedNipsForBulk(prev => prev.filter(n => n !== p.nip))}
+                            className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all"
+                            title="Batalkan Pilihan"
+                          >
+                            <i className="bi bi-x-circle text-sm"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="p-6 bg-gray-50 border-t shrink-0 flex gap-3">
+              <button 
+                type="button"
+                onClick={handleExportSelectedExcel}
+                className="flex-1 py-3 bg-emerald-600 text-white rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+              >
+                <i className="bi bi-file-earmark-spreadsheet-fill text-sm"></i>
+                Ekspor Excel Pegawai Terpilih
+              </button>
+              <button 
+                type="button"
+                onClick={() => setShowBulkSummary(false)}
+                className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-sm hover:bg-gray-50 transition-all text-center"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedNipsForBulk.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-gray-950 text-white px-5 py-3 md:py-4 rounded-3xl shadow-2xl flex items-center gap-4 md:gap-6 border border-white/15 animate-slideUp max-w-[90vw]">
+          <div className="flex items-center gap-2 border-r border-white/20 pr-4 shrink-0">
+            <span className="flex h-3 w-3 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+            </span>
+            <span className="text-[10px] md:text-xs font-black uppercase tracking-wider">{selectedNipsForBulk.length} Terpilih</span>
+          </div>
+          <div className="flex items-center gap-2 md:gap-3">
+            <button 
+              type="button"
+              onClick={handleExportSelectedExcel}
+              className="px-3 md:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-xl font-black text-[8px] md:text-[10px] uppercase transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/30 cursor-pointer"
+            >
+              <i className="bi bi-file-earmark-spreadsheet"></i>
+              Export
+            </button>
+            <button 
+              type="button"
+              onClick={() => setShowBulkSummary(true)}
+              className="px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-xl font-black text-[8px] md:text-[10px] uppercase transition-all flex items-center gap-1.5 shadow-md shadow-blue-600/30 cursor-pointer"
+            >
+              <i className="bi bi-eye"></i>
+              Buka
+            </button>
+            <button 
+              type="button"
+              onClick={() => setSelectedNipsForBulk([])}
+              className="px-2 md:px-3 py-2 bg-white/10 hover:bg-white/20 rounded-xl font-black text-[8px] md:text-[10px] uppercase transition-all flex items-center gap-1 text-white/80 cursor-pointer"
+            >
+              Batal
+            </button>
           </div>
         </div>
       )}
