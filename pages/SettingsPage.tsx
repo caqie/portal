@@ -385,6 +385,33 @@ const SettingsPage = () => {
     finally { setSyncing(false); setCleanupProgress({ current: 0, total: 0, active: false }); }
   };
 
+  const parseImportDate = (val: any): string => {
+    if (!val) return '';
+    if (val instanceof Date) {
+      if (!isNaN(val.getTime())) {
+        return val.toISOString().split('T')[0];
+      }
+      return '';
+    }
+    const dateStr = String(val).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    
+    const parts = dateStr.split(/[\/\-]/);
+    if (parts.length === 3) {
+      let day = parts[0];
+      let month = parts[1];
+      let year = parts[2];
+      
+      if (year.length === 4 && day.length <= 2 && month.length <= 2) {
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+      if (day.length === 4 && month.length <= 2 && year.length <= 2) {
+        return `${day}-${month.padStart(2, '0')}-${year.padStart(2, '0')}`;
+      }
+    }
+    return dateStr;
+  };
+
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -404,7 +431,7 @@ const SettingsPage = () => {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws) as any[];
         const validData = data.filter(row => {
-          const nipVal = row.NIP || row.nip || row['NIP Baru'];
+          const nipVal = row.NIP || row.nip || row['NIP Baru'] || row['NIP Baru (18 digit)'] || row['nipbaru'] || row['asnnip'] || row['nip_asn'] || row['asn_nip'];
           return nipVal && String(nipVal).trim() !== '';
         });
         if (validData.length === 0) { alert("Tidak ditemukan data NIP valid."); setSyncing(false); return; }
@@ -414,17 +441,91 @@ const SettingsPage = () => {
           const row = validData[i];
           const payload: Partial<Pegawai> = {};
           Object.keys(row).forEach(key => {
-            const normalizedKey = key.toLowerCase().replace(/[\s_.]/g, '');
+            const normalizedKey = key.toLowerCase().replace(/[\s_.-]/g, '');
             let val = row[key];
-            if (val instanceof Date) val = val.toISOString().split('T')[0];
-            if (normalizedKey === 'nip' || normalizedKey === 'nipbaru') payload.nip = String(val).replace(/\D/g, '');
-            else if (normalizedKey === 'nama' || normalizedKey === 'namapegawai') payload.nama = String(val).trim();
-            else if (normalizedKey === 'jabatan') payload.jabatan = String(val).trim();
-            else if (normalizedKey === 'unitkerja') payload.unitKerja = String(val).trim();
-            else if (normalizedKey === 'golruang' || normalizedKey === 'golongan') payload.golRuang = String(val).trim();
-            else if (normalizedKey === 'jenispegawai') payload.jenisPegawai = String(val).trim();
-            else if (normalizedKey === 'status') payload.status = String(val).trim();
+            const parsedVal = (val instanceof Date) ? parseImportDate(val) : String(val !== undefined && val !== null ? val : '').trim();
+
+            if (normalizedKey === 'nip' || normalizedKey === 'nipbaru' || normalizedKey === 'asnnip' || normalizedKey === 'nipasn' || normalizedKey === 'nipbaru18digit') {
+              payload.nip = parsedVal.replace(/\D/g, '');
+            } else if (normalizedKey === 'nama' || normalizedKey === 'namapegawai' || normalizedKey === 'fullname') {
+              payload.nama = parsedVal;
+            } else if (normalizedKey === 'jabatan' || normalizedKey === 'namajabatan' || normalizedKey === 'jab' || normalizedKey === 'tmtjabatan') {
+              if (normalizedKey === 'tmtjabatan') payload.tmtJabatan = parseImportDate(val);
+              else payload.jabatan = parsedVal;
+            } else if (normalizedKey === 'unitkerja' || normalizedKey === 'unit_kerja') {
+              payload.unitKerja = parsedVal;
+            } else if (normalizedKey === 'golruang' || normalizedKey === 'golongan' || normalizedKey === 'pangkatgol') {
+              payload.golRuang = parsedVal;
+            } else if (normalizedKey === 'jenispegawai' || normalizedKey === 'kategoripeg' || normalizedKey === 'type') {
+              payload.jenisPegawai = parsedVal;
+            } else if (normalizedKey === 'status' || normalizedKey === 'statuspegawai') {
+              payload.status = parsedVal;
+            } else if (normalizedKey === 'gender' || normalizedKey === 'jeniskelamin' || normalizedKey === 'jk' || normalizedKey === 'lp' || normalizedKey === 'genderlp') {
+              const g = parsedVal.toUpperCase();
+              payload.gender = (g === 'P' || g.startsWith('PEREMPUAN') || g === 'WANITA' || g === 'W') ? 'P' : 'L';
+            } else if (normalizedKey === 'tempatlahir' || normalizedKey === 'tmplahir') {
+              payload.tempatLahir = parsedVal;
+            } else if (normalizedKey === 'tanggallahir' || normalizedKey === 'tgllahir') {
+              payload.tanggalLahir = parseImportDate(val);
+            } else if (normalizedKey === 'alamat') {
+              payload.alamat = parsedVal;
+            } else if (normalizedKey === 'eselon') {
+              payload.eselon = parsedVal;
+            } else if (normalizedKey === 'agama') {
+              payload.agama = parsedVal;
+            } else if (normalizedKey === 'nohp' || normalizedKey === 'telepon' || normalizedKey === 'wa') {
+              payload.noHp = parsedVal;
+            } else if (normalizedKey === 'email') {
+              payload.email = parsedVal;
+            } else if (normalizedKey === 'npwp') {
+              payload.npwp = parsedVal;
+            } else if (normalizedKey === 'nobpjs' || normalizedKey === 'bpjs') {
+              payload.noBpjs = parsedVal;
+            } else if (normalizedKey === 'nokariskarsu') {
+              payload.noKarisKarsu = parsedVal;
+            } else if (normalizedKey === 'notapera') {
+              payload.noTAPERA = parsedVal;
+            } else if (normalizedKey === 'nokarpeg') {
+              payload.noKarpeg = parsedVal;
+            } else if (normalizedKey === 'norekeninggaji' || normalizedKey === 'nomorrekeninggaji') {
+              payload.noRekeningGaji = parsedVal;
+            } else if (normalizedKey === 'namabank' || normalizedKey === 'bank') {
+              payload.namaBank = parsedVal;
+            } else if (normalizedKey === 'pendidikan' || normalizedKey === 'pend') {
+              payload.pendidikan = parsedVal;
+            } else if (normalizedKey === 'jurusan') {
+              payload.jurusan = parsedVal;
+            } else if (normalizedKey === 'tmtpangkat' || normalizedKey === 'tmt_pangkat') {
+              payload.tmtPangkat = parseImportDate(val);
+            } else if (normalizedKey === 'subbagian' || normalizedKey === 'sub_bagian') {
+              payload.subBagian = parsedVal;
+            } else if (normalizedKey === 'bagian') {
+              payload.bagian = parsedVal;
+            } else if (normalizedKey === 'masakerja') {
+              payload.masaKerja = parsedVal;
+            } else if (normalizedKey === 'statusperkawinan' || normalizedKey === 'statuskawin' || normalizedKey === 'maritalstatus') {
+              payload.statusPerkawinan = parsedVal;
+            } else if (normalizedKey === 'pangkat') {
+              payload.pangkat = parsedVal;
+            } else if (normalizedKey === 'tmtcpns') {
+              payload.tmtCpns = parseImportDate(val);
+            } else if (normalizedKey === 'nik') {
+              payload.nik = parsedVal.replace(/\D/g, '');
+            } else if (normalizedKey === 'bup') {
+              payload.bup = parsedVal;
+            }
           });
+
+          if (!payload.jenisPegawai) {
+            payload.jenisPegawai = 'PNS';
+          }
+          if (!payload.status) {
+            payload.status = 'Aktif';
+          }
+          if (!payload.unitKerja) {
+            payload.unitKerja = payload.subBagian || 'DJKI';
+          }
+
           if (payload.nip) {
             const cleanNip = payload.nip.replace(/\D/g, '');
             const existingId = existingPegawaiMap.get(cleanNip);
