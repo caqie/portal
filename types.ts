@@ -403,6 +403,10 @@ export interface PageAccess {
 export interface SystemConfig {
   maintenance: MaintenanceConfig;
   pageAccess: PageAccess[];
+  systemName?: string;
+  runningText?: string;
+  systemLogo?: string;
+  templateLogo?: string;
 }
 
 export interface BankSoal {

@@ -56,15 +56,19 @@ const SettingsPage = () => {
   const loadSettingsData = async () => {
     setLoading(true);
     try {
+      // Selalu muat konfigurasi sistem global dan branding dari Google Sheets
+      const config = await fetchSystemConfig();
+      setSystemConfig(config);
+      if (config.systemName) setSystemName(config.systemName);
+      if (config.runningText) setRunningTextValue(config.runningText);
+      if (config.systemLogo) setAppLogo(config.systemLogo);
+      if (config.templateLogo) setTemplateLogo(config.templateLogo);
+
       if (activeTab === 'users') { const u = await fetchUsersFromSheets(); setUsers(u); }
       if (activeTab === 'absensi') {
-        const [config, pList] = await Promise.all([fetchAbsensiConfig(), fetchPegawaiFromSheets()]);
-        setAbsensiConfig(config);
+        const [absConfig, pList] = await Promise.all([fetchAbsensiConfig(), fetchPegawaiFromSheets()]);
+        setAbsensiConfig(absConfig);
         setPegawaiList(pList);
-      }
-      if (activeTab === 'access') {
-        const config = await fetchSystemConfig();
-        setSystemConfig(config);
       }
       if (activeTab === 'management') {
          const p = await fetchPegawaiFromSheets(true);
@@ -171,15 +175,39 @@ const SettingsPage = () => {
     reader.readAsDataURL(file);
   };
 
-  const saveGeneralSettings = () => {
-    localStorage.setItem('portal_system_name', systemName);
-    localStorage.setItem('portal_running_text', runningTextValue);
-    localStorage.setItem('portal_system_logo', appLogo);
-    localStorage.setItem('portal_template_logo', templateLogo);
-    window.dispatchEvent(new Event('storage_updated'));
-    setSuccessMsg("Pengaturan Branding & Teks Berhasil Disimpan.");
-    setShowSuccess(true);
-    logActivity('UPDATE', 'Settings', 'Update Branding & Teks Sistem');
+  const saveGeneralSettings = async () => {
+    setLoading(true);
+    try {
+      // 1. Simpan ke Local Storage untuk response langsung (instant rendering)
+      localStorage.setItem('portal_system_name', systemName);
+      localStorage.setItem('portal_running_text', runningTextValue);
+      localStorage.setItem('portal_system_logo', appLogo);
+      localStorage.setItem('portal_template_logo', templateLogo);
+      window.dispatchEvent(new Event('storage_updated'));
+
+      // 2. Simpan secara remote ke Google Sheets via CONFIG (id: SYSTEM_CONFIG)
+      const updatedConfig = {
+        ...systemConfig,
+        systemName,
+        runningText: runningTextValue,
+        systemLogo: appLogo,
+        templateLogo
+      };
+
+      const ok = await saveSystemConfig(updatedConfig);
+      if (ok) {
+        setSystemConfig(updatedConfig);
+        setSuccessMsg("Pengaturan Branding & Teks Berhasil Disimpan Ke Database.");
+        setShowSuccess(true);
+        logActivity('UPDATE', 'Settings', 'Update Branding & Teks Sistem');
+      } else {
+        alert("Gagal menyimpan ke basis data.");
+      }
+    } catch (e) {
+      console.error("Gagal menyimpan pengaturan branding:", e);
+      alert("Terjadi kesalahan saat menyimpan pengaturan branding.");
+    }
+    setLoading(false);
   };
 
   const saveCloudConfig = () => {

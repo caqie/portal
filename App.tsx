@@ -91,8 +91,33 @@ const AppContent = () => {
   const isUkomStrict = window.location.pathname.includes('ukomdjki') || window.location.search.includes('portal=ukom');
 
   const loadSystemConfig = async () => {
-    const config = await fetchSystemConfig();
-    setSystemConfig(config);
+    try {
+      const config = await fetchSystemConfig();
+      setSystemConfig(config);
+      
+      let updated = false;
+      if (config.systemName && localStorage.getItem('portal_system_name') !== config.systemName) {
+        localStorage.setItem('portal_system_name', config.systemName);
+        updated = true;
+      }
+      if (config.runningText && localStorage.getItem('portal_running_text') !== config.runningText) {
+        localStorage.setItem('portal_running_text', config.runningText);
+        updated = true;
+      }
+      if (config.systemLogo && localStorage.getItem('portal_system_logo') !== config.systemLogo) {
+        localStorage.setItem('portal_system_logo', config.systemLogo);
+        updated = true;
+      }
+      if (config.templateLogo && localStorage.getItem('portal_template_logo') !== config.templateLogo) {
+        localStorage.setItem('portal_template_logo', config.templateLogo);
+        updated = true;
+      }
+      if (updated) {
+        window.dispatchEvent(new Event('storage_updated'));
+      }
+    } catch (e) {
+      console.warn("Failed to load global system config:", e);
+    }
   };
 
   useEffect(() => { 

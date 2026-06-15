@@ -911,7 +911,11 @@ export const fetchSystemConfig = async (): Promise<SystemConfig> => {
     if (get('ID') !== 'SYSTEM_CONFIG') return null;
     return {
       maintenance: getJson('MAINTENANCE') || { all: false, pages: [] },
-      pageAccess: getJson('PAGEACCESS') || []
+      pageAccess: getJson('PAGEACCESS') || [],
+      systemName: get('SYSTEMNAME') || get('SYSTEM_NAME') || '',
+      runningText: get('RUNNINGTEXT') || get('RUNNING_TEXT') || '',
+      systemLogo: get('SYSTEMLOGO') || get('SYSTEM_LOGO') || '',
+      templateLogo: get('TEMPLATELOGO') || get('TEMPLATE_LOGO') || ''
     } as SystemConfig;
   });
   return data.length > 0 ? data[0] : { 
