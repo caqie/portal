@@ -5,8 +5,10 @@ import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFrom
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
-import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, BANK_LIST, formatPegawaiName } from '../constants';
+import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, BANK_LIST, formatPegawaiName, polishGelarDanNama } from '../constants';
 import SuccessModal from '../components/SuccessModal';
+import AutocompleteInput from '../components/AutocompleteInput';
+import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -183,6 +185,16 @@ const ProfilePegawaiPage = () => {
 
   const syncHistoryToDetail = (p: Pegawai): Pegawai => {
     let updated = { ...p };
+
+    // Auto-normalize name, titles, and extract education & jurusan
+    const polished = polishGelarDanNama(updated.nama);
+    updated.nama = polished.formattedName;
+    if (polished.jurusan) {
+      updated.jurusan = polished.jurusan;
+    }
+    if (polished.pendidikan) {
+      updated.pendidikan = polished.pendidikan;
+    }
 
     // 1. Sync Jabatan (latest TMT)
     if (p.riwayatJabatan && p.riwayatJabatan.length > 0) {
@@ -1194,7 +1206,13 @@ const ProfilePegawaiPage = () => {
                     <div className="space-y-2">
                       <label className={labelClass}>Pendidikan Terakhir</label>
                       {isEditing ? (
-                        <input type="text" className={inputClass} value={pegawai.pendidikan || ''} onChange={e => updateField('pendidikan', e.target.value)} placeholder="Contoh: S1 / S2" />
+                        <AutocompleteInput
+                          className={inputClass}
+                          value={pegawai.pendidikan || ''}
+                          onChange={val => updateField('pendidikan', val)}
+                          options={JENJANG_PENDIDIKAN_LIST}
+                          placeholder="Contoh: S1 / S2"
+                        />
                       ) : (
                         <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.pendidikan || '-'}</div>
                       )}
@@ -1202,7 +1220,13 @@ const ProfilePegawaiPage = () => {
                     <div className="space-y-2 col-span-2">
                       <label className={labelClass}>Jurusan Pendidikan</label>
                       {isEditing ? (
-                        <input type="text" className={inputClass} value={pegawai.jurusan || ''} onChange={e => updateField('jurusan', e.target.value)} />
+                        <AutocompleteInput
+                          className={inputClass}
+                          value={pegawai.jurusan || ''}
+                          onChange={val => updateField('jurusan', val)}
+                          options={JURUSAN_LIST}
+                          placeholder="Pencarian Program Studi / Jurusan..."
+                        />
                       ) : (
                         <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{pegawai.jurusan || '-'}</div>
                       )}
@@ -1363,7 +1387,13 @@ const ProfilePegawaiPage = () => {
                         <div className="space-y-1 md:col-span-2">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jurusan</label>
                           {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.jurusan} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jurusan', e.target.value)} />
+                            <AutocompleteInput
+                              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none"
+                              value={p.jurusan}
+                              onChange={val => updateHistoryItem('riwayatPendidikan', idx, 'jurusan', val)}
+                              options={JURUSAN_LIST}
+                              placeholder="Pencarian Program Studi / Jurusan..."
+                            />
                           ) : (
                             <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jurusan || '-'}</div>
                           )}

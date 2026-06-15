@@ -94,10 +94,10 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
 
   const cleanUrl = appsScriptUrl.trim();
   try {
-    const response = await fetch(cleanUrl, {
+    const finalUrl = `/api/proxy?url=${encodeURIComponent(cleanUrl)}`;
+    const response = await fetch(finalUrl, {
       method: 'POST',
-      mode: 'cors',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         module: moduleName.toUpperCase().trim(), 
         action: action, 
@@ -125,7 +125,9 @@ export const getServerTime = async (): Promise<Date> => {
     // We can use a simple GET request to a special action in Apps Script
     // Or just fetch headers from a reliable source if Apps Script is too slow.
     // For now, let's assume we can get it from Apps Script.
-    const res = await fetch(`${appsScriptUrl}?action=GET_TIME`);
+    const targetUrl = `${appsScriptUrl}?action=GET_TIME`;
+    const finalUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+    const res = await fetch(finalUrl);
     const data = await res.json();
     if (data.success && data.time) return new Date(data.time);
     return new Date();
@@ -144,8 +146,43 @@ const safeParseArray = (raw: string | null): any[] => {
   }
 };
 
+const autoHealedKeys = new Set<string>();
+
+const attemptAutoHeal = async (gidKey: keyof typeof DEFAULT_GIDS): Promise<boolean> => {
+  if (autoHealedKeys.has(gidKey)) return false;
+  autoHealedKeys.add(gidKey);
+  
+  const schema = (EXPECTED_COLUMNS_SCHEMA as any)[gidKey];
+  if (!schema) return false;
+  
+  const { appsScriptUrl } = getDbConfig();
+  if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
+  
+  try {
+    console.log(`[Auto-Heal] Lacking sheet or got error for ${gidKey}. Attempting remote initialization...`);
+    const dummyRow: any = { id: `INIT-${Date.now()}` };
+    schema.forEach((col: string) => {
+      dummyRow[col.toLowerCase().replace(/[\s_]/g, '')] = "";
+    });
+    
+    // Create missing sheet remote using Apps Script
+    const ok = await syncTableRemote(gidKey, 'SAVE', dummyRow);
+    if (ok) {
+      // Immediately delete the dummy row
+      await syncTableRemote(gidKey, 'DELETE', { id: dummyRow.id });
+      // Sync local GID maps so we get the correct GID
+      await syncGidMap();
+      console.log(`[Auto-Heal] Successfully initialized sheet and synced GID for ${gidKey}!`);
+      return true;
+    }
+  } catch (err) {
+    console.error(`[Auto-Heal] Failed during repair of ${gidKey}:`, err);
+  }
+  return false;
+};
+
 export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, storageKey: string, mapper: (cols: string[], headers: string[]) => T | null, bypassCache = false): Promise<T[]> => {
-  const { spreadsheetId } = getDbConfig();
+  const { spreadsheetId, appsScriptUrl, driveFolderId } = getDbConfig();
 
   if (!bypassCache) {
     const cached = localStorage.getItem(storageKey);
@@ -157,6 +194,71 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     }
   }
 
+  // 1. Primary Action: Fetch via Google Apps Script API 'GET' action
+  if (appsScriptUrl && appsScriptUrl.trim() !== '') {
+    try {
+      const cleanUrl = appsScriptUrl.trim();
+      const finalUrl = `/api/proxy?url=${encodeURIComponent(cleanUrl)}`;
+      const apiResponse = await fetch(finalUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'GET',
+          module: gidKey.toUpperCase().trim(),
+          spreadsheetId: spreadsheetId,
+          driveFolderId: driveFolderId
+        })
+      });
+
+      if (apiResponse.ok) {
+        const textResult = await apiResponse.text();
+        const jsonResult = JSON.parse(textResult);
+        if (jsonResult.success && Array.isArray(jsonResult.data)) {
+          console.log(`[Apps Script Fetch] Successfully fetched data for ${gidKey} via Apps Script GET API. Row count: ${jsonResult.data.length}`);
+          const rawData = jsonResult.data;
+          
+          // Construct unique headers list
+          const rawHeaders: string[] = [];
+          rawData.forEach((row: any) => {
+            if (row && typeof row === 'object') {
+              Object.keys(row).forEach(k => {
+                if (!rawHeaders.includes(k)) rawHeaders.push(k);
+              });
+            }
+          });
+
+          const mappedHeaders = rawHeaders.map(h => h.trim().toUpperCase().replace(/[\s_.]/g, ''));
+          
+          const result = rawData.map((row: any) => {
+            const cols = rawHeaders.map(h => {
+              const val = row[h];
+              if (val === undefined || val === null) return '';
+              if (typeof val === 'object') return JSON.stringify(val);
+              return String(val);
+            });
+            if (cols.every(c => !c)) return null;
+            return mapper(cols, mappedHeaders);
+          }).filter((item: any): item is T => item !== null);
+
+          if (result.length > 0) {
+            localStorage.setItem(storageKey, JSON.stringify(result));
+          } else {
+            localStorage.removeItem(storageKey);
+          }
+          
+          sessionStorage.removeItem('last_spreadsheet_error');
+          sessionStorage.removeItem('last_spreadsheet_error_gid');
+          return result;
+        } else {
+          console.warn(`[Apps Script Fetch] Apps Script response indicated failure or invalid format for ${gidKey}:`, jsonResult.message);
+        }
+      }
+    } catch (e) {
+      console.warn(`[Apps Script Fetch] Failed to query Apps Script GET API for ${gidKey}. Falling back to CSV export.`, e);
+    }
+  }
+
+  // 2. Fallback Action: CSV Export from Google Sheets directly
   const savedMapRaw = localStorage.getItem('portal_gid_map');
   let gid = (DEFAULT_GIDS as any)[gidKey];
   
@@ -172,25 +274,35 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
 
   try {
     const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      if (response.status === 400 || response.status === 404) {
-        console.warn(`Table/Sheet for ${gidKey} (GID ${gid}) is not yet initialized or does not exist in the spreadsheet (HTTP ${response.status}). Returning empty array.`);
-        return safeParseArray(localStorage.getItem(storageKey));
-      }
-      throw new Error(`HTTP Error ${response.status}`);
+    const finalUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+    const response = await fetch(finalUrl);
+    if (!response.ok || (response.headers.get('content-type') || '').includes('html')) {
+       const healed = await attemptAutoHeal(gidKey);
+       if (healed) {
+           return fetchTableData(gidKey, storageKey, mapper, bypassCache);
+       }
+       if (!response.ok) {
+          if (response.status === 400 || response.status === 404) {
+            console.warn(`Table/Sheet for ${gidKey} (GID ${gid}) is not yet initialized or does not exist in the spreadsheet (HTTP ${response.status}). Returning empty array.`);
+            return safeParseArray(localStorage.getItem(storageKey));
+          }
+          throw new Error(`HTTP Error ${response.status}`);
+       }
     }
     
     const csvText = await response.text();
     if (csvText.includes('<!DOCTYPE html>')) {
-      console.warn(`Access denied or invalid sheet for ${gidKey}. Ensure spreadsheet is published to the web.`);
-      throw new Error(`Akses ke sheet ${gidKey} ditolak. Pastikan Spreadsheet dipublikasikan ke web sebagai CSV.`);
+       const healed = await attemptAutoHeal(gidKey);
+       if (healed) {
+           return fetchTableData(gidKey, storageKey, mapper, bypassCache);
+       }
+       console.warn(`Access denied or invalid sheet for ${gidKey}. Ensure spreadsheet is published to the web.`);
+       throw new Error(`Akses ke sheet ${gidKey} ditolak. Pastikan Spreadsheet dipublikasikan ke web sebagai CSV.`);
     }
 
     const lines = csvText.split(/\r?\n/).filter(line => {
       const trimmed = line.trim();
       if (!trimmed) return false;
-      // Skip lines that are just commas and quotes (empty rows)
       if (/^[,"'\s]+$/.test(trimmed)) return false;
       return true;
     });
@@ -201,7 +313,6 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     
     const result = lines.slice(1).map(line => {
         const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
-        // Only ignore rows that are truly 100% empty (all commas)
         if (cols.every(c => !c)) return null;
         return mapper(cols, headers);
     }).filter((item): item is T => item !== null);
@@ -211,10 +322,26 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     } else {
       localStorage.removeItem(storageKey);
     }
+    sessionStorage.removeItem('last_spreadsheet_error');
+    sessionStorage.removeItem('last_spreadsheet_error_gid');
     return result;
   } catch (error) {
     console.error(`Error fetching table data for ${gidKey}:`, error);
-    if (bypassCache) throw error; // Re-throw to inform parent caller during sync
+    
+    try {
+      const healed = await attemptAutoHeal(gidKey);
+      if (healed) {
+        return fetchTableData(gidKey, storageKey, mapper, bypassCache);
+      }
+    } catch (healErr) {
+      console.error(`Auto-heal retry failed for ${gidKey}:`, healErr);
+    }
+
+    const errMsg = error instanceof Error ? error.message : String(error);
+    sessionStorage.setItem('last_spreadsheet_error', errMsg);
+    sessionStorage.setItem('last_spreadsheet_error_gid', `${gidKey} (GID: ${gid})`);
+    sessionStorage.setItem('last_spreadsheet_error_time', Date.now().toString());
+    if (bypassCache) throw error;
     return safeParseArray(localStorage.getItem(storageKey));
   }
 };
@@ -259,8 +386,8 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       bagian: get('BAGIAN'),
       unitKerja: get('UNITKERJA') || get('UNIT_KERJA') || 'DJKI', 
       gender: (() => {
-        const g = (get('GENDER') || get('JENISKELAMIN') || get('JK') || '').toUpperCase();
-        if (g === 'P' || g.startsWith('PEREMPUAN') || g === 'WANITA') return 'P';
+        const g = (get('GENDER') || get('JENISKELAMIN') || get('JK') || get('LP') || '').toUpperCase();
+        if (g === 'P' || g.startsWith('PEREMPUAN') || g === 'WANITA' || g === 'W') return 'P';
         return 'L';
       })() as 'L' | 'P',
       golRuang: get('GOLRUANG') || get('GOLONGAN') || get('PANGKATGOL'), 
@@ -508,10 +635,10 @@ export const uploadFileToDrive = async (fileName: string, mimeType: string, base
     const safeFileName = (fileName || `UPLOAD_${Date.now()}`).trim().replace(/[/\\?%*:|"<>]/g, '-');
     
     try {
-        const response = await fetch(cleanUrl, { 
+        const finalUrl = `/api/proxy?url=${encodeURIComponent(cleanUrl)}`;
+        const response = await fetch(finalUrl, { 
             method: 'POST', 
-            mode: 'cors',
-            headers: { 'Content-Type': 'text/plain' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 action: 'UPLOAD', 
                 spreadsheetId, 
@@ -560,10 +687,10 @@ export const syncGidMap = async (): Promise<boolean> => {
 
     // Try POST first (more reliable in some environments)
     try {
-        const postRes = await fetch(cleanUrl, {
+        const finalUrl = `/api/proxy?url=${encodeURIComponent(cleanUrl)}`;
+        const postRes = await fetch(finalUrl, {
             method: 'POST',
-            mode: 'cors',
-            headers: { 'Content-Type': 'text/plain' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'GET_GID_MAP', spreadsheetId })
         });
         
@@ -582,7 +709,8 @@ export const syncGidMap = async (): Promise<boolean> => {
     try {
         const separator = cleanUrl.includes('?') ? '&' : '?';
         const getUrl = `${cleanUrl}${separator}ssId=${spreadsheetId}`;
-        const getRes = await fetch(getUrl, { mode: 'cors' });
+        const finalUrl = `/api/proxy?url=${encodeURIComponent(getUrl)}`;
+        const getRes = await fetch(finalUrl);
         if (getRes.ok) {
             const data = await getRes.json();
             if (data.success) {

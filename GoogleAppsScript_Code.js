@@ -23,6 +23,10 @@ function setup() {
 
 function doGet(e) {
   try {
+    var action = e && e.parameter ? e.parameter.action : null;
+    if (action === 'GET_TIME') {
+      return createResponse({ success: true, time: new Date().toISOString() });
+    }
     var ssId = e && e.parameter ? e.parameter.ssId : null;
     var ss = getSpreadsheet(ssId);
     if (!ss) return createResponse({ success: false, message: "Spreadsheet tidak ditemukan." });

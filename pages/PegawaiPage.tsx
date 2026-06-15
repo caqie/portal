@@ -4,11 +4,13 @@ import { Pegawai, Dossier } from '../types';
 import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, findPegawaiByNip } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
-import { normalizeUnitName, UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, DEFAULT_LOGO, BANK_LIST, formatPegawaiName } from '../constants';
+import { normalizeUnitName, UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, DEFAULT_LOGO, BANK_LIST, formatPegawaiName, polishGelarDanNama } from '../constants';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
+import AutocompleteInput from '../components/AutocompleteInput';
+import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -18,9 +20,30 @@ import * as XLSX from 'xlsx';
 const PegawaiPage = () => {
   const navigate = useNavigate();
   const { canEdit, isSuperadmin, logActivity } = useAuth();
-  const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
-  const [dossierList, setDossierList] = useState<Dossier[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [pegawaiList, setPegawaiList] = useState<Pegawai[]>(() => {
+    const cached = localStorage.getItem('portal_pegawai_db');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [dossierList, setDossierList] = useState<Dossier[]>(() => {
+    const cached = localStorage.getItem('portal_dossiers_db');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const hasCache = !!localStorage.getItem('portal_pegawai_db');
+    return !hasCache;
+  });
   const [syncing, setSyncing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [searchTerm, setSearchTerm] = useState(sessionStorage.getItem('pegawai_searchTerm') || '');
@@ -31,6 +54,9 @@ const PegawaiPage = () => {
   const [maxGolongan, setMaxGolongan] = useState(sessionStorage.getItem('pegawai_maxGolongan') || 'Semua');
   const [minAge, setMinAge] = useState<string>(sessionStorage.getItem('pegawai_minAge') || '');
   const [maxAge, setMaxAge] = useState<string>(sessionStorage.getItem('pegawai_maxAge') || '');
+  const [filterPendidikan, setFilterPendidikan] = useState(sessionStorage.getItem('pegawai_filterPendidikan') || 'Semua Pendidikan');
+  const [filterJurusan, setFilterJurusan] = useState(sessionStorage.getItem('pegawai_filterJurusan') || 'Semua Jurusan');
+  const [jurusanSearch, setJurusanSearch] = useState('');
 
   // Persist filters and scroll to sessionStorage
   useEffect(() => {
@@ -42,7 +68,9 @@ const PegawaiPage = () => {
     sessionStorage.setItem('pegawai_maxGolongan', maxGolongan);
     sessionStorage.setItem('pegawai_minAge', minAge);
     sessionStorage.setItem('pegawai_maxAge', maxAge);
-  }, [searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge]);
+    sessionStorage.setItem('pegawai_filterPendidikan', filterPendidikan);
+    sessionStorage.setItem('pegawai_filterJurusan', filterJurusan);
+  }, [searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan]);
 
   // Restore scroll position
   useEffect(() => {
@@ -68,10 +96,22 @@ const PegawaiPage = () => {
   const [isJenisDropdownOpen, setIsJenisDropdownOpen] = useState(false);
   const jenisDropdownRef = useRef<HTMLDivElement>(null);
 
+  const [isPendidikanDropdownOpen, setIsPendidikanDropdownOpen] = useState(false);
+  const pendidikanDropdownRef = useRef<HTMLDivElement>(null);
+
+  const [isJurusanDropdownOpen, setIsJurusanDropdownOpen] = useState(false);
+  const jurusanDropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (jenisDropdownRef.current && !jenisDropdownRef.current.contains(event.target as Node)) {
         setIsJenisDropdownOpen(false);
+      }
+      if (pendidikanDropdownRef.current && !pendidikanDropdownRef.current.contains(event.target as Node)) {
+        setIsPendidikanDropdownOpen(false);
+      }
+      if (jurusanDropdownRef.current && !jurusanDropdownRef.current.contains(event.target as Node)) {
+        setIsJurusanDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -96,6 +136,69 @@ const PegawaiPage = () => {
   
   const [duplicateNips, setDuplicateNips] = useState<string[]>([]);
   const [invalidItems, setInvalidItems] = useState<{id: string, nip: string, nama: string}[]>([]);
+
+  // States and helpers for alignment and healing of employee academic degrees (gelar) & majors (jurusan)
+  const [isBulkHealModalOpen, setIsBulkHealModalOpen] = useState(false);
+  const [healRunning, setHealRunning] = useState(false);
+  const [healProgress, setHealProgress] = useState({ current: 0, total: 0 });
+  const [healReport, setHealReport] = useState<{ id: string; p: Pegawai; nameBefore: string; nameAfter: string; jurusanBefore: string; jurusanAfter: string; pendidikanBefore: string; pendidikanAfter: string }[]>([]);
+
+  const prepareHealReport = () => {
+    const report: { id: string; p: Pegawai; nameBefore: string; nameAfter: string; jurusanBefore: string; jurusanAfter: string; pendidikanBefore: string; pendidikanAfter: string }[] = [];
+    pegawaiList.forEach(p => {
+      const polished = polishGelarDanNama(p.nama);
+      const isNameDiff = p.nama !== polished.formattedName;
+      // Identify logical missing fields to populate
+      const isJurusanDiff = (!p.jurusan || p.jurusan === '-' || p.jurusan.trim() === '') && polished.jurusan;
+      const isPendidikanDiff = (!p.pendidikan || p.pendidikan === '-' || p.pendidikan.trim() === '') && polished.pendidikan;
+      
+      if (isNameDiff || isJurusanDiff || isPendidikanDiff) {
+        report.push({
+          id: p.id,
+          p: p,
+          nameBefore: p.nama,
+          nameAfter: polished.formattedName,
+          jurusanBefore: p.jurusan || '-',
+          jurusanAfter: polished.jurusan || '-',
+          pendidikanBefore: p.pendidikan || '-',
+          pendidikanAfter: polished.pendidikan || '-'
+        });
+      }
+    });
+    return report;
+  };
+
+  const handleRunBulkHeal = async (recordsToHeal: typeof healReport) => {
+    setHealRunning(true);
+    setHealProgress({ current: 0, total: recordsToHeal.length });
+    
+    let successCount = 0;
+    for (let i = 0; i < recordsToHeal.length; i++) {
+      const item = recordsToHeal[i];
+      // Keep everything else, but update nama, and fill jurusan & pendidikan if they were missing
+      const updatedPegawai = {
+        ...item.p,
+        nama: item.nameAfter,
+        jurusan: (item.jurusanBefore === '-' || !item.jurusanBefore) ? item.jurusanAfter : item.p.jurusan,
+        pendidikan: (item.pendidikanBefore === '-' || !item.pendidikanBefore) ? item.pendidikanAfter : item.p.pendidikan,
+        updatedAt: new Date().toISOString()
+      };
+      
+      const ok = await savePegawai(updatedPegawai);
+      if (ok) {
+        successCount++;
+      }
+      setHealProgress({ current: i + 1, total: recordsToHeal.length });
+    }
+    
+    setHealRunning(false);
+    setIsBulkHealModalOpen(false);
+    
+    setSuccessMsg(`Berhasil merapikan gelar dan mengisi jurusan untuk ${successCount} pegawai.`);
+    logActivity('UPDATE', 'Pegawai', `Bulk perbaikan penulisan gelar & auto-fill jurusan untuk ${successCount} pegawai.`);
+    await loadData(true); // reload fresh from sheets
+    setShowSuccess(true);
+  };
 
   const findDuplicatesAndInvalids = (list: Pegawai[]) => {
     const counts = new Map<string, number>();
@@ -150,8 +253,11 @@ const PegawaiPage = () => {
   const dossierFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { 
-    // Load fresh data on mount to ensure synchronization
-    loadData(true); 
+    // Load cached data first for instantaneous rendering
+    loadData(false).then(() => {
+      // Then silently refresh from sheets in background
+      loadDataSilently();
+    }); 
   }, []);
 
   const getJabatanClassification = (p: Pegawai): string => {
@@ -214,7 +320,10 @@ const PegawaiPage = () => {
 
   const loadData = async (bypassCache = false) => {
     try {
-      setLoading(true);
+      const hasCache = !!localStorage.getItem('portal_pegawai_db');
+      if (bypassCache || !hasCache) {
+        setLoading(true);
+      }
       // HARD RESET indicators when syncing
       if (bypassCache) {
         setDuplicateNips([]);
@@ -300,6 +409,75 @@ const PegawaiPage = () => {
     }
   };
 
+  const loadDataSilently = async () => {
+    try {
+      const [pData, dData] = await Promise.all([
+        fetchPegawaiFromSheets(true), 
+        fetchDossiersFromSheets(true)
+      ]);
+      
+      const enrichedData = pData.map(p => {
+        const enriched = { ...p };
+        enriched.klasifikasiJabatan = getJabatanClassification(enriched);
+        
+        if (enriched.tanggalLahir) {
+          const birth = new Date(formatDateForInput(enriched.tanggalLahir));
+          if (!isNaN(birth.getTime())) {
+            if (!enriched.usia || enriched.usia === '-') {
+              const today = new Date();
+              let years = today.getFullYear() - birth.getFullYear();
+              let months = today.getMonth() - birth.getMonth();
+              if (months < 0) {
+                years--;
+                months += 12;
+              }
+              enriched.usia = `${years} Thn ${months} Bln`;
+            }
+
+            if (!enriched.bup || enriched.bup === '-') {
+              const isHighLevel = enriched.eselon && enriched.eselon !== '-' && enriched.eselon !== '';
+              const isFungsionalAhli = enriched.jabatan?.toUpperCase().includes('MADYA') || enriched.jabatan?.toUpperCase().includes('UTAMA');
+              enriched.bup = (isHighLevel || isFungsionalAhli) ? '60' : '58';
+            }
+
+            const bupYears = parseInt(enriched.bup);
+            const retirementDate = new Date(birth.getFullYear() + bupYears, birth.getMonth() + 1, 1);
+            
+            if (!enriched.tglPensiun || enriched.tglPensiun === '-') {
+              enriched.tglPensiun = retirementDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+            }
+
+            if (!enriched.tmtPensiun || enriched.tmtPensiun === '-') {
+              enriched.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
+            }
+
+            const today = new Date();
+            let checkDate = retirementDate;
+            if (enriched.tmtPensiun && enriched.tmtPensiun !== '-') {
+              const tmtDate = new Date(formatDateForInput(enriched.tmtPensiun));
+              if (!isNaN(tmtDate.getTime())) {
+                checkDate = tmtDate;
+              }
+            }
+            
+            if (today >= checkDate) {
+              if (enriched.status === 'Aktif' || enriched.status === 'Tugas Belajar') {
+                enriched.status = 'Pensiun';
+              }
+            }
+          }
+        }
+        return enriched;
+      });
+
+      setPegawaiList(enrichedData);
+      setDossierList(dData);
+      findDuplicatesAndInvalids(enrichedData);
+    } catch (e) {
+      console.warn("Silent background load failed:", e);
+    }
+  };
+
   const formatDateForInput = (dateStr: string | undefined): string => {
     if (!dateStr) return '';
     const cleanDate = dateStr.trim();
@@ -344,6 +522,14 @@ const PegawaiPage = () => {
       const jenisMatch = selectedSubJenis.length === 0 || selectedSubJenis.map(s => s.toLowerCase()).includes((p.jenisPegawai || '').trim().toLowerCase());
       const statusMatch = filterStatus === 'Semua Status' || (p.status || 'Aktif') === filterStatus;
       
+      // Pendidikan match (supporting multiple)
+      const selectedPendidikans = filterPendidikan === 'Semua Pendidikan' || !filterPendidikan ? [] : filterPendidikan.split(',').filter(Boolean);
+      const pendidikanMatch = selectedPendidikans.length === 0 || selectedPendidikans.map(x => x.toLowerCase()).includes((p.pendidikan || '').trim().toLowerCase());
+
+      // Jurusan match (supporting multiple)
+      const selectedJurusans = filterJurusan === 'Semua Jurusan' || !filterJurusan ? [] : filterJurusan.split(',').filter(Boolean);
+      const jurusanMatch = selectedJurusans.length === 0 || selectedJurusans.map(x => x.toLowerCase()).includes((p.jurusan || '').trim().toLowerCase());
+
       // Golongan range match
       let golonganMatch = true;
       if (minGolongan !== 'Semua' || maxGolongan !== 'Semua') {
@@ -390,9 +576,9 @@ const PegawaiPage = () => {
         }
       }
 
-      return match && unitMatch && jenisMatch && ageMatch && statusMatch && golonganMatch;
+      return match && unitMatch && jenisMatch && statusMatch && golonganMatch && pendidikanMatch && jurusanMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge]);
+  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan]);
 
   const filteredForCounts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -406,6 +592,14 @@ const PegawaiPage = () => {
       const selectedSubJenis = filterJenis === 'Semua Jenis' || !filterJenis ? [] : filterJenis.split(',').filter(Boolean);
       const jenisMatch = selectedSubJenis.length === 0 || selectedSubJenis.map(s => s.toLowerCase()).includes((p.jenisPegawai || '').trim().toLowerCase());
       
+      // Pendidikan match (supporting multiple)
+      const selectedPendidikans = filterPendidikan === 'Semua Pendidikan' || !filterPendidikan ? [] : filterPendidikan.split(',').filter(Boolean);
+      const pendidikanMatch = selectedPendidikans.length === 0 || selectedPendidikans.map(x => x.toLowerCase()).includes((p.pendidikan || '').trim().toLowerCase());
+
+      // Jurusan match (supporting multiple)
+      const selectedJurusans = filterJurusan === 'Semua Jurusan' || !filterJurusan ? [] : filterJurusan.split(',').filter(Boolean);
+      const jurusanMatch = selectedJurusans.length === 0 || selectedJurusans.map(x => x.toLowerCase()).includes((p.jurusan || '').trim().toLowerCase());
+
       let ageMatch = true;
       if (minAge || maxAge) {
         const birthDateStr = formatDateForInput(p.tanggalLahir);
@@ -420,9 +614,9 @@ const PegawaiPage = () => {
           } else ageMatch = false;
         } else ageMatch = false;
       }
-      return match && unitMatch && jenisMatch && ageMatch;
+      return match && unitMatch && jenisMatch && ageMatch && pendidikanMatch && jurusanMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterJenis, minAge, maxAge]);
+  }, [pegawaiList, searchTerm, filterUnit, filterJenis, minAge, maxAge, filterPendidikan, filterJurusan]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -609,9 +803,18 @@ const PegawaiPage = () => {
     if (!formData.nip || !formData.nama) return alert("NIP dan Nama wajib diisi.");
     setSyncing(true);
     
+    // Auto-normalize name, academic titles, and extract education & jurusan
+    const polished = polishGelarDanNama(formData.nama);
+    const finalNama = polished.formattedName;
+    const finalJurusan = formData.jurusan || polished.jurusan;
+    const finalPendidikan = formData.pendidikan || polished.pendidikan;
+    
     // Generate ID for new records
     const payload = {
       ...formData,
+      nama: finalNama,
+      jurusan: finalJurusan,
+      pendidikan: finalPendidikan,
       id: formData.id || `PEG-${formData.nip}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       updatedAt: new Date().toISOString()
     };
@@ -660,6 +863,143 @@ const PegawaiPage = () => {
            }
         }} loading={syncing} message={`Hapus data pegawai "${pegawaiToDelete?.nama}" secara permanen?`} />
 
+      {isBulkHealModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="relative bg-white rounded-3xl w-full max-w-4xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="px-6 md:px-8 py-5 md:py-6 border-b border-gray-100 flex justify-between items-center bg-blue-50/30">
+              <div>
+                <h3 className="text-sm md:text-lg font-black text-gray-950 uppercase tracking-tight flex items-center gap-2">
+                  <i className="bi bi-magic text-blue-600 animate-pulse text-base md:text-xl"></i>
+                  Perbaikan Gelar Akademik & Auto-Fill Jurusan (Bulk)
+                </h3>
+                <p className="text-[9px] md:text-[11px] text-gray-500 font-bold mt-1">
+                  Menganalisis kesalahan format penulisan gelar, merapikan tanda baca & urutan tingkatan, serta mengisi otomatis program studi (jurusan) yang kosong.
+                </p>
+              </div>
+              <button 
+                disabled={healRunning} 
+                onClick={() => setIsBulkHealModalOpen(false)} 
+                className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-gray-100 bg-white hover:bg-gray-50 text-gray-500 flex items-center justify-center hover:scale-105 active:scale-95 transition-all outline-none"
+              >
+                <i className="bi bi-x-lg text-xs md:text-sm"></i>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+              {healRunning ? (
+                <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                  <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  <h4 className="text-xs md:text-sm font-black uppercase text-gray-950 tracking-wider">Sedang Memproses Penyelarasan Database...</h4>
+                  <p className="text-[10px] md:text-xs font-black text-gray-500 bg-gray-50 px-4 py-2 border border-gray-100 rounded-xl">
+                    Selesai {healProgress.current} dari {healProgress.total} pegawai
+                  </p>
+                  <div className="w-full max-w-md bg-gray-100 h-2.5 rounded-full overflow-hidden border border-gray-200/50">
+                    <div 
+                      className="bg-blue-600 h-full rounded-full transition-all duration-300" 
+                      style={{ width: `${(healProgress.current / healProgress.total) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ) : healReport.length === 0 ? (
+                <div className="text-center py-12 space-y-3">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 text-xl border border-emerald-100">
+                    <i className="bi bi-check-circle-fill"></i>
+                  </div>
+                  <h4 className="text-xs md:text-sm font-black text-gray-950 uppercase">Semua Data Sudah Rapi dan Selaras!</h4>
+                  <p className="text-[9px] md:text-[11px] text-gray-400 font-bold max-w-md mx-auto">
+                    Keren! Tidak ditemukan kesalahan penulisan gelar, kekeliruan urutan tanda baca, atau jurusan kosong yang dapat diselaraskan dari gelar akademik pegawai.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-100 text-amber-800 flex gap-3 items-start shadow-sm leading-relaxed">
+                    <i className="bi bi-info-circle-fill text-amber-600 text-sm md:text-base mt-0.5"></i>
+                    <div>
+                      <h5 className="text-[10px] md:text-xs font-black uppercase tracking-wider">Konfirmasi Perubahan Data ({healReport.length} Pegawai)</h5>
+                      <p className="text-[9px] md:text-[11px] font-bold mt-1">
+                        Sistem mendeteksi <strong>{healReport.length} pegawai</strong> dengan format penulisan gelar kurang tepat (tanpa koma/titik, urutan terbalik) atau kolom jurusan yang kosong tetapi teridentifikasi dari gelarnya. Silakan telaah detail perbaikan di bawah ini sebelum menyimpan langsung ke cloud spreadsheet.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-150 rounded-2xl overflow-hidden shadow-inner bg-gray-50 max-h-96 overflow-y-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100 border-b border-gray-150 text-[8px] md:text-[9px] font-black text-gray-500 uppercase tracking-widest">
+                          <th className="px-4 py-3">Pegawai / NIP</th>
+                          <th className="px-4 py-3">Nama Serta Gelar (Sebelum » Sesudah)</th>
+                          <th className="px-4 py-3">Pendidikan (Inferred)</th>
+                          <th className="px-4 py-3">Jurusan (Sebelum » Sesudah)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-150 text-[10px] md:text-xs text-gray-800">
+                        {healReport.map(item => (
+                          <tr key={item.id} className="hover:bg-white bg-gray-50/50 transition-colors">
+                            <td className="px-4 py-3.5 font-bold">
+                              <span className="text-gray-900 block font-black leading-tight">{item.p.nama}</span>
+                              <span className="text-gray-400 font-mono text-[8px] md:text-[10px] tracking-wider font-medium">{item.p.nip}</span>
+                            </td>
+                            <td className="px-4 py-3.5 space-y-1">
+                              <div className="text-rose-500 font-semibold line-through text-[9px] md:text-xs">{item.nameBefore}</div>
+                              <div className="text-emerald-600 font-black flex items-center gap-1.5"><i className="bi bi-arrow-right-short text-base"></i> {item.nameAfter}</div>
+                            </td>
+                            <td className="px-4 py-3.5 font-mono text-center">
+                              {item.pendidikanBefore !== item.pendidikanAfter ? (
+                                <div className="flex flex-col">
+                                  <span className="text-gray-400 line-through text-[9px]">{item.pendidikanBefore}</span>
+                                  <span className="text-blue-600 font-black">{item.pendidikanAfter}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-600 font-semibold">{item.pendidikanAfter}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              {item.jurusanBefore !== item.jurusanAfter ? (
+                                <div className="flex flex-col">
+                                  <span className="text-rose-500 line-through text-[9px]">{item.jurusanBefore}</span>
+                                  <span className="text-emerald-600 font-black flex items-center gap-0.5"><i className="bi bi-plus-circle text-[9px]"></i> {item.jurusanAfter}</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-600 font-bold">{item.jurusanAfter}</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 md:px-8 py-4 md:py-5 border-t border-gray-100 bg-gray-50 flex justify-between items-center sm:gap-4 flex-wrap">
+              <button 
+                type="button" 
+                disabled={healRunning} 
+                onClick={() => setIsBulkHealModalOpen(false)} 
+                className="px-5 py-2.5 md:py-3.5 bg-white border border-gray-200 rounded-xl md:rounded-2xl text-[10px] md:text-xs font-black uppercase text-gray-700 hover:bg-gray-50 outline-none transition-all active:scale-95"
+              >
+                Kembali
+              </button>
+              
+              {!healRunning && healReport.length > 0 && (
+                <button 
+                  type="button" 
+                  onClick={() => handleRunBulkHeal(healReport)} 
+                  className="px-6 py-2.5 md:py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl md:rounded-2xl text-[10px] md:text-xs font-black uppercase shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 outline-none"
+                >
+                  <i className="bi bi-shield-check text-base"></i>
+                  Terapkan Perbaikan Data Sekarang
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 md:gap-6">
         <div className="w-full lg:w-auto">
           <div className="flex items-center justify-between lg:justify-start gap-4">
@@ -697,6 +1037,21 @@ const PegawaiPage = () => {
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full lg:w-auto">
            <button onClick={() => handleExportExcel('SHARE')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2"><i className="bi bi-file-earmark-spreadsheet-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Share</span><span className="xs:hidden">Shr</span></button>
            {canEdit && (<button onClick={() => handleExportExcel('FULL')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-600 text-white rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"><i className="bi bi-database-fill-down text-base md:text-lg"></i> <span className="hidden xs:inline">Full</span><span className="xs:hidden">Full</span></button>)}
+           {canEdit && (
+             <button 
+               onClick={() => {
+                 const report = prepareHealReport();
+                 setHealReport(report);
+                 setIsBulkHealModalOpen(true);
+               }} 
+               className="h-10 md:h-14 px-3 md:px-6 bg-[#0284c7] text-white border border-sky-500/15 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase shadow-xl hover:bg-sky-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+               title="Menganalisis kesalahan format penulisan gelar, merapikan tanda baca & urutan tingkatan, serta auto-fill program studi (jurusan) yang kosong."
+             >
+               <i className="bi bi-magic text-base md:text-lg"></i> 
+               <span className="hidden xs:inline">Rapikan Gelar & Jurusan</span>
+               <span className="xs:hidden">Rapikan</span>
+             </button>
+           )}
            {canEdit && (<button onClick={() => { setSelectedPegawai(null); setFormData({status: 'Aktif', jenisPegawai: 'PNS', gender: 'L', unitKerja: UNIT_KERJA[0]}); setIsModalOpen(true); }} className="col-span-2 sm:w-auto h-10 md:h-14 px-4 md:px-10 bg-[#111827] text-white rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-2"><i className="bi bi-person-plus-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Registrasi Pegawai</span><span className="xs:hidden">Registrasi</span></button>)}
         </div>
       </div>
@@ -774,6 +1129,129 @@ const PegawaiPage = () => {
               <option value="Pensiun">PENSIUN</option>
               <option value="Tugas Belajar">TUGAS BELAJAR</option>
           </select>
+          <div ref={pendidikanDropdownRef} className="relative w-full">
+            <button 
+              type="button"
+              onClick={() => setIsPendidikanDropdownOpen(!isPendidikanDropdownOpen)}
+              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none"
+            >
+              <span className="truncate">
+                {filterPendidikan === 'Semua Pendidikan' || !filterPendidikan
+                  ? 'Semua Pendidikan'
+                  : filterPendidikan.split(',').join(' + ')}
+              </span>
+              <i className={`bi bi-chevron-${isPendidikanDropdownOpen ? 'up' : 'down'} text-gray-400 text-xs`}></i>
+            </button>
+            {isPendidikanDropdownOpen && (
+              <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl p-3 space-y-2 max-h-60 overflow-y-auto">
+                <label className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
+                  <input 
+                    type="checkbox"
+                    checked={filterPendidikan === 'Semua Pendidikan' || !filterPendidikan}
+                    onChange={() => setFilterPendidikan('Semua Pendidikan')}
+                    className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-[9px] md:text-[11px] font-black uppercase tracking-wider text-gray-700">Semua Pendidikan</span>
+                </label>
+                <div className="h-px bg-gray-100 my-1"></div>
+                {JENJANG_PENDIDIKAN_LIST.map(pend => {
+                  const currentList = filterPendidikan === 'Semua Pendidikan' ? [] : filterPendidikan.split(',').filter(Boolean);
+                  const isChecked = currentList.includes(pend);
+                  const handleCheckboxChange = () => {
+                    let newList: string[];
+                    if (isChecked) {
+                      newList = currentList.filter(item => item !== pend);
+                    } else {
+                      newList = [...currentList, pend];
+                    }
+                    if (newList.length === 0) {
+                      setFilterPendidikan('Semua Pendidikan');
+                    } else {
+                      setFilterPendidikan(newList.join(','));
+                    }
+                  };
+                  return (
+                    <label key={pend} className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
+                      <input 
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={handleCheckboxChange}
+                        className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span className="text-[9px] md:text-[11px] font-black uppercase tracking-wider text-gray-800">{pend}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div ref={jurusanDropdownRef} className="relative w-full">
+            <button 
+              type="button"
+              onClick={() => setIsJurusanDropdownOpen(!isJurusanDropdownOpen)}
+              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none"
+            >
+              <span className="truncate">
+                {filterJurusan === 'Semua Jurusan' || !filterJurusan
+                  ? 'Semua Jurusan'
+                  : filterJurusan.split(',').join(' + ')}
+              </span>
+              <i className={`bi bi-chevron-${isJurusanDropdownOpen ? 'up' : 'down'} text-gray-400 text-xs`}></i>
+            </button>
+            {isJurusanDropdownOpen && (
+              <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl p-3 space-y-2 max-h-80 overflow-y-auto">
+                <div className="px-2 py-1">
+                  <input
+                    type="text"
+                    placeholder="Cari Jurusan..."
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-[9px] md:text-[11px] outline-none focus:border-blue-500 transition-all font-bold uppercase"
+                    value={jurusanSearch}
+                    onChange={e => setJurusanSearch(e.target.value)}
+                  />
+                </div>
+                <label className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
+                  <input 
+                    type="checkbox"
+                    checked={filterJurusan === 'Semua Jurusan' || !filterJurusan}
+                    onChange={() => { setFilterJurusan('Semua Jurusan'); setJurusanSearch(''); }}
+                    className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-[9px] md:text-[11px] font-black uppercase tracking-wider text-gray-700">Semua Jurusan</span>
+                </label>
+                <div className="h-px bg-gray-100 my-1"></div>
+                <div className="max-h-48 overflow-y-auto space-y-1">
+                  {JURUSAN_LIST.filter(j => j.toLowerCase().includes(jurusanSearch.toLowerCase())).map(jurusan => {
+                    const currentList = filterJurusan === 'Semua Jurusan' ? [] : filterJurusan.split(',').filter(Boolean);
+                    const isChecked = currentList.includes(jurusan);
+                    const handleCheckboxChange = () => {
+                      let newList: string[];
+                      if (isChecked) {
+                        newList = currentList.filter(item => item !== jurusan);
+                      } else {
+                        newList = [...currentList, jurusan];
+                      }
+                      if (newList.length === 0) {
+                        setFilterJurusan('Semua Jurusan');
+                      } else {
+                        setFilterJurusan(newList.join(','));
+                      }
+                    };
+                    return (
+                      <label key={jurusan} className="flex items-center gap-3 px-3 py-1.5 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={handleCheckboxChange}
+                          className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="text-[9px] md:text-[11px] font-black uppercase tracking-wider text-gray-800">{jurusan}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
             <div className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] w-full">
               <span className="text-[7px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Gol:</span>
@@ -832,6 +1310,9 @@ const PegawaiPage = () => {
               setMaxGolongan('Semua');
               setMinAge('');
               setMaxAge('');
+              setFilterPendidikan('Semua Pendidikan');
+              setFilterJurusan('Semua Jurusan');
+              setJurusanSearch('');
             }}
             className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-slate-100/50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none hover:bg-rose-50 hover:text-rose-600 transition-all text-slate-400 flex items-center justify-center gap-2"
           >
@@ -1191,8 +1672,25 @@ const PegawaiPage = () => {
                        <div><label className={labelClass}>No. Karis / Karsu</label><input type="text" className={inputClass} value={formData.noKarisKarsu || ''} onChange={e => setFormData({...formData, noKarisKarsu: e.target.value})} /></div>
                         <div><label className={labelClass}>Nomor Tapera</label><input type="text" className={inputClass} value={formData.noTAPERA || ''} onChange={e => setFormData({...formData, noTAPERA: e.target.value})} /></div>
                        <div className="sm:col-span-2 md:col-span-3"><label className={labelClass}>Alamat Lengkap Domisili</label><textarea rows={3} className={`${inputNoCapsClass} h-20 md:h-24 resize-none`} value={formData.alamat || ''} onChange={e => setFormData({...formData, alamat: e.target.value})} placeholder="Masukkan alamat lengkap sesuai KTP/Domisili saat ini..." /></div>
-                       <div><label className={labelClass}>Jenjang Pendidikan Terakhir</label><input type="text" className={inputClass} value={formData.pendidikan || ''} onChange={e => setFormData({...formData, pendidikan: e.target.value})} placeholder="exp: S1 / S2 / D3" /></div>
-                       <div className="sm:col-span-2"><label className={labelClass}>Program Studi / Jurusan</label><input type="text" className={inputClass} value={formData.jurusan || ''} onChange={e => setFormData({...formData, jurusan: e.target.value})} /></div>
+                       <AutocompleteInput
+                         label="Jenjang Pendidikan Terakhir"
+                         labelClass={labelClass}
+                         className={inputClass}
+                         value={formData.pendidikan || ''}
+                         onChange={val => setFormData({...formData, pendidikan: val})}
+                         options={JENJANG_PENDIDIKAN_LIST}
+                         placeholder="exp: S1 / S2 / D3"
+                       />
+                       <AutocompleteInput
+                         label="Program Studi / Jurusan"
+                         labelClass={labelClass}
+                         className={inputClass}
+                         value={formData.jurusan || ''}
+                         onChange={val => setFormData({...formData, jurusan: val})}
+                         options={JURUSAN_LIST}
+                         placeholder="Pencarian Program Studi / Jurusan..."
+                         containerClass="sm:col-span-2"
+                       />
                     </div>
                  </section>
               </form>

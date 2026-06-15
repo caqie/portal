@@ -27,12 +27,52 @@ const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: str
 
 const Dashboard = () => {
   const { user, logActivity } = useAuth();
-  const [pegawai, setPegawai] = useState<Pegawai[]>([]);
+  const [pegawai, setPegawai] = useState<Pegawai[]>(() => {
+    const cached = localStorage.getItem('portal_pegawai_db');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
   const [todayAbsensi, setTodayAbsensi] = useState<AbsensiRecord[]>([]);
-  const [riwayatBangkom, setRiwayatBangkom] = useState<Pengembangan[]>([]);
-  const [riwayatKgb, setRiwayatKgb] = useState<KGB[]>([]);
-  const [kegiatan, setKegiatan] = useState<Kegiatan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [riwayatBangkom, setRiwayatBangkom] = useState<Pengembangan[]>(() => {
+    const cached = localStorage.getItem('portal_pengembangan_db');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [riwayatKgb, setRiwayatKgb] = useState<KGB[]>(() => {
+    const cached = localStorage.getItem('portal_kgb_db');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [kegiatan, setKegiatan] = useState<Kegiatan[]>(() => {
+    const cached = localStorage.getItem('kegiatan_db');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    // If cache of pegData is already available, make loading false immediately to display the UI instantly!
+    const hasCache = !!localStorage.getItem('portal_pegawai_db');
+    return !hasCache;
+  });
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifTab, setNotifTab] = useState<'pensiun' | 'kgb' | 'pangkat' | 'satya' | 'bangkom'>('pensiun');
   const [selectedMonth, setSelectedMonth] = useState<string>('Semua');
@@ -149,12 +189,19 @@ const Dashboard = () => {
     return 'PELAKSANA';
   };
 
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [connectionErrorGid, setConnectionErrorGid] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
   useEffect(() => { 
     if (user) loadDashboardData(); 
   }, [user?.nip]);
 
   const loadDashboardData = async () => {
-    setLoading(true);
+    const hasCache = !!localStorage.getItem('portal_pegawai_db');
+    if (!hasCache) {
+      setLoading(true);
+    }
     try {
       const [pegData, bangkomData, kgbData, kegiatanData, absensiData] = await Promise.all([
         fetchPegawaiFromSheets(),
@@ -168,9 +215,49 @@ const Dashboard = () => {
       setRiwayatKgb(Array.isArray(kgbData) ? kgbData : []);
       setKegiatan(Array.isArray(kegiatanData) ? kegiatanData : []);
       setTodayAbsensi(absensiData || []);
+      
+      setConnectionError(sessionStorage.getItem('last_spreadsheet_error'));
+      setConnectionErrorGid(sessionStorage.getItem('last_spreadsheet_error_gid'));
     } catch (error) {
       console.error("Dashboard Load Error:", error);
+      setConnectionError(error instanceof Error ? error.message : String(error));
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const forceSyncData = async () => {
+    setIsSyncing(true);
+    setLoading(true);
+    try {
+      const [pegData, bangkomData, kgbData, kegiatanData, absensiData] = await Promise.all([
+        fetchPegawaiFromSheets(true),
+        fetchPengembanganFromSheets(true),
+        fetchKGBFromSheets(true),
+        fetchKegiatanFromSheets(true),
+        user?.nip ? fetchAbsensiHistoryFromSheets(user.nip) : Promise.resolve([])
+      ]);
+      setPegawai(Array.isArray(pegData) ? pegData : []);
+      setRiwayatBangkom(Array.isArray(bangkomData) ? bangkomData : []);
+      setRiwayatKgb(Array.isArray(kgbData) ? kgbData : []);
+      setKegiatan(Array.isArray(kegiatanData) ? kegiatanData : []);
+      setTodayAbsensi(absensiData || []);
+      
+      const err = sessionStorage.getItem('last_spreadsheet_error');
+      const errGid = sessionStorage.getItem('last_spreadsheet_error_gid');
+      setConnectionError(err);
+      setConnectionErrorGid(errGid);
+      
+      if (!err) {
+        alert("Sinkronisasi data cloud berhasil diperbarui!");
+      }
+    } catch (error) {
+      console.error("Force Sync Error:", error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setConnectionError(errMsg);
+      alert(`Gagal sinkronisasi data: ${errMsg}`);
+    } finally {
+      setIsSyncing(false);
       setLoading(false);
     }
   };
@@ -691,6 +778,59 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
+
+      {/* TROUBLESHOOTING & INTEGRATION PANEL */}
+      {(connectionError || activePegawaiList.length === 0) && (
+        <div id="connection-troubleshooting-card" className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-[2rem] p-6 md:p-8 shadow-sm relative overflow-hidden animate-fadeIn">
+          <div className="absolute -right-10 -bottom-10 opacity-10">
+            <i className="bi bi-cloud-slash text-9xl text-amber-600"></i>
+          </div>
+          
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+            <div className="space-y-3">
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-100 text-amber-800 uppercase">
+                <i className="bi bi-exclamation-triangle-fill animate-pulse"></i> Status Koneksi Google Sheets
+              </span>
+              <h4 className="text-lg md:text-xl font-black text-gray-900 tracking-tight">
+                {activePegawaiList.length === 0 
+                  ? "Koneksi Google Sheets Belum Terhubung atau Kosong" 
+                  : "Terjadi Gangguan Penyambungan Google Spreadsheet"}
+              </h4>
+              <p className="text-xs md:text-sm text-gray-600 font-medium max-w-4xl">
+                {connectionError 
+                  ? `Detail galat: "${connectionError}" ${connectionErrorGid ? `pada GID: ${connectionErrorGid}` : ''}` 
+                  : "Aplikasi siap mengambil data Anda dari awan. Namun, kami mendeteksi tidak ada data lokal yang tersimpan dan penyambungan otomatis ke Google Sheet saat ini menghasilkan data kosong."}
+              </p>
+            </div>
+            
+            <button 
+              onClick={forceSyncData}
+              disabled={isSyncing}
+              className="w-full md:w-auto bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] tracking-widest uppercase px-6 py-4 rounded-xl flex items-center justify-center gap-3 shadow-md hover:shadow-lg active:scale-95 transition-all shrink-0"
+            >
+              <i className={`bi ${isSyncing ? 'bi-arrow-repeat animate-spin' : 'bi-cloud-arrow-down-fill'} text-base`}></i>
+              {isSyncing ? "Menyelaraskan..." : "Paksa Sinkronisasi Ulang"}
+            </button>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-amber-200 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-gray-600 font-medium relative z-10">
+            <div className="space-y-3">
+              <h5 className="font-bold text-gray-950 uppercase tracking-wider text-[10px]">Panduan Mengatasi "Gagal Fetch Data" (Langkah Cepat):</h5>
+              <ol className="list-decimal list-inside space-y-2 pl-1">
+                <li><strong className="text-gray-900">Bagikan Spreadsheet ke Publik:</strong> Buka lembar Google Sheets Anda. Klik tombol <strong className="text-gray-900">Share</strong> (Bagikan) di bagian kanan atas, lalu ubah akses umum menjadi <em className="italic font-bold">"Anyone with the link can view"</em> (Siapa saja yang memiliki link dapat melihat).</li>
+                <li><strong className="text-gray-900">Publikasikan Ke Web (Publish to Web):</strong> Klik menu <strong className="text-gray-900">File &gt; Share &gt; Publish to web</strong>. Pilih tab <strong className="text-gray-900">Link</strong>, pilih <strong className="text-gray-900">Entire Document</strong>, lalu pada kolom berikutnya pilih <strong className="text-gray-900">Comma-separated values (.csv)</strong>. Klik tombol <strong className="text-gray-900">Publish</strong> dan konfirmasi.</li>
+              </ol>
+            </div>
+            <div className="space-y-3">
+              <h5 className="font-bold text-gray-950 uppercase tracking-wider text-[10px]">Verifikasi Konfigurasi Portal:</h5>
+              <ol className="list-decimal list-inside space-y-2 pl-1" start={3}>
+                <li><strong className="text-gray-900">Kesesuaian Kode Spreadsheet ID:</strong> Pastikan kode Spreadsheet ID yang tertera di halaman <strong className="text-gray-900">Pengaturan</strong> sudah cocok. Format ID adalah string acak panjang di dalam URL sheet Anda di antara <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-800 font-mono">/d/</code> dan <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-800 font-mono">/edit</code>.</li>
+                <li><strong className="text-gray-900">Deploy Google Apps Script Web App:</strong> Jika ingin melakukan edit data (sync remote), pastikan url Apps Script di Pengaturan sudah valid, dan script tersebut sudah dipublikasikan sebagai Web App dengan akses <strong className="text-gray-900">"Anyone"</strong>.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
         <StatsCard title="Total ASN Aktif" value={activePegawaiList.length} icon="bi-people-fill" color="bg-blue-600" loading={loading} />

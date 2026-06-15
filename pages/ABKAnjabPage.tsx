@@ -17,11 +17,12 @@ import { jsPDF } from 'jspdf';
 // MASTER DATA JABATAN SESUAI PERMINTAAN USER (PermenPANRB 41/2018 + SIASN)
 const MASTER_JABATAN = [
   // 1. ARSIPARIS
-  { label: "ARSIPARIS PELAKSANA", code: "2.02.01.01", class: "5", type: "JF", minEducation: "D-III Kearsipan / Bidang Terkait" },
+  { label: "ARSIPARIS PELAKSANA", code: "2.02.01.01", class: "6", type: "JF", minEducation: "D-III Kearsipan / Bidang Terkait" },
   { label: "ARSIPARIS PELAKSANA LANJUTAN", code: "2.02.01.02", class: "6", type: "JF", minEducation: "D-III Kearsipan / Bidang Terkait" },
   { label: "ARSIPARIS PERTAMA", code: "2.02.01.03", class: "8", type: "JF", minEducation: "S-1 Kearsipan / Ilmu Informasi / Perpustakaan" },
   { label: "ARSIPARIS MUDA", code: "2.02.01.04", class: "9", type: "JF", minEducation: "S-1 Kearsipan / Ilmu Informasi / Perpustakaan" },
   { label: "ARSIPARIS MADYA", code: "2.02.01.05", class: "11", type: "JF", minEducation: "S-1 Kearsipan / Ilmu Informasi / Perpustakaan" },
+  { label: "ARSIPARIS PENYELIA", code: "2.02.01.06", class: "8", type: "JF", minEducation: "D-III Kearsipan / Bidang Terkait" },
   
   // 2. PRANATA KOMPUTER
   { label: "PRANATA KOMPUTER PELAKSANA", code: "2.03.01.01", class: "6", type: "JF", minEducation: "D-III Teknik Informatika / Sistem Informasi" },
@@ -30,52 +31,80 @@ const MASTER_JABATAN = [
   { label: "PRANATA KOMPUTER MADYA", code: "2.03.01.04", class: "11", type: "JF", minEducation: "S-1 Teknik Informatika / Sistem Informasi / Ilmu Komputer" },
   
   // 3. PEMERIKSA KEKAYAAN INTELEKTUAL (PATEN)
-  { label: "PEMERIKSA PATEN PERTAMA", code: "2.16.01.01", class: "9", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
-  { label: "PEMERIKSA PATEN MUDA", code: "2.16.01.02", class: "10", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
-  { label: "PEMERIKSA PATEN MADYA", code: "2.16.01.03", class: "12", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
-  { label: "PEMERIKSA PATEN UTAMA", code: "2.16.01.04", class: "14", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
+  { label: "PEMERIKSA PATEN PERTAMA", code: "2.16.01.01", class: "8", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
+  { label: "PEMERIKSA PATEN MUDA", code: "2.16.01.02", class: "9", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
+  { label: "PEMERIKSA PATEN MADYA", code: "2.16.01.03", class: "11", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
+  { label: "PEMERIKSA PATEN UTAMA", code: "2.16.01.04", class: "13", type: "JF", minEducation: "S-1 Teknik / MIPA / Farmasi / Ilmu Terkait" },
   
   // 4. PEMERIKSA KEKAYAAN INTELEKTUAL (MEREK)
-  { label: "PEMERIKSA MEREK PERTAMA", code: "2.16.02.01", class: "9", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
-  { label: "PEMERIKSA MEREK MUDA", code: "2.16.02.02", class: "10", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
-  { label: "PEMERIKSA MEREK MADYA", code: "2.16.02.03", class: "12", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
-  { label: "PEMERIKSA MEREK UTAMA", code: "2.16.02.04", class: "14", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
+  { label: "PEMERIKSA MEREK PERTAMA", code: "2.16.02.01", class: "8", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
+  { label: "PEMERIKSA MEREK MUDA", code: "2.16.02.02", class: "9", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
+  { label: "PEMERIKSA MEREK MADYA", code: "2.16.02.03", class: "11", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
+  { label: "PEMERIKSA MEREK UTAMA", code: "2.16.02.04", class: "13", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Desain / Ilmu Terkait" },
   
   // 5. PEMERIKSA KEKAYAAN INTELEKTUAL (DESAIN INDUSTRI)
-  { label: "PEMERIKSA DESAIN INDUSTRI PERTAMA", code: "2.16.03.01", class: "9", type: "JF", minEducation: "S-1 Desain Produk / Seni Rupa / Teknik" },
-  { label: "PEMERIKSA DESAIN INDUSTRI MUDA", code: "2.16.03.02", class: "10", type: "JF", minEducation: "S-1 Desain Produk / Seni Rupa / Teknik" },
-  { label: "PEMERIKSA DESAIN INDUSTRI MADYA", code: "2.16.03.03", class: "12", type: "JF", minEducation: "S-1 Desain Produk / Seni Rupa / Teknik" },
+  { label: "PEMERIKSA DESAIN INDUSTRI PERTAMA", code: "2.16.03.01", class: "8", type: "JF", minEducation: "S-1 Desain Produk / Seni Rupa / Teknik" },
+  { label: "PEMERIKSA DESAIN INDUSTRI MUDA", code: "2.16.03.02", class: "9", type: "JF", minEducation: "S-1 Desain Produk / Seni Rupa / Teknik" },
+  { label: "PEMERIKSA DESAIN INDUSTRI MADYA", code: "2.16.03.03", class: "11", type: "JF", minEducation: "S-1 Desain Produk / Seni Rupa / Teknik" },
   
   // 6. ANALIS KEKAYAAN INTELEKTUAL
-  { label: "ANALIS KI AHLI PERTAMA", code: "2.16.04.01", class: "9", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
-  { label: "ANALIS KI AHLI MUDA", code: "2.16.04.02", class: "10", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
-  { label: "ANALIS KI AHLI MADYA", code: "2.16.04.03", class: "12", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
-  { label: "ANALIS KI AHLI UTAMA", code: "2.16.04.04", class: "14", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
+  { label: "ANALIS KEKAYAAN INTELEKTUAL AHLI PERTAMA", code: "2.16.04.01", class: "8", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
+  { label: "ANALIS KEKAYAAN INTELEKTUAL AHLI MUDA", code: "2.16.04.02", class: "9", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
+  { label: "ANALIS KEKAYAAN INTELEKTUAL AHLI MADYA", code: "2.16.04.03", class: "11", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
+  { label: "ANALIS KEKAYAAN INTELEKTUAL AHLI UTAMA", code: "2.16.04.04", class: "13", type: "JF", minEducation: "S-1 Hukum / Ekonomi / Sosial / Manajemen" },
   
   // 7. ANALIS HUKUM
-  { label: "ANALIS HUKUM PERTAMA", code: "2.05.01.01", class: "9", type: "JF", minEducation: "S-1 Hukum" },
-  { label: "ANALIS HUKUM MUDA", code: "2.05.01.02", class: "10", type: "JF", minEducation: "S-1 Hukum" },
-  { label: "ANALIS HUKUM MADYA", code: "2.05.01.03", class: "12", type: "JF", minEducation: "S-1 Hukum" },
+  { label: "ANALIS HUKUM PERTAMA", code: "2.05.01.01", class: "8", type: "JF", minEducation: "S-1 Hukum" },
+  { label: "ANALIS HUKUM MUDA", code: "2.05.01.02", class: "9", type: "JF", minEducation: "S-1 Hukum" },
+  { label: "ANALIS HUKUM MADYA", code: "2.05.01.03", class: "11", type: "JF", minEducation: "S-1 Hukum" },
   
   // 8. ANALIS KEBIJAKAN
-  { label: "ANALIS KEBIJAKAN PERTAMA", code: "2.06.01.01", class: "9", type: "JF", minEducation: "S-1 Semua Jurusan" },
+  { label: "ANALIS KEBIJAKAN PERTAMA", code: "2.06.01.01", class: "8", type: "JF", minEducation: "S-1 Semua Jurusan" },
   { label: "ANALIS KEBIJAKAN MUDA", code: "2.06.01.02", class: "10", type: "JF", minEducation: "S-1 Semua Jurusan" },
   { label: "ANALIS KEBIJAKAN MADYA", code: "2.06.01.03", class: "12", type: "JF", minEducation: "S-1 Semua Jurusan" },
   
-  // 9. PRANATA HUMAS
-  { label: "PRANATA HUMAS PERTAMA", code: "2.08.01.01", class: "9", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
-  { label: "PRANATA HUMAS MUDA", code: "2.08.01.02", class: "10", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
-  { label: "PRANATA HUMAS MADYA", code: "2.08.01.03", class: "12", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
+  // 9. PRANATA HUBUNGAN MASYARAKAT / HUMAS
+  { label: "PRANATA HUBUNGAN MASYARAKAT PERTAMA", code: "2.08.01.01", class: "8", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
+  { label: "PRANATA HUBUNGAN MASYARAKAT MUDA", code: "2.08.01.02", class: "9", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
+  { label: "PRANATA HUBUNGAN MASYARAKAT MADYA", code: "2.08.01.03", class: "11", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
+  { label: "PRANATA HUMAS PERTAMA", code: "2.08.01.04", class: "8", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
+  { label: "PRANATA HUMAS MUDA", code: "2.08.01.05", class: "9", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
+  { label: "PRANATA HUMAS MADYA", code: "2.08.01.06", class: "11", type: "JF", minEducation: "S-1 Komunikasi / Hubungan Internasional" },
   
   // 10. PUSTAKAWAN
   { label: "PUSTAKAWAN MUDA", code: "2.02.02.02", class: "9", type: "JF", minEducation: "S-1 Perpustakaan / Ilmu Informasi" },
   { label: "PUSTAKAWAN MADYA", code: "2.02.02.03", class: "11", type: "JF", minEducation: "S-1 Perpustakaan / Ilmu Informasi" },
   
   // 11. PENYULUH HUKUM
-  { label: "PENYULUH HUKUM PERTAMA", code: "2.05.02.01", class: "9", type: "JF", minEducation: "S-1 Hukum" },
-  { label: "PENYULUH HUKUM MUDA", code: "2.05.02.02", class: "10", type: "JF", minEducation: "S-1 Hukum" },
-  { label: "PENYULUH HUKUM MADYA", code: "2.05.02.03", class: "12", type: "JF", minEducation: "S-1 Hukum" },
-  
+  { label: "PENYULUH HUKUM PERTAMA", code: "2.05.02.01", class: "8", type: "JF", minEducation: "S-1 Hukum" },
+  { label: "PENYULUH HUKUM MUDA", code: "2.05.02.02", class: "9", type: "JF", minEducation: "S-1 Hukum" },
+  { label: "PENYULUH HUKUM MADYA", code: "2.05.02.03", class: "11", type: "JF", minEducation: "S-1 Hukum" },
+
+  // 12. PERANCANG PERATURAN PERUNDANG-UNDANGAN
+  { label: "PERANCANG PERATURAN PERUU MUDA", code: "2.17.01.01", class: "11", type: "JF", minEducation: "S-1 Hukum" },
+
+  // 13. MEDIS / KESEHATAN
+  { label: "DOKTER MADYA", code: "2.18.01.01", class: "12", type: "JF", minEducation: "Profesi Dokter" },
+  { label: "DOKTER GIGI MADYA", code: "2.18.02.01", class: "12", type: "JF", minEducation: "Profesi Dokter Gigi" },
+  { label: "PERAWAT PENYELIA", code: "2.23.01.01", class: "8", type: "JF", minEducation: "D-III / S-1 Keperawatan / Profesi Ners" },
+  { label: "PRANATA LABORATORIUM KESEHATAN PELAKSANA LANJUTAN", code: "2.24.01.01", class: "7", type: "JF", minEducation: "D-III Analis Kesehatan" },
+
+  // 14. PENERJEMAH
+  { label: "PENERJEMAH PERTAMA", code: "2.19.01.01", class: "8", type: "JF", minEducation: "S-1 Bahasa dan Sastra / Sastra Inggris / Terkait" },
+  { label: "PENERJEMAH MUDA", code: "2.19.01.02", class: "9", type: "JF", minEducation: "S-1 Bahasa dan Sastra / Sastra Inggris / Terkait" },
+  { label: "PENERJEMAH MADYA", code: "2.19.01.03", class: "11", type: "JF", minEducation: "S-1 Bahasa dan Sastra / Sastra Inggris / Terkait" },
+
+  // 15. KEUANGAN & ANGGARAN
+  { label: "ANALIS PENGELOLAAN KEUANGAN APBN MUDA", code: "2.20.01.01", class: "10", type: "JF", minEducation: "S-1 Ekonomi / Akuntansi / Manajemen Keuangan" },
+  { label: "ANALIS PENGELOLAAN KEUANGAN APBN MADYA", code: "2.20.01.02", class: "12", type: "JF", minEducation: "S-1 Ekonomi / Akuntansi / Manajemen Keuangan" },
+  { label: "ANALIS ANGGARAN MUDA", code: "2.21.01.01", class: "10", type: "JF", minEducation: "S-1 Ekonomi / Akuntansi / Administrasi Publik" },
+  { label: "PRANATA KEUANGAN ANGGARAN PENDAPATAN DAN BELANJA NEGARA TERAMPIL", code: "2.25.01.01", class: "7", type: "JF", minEducation: "D-III Ekonomi / Akuntansi / Keuangan" },
+
+  // 16. SDM APARATUR
+  { label: "ANALIS SDM APARATUR PERTAMA", code: "2.22.01.01", class: "8", type: "JF", minEducation: "S-1 Hukum / Administrasi Negara / Manajemen SDM" },
+  { label: "ANALIS SDM APARATUR MUDA", code: "2.22.01.02", class: "10", type: "JF", minEducation: "S-1 Hukum / Administrasi Negara / Manajemen SDM" },
+  { label: "ANALIS SDM APARATUR MADYA", code: "2.22.01.03", class: "12", type: "JF", minEducation: "S-1 Hukum / Administrasi Negara / Manajemen SDM" },
+
   // B. JABATAN PELAKSANA
   { label: "PENGOLAH DATA DAN INFORMASI", code: "4.01.01", class: "6", type: "JFU", minEducation: "D-III Teknik Informatika / Manajemen" },
   { label: "PENGADMINISTRASI PERKANTORAN", code: "4.01.02", class: "5", type: "JFU", minEducation: "SMA / SMK / D-III Perkantoran" },
@@ -84,6 +113,20 @@ const MASTER_JABATAN = [
   { label: "PENGELOLA LAYANAN OPERASIONAL", code: "4.01.05", class: "6", type: "JFU", minEducation: "D-III Semua Jurusan" },
   { label: "OPERATOR LAYANAN OPERASIONAL", code: "4.01.06", class: "5", type: "JFU", minEducation: "SMA / SMK Sederajat" },
   { label: "SEKRETARIS PIMPINAN", code: "4.01.07", class: "7", type: "JFU", minEducation: "D-III Sekretaris / Administrasi Perkantoran" },
+  { label: "ANALIS SISTEM APLIKASI DAN JARINGAN KOMPUTER", code: "4.02.01", class: "7", type: "JFU", minEducation: "S-1 Teknik Informatika / Sistem Informasi / Komputer" },
+  { label: "PENYUSUN PROGRAM", code: "4.02.02", class: "7", type: "JFU", minEducation: "S-1 Ekonomi / Manajemen / Administrasi" },
+  { label: "DOKUMENTALIS HUKUM", code: "4.02.03", class: "6", type: "JFU", minEducation: "D-III Hukum / Perpustakaan / Administrasi" },
+  { label: "PENGADMINISTRASI PERJALANAN DINAS", code: "4.02.04", class: "5", type: "JFU", minEducation: "SMA / SMK / D-III Administrasi" },
+  { label: "ANALIS PENGEMBANGAN PEGAWAI", code: "4.02.05", class: "7", type: "JFU", minEducation: "S-1 Psikologi / Manajemen / Administrasi / SDM" },
+  { label: "ANALIS PERTIMBANGAN HUKUM", code: "4.02.06", class: "7", type: "JFU", minEducation: "S-1 Hukum" },
+  { label: "PENGADMINISTRASI UMUM", code: "4.02.07", class: "5", type: "JFU", minEducation: "SMA / SMK / D-III Administrasi" },
+  { label: "PENGELOLA HASIL KERJA", code: "4.02.08", class: "6", type: "JFU", minEducation: "D-III Administrasi / Manajemen" },
+  { label: "PENYUSUN TINDAK LANJUT DAN LAPORAN HASIL PEMERIKSAAN", code: "4.02.09", class: "7", type: "JFU", minEducation: "S-1 Ekonomi / Akuntansi / Hukum" },
+  { label: "PENYUSUN LAPORAN KEUANGAN", code: "4.02.10", class: "7", type: "JFU", minEducation: "S-1 Akuntansi / Keuangan" },
+  { label: "PENELAAH TEKNIS KEBIJAKAN", code: "4.02.11", class: "7", type: "JFU", minEducation: "S-1 Semua Jurusan / Kebijakan Publik" },
+  { label: "FASILITATOR PEMERINTAHAN", code: "4.02.12", class: "7", type: "JFU", minEducation: "S-1 Ilmu Pemerintahan / Administrasi Negara" },
+  { label: "PENGELOLA LAYANAN PENGADAAN", code: "4.02.13", class: "6", type: "JFU", minEducation: "D-III Administrasi / Ekonomi / Teknik" },
+  { label: "PENATA KELOLA PEMERINTAHAN", code: "4.02.14", class: "7", type: "JFU", minEducation: "S-1 Ilmu Pemerintahan / Administrasi Negara" },
   
   // C. JABATAN PIMPINAN TINGGI & ADMINISTRATOR
   { label: "DIREKTUR JENDERAL", code: "1.01.01", class: "17", type: "JPT", minEducation: "S-2 / S-3 Hukum / Manajemen / Kebijakan Publik" },

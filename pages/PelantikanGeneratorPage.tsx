@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, syncTableRemote, fetchPelantikanFromSheets, uploadFileToDrive } from '../spreadsheetService'; // Asumsi path ini benar
@@ -94,6 +94,10 @@ const PelantikanGeneratorPage = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
 
+  const [selectedNips, setSelectedNips] = useState<string[]>([]);
+  const [activePreviewNip, setActivePreviewNip] = useState<string>('');
+  const [asnSearchQuery, setAsnSearchQuery] = useState('');
+
   const initialFormData = {
     nomor: 'HKI.1-KP.03.04-',
     hari: 'Rabu',
@@ -112,6 +116,38 @@ const PelantikanGeneratorPage = () => {
   };
 
   const [formData, setFormData] = useState<any>(initialFormData);
+
+  useEffect(() => {
+    if (selectedNips.length > 0) {
+      if (!selectedNips.includes(activePreviewNip)) {
+        setActivePreviewNip(selectedNips[0]);
+      }
+    } else {
+      setActivePreviewNip('');
+    }
+  }, [selectedNips, activePreviewNip]);
+
+  const activePegawai = useMemo(() => {
+    return pegawaiList.find(p => p.nip === activePreviewNip);
+  }, [pegawaiList, activePreviewNip]);
+
+  const currentPreviewData = useMemo(() => {
+    if (!activePegawai) {
+      return formData;
+    }
+    const oathTexts = getOathTexts(activePegawai.agama || '');
+    return {
+      ...formData,
+      asnNip: activePegawai.nip,
+      asnNama: activePegawai.nama,
+      asnPangkat: activePegawai.pangkat || '',
+      asnGolRuang: activePegawai.golRuang || '',
+      asnJabatan: activePegawai.jabatan || '',
+      asnAgama: activePegawai.agama || '',
+      kataPelantikan: oathTexts.pembuka,
+      penutupKataPelantikan: oathTexts.penutup
+    };
+  }, [formData, activePegawai]);
 
   useEffect(() => {
     loadData();
@@ -149,24 +185,70 @@ const PelantikanGeneratorPage = () => {
   };
 
   const handleSave = async () => {
-    if (!formData.asnNip) return alert("Pilih pegawai terlebih dahulu");
+    if (selectedNips.length === 0) return alert("Pilih pegawai terlebih dahulu");
     setSyncing(true);
-    const payload = {
-      id: editingId || `PEL-${Date.now()}`,
-      nomor: formData.nomor,
-      asnNip: formData.asnNip,
-      type: docType,
-      data: JSON.stringify(formData)
-    };
-
-    const ok = await syncTableRemote('PELANTIKAN', 'SAVE', payload);
-    if (ok) {
-      logActivity(editingId ? 'UPDATE' : 'CREATE', 'Pelantikan', `Simpan Dokumen Pelantikan: ${formData.asnNama}`);
-      await loadData();
-      setShowSuccess(true);
-      setActiveView('list');
+    try {
+      if (editingId) {
+        const payload = {
+          id: editingId,
+          nomor: formData.nomor,
+          asnNip: formData.asnNip,
+          type: docType,
+          data: JSON.stringify(formData)
+        };
+        const ok = await syncTableRemote('PELANTIKAN', 'SAVE', payload);
+        if (ok) {
+          logActivity('UPDATE', 'Pelantikan', `Simpan Dokumen Pelantikan: ${formData.asnNama}`);
+          await loadData();
+          setShowSuccess(true);
+          setActiveView('list');
+        }
+      } else {
+        let successCount = 0;
+        for (let i = 0; i < selectedNips.length; i++) {
+          const nip = selectedNips[i];
+          const p = pegawaiList.find(x => x.nip === nip);
+          if (p) {
+            const oathTexts = getOathTexts(p.agama || '');
+            const singleAsnData = {
+              ...formData,
+              asnNip: p.nip,
+              asnNama: p.nama,
+              asnPangkat: p.pangkat || '',
+              asnGolRuang: p.golRuang || '',
+              asnJabatan: p.jabatan || '',
+              asnAgama: p.agama || '',
+              kataPelantikan: oathTexts.pembuka,
+              penutupKataPelantikan: oathTexts.penutup
+            };
+            const payload = {
+              id: `PEL-${Date.now()}-${i}`,
+              nomor: formData.nomor,
+              asnNip: p.nip,
+              type: docType,
+              data: JSON.stringify(singleAsnData)
+            };
+            const ok = await syncTableRemote('PELANTIKAN', 'SAVE', payload);
+            if (ok) {
+              successCount++;
+            }
+          }
+        }
+        if (successCount > 0) {
+          logActivity('CREATE', 'Pelantikan', `Buat Dokumen Pelantikan Baru untuk ${successCount} Pegawai`);
+          await loadData();
+          setShowSuccess(true);
+          setActiveView('list');
+        } else {
+          alert("Gagal menyimpan dokumen.");
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Terjadi kesalahan saat menyimpan.");
+    } finally {
+      setSyncing(false);
     }
-    setSyncing(false);
   };
 
   const handleDelete = async () => {
@@ -209,6 +291,8 @@ const PelantikanGeneratorPage = () => {
       setFormData(data);
       setEditingId(item.id);
       setDocType(item.type || 'BA');
+      setSelectedNips(data.asnNip ? [data.asnNip] : []);
+      setActivePreviewNip(data.asnNip || '');
       setActiveView('editor');
     } catch (e) {
       console.error("Error parsing data", e);
@@ -220,7 +304,6 @@ const PelantikanGeneratorPage = () => {
     if (!pdfRef.current) return;
     setSyncing(true);
     try {
-        // PAKTA uses Landscape (330x210), BA uses Portrait (210x330) - F4 Folio
         const isLandscape = docType === 'PAKTA';
         const pdfWidth = isLandscape ? 330 : 210;
         const pdfHeight = isLandscape ? 210 : 330;
@@ -233,7 +316,7 @@ const PelantikanGeneratorPage = () => {
         });
         
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`${docType}_Pelantikan_${formData.asnNama.replace(/\s+/g, '_')}.pdf`);
+        pdf.save(`${docType}_Pelantikan_${currentPreviewData.asnNama.replace(/\s+/g, '_')}.pdf`);
     } catch (e) {
         alert("Gagal cetak PDF.");
     } finally {
@@ -242,7 +325,7 @@ const PelantikanGeneratorPage = () => {
   };
 
   const handleSaveToDossier = async () => {
-    if (!pdfRef.current || !formData.asnNip) return;
+    if (!pdfRef.current || !currentPreviewData.asnNip) return;
     setSyncing(true);
     try {
       const isLandscape = docType === 'PAKTA';
@@ -258,14 +341,14 @@ const PelantikanGeneratorPage = () => {
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
       const pdfBase64 = pdf.output('datauristring');
       
-      const fileName = `${docType}_Pelantikan_${formData.asnNama.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      const fileName = `${docType}_Pelantikan_${currentPreviewData.asnNama.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
       const res = await uploadFileToDrive(fileName, 'application/pdf', pdfBase64);
       
       if (res.success && res.fileUrl) {
         const payload = {
           id: `DOS-${Date.now()}`,
-          nip: formData.asnNip,
-          namaPegawai: formData.asnNama,
+          nip: currentPreviewData.asnNip,
+          namaPegawai: currentPreviewData.asnNama,
           tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
           keterangan: `Dokumen ${docType} Pelantikan / Pakta Integritas`,
           fileName: fileName,
@@ -273,8 +356,8 @@ const PelantikanGeneratorPage = () => {
         };
         const ok = await syncTableRemote('DOSSIER', 'SAVE', payload);
         if (ok) {
-          logActivity('CREATE', 'DOSSIER', `Simpan Pelantikan ke Dossier: ${formData.asnNama}`);
-          alert("Dokumen pelantikan berhasil disimpan ke E-Dossier Pegawai.");
+          logActivity('CREATE', 'DOSSIER', `Simpan Pelantikan ke Dossier: ${currentPreviewData.asnNama}`);
+          alert(`Dokumen pelantikan untuk ${currentPreviewData.asnNama} berhasil disimpan ke E-Dossier Pegawai.`);
         }
       } else {
         alert("Gagal mengunggah file ke Drive.");
@@ -305,7 +388,14 @@ const PelantikanGeneratorPage = () => {
         </div>
         <div className="flex gap-2">
           {activeView === 'list' && canEdit && (
-            <button onClick={() => { setFormData(initialFormData); setEditingId(null); setActiveView('editor'); }} className="px-10 h-14 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">+ Buat Dokumen Baru</button>
+            <button onClick={() => { 
+              setFormData(initialFormData); 
+              setEditingId(null); 
+              setSelectedNips([]);
+              setAsnSearchQuery('');
+              setActivePreviewNip('');
+              setActiveView('editor'); 
+            }} className="px-10 h-14 bg-[#111827] text-white rounded-2xl font-black text-[10px] uppercase shadow-2xl active:scale-95 transition-all">+ Buat Dokumen Baru</button>
           )}
           {activeView !== 'list' && (
             <div className="flex bg-white p-1.5 rounded-2xl border shadow-sm">
@@ -349,9 +439,11 @@ const PelantikanGeneratorPage = () => {
                                       const data = h.data && h.data.trim() ? JSON.parse(h.data) : {};
                                       setFormData(data);
                                       setDocType(h.type || 'BA');
+                                      setSelectedNips(data.asnNip ? [data.asnNip] : []);
+                                      setActivePreviewNip(data.asnNip || '');
                                       setActiveView('preview');
                                    } catch(e) { alert("Gagal memuat pratinjau"); }
-                                }} className="h-9 px-4 bg-gray-900 text-white rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-lg"><i className="bi bi-file-earmark-pdf"></i> PDF</button>
+                                }} className="h-9 px-4 bg-[#111827] text-white rounded-xl text-[9px] font-black uppercase flex items-center gap-2 shadow-lg hover:bg-black transition-all cursor-pointer"><i className="bi bi-file-earmark-pdf"></i> PDF</button>
                                 {canEdit && (
                                    <button onClick={() => handleEdit(h)} className="h-9 w-9 bg-white border border-gray-100 text-amber-500 rounded-xl shadow-sm flex items-center justify-center hover:bg-amber-500 hover:text-white transition-all"><i className="bi bi-pencil-fill"></i></button>
                                 )}
@@ -371,7 +463,119 @@ const PelantikanGeneratorPage = () => {
         </div>
       ) : activeView === 'editor' ? (
         <div className="max-w-6xl mx-auto bg-white p-10 md:p-14 rounded-[3.5rem] border border-gray-100 shadow-sm space-y-12 animate-modalEnter">
-           <SearchableSelect label="Pilih Pegawai Yang Dilantik" options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.jabatan}`}))} value={formData.asnNip} onChange={handleASNSelect} />
+           {editingId ? (
+             <div className="space-y-1">
+               <label className={labelClass}>Pegawai Yang Dilantik</label>
+               <input type="text" className={readOnlyClass} value={`${formData.asnNama} (NIP. ${formData.asnNip}) - ${formData.asnJabatan}`} readOnly />
+             </div>
+           ) : (
+             <div className="space-y-4">
+               <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest block mb-1">
+                 PILIH PEGAWAI YANG DILANTIK (BISA PILIH MULTIPEL)
+               </label>
+               <div className="space-y-3">
+                 {/* Search Input */}
+                 <div className="relative">
+                   <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                   <input
+                     type="text"
+                     placeholder="CARI PEGAWAI BERDASARKAN NAMA, NIP, ATAU JABATAN..."
+                     className="w-full pl-12 pr-10 py-3.5 bg-gray-50 border-2 border-gray-100 focus:border-blue-600 focus:bg-white rounded-2xl text-[11px] font-bold uppercase outline-none transition-all shadow-sm"
+                     value={asnSearchQuery}
+                     onChange={e => setAsnSearchQuery(e.target.value)}
+                   />
+                   {asnSearchQuery && (
+                     <button
+                       type="button"
+                       onClick={() => setAsnSearchQuery('')}
+                       className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-500 transition-all font-bold cursor-pointer"
+                     >
+                       <i className="bi bi-x-lg text-xs"></i>
+                     </button>
+                   )}
+                 </div>
+
+                 {/* Controls */}
+                 <div className="flex flex-wrap items-center gap-2 text-[8px] md:text-[9.5px]">
+                   <button
+                     type="button"
+                     onClick={() => {
+                       const visible = pegawaiList
+                         .filter(p => {
+                           const q = asnSearchQuery.toLowerCase();
+                           return !q || p.nama?.toLowerCase().includes(q) || p.nip?.includes(q) || p.jabatan?.toLowerCase().includes(q);
+                         })
+                         .map(p => p.nip)
+                         .filter(Boolean);
+                       setSelectedNips(prev => Array.from(new Set([...prev, ...visible])));
+                     }}
+                     className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black uppercase rounded-lg transition-all cursor-pointer"
+                   >
+                     Centang Semua yang Tampil
+                   </button>
+                   <button
+                     type="button"
+                     onClick={() => setSelectedNips([])}
+                     className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-black uppercase rounded-lg transition-all cursor-pointer"
+                   >
+                     Bersihkan Pilihan
+                   </button>
+                   <span className="ml-auto flex items-center pr-2 font-black uppercase text-gray-500 tracking-wider">
+                     Terpilih: <span className="text-blue-600 font-extrabold ml-1">{selectedNips.length} Pegawai</span>
+                   </span>
+                 </div>
+
+                 {/* Checklist Box */}
+                 <div className="bg-gray-50 border border-gray-100 p-3 rounded-2xl max-h-56 overflow-y-auto space-y-1 custom-scrollbar">
+                   {pegawaiList
+                     .filter(p => {
+                       const q = asnSearchQuery.toLowerCase();
+                       return !q || p.nama?.toLowerCase().includes(q) || p.nip?.includes(q) || p.jabatan?.toLowerCase().includes(q);
+                     })
+                     .map(p => {
+                       const isChecked = selectedNips.includes(p.nip);
+                       return (
+                         <label
+                           key={p.nip}
+                           className={`flex items-start md:items-center gap-3 p-2.5 rounded-xl transition-all cursor-pointer border ${
+                             isChecked
+                               ? 'bg-blue-50/60 border-blue-200/50 hover:bg-blue-50 text-blue-900 border-blue-100'
+                               : 'bg-white border-transparent hover:bg-gray-150/50 text-gray-800'
+                           }`}
+                         >
+                           <input
+                             type="checkbox"
+                             checked={isChecked}
+                             onChange={() => {
+                               setSelectedNips(prev =>
+                                 isChecked ? prev.filter(nip => nip !== p.nip) : [...prev, p.nip]
+                               );
+                             }}
+                             className="w-4.5 h-4.5 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer mt-0.5 md:mt-0"
+                           />
+                           <div className="min-w-0">
+                             <span className="text-[10px] md:text-[11px] font-black uppercase block tracking-tight leading-none text-gray-950">
+                               {p.nama}
+                             </span>
+                             <span className="text-[8px] font-mono font-bold text-gray-400 mt-1 block">
+                               NIP. {p.nip} — {p.jabatan || 'No Jabatan'}
+                             </span>
+                           </div>
+                         </label>
+                       );
+                     })}
+                   {pegawaiList.filter(p => {
+                     const q = asnSearchQuery.toLowerCase();
+                     return !q || p.nama?.toLowerCase().includes(q) || p.nip?.includes(q) || p.jabatan?.toLowerCase().includes(q);
+                   }).length === 0 && (
+                     <p className="text-center text-[9px] font-black text-gray-400 uppercase py-6 tracking-wide">
+                       Pegawai Tidak Ditemukan
+                     </p>
+                   )}
+                 </div>
+               </div>
+             </div>
+           )}
            
            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
               <div className="space-y-6">
@@ -400,19 +604,28 @@ const PelantikanGeneratorPage = () => {
 
               <div className="space-y-6">
                  <h5 className="text-[11px] font-black text-amber-600 uppercase border-b pb-2 tracking-widest">3. Narasi Sumpah</h5>
-                 <div className="space-y-1">
-                    <label className={labelClass}>Agama Pegawai</label>
-                    <input type="text" className={readOnlyClass} value={formData.asnAgama || '-'} readOnly />
-                 </div>
-                 <div className="space-y-1">
-                    <label className={labelClass}>Kata Pembuka</label>
-                    <input type="text" className={readOnlyClass} value={formData.kataPelantikan} readOnly />
-                 </div>
-                 {formData.penutupKataPelantikan && (
+                 {selectedNips.length > 1 ? (
+                   <div className="p-5 bg-amber-50 rounded-2xl border border-amber-200/60 text-amber-800 text-[10px] md:text-[11px] font-medium leading-relaxed">
+                     <p className="font-black uppercase tracking-wider mb-2 flex items-center gap-1.5"><i className="bi bi-info-circle-fill text-amber-600 text-xs"></i> Mode Multi-Pegawai</p>
+                     Agama, Kata Pembuka, dan Kata Penutup sumpah pelantikan akan ditentukan **secara otomatis** sesuai dengan data agama masing-masing pegawai yang dicentang saat dokumen disimpan atau dicetak.
+                   </div>
+                 ) : (
+                   <>
                      <div className="space-y-1">
-                        <label className={labelClass}>Kata Penutup</label>
-                        <textarea className={`${readOnlyClass} min-h-[100px] normal-case`} readOnly value={formData.penutupKataPelantikan} />
+                        <label className={labelClass}>Agama Pegawai</label>
+                        <input type="text" className={readOnlyClass} value={currentPreviewData.asnAgama || '-'} readOnly />
                      </div>
+                     <div className="space-y-1">
+                        <label className={labelClass}>Kata Pembuka</label>
+                        <input type="text" className={readOnlyClass} value={currentPreviewData.kataPelantikan || ''} readOnly />
+                     </div>
+                     {currentPreviewData.penutupKataPelantikan && (
+                         <div className="space-y-1">
+                            <label className={labelClass}>Kata Penutup</label>
+                            <textarea className={`${readOnlyClass} min-h-[100px] normal-case`} readOnly value={currentPreviewData.penutupKataPelantikan} />
+                         </div>
+                     )}
+                   </>
                  )}
               </div>
            </div>
@@ -441,8 +654,32 @@ const PelantikanGeneratorPage = () => {
                    {syncing ? <div className="h-3 w-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-arrow-up-fill"></i>} Simpan
                 </button>
               )}
-              <button onClick={handleDownloadPdf} className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold uppercase text-[10px] transition-all">Download PDF</button>
-           </div>
+              <button onClick={handleDownloadPdf} className="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold uppercase text-[10px] transition-all cursor-pointer">Download PDF</button>
+            </div>
+
+            {/* Toggle active pegawai for multi-preview */}
+            {selectedNips.length > 1 && (
+              <div className="flex flex-col items-center gap-2 bg-slate-50 p-4 border border-slate-200 rounded-2xl w-full max-w-xl">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">PILIH PEGAWAI UNTUK DIPRATINJAU & DIUNDUH ({selectedNips.length} TERPILIH)</span>
+                <div className="flex flex-wrap justify-center gap-1.5 mt-1 border-0">
+                  {selectedNips.map(nip => {
+                    const p = pegawaiList.find(x => x.nip === nip);
+                    const isActive = activePreviewNip === nip;
+                    return (
+                      <button
+                        key={nip}
+                        onClick={() => setActivePreviewNip(nip)}
+                        className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all flex items-center gap-1 cursor-pointer border ${isActive ? 'bg-[#111827] text-white border-[#111827] shadow-sm' : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'}`}
+                      >
+                        <i className={`bi ${isActive ? 'bi-eye-fill text-blue-400' : 'bi-eye text-slate-400'}`}></i>
+                        {p?.nama || nip}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="hidden"></div>
            
            {/* 2. SCROLLABLE CONTAINER */}
            <div className="w-full bg-gray-200 py-12 px-4 overflow-x-auto border-y border-gray-300 flex justify-center">
@@ -473,31 +710,31 @@ const PelantikanGeneratorPage = () => {
                           <img src={LOGO_GARUDA_URL} style={{ width: '85px', height: 'auto' }} className="mb-6" crossOrigin="anonymous" />
                           <h1 className="font-bold uppercase tracking-widest text-[13pt] mb-1">BERITA ACARA</h1>
                           <h2 className="font-bold uppercase tracking-widest text-[11pt] mb-1">PENGAMBILAN SUMPAH JABATAN PEGAWAI NEGERI SIPIL</h2>
-                          <p className="font-normal text-[11pt]">NOMOR : {formData.nomor || 'HKI.1-KP.03.04-...'}</p>
+                          <p className="font-normal text-[11pt]">NOMOR : {currentPreviewData.nomor || 'HKI.1-KP.03.04-...'}</p>
                        </div>
 
                        {/* CONTENT */}
                        <div className="text-justify space-y-4 px-2">
                           <p className="indent-0">
-                             Pada hari <span className="font-normal">{formatTanggalLengkap(formData.tanggal)}</span>, bertempat di {formData.tempat || 'Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum Republik Indonesia'}, saya, <span className="font-bold uppercase">{formData.pjbNama}</span>, <span className="font-bold uppercase">{formData.pjbJabatan}</span> Kementerian Hukum Republik Indonesia, dengan disaksikan oleh 2 (dua) orang saksi masing-masing :
+                             Pada hari <span className="font-normal">{formatTanggalLengkap(currentPreviewData.tanggal)}</span>, bertempat di {currentPreviewData.tempat || 'Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum Republik Indonesia'}, saya, <span className="font-bold uppercase">{currentPreviewData.pjbNama}</span>, <span className="font-bold uppercase">{currentPreviewData.pjbJabatan}</span> Kementerian Hukum Republik Indonesia, dengan disaksikan oleh 2 (dua) orang saksi masing-masing :
                           </p>
                           <div className="space-y-1 ml-4 py-2">
                              <div className="flex gap-2">
                                <span>1.</span>
-                               <span><span className="font-bold uppercase">{formData.saksi1Nama}</span>, {formData.saksi1Jabatan};</span>
+                               <span><span className="font-bold uppercase">{currentPreviewData.saksi1Nama}</span>, {currentPreviewData.saksi1Jabatan};</span>
                              </div>
                              <div className="flex gap-2">
                                <span>2.</span>
-                               <span><span className="font-bold uppercase">{formData.saksi2Nama}</span>, {formData.saksi2Jabatan}.</span>
+                               <span><span className="font-bold uppercase">{currentPreviewData.saksi2Nama}</span>, {currentPreviewData.saksi2Jabatan}.</span>
                              </div>
                           </div>
                           <p>
-                             telah mengambil sumpah jabatan <span className="font-normal">{formData.asnJabatan}</span> atas nama <span className="font-bold uppercase">{formData.asnNama}</span>, yang berdasarkan Keputusan Menteri Hukum Republik Indonesia Nomor <span className="font-normal">{formData.nomorSk}</span> tanggal <span className="font-normal">{formData.tanggalSk}</span> diangkat sebagai <span className="font-normal">{formData.asnJabatan}</span>.
+                             telah mengambil sumpah jabatan <span className="font-normal">{currentPreviewData.asnJabatan}</span> atas nama <span className="font-bold uppercase">{currentPreviewData.asnNama}</span>, yang berdasarkan Keputusan Menteri Hukum Republik Indonesia Nomor <span className="font-normal">{currentPreviewData.nomorSk}</span> tanggal <span className="font-normal">{currentPreviewData.tanggalSk}</span> diangkat sebagai <span className="font-normal">{currentPreviewData.asnJabatan}</span>.
                           </p>
                           <p>Pegawai Negeri Sipil yang mengangkat sumpah tersebut mengucapkan sumpah jabatan sebagai berikut:</p>
                           
                           <div className="italic space-y-3 py-2">
-                             <p>”{formData.kataPelantikan}:</p>
+                             <p>”{currentPreviewData.kataPelantikan}:</p>
                              <div className="pl-8 space-y-2">
                                 <p>bahwa saya, akan setia dan taat kepada Undang-Undang Dasar Negara Republik Indonesia Tahun 1945 serta akan menjalankan segala peraturan perundang-undangan dengan selurus-lurusnya, demi dharma bakti saya kepada bangsa dan negara;</p>
                                 <p>bahwa saya dalam menjalankan tugas jabatan, akan menjunjung etika jabatan, bekerja dengan sebaik-baiknya, dan dengan penuh rasa tanggung jawab;</p>
@@ -505,8 +742,8 @@ const PelantikanGeneratorPage = () => {
                              </div>
                           </div>
                           
-                          {formData.penutupKataPelantikan && (
-                              <p className="italic font-bold text-center mt-2">{formData.penutupKataPelantikan}</p>
+                          {currentPreviewData.penutupKataPelantikan && (
+                              <p className="italic font-bold text-center mt-2">{currentPreviewData.penutupKataPelantikan}</p>
                           )}
 
                           <p className="mt-4">Demikian berita acara pengambilan sumpah jabatan ini dibuat dengan sebenar-benarnya untuk dapat digunakan sebagaimana mestinya.</p>
@@ -518,15 +755,15 @@ const PelantikanGeneratorPage = () => {
                              <div className="flex flex-col items-center">
                                 <p className="mb-24">Yang mengangkat sumpah,</p>
                                 <div className="space-y-0.5">
-                                  <p className="font-bold underline leading-none">{formatPegawaiName(formData.asnNama || '')}</p>
-                                  <p>NIP {formData.asnNip}</p>
+                                  <p className="font-bold underline leading-none">{formatPegawaiName(currentPreviewData.asnNama || '')}</p>
+                                  <p>NIP {currentPreviewData.asnNip}</p>
                                 </div>
                              </div>
                              <div className="flex flex-col items-center">
                                 <p className="mb-4">Pejabat<br/>Yang mengambil sumpah,</p>
                                 <div className="mt-[4.5rem]">
-                                  <p className="font-bold underline leading-none">{formatPegawaiName(formData.pjbNama || '')}</p>
-                                  <p>NIP {formData.pjbNip}</p>
+                                  <p className="font-bold underline leading-none">{formatPegawaiName(currentPreviewData.pjbNama || '')}</p>
+                                  <p>NIP {currentPreviewData.pjbNip}</p>
                                 </div>
                              </div>
                           </div>
@@ -536,13 +773,13 @@ const PelantikanGeneratorPage = () => {
                              <div className="grid grid-cols-2 gap-x-20 w-full text-center text-[10.5pt]">
                                 <div className="flex flex-col items-center">
                                    <div className="h-24"></div>
-                                   <p className="font-bold underline leading-none">{formatPegawaiName(formData.saksi1Nama || '')}</p>
-                                   <p>NIP {formData.saksi1Nip}</p>
+                                   <p className="font-bold underline leading-none">{formatPegawaiName(currentPreviewData.saksi1Nama || '')}</p>
+                                   <p>NIP {currentPreviewData.saksi1Nip}</p>
                                 </div>
                                 <div className="flex flex-col items-center">
                                    <div className="h-24"></div>
-                                   <p className="font-bold underline leading-none">{formatPegawaiName(formData.saksi2Nama || '')}</p>
-                                   <p>NIP {formData.saksi2Nip}</p>
+                                   <p className="font-bold underline leading-none">{formatPegawaiName(currentPreviewData.saksi2Nama || '')}</p>
+                                   <p>NIP {currentPreviewData.saksi2Nip}</p>
                                 </div>
                              </div>
                           </div>
@@ -568,7 +805,7 @@ const PelantikanGeneratorPage = () => {
                      
                   {/* PEMBUKA */}
                   <div className="text-center flex flex-col items-center">
-                    <p>Saya, <span className="font-bold">{formatPegawaiName(formData.asnNama || '')}</span>, sebagai <span className="font-bold uppercase">{formData.asnJabatan || '...'}</span>, menyatakan sebagai berikut :</p>
+                    <p>Saya, <span className="font-bold">{formatPegawaiName(currentPreviewData.asnNama || '')}</span>, sebagai <span className="font-bold uppercase">{currentPreviewData.asnJabatan || '...'}</span>, menyatakan sebagai berikut :</p>
                   </div>
 
                   {/* ISI 7 POIN (SESUAI DOKUMEN PDF) */}
@@ -587,7 +824,7 @@ const PelantikanGeneratorPage = () => {
                   </div>
 
                    <div className="text-center flex flex-col items-center">
-                      <p className="mb-1">Jakarta, {new Date(formData.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                      <p className="mb-1">Jakarta, {new Date(currentPreviewData.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                       </div>
 
                   {/* TANDA TANGAN */}
@@ -596,13 +833,13 @@ const PelantikanGeneratorPage = () => {
   <div className="text-center flex flex-col h-full justify-between">
     <div>
       <p className="font-bold uppercase mb-1">Menyaksikan,</p>
-      <p className="font-bold uppercase leading-tight">{formData.pjbJabatan}</p>
+      <p className="font-bold uppercase leading-tight">{currentPreviewData.pjbJabatan}</p>
     </div>
     
     {/* Box Nama & NIP (Dipaksa sejajar bawah) */}
     <div className="mt-12"> 
-      <p className="font-bold uppercase underline decoration-2">{formData.pjbNama}</p>
-      <p className="mt-1 text-sm">NIP {formData.pjbNip}</p>
+      <p className="font-bold uppercase underline decoration-2">{currentPreviewData.pjbNama}</p>
+      <p className="mt-1 text-sm">NIP {currentPreviewData.pjbNip}</p>
     </div>
   </div>
 
@@ -620,8 +857,8 @@ const PelantikanGeneratorPage = () => {
 
     {/* Box Nama & NIP (Akan sejajar dengan kolom kiri karena mt-12 yang sama) */}
     <div className="mt-12">
-      <p className="font-bold uppercase underline decoration-2">{formData.asnNama || '...'}</p>
-      <p className="mt-1 text-sm">NIP {formData.asnNip}</p>
+      <p className="font-bold uppercase underline decoration-2">{currentPreviewData.asnNama || '...'}</p>
+      <p className="mt-1 text-sm">NIP {currentPreviewData.asnNip}</p>
     </div>
   </div>
 </div>

@@ -177,71 +177,297 @@ export const GELAR_MAP: Record<string, { bidang: string, jenjang: string }> = {
 };
 
 /**
+ * Resolves standard education level (pendidikan) and major (jurusan) using custom business logic patterns.
+ */
+export const resolveUserPendidikan = (nama: string): { pendidikan: string; jurusan: string } | null => {
+  if (!nama) return null;
+
+  let txt = String(nama).toUpperCase();
+
+  // rapikan tanda baca
+  txt = txt
+    .replace(/\./g, "")
+    .replace(/,/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const gelarMap: Record<string, string> = {
+    // ===== S3 =====
+    "DR": "S-3|Doktor",
+    "PHD": "S-3|Doktor",
+    "DPHIL": "S-3|Doktor",
+
+    // ===== S2 =====
+    "MH": "S-2|Hukum",
+    "LLM": "S-2|Hukum",
+    "MKN": "S-2|Kenotariatan",
+    "MM": "S-2|Manajemen",
+    "MSI": "S-2|Ilmu Sosial",
+    "MSC": "S-2|Sains",
+    "MT": "S-2|Teknik",
+    "MKOM": "S-2|Ilmu Komputer",
+    "MMSI": "S-2|Sistem Informasi",
+    "MIKOM": "S-2|Ilmu Komunikasi",
+    "MIL": "S-2|Hukum Internasional",
+    "MIR": "S-2|Hubungan Internasional",
+    "MAP": "S-2|Administrasi Publik",
+    "MTRAP": "S-2|Administrasi Publik",
+    "ME": "S-2|Ekonomi",
+    "MFARM": "S-2|Farmasi",
+    "MHUM": "S-2|Humaniora",
+    "MA": "S-2|Humaniora",
+    "MPD": "S-2|Pendidikan",
+    "MDS": "S-2|Desain",
+    "MAK": "S-2|Akuntansi",
+    "MIPL": "S-2|Kekayaan Intelektual",
+    "MIP": "S-2|Kekayaan Intelektual",
+
+    // ===== S1 =====
+    "SH": "S-1|Hukum",
+    "ST": "S-1|Teknik",
+    "STP": "S-1|Teknologi Pertanian",
+    "SKOM": "S-1|Ilmu Komputer",
+    "SSI": "S-1|Sains",
+    "SE": "S-1|Ekonomi",
+    "SSOS": "S-1|Ilmu Sosial",
+    "SIP": "S-1|Ilmu Pemerintahan",
+    "SIKOM": "S-1|Ilmu Komunikasi",
+    "SFARM": "S-1|Farmasi",
+    "SP": "S-1|Pertanian",
+    "SPI": "S-1|Perikanan",
+    "SPD": "S-1|Pendidikan",
+    "SHUM": "S-1|Humaniora",
+    "SS": "S-1|Sastra",
+    "SDS": "S-1|Desain",
+    "SSN": "S-1|Seni",
+    "SAK": "S-1|Akuntansi",
+    "SAP": "S-1|Administrasi Publik",
+    "STAT": "S-1|Statistika",
+    "SARS": "S-1|Arsitektur",
+    "SKM": "S-1|Kesehatan Masyarakat",
+    "SIK": "S-1|Kepolisian",
+    "SAG": "S-1|Agama",
+    "SLING": "S-1|Linguistik",
+    "SHUBINT": "S-1|Hubungan Internasional",
+
+    // ===== D4 =====
+    "STR": "D-IV|Terapan",
+    "SST": "D-IV|Terapan",
+    "STRPAR": "D-IV|Pariwisata",
+    "STRAB": "D-IV|Administrasi Bisnis",
+    "STRPAS": "D-IV|Keimigrasian",
+
+    // ===== D3 =====
+    "AMD": "D-III|Diploma",
+    "AMDKOM": "D-III|Komputer",
+    "AMDAK": "D-III|Akuntansi",
+    "AMDPAR": "D-III|Pariwisata",
+    "AMDKES": "D-III|Kesehatan",
+    "AMDRMIK": "D-III|Rekam Medis",
+
+    // ===== Gelar lama =====
+    "IR": "S-1|Teknik",
+    "DRS": "S-1|Umum",
+    "DRA": "S-1|Umum"
+  };
+
+  let found: { gelar: string; nilai: string }[] = [];
+
+  for (let gelar in gelarMap) {
+    let regex = new RegExp("\\b" + gelar + "\\b", "g");
+    if (regex.test(txt)) {
+      found.push({
+        gelar: gelar,
+        nilai: gelarMap[gelar]
+      });
+    }
+  }
+
+  if (found.length === 0) {
+    return { pendidikan: "SLTA", jurusan: "" };
+  }
+
+  let hasil = found[found.length - 1].nilai.split("|");
+  return { pendidikan: hasil[0], jurusan: hasil[1] };
+};
+
+/**
+ * Advanced parsing and normalization for Indonesian employee names with academic titles.
+ * It corrects spacing, missing commas, missing periods, incorrect title ordering,
+ * and extracts the highest education level and study program (jurusan).
+ */
+export const polishGelarDanNama = (rawInput: string): {
+  formattedName: string;
+  pendidikan: string;
+  jurusan: string;
+} => {
+  if (!rawInput) {
+    return { formattedName: '', pendidikan: '', jurusan: '' };
+  }
+
+  // 1. Prepare normalized gelar map for easy lookups
+  const lookupMap: Record<string, string> = {};
+  const sortedGelarKeys = Object.keys(GELAR_MAP).sort((a, b) => b.length - a.length);
+  
+  for (const key of sortedGelarKeys) {
+    const dotless = key.toLowerCase().replace(/\./g, '');
+    lookupMap[dotless] = key;
+  }
+
+  // Identify standard front-of-name titles/honorifics
+  const frontTitleKeys = new Set(['prof', 'dr', 'drg', 'ir', 'h', 'hj', 'pdt']);
+
+  // 2. Tokenize the entire string by splitting by spaces, commas, semicolons
+  const rawTokens = rawInput.split(/[\s,;]+/).filter(Boolean);
+
+  const detectedFront: string[] = [];
+  const detectedBack: { key: string; original: string; jenjang: string; bidang: string; weight: number }[] = [];
+  const nameParts: string[] = [];
+
+  // Jenjang weights for sorting suffixes
+  const jenjangWeight: Record<string, number> = {
+    'DIII': 10,
+    'DIV': 20,
+    'S1': 30,
+    'PROFESI': 40,
+    'S2': 50,
+    'S3': 60,
+  };
+
+  for (const token of rawTokens) {
+    // Strip trailing dots for temporary checking, but handle special keys with dots too
+    const cleanToken = token.toLowerCase().replace(/[.,]/g, '').trim();
+    if (!cleanToken) continue;
+
+    // Check if is a known title/degree
+    if (lookupMap[cleanToken]) {
+      const canonicalKey = lookupMap[cleanToken];
+      
+      if (frontTitleKeys.has(cleanToken)) {
+        // Front title normalization
+        if (cleanToken === 'dr') {
+          // Keep lowercase 'dr.' if original was 'dr', else 'Dr.'
+          if (token.startsWith('dr')) {
+            detectedFront.push('dr.');
+          } else {
+            detectedFront.push('Dr.');
+          }
+        } else if (cleanToken === 'drg') {
+          detectedFront.push('drg.');
+        } else {
+          // Format with trailing dot if not already there, and capitalize first letter
+          detectedFront.push(canonicalKey.endsWith('.') ? canonicalKey : `${canonicalKey}.`);
+        }
+      } else {
+        // Back title / suffix
+        const info = GELAR_MAP[canonicalKey];
+        const weight = jenjangWeight[info.jenjang] || 20;
+        
+        // Avoid adding duplicate suffixes
+        if (!detectedBack.some(item => item.key === canonicalKey)) {
+          detectedBack.push({
+            key: canonicalKey,
+            original: token,
+            jenjang: info.jenjang,
+            bidang: info.bidang,
+            weight: weight
+          });
+        }
+      }
+    } else {
+      // It is part of the person's name (convert to UPPERCASE)
+      nameParts.push(token.toUpperCase());
+    }
+  }
+
+  // Fallback: If absolutely no name parts were detected, treat whole input as name
+  if (nameParts.length === 0) {
+    return { formattedName: rawInput.toUpperCase(), pendidikan: '', jurusan: '' };
+  }
+
+  // Reconstruct components:
+  const frontPrefix = detectedFront.length > 0 ? detectedFront.join(' ') : '';
+  const mainName = nameParts.join(' ');
+
+  // Suffixes: sort them by level (lowest to highest) according to weight
+  detectedBack.sort((a, b) => a.weight - b.weight);
+
+  // Back titles formatted in clean canonical format with dots (e.g. "S.T., M.Kom.")
+  const formattedBackList = detectedBack.map(item => {
+    let finalKey = item.key;
+    // Standardize dots in Indonesian titles (e.g. S.T., S.H., M.Kom., A.Md.)
+    if (finalKey.toLowerCase() === 'sh' || finalKey.toLowerCase() === 's.h') finalKey = 'S.H.';
+    else if (finalKey.toLowerCase() === 'st' || finalKey.toLowerCase() === 's.t') finalKey = 'S.T.';
+    else if (finalKey.toLowerCase() === 'se' || finalKey.toLowerCase() === 's.e') finalKey = 'S.E.';
+    else if (finalKey.toLowerCase() === 'mm' || finalKey.toLowerCase() === 'm.m') finalKey = 'M.M.';
+    else if (finalKey.toLowerCase() === 'mh' || finalKey.toLowerCase() === 'm.h') finalKey = 'M.H.';
+    else if (finalKey.toLowerCase() === 'mt' || finalKey.toLowerCase() === 'm.t') finalKey = 'M.T.';
+    else if (finalKey.toLowerCase() === 'msi' || finalKey.toLowerCase() === 'm.si') finalKey = 'M.Si.';
+    else if (finalKey.toLowerCase() === 'skom' || finalKey.toLowerCase() === 's.kom') finalKey = 'S.Kom.';
+    else if (finalKey.toLowerCase() === 'mkom' || finalKey.toLowerCase() === 'm.kom') finalKey = 'M.Kom.';
+    else if (finalKey.toLowerCase() === 'spd' || finalKey.toLowerCase() === 's.pd') finalKey = 'S.Pd.';
+    
+    // Add dot if missing at the end for other degrees
+    if (!finalKey.endsWith('.') && !['MMSI', 'MSE', 'MA', 'AMK', 'PK', 'Bc.IP'].includes(finalKey)) {
+      finalKey = `${finalKey}.`;
+    }
+    return finalKey;
+  });
+
+  const suffixPart = formattedBackList.length > 0 ? `, ${formattedBackList.join(', ')}` : '';
+
+  // Combine to make complete formatted name
+  const formattedName = frontPrefix ? `${frontPrefix} ${mainName}${suffixPart}` : `${mainName}${suffixPart}`;
+
+  // 3. Extract study program (jurusan) and education level (pendidikan) using PENDIDIKAN custom matches
+  let eduLevel = '';
+  let studyProgram = '';
+
+  const userEduValue = resolveUserPendidikan(rawInput);
+  if (userEduValue) {
+    eduLevel = userEduValue.pendidikan;
+    studyProgram = userEduValue.jurusan;
+  } else {
+    // Fallback to highest back title if no custom match
+    if (detectedBack.length > 0) {
+      const highestItem = detectedBack[detectedBack.length - 1];
+      
+      if (highestItem.jenjang === 'S3') eduLevel = 'S-3';
+      else if (highestItem.jenjang === 'S2') eduLevel = 'S-2';
+      else if (highestItem.jenjang === 'S1') eduLevel = 'S-1';
+      else if (highestItem.jenjang === 'DIV') eduLevel = 'D-IV';
+      else if (highestItem.jenjang === 'DIII') eduLevel = 'D-III';
+      else if (highestItem.jenjang === 'PROFESI') eduLevel = 'Profesi';
+      else eduLevel = highestItem.jenjang;
+
+      studyProgram = highestItem.bidang || '';
+    } else if (detectedFront.some(p => p.toLowerCase().startsWith('dr.'))) {
+      eduLevel = 'S-3';
+      studyProgram = 'Doktor';
+    }
+  }
+
+  // Capitalize study program (jurusan) elegantly
+  if (studyProgram) {
+    studyProgram = studyProgram.replace(/\w\S*/g, (txt) => {
+      return txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase();
+    }).trim();
+  }
+
+  return {
+    formattedName,
+    pendidikan: eduLevel,
+    jurusan: studyProgram
+  };
+};
+
+/**
  * Helper to format Pegawai Name correctly:
  * - Proper capitalization for Degrees/Titles (Gelar)
  * - ALL CAPS for the actual Name
  */
 export const formatPegawaiName = (nama: string): string => {
-  if (!nama) return '';
-  
-  // Use a case-insensitive lookup map for titles
-  const gelarLookup: Record<string, string> = {};
-  Object.keys(GELAR_MAP).forEach(k => {
-    gelarLookup[k.toLowerCase()] = k;
-    // Also map without dots for more robust matching
-    gelarLookup[k.toLowerCase().replace(/\./g, '')] = k;
-  });
-
-  // 1. Split into Name Part and Suffix Part (separated by first comma and subsequent)
-  // Example: "DR. IR. BUDI SANTOSO, S.H., M.H."
-  const mainParts = nama.split(',');
-  const prefixAndName = mainParts[0].trim();
-  const suffixes = mainParts.slice(1).map(s => s.trim());
-
-  // 2. Process Prefix and Name
-  // Example: "DR. IR. BUDI SANTOSO" -> ["DR.", "IR.", "BUDI", "SANTOSO"]
-  const words = prefixAndName.split(/\s+/);
-  const formattedWords = words.map(word => {
-    const lowerWord = word.toLowerCase();
-    const cleanLowerWord = lowerWord.replace(/[.,]/g, '');
-    
-    // Check if it's a known title
-    if (gelarLookup[lowerWord]) return gelarLookup[lowerWord];
-    if (gelarLookup[cleanLowerWord]) return gelarLookup[cleanLowerWord];
-    
-    // If word ends with dot and is not a known title, maybe it's an initial or unknown title
-    if (word.endsWith('.')) {
-      // Try to find if it corresponds to a title without its trailing dots
-      const match = Object.keys(gelarLookup).find(k => k.startsWith(cleanLowerWord));
-      if (match && match.length < cleanLowerWord.length + 2) return gelarLookup[match];
-    }
-
-    // Default to Uppercase for the name part
-    return word.toUpperCase();
-  });
-
-  const formattedMainPart = formattedWords.join(' ');
-
-  // 3. Process Suffixes
-  const formattedSuffixes = suffixes.map(suffix => {
-    const lowerSuffix = suffix.toLowerCase();
-    const cleanLowerSuffix = lowerSuffix.replace(/[.,]/g, '');
-    
-    if (gelarLookup[lowerSuffix]) return gelarLookup[lowerSuffix];
-    if (gelarLookup[cleanLowerSuffix]) return gelarLookup[cleanLowerSuffix];
-    
-    // If not found, keep it as is but maybe Title Case or just Uppercase?
-    // User said "gelar sesuai penulisan", so if it's unknown we might want to keep it 
-    // but usually if it's a degree it should be in GELAR_MAP.
-    // Let's assume if it's not in map, it might be a weird degree - try to proper case it?
-    // Actually, Indonesian degrees are mostly uppercase with dots.
-    return suffix; 
-  });
-
-  if (formattedSuffixes.length > 0) {
-    return `${formattedMainPart}, ${formattedSuffixes.join(', ')}`;
-  }
-  return formattedMainPart;
+  return polishGelarDanNama(nama).formattedName;
 };
 
 /**

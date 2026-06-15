@@ -184,7 +184,7 @@ export default function TalentaPage() {
         fetchNineBoxFromSheets(bypassCache),
         fetchPengembanganTalentaFromSheets(bypassCache)
       ]);
-      setPegawaiList((peg || []).filter(p => (p.status || 'Aktif') === 'Aktif'));
+      setPegawaiList((peg || []).filter(p => (p.status || 'Aktif').trim().toUpperCase() === 'AKTIF'));
       setPenilaianList(pen);
       setTalentPoolList(tp);
       setAssessmentList(ass);
