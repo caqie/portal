@@ -459,7 +459,12 @@ const SettingsPage = () => {
             } else if (normalizedKey === 'jenispegawai' || normalizedKey === 'kategoripeg' || normalizedKey === 'type') {
               payload.jenisPegawai = parsedVal;
             } else if (normalizedKey === 'status' || normalizedKey === 'statuspegawai') {
-              payload.status = parsedVal;
+              const lower = parsedVal.toLowerCase();
+              if (lower === 'aktif' || lower === 'active' || lower.startsWith('aktif')) payload.status = 'Aktif';
+              else if (lower === 'tidak aktif' || lower === 'non aktif' || lower === 'non-aktif' || lower === 'inactive' || lower.startsWith('tidak')) payload.status = 'Tidak Aktif';
+              else if (lower === 'pensiun' || lower === 'retired' || lower.startsWith('pensiun') || lower.startsWith('bup')) payload.status = 'Pensiun';
+              else if (lower === 'tugas belajar' || lower === 'tubel' || lower.startsWith('tugas')) payload.status = 'Tugas Belajar';
+              else payload.status = parsedVal;
             } else if (normalizedKey === 'gender' || normalizedKey === 'jeniskelamin' || normalizedKey === 'jk' || normalizedKey === 'lp' || normalizedKey === 'genderlp') {
               const g = parsedVal.toUpperCase();
               payload.gender = (g === 'P' || g.startsWith('PEREMPUAN') || g === 'WANITA' || g === 'W') ? 'P' : 'L';

@@ -222,7 +222,12 @@ const PegawaiPage = () => {
             } else if (normalizedKey === 'jenispegawai' || normalizedKey === 'kategoripeg' || normalizedKey === 'type') {
               payload.jenisPegawai = parsedVal;
             } else if (normalizedKey === 'status' || normalizedKey === 'statuspegawai') {
-              payload.status = parsedVal;
+              const lower = parsedVal.toLowerCase();
+              if (lower === 'aktif' || lower === 'active' || lower.startsWith('aktif')) payload.status = 'Aktif';
+              else if (lower === 'tidak aktif' || lower === 'non aktif' || lower === 'non-aktif' || lower === 'inactive' || lower.startsWith('tidak')) payload.status = 'Tidak Aktif';
+              else if (lower === 'pensiun' || lower === 'retired' || lower.startsWith('pensiun') || lower.startsWith('bup')) payload.status = 'Pensiun';
+              else if (lower === 'tugas belajar' || lower === 'tubel' || lower.startsWith('tugas')) payload.status = 'Tugas Belajar';
+              else payload.status = parsedVal;
             } else if (normalizedKey === 'gender' || normalizedKey === 'jeniskelamin' || normalizedKey === 'jk' || normalizedKey === 'lp' || normalizedKey === 'genderlp') {
               const g = parsedVal.toUpperCase();
               payload.gender = (g === 'P' || g.startsWith('PEREMPUAN') || g === 'WANITA' || g === 'W') ? 'P' : 'L';
@@ -1200,6 +1205,20 @@ const PegawaiPage = () => {
         </div>
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 w-full lg:w-auto">
            <input type="file" ref={importExcelInputRef} className="hidden" accept=".xlsx,.xls,.csv" onChange={handleImportExcel} />
+           <button 
+             onClick={() => loadData(true)} 
+             disabled={loading}
+             className="h-10 md:h-14 px-3 md:px-6 bg-sky-50 text-sky-600 border border-sky-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-sky-600 hover:text-white transition-all flex items-center justify-center gap-2"
+             title="Sinkronisasi data langsung dari Google Spreadsheet (bypass cache)"
+           >
+             {loading ? (
+               <div className="h-4 w-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
+             ) : (
+               <i className="bi bi-arrow-clockwise text-base md:text-lg"></i>
+             )}
+             <span className="hidden xs:inline">Sync Cloud</span>
+             <span className="xs:hidden">Sync</span>
+           </button>
            <button onClick={() => handleExportExcel('SHARE')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2"><i className="bi bi-file-earmark-spreadsheet-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Share</span><span className="xs:hidden">Shr</span></button>
            {canEdit && (<button onClick={() => handleExportExcel('FULL')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-600 text-white rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"><i className="bi bi-database-fill-down text-base md:text-lg"></i> <span className="hidden xs:inline">Full</span><span className="xs:hidden">Full</span></button>)}
            {canEdit && (

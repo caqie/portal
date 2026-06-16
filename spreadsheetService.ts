@@ -374,7 +374,7 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       return null;
     }
     
-    return {
+    const p = {
       id: sid || `PEG-${nip || Date.now()}-${Math.random().toString(36).substr(2, 5)}`, 
       nip: nip, 
       nama: nama || '(NAMA KOSONG)', 
@@ -392,7 +392,16 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       })() as 'L' | 'P',
       golRuang: get('GOLRUANG') || get('GOLONGAN') || get('PANGKATGOL'), 
       jenisPegawai: get('JENISPEGAWAI') || get('KATEGORIPEG') || get('TYPE'), 
-      status: get('STATUS') || get('STATUSPEGAWAI') || 'Aktif',
+      status: (() => {
+        const rawStatus = (get('STATUS') || get('STATUSPEGAWAI') || '').trim();
+        if (!rawStatus) return 'Aktif';
+        const lower = rawStatus.toLowerCase();
+        if (lower === 'aktif' || lower === 'active' || lower.startsWith('aktif')) return 'Aktif';
+        if (lower === 'tidak aktif' || lower === 'non aktif' || lower === 'non-aktif' || lower === 'inactive' || lower.startsWith('tidak')) return 'Tidak Aktif';
+        if (lower === 'pensiun' || lower === 'retired' || lower.startsWith('pensiun') || lower.startsWith('bup')) return 'Pensiun';
+        if (lower === 'tugas belajar' || lower === 'tubel' || lower.startsWith('tugas')) return 'Tugas Belajar';
+        return rawStatus.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      })(),
       pangkat: get('PANGKAT'), 
       foto: get('FOTO') || get('FOTOURL') || get('PHOTO'),
       tmtPangkat: get('TMTPANGKAT') || get('TMT_PANGKAT'), 
@@ -432,6 +441,124 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       riwayatPelatihan: getJson('RIWAYATPELATIHAN'),
       keluarga: getJson('KELUARGA')
     } as Pegawai;
+
+    // A. Classification Enrichment (Forced dynamic check)
+    const es = (p.eselon || '').trim().toUpperCase();
+    const j = (p.jabatan || '').trim().toUpperCase();
+    const kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
+    
+    if (kl.includes('PIMPINAN TINGGI') || kl.includes('JPT')) {
+      p.klasifikasiJabatan = 'JPT';
+    } else if (kl.includes('STRUKTURAL') || kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('MANAJERIAL')) {
+      p.klasifikasiJabatan = 'STRUKTURAL';
+    } else if (kl.includes('FUNGSIONAL TERTENTU') || kl.includes('JFT') || kl === 'FUNGSIONAL') {
+      p.klasifikasiJabatan = 'FUNGSIONAL';
+    } else if (kl.includes('FUNGSIONAL UMUM') || kl.includes('JFU') || kl.includes('PELAKSANA')) {
+      p.klasifikasiJabatan = 'PELAKSANA';
+    } else if (j.includes('AHLI') || j.includes('MADYA') || j.includes('MUDA') || 
+               j.includes('PERTAMA') || j.includes('UTAMA') || j.includes('TERAMPIL') || 
+               j.includes('MAHIR') || j.includes('PENYELIA') || j.includes('PELAKSANA LANJUTAN')) {
+      p.klasifikasiJabatan = 'FUNGSIONAL';
+    } else if (j.includes('DIREKTUR JENDERAL') || j.includes('SEKRETARIS DIREKTORAT JENDERAL') || 
+               j.includes('SEKRETARIS UTAMA') || j.includes('STAF AHLI') || j.includes('INSPEKTUR') || 
+               j.includes('KEPALA BIRO') || j.includes('KEPALA PUSAT') || j.includes('DIREKTUR') || 
+               j.includes('SEKRETARIS DIREKTORAT')) {
+      p.klasifikasiJabatan = 'JPT';
+    } else if (es.startsWith('I') || es.startsWith('II')) {
+      p.klasifikasiJabatan = 'JPT';
+    } else if (es.startsWith('III') || es.startsWith('IV') || es.startsWith('V')) {
+      p.klasifikasiJabatan = 'STRUKTURAL';
+    } else {
+      p.klasifikasiJabatan = 'PELAKSANA';
+    }
+
+    // B. Identity & Retirement Enrichment
+    if (p.tanggalLahir) {
+      const cleanBirth = (p.tanggalLahir.trim());
+      let parsedBirthStr = '';
+      if (/^\d{4}-\d{2}-\d{2}$/.test(cleanBirth)) parsedBirthStr = cleanBirth;
+      else if (cleanBirth.includes('T')) parsedBirthStr = cleanBirth.split('T')[0];
+      else {
+        const parts = cleanBirth.split(/[-/]/);
+        if (parts.length === 3) {
+          if (parts[0].length <= 2 && parts[2].length === 4) parsedBirthStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          else if (parts[0].length === 4) parsedBirthStr = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        }
+      }
+      
+      if (!parsedBirthStr) {
+        try {
+          const d = new Date(cleanBirth);
+          if (!isNaN(d.getTime())) parsedBirthStr = d.toISOString().split('T')[0];
+        } catch (e) {}
+      }
+
+      if (parsedBirthStr) {
+        const birth = new Date(parsedBirthStr);
+        if (!isNaN(birth.getTime())) {
+          // Age if missing
+          if (!p.usia || p.usia === '-') {
+            const today = new Date();
+            let years = today.getFullYear() - birth.getFullYear();
+            let months = today.getMonth() - birth.getMonth();
+            if (months < 0) {
+              years--;
+              months += 12;
+            }
+            p.usia = `${years} Thn ${months} Bln`;
+          }
+
+          // Retirement age limit (BUP)
+          if (!p.bup || p.bup === '-') {
+            const isHighLevel = p.eselon && p.eselon !== '-' && p.eselon !== '';
+            const isFungsionalAhli = p.jabatan?.toUpperCase().includes('MADYA') || p.jabatan?.toUpperCase().includes('UTAMA');
+            p.bup = (isHighLevel || isFungsionalAhli) ? '60' : '58';
+          }
+
+          const bupYears = parseInt(p.bup);
+          const retirementDate = new Date(birth.getFullYear() + bupYears, birth.getMonth() + 1, 1);
+          
+          if (!p.tglPensiun || p.tglPensiun === '-') {
+            p.tglPensiun = retirementDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+          }
+
+          if (!p.tmtPensiun || p.tmtPensiun === '-') {
+            p.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
+          }
+
+          // Auto Pensiun Status
+          const today = new Date();
+          let checkDate = retirementDate;
+          if (p.tmtPensiun && p.tmtPensiun !== '-') {
+            let tmtClean = p.tmtPensiun.trim();
+            let parsedTmtStr = '';
+            if (/^\d{4}-\d{2}-\d{2}$/.test(tmtClean)) parsedTmtStr = tmtClean;
+            else if (tmtClean.includes('T')) parsedTmtStr = tmtClean.split('T')[0];
+            else {
+              const parts = tmtClean.split(/[-/]/);
+              if (parts.length === 3) {
+                if (parts[0].length <= 2 && parts[2].length === 4) parsedTmtStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+                else if (parts[0].length === 4) parsedTmtStr = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+              }
+            }
+            if (parsedTmtStr) {
+              const tmtDate = new Date(parsedTmtStr);
+              if (!isNaN(tmtDate.getTime())) {
+                checkDate = tmtDate;
+              }
+            }
+          }
+          
+          if (today >= checkDate) {
+            if (p.status === 'Aktif' || p.status === 'Tugas Belajar') {
+              p.status = 'Pensiun';
+            }
+          }
+        }
+      }
+    }
+
+    return p;
   }, bypassCache);
 };
 
@@ -904,7 +1031,7 @@ export const fetchAllAbsensiHistoryFromSheets = async (): Promise<any[]> => {
   });
 };
 
-export const fetchSystemConfig = async (): Promise<SystemConfig> => {
+export const fetchSystemConfig = async (bypassCache = true): Promise<SystemConfig> => {
   const data = await fetchTableData<SystemConfig>('CONFIG', 'portal_system_config', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } };
@@ -917,7 +1044,7 @@ export const fetchSystemConfig = async (): Promise<SystemConfig> => {
       systemLogo: get('SYSTEMLOGO') || get('SYSTEM_LOGO') || '',
       templateLogo: get('TEMPLATELOGO') || get('TEMPLATE_LOGO') || ''
     } as SystemConfig;
-  });
+  }, bypassCache);
   return data.length > 0 ? data[0] : { 
     maintenance: { all: false, pages: [] }, 
     pageAccess: [] 

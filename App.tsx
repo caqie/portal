@@ -156,8 +156,10 @@ const AppContent = () => {
     syncGidMap(); 
     loadSystemConfig();
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const configTimer = setInterval(() => loadSystemConfig(), 30000); // Poll system config every 30 seconds for real-time updates
     return () => {
       clearInterval(timer);
+      clearInterval(configTimer);
       console.error = originalError;
       console.warn = originalWarn;
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
