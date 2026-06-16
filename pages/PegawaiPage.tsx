@@ -56,6 +56,7 @@ const PegawaiPage = () => {
   const [maxAge, setMaxAge] = useState<string>(sessionStorage.getItem('pegawai_maxAge') || '');
   const [filterPendidikan, setFilterPendidikan] = useState(sessionStorage.getItem('pegawai_filterPendidikan') || 'Semua Pendidikan');
   const [filterJurusan, setFilterJurusan] = useState(sessionStorage.getItem('pegawai_filterJurusan') || 'Semua Jurusan');
+  const [filterKlasifikasi, setFilterKlasifikasi] = useState(sessionStorage.getItem('pegawai_filterKlasifikasi') || 'Semua Klasifikasi');
   const [jurusanSearch, setJurusanSearch] = useState('');
 
   // Persist filters and scroll to sessionStorage
@@ -70,7 +71,8 @@ const PegawaiPage = () => {
     sessionStorage.setItem('pegawai_maxAge', maxAge);
     sessionStorage.setItem('pegawai_filterPendidikan', filterPendidikan);
     sessionStorage.setItem('pegawai_filterJurusan', filterJurusan);
-  }, [searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan]);
+    sessionStorage.setItem('pegawai_filterKlasifikasi', filterKlasifikasi);
+  }, [searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi]);
 
   // Restore scroll position
   useEffect(() => {
@@ -102,6 +104,9 @@ const PegawaiPage = () => {
   const [isJurusanDropdownOpen, setIsJurusanDropdownOpen] = useState(false);
   const jurusanDropdownRef = useRef<HTMLDivElement>(null);
 
+  const [isKlasifikasiDropdownOpen, setIsKlasifikasiDropdownOpen] = useState(false);
+  const klasifikasiDropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (jenisDropdownRef.current && !jenisDropdownRef.current.contains(event.target as Node)) {
@@ -112,6 +117,9 @@ const PegawaiPage = () => {
       }
       if (jurusanDropdownRef.current && !jurusanDropdownRef.current.contains(event.target as Node)) {
         setIsJurusanDropdownOpen(false);
+      }
+      if (klasifikasiDropdownRef.current && !klasifikasiDropdownRef.current.contains(event.target as Node)) {
+        setIsKlasifikasiDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -699,6 +707,10 @@ const PegawaiPage = () => {
       const selectedJurusans = filterJurusan === 'Semua Jurusan' || !filterJurusan ? [] : filterJurusan.split(',').filter(Boolean);
       const jurusanMatch = selectedJurusans.length === 0 || selectedJurusans.map(x => x.toLowerCase()).includes((p.jurusan || '').trim().toLowerCase());
 
+      // Klasifikasi match (supporting multiple)
+      const selectedKlasifikasis = filterKlasifikasi === 'Semua Klasifikasi' || !filterKlasifikasi ? [] : filterKlasifikasi.split(',').filter(Boolean);
+      const klasifikasiMatch = selectedKlasifikasis.length === 0 || selectedKlasifikasis.map(x => x.toLowerCase()).includes((p.klasifikasiJabatan || '').trim().toLowerCase());
+
       // Golongan range match
       let golonganMatch = true;
       if (minGolongan !== 'Semua' || maxGolongan !== 'Semua') {
@@ -745,9 +757,9 @@ const PegawaiPage = () => {
         }
       }
 
-      return match && unitMatch && jenisMatch && statusMatch && golonganMatch && pendidikanMatch && jurusanMatch;
+      return match && unitMatch && jenisMatch && statusMatch && golonganMatch && pendidikanMatch && jurusanMatch && ageMatch && klasifikasiMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan]);
+  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi]);
 
   const filteredForCounts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -769,6 +781,10 @@ const PegawaiPage = () => {
       const selectedJurusans = filterJurusan === 'Semua Jurusan' || !filterJurusan ? [] : filterJurusan.split(',').filter(Boolean);
       const jurusanMatch = selectedJurusans.length === 0 || selectedJurusans.map(x => x.toLowerCase()).includes((p.jurusan || '').trim().toLowerCase());
 
+      // Klasifikasi match (supporting multiple)
+      const selectedKlasifikasis = filterKlasifikasi === 'Semua Klasifikasi' || !filterKlasifikasi ? [] : filterKlasifikasi.split(',').filter(Boolean);
+      const klasifikasiMatch = selectedKlasifikasis.length === 0 || selectedKlasifikasis.map(x => x.toLowerCase()).includes((p.klasifikasiJabatan || '').trim().toLowerCase());
+
       let ageMatch = true;
       if (minAge || maxAge) {
         const birthDateStr = formatDateForInput(p.tanggalLahir);
@@ -783,9 +799,9 @@ const PegawaiPage = () => {
           } else ageMatch = false;
         } else ageMatch = false;
       }
-      return match && unitMatch && jenisMatch && ageMatch && pendidikanMatch && jurusanMatch;
+      return match && unitMatch && jenisMatch && ageMatch && pendidikanMatch && jurusanMatch && klasifikasiMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterJenis, minAge, maxAge, filterPendidikan, filterJurusan]);
+  }, [pegawaiList, searchTerm, filterUnit, filterJenis, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -1320,6 +1336,62 @@ const PegawaiPage = () => {
               </div>
             )}
           </div>
+          <div ref={klasifikasiDropdownRef} className="relative w-full">
+            <button 
+              type="button"
+              onClick={() => setIsKlasifikasiDropdownOpen(!isKlasifikasiDropdownOpen)}
+              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none"
+            >
+              <span className="truncate">
+                {filterKlasifikasi === 'Semua Klasifikasi' || !filterKlasifikasi
+                  ? 'Semua Klasifikasi'
+                  : filterKlasifikasi.split(',').join(' + ')}
+              </span>
+              <i className={`bi bi-chevron-${isKlasifikasiDropdownOpen ? 'up' : 'down'} text-gray-400 text-xs`}></i>
+            </button>
+            {isKlasifikasiDropdownOpen && (
+              <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl p-3 space-y-2 max-h-60 overflow-y-auto">
+                <label className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
+                  <input 
+                    type="checkbox"
+                    checked={filterKlasifikasi === 'Semua Klasifikasi' || !filterKlasifikasi}
+                    onChange={() => setFilterKlasifikasi('Semua Klasifikasi')}
+                    className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-[9px] md:text-[11px] font-black uppercase tracking-wider text-gray-700">Semua Klasifikasi</span>
+                </label>
+                <div className="h-px bg-gray-100 my-1"></div>
+                {['JPT', 'STRUKTURAL', 'FUNGSIONAL', 'PELAKSANA'].map(klas => {
+                  const currentList = filterKlasifikasi === 'Semua Klasifikasi' ? [] : filterKlasifikasi.split(',').filter(Boolean);
+                  const isChecked = currentList.includes(klas);
+                  const handleCheckboxChange = () => {
+                    let newList: string[];
+                    if (isChecked) {
+                      newList = currentList.filter(item => item !== klas);
+                    } else {
+                      newList = [...currentList, klas];
+                    }
+                    if (newList.length === 0) {
+                      setFilterKlasifikasi('Semua Klasifikasi');
+                    } else {
+                      setFilterKlasifikasi(newList.join(','));
+                    }
+                  };
+                  return (
+                    <label key={klas} className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 cursor-pointer transition-all">
+                      <input 
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={handleCheckboxChange}
+                        className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span className="text-[9px] md:text-[11px] font-black uppercase tracking-wider text-gray-800">{klas}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <select className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
               <option>Semua Status</option>
               <option value="Aktif">AKTIF</option>
@@ -1510,6 +1582,7 @@ const PegawaiPage = () => {
               setMaxAge('');
               setFilterPendidikan('Semua Pendidikan');
               setFilterJurusan('Semua Jurusan');
+              setFilterKlasifikasi('Semua Klasifikasi');
               setJurusanSearch('');
             }}
             className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-slate-100/50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none hover:bg-rose-50 hover:text-rose-600 transition-all text-slate-400 flex items-center justify-center gap-2"
