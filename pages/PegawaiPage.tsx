@@ -9,6 +9,7 @@ import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
+import SheetErrorGuideModal from '../components/SheetErrorGuideModal';
 import AutocompleteInput from '../components/AutocompleteInput';
 import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
 // @ts-ignore
@@ -140,6 +141,8 @@ const PegawaiPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isSheetErrorOpen, setIsSheetErrorOpen] = useState(false);
+  const [sheetErrorMsg, setSheetErrorMsg] = useState('');
   const [pegawaiToDelete, setPegawaiToDelete] = useState<Pegawai | null>(null);
   const importExcelInputRef = useRef<HTMLInputElement>(null);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
@@ -579,7 +582,8 @@ const PegawaiPage = () => {
     } catch (e) { 
       console.error("Data loading error:", e); 
       if (bypassCache) {
-        alert("Gagal sinkronisasi: " + (e instanceof Error ? e.message : "Terjadi kesalahan koneksi. Pastikan Spreadsheet dipublikasikan ke Web (CSV)."));
+        setSheetErrorMsg(e instanceof Error ? e.message : "Terjadi kesalahan koneksi. Pastikan Spreadsheet dipublikasikan ke Web (CSV).");
+        setIsSheetErrorOpen(true);
       }
     } finally { 
       setLoading(false); 
@@ -1026,6 +1030,7 @@ const PegawaiPage = () => {
   return (
     <div className="space-y-8 animate-fadeIn pb-24 text-black">
       <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} message={successMsg} />
+      <SheetErrorGuideModal isOpen={isSheetErrorOpen} onClose={() => setIsSheetErrorOpen(false)} errorMessage={sheetErrorMsg} moduleName="PEGAWAI" />
       <ConfirmationModal isOpen={isConfirmOpen} onClose={() => !syncing && setIsConfirmOpen(false)} onConfirm={async () => {
            if(pegawaiToDelete) {
              setSyncing(true);
