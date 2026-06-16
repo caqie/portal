@@ -95,6 +95,12 @@ export const loadSharedConfigFromServer = async (): Promise<void> => {
     
     const res = await fetch('/api/spreadsheet-config');
     if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        // Not running with a Node.js backend (likely static hosting like Apache/cPanel), abort silently
+        return;
+      }
+
       const data = await res.json();
       const isServerEmptyOrDefault = !data.spreadsheetId || data.spreadsheetId === DEFAULT_SPREADSHEET_ID;
       
@@ -152,7 +158,8 @@ export const loadSharedConfigFromServer = async (): Promise<void> => {
       }
     }
   } catch (e) {
-    console.error("Gagal melakukan penyesuaian konfigurasi cloud:", e);
+    // Fail silently or with standard message to avoid breaking client SPA in static environments
+    console.log("No cloud database shared config backend detected or accessible. Using local environment configurations.");
   }
 };
 
@@ -169,7 +176,6 @@ export const saveSharedConfigToServer = async (
     });
     return res.ok;
   } catch (e) {
-    console.error("Gagal menyimpan konfigurasi ke cloud server:", e);
     return false;
   }
 };
@@ -186,10 +192,10 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
 
   const cleanUrl = appsScriptUrl.trim();
   try {
-    const finalUrl = `/api/proxy?url=${encodeURIComponent(cleanUrl)}`;
+    const finalUrl = cleanUrl;
     const response = await fetch(finalUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Google Apps Script performs best on simple text POST to avoid preflight issues in standard CORS
       body: JSON.stringify({ 
         module: moduleName.toUpperCase().trim(), 
         action: action, 
@@ -214,11 +220,8 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
 export const getServerTime = async (): Promise<Date> => {
   const { appsScriptUrl } = getDbConfig();
   try {
-    // We can use a simple GET request to a special action in Apps Script
-    // Or just fetch headers from a reliable source if Apps Script is too slow.
-    // For now, let's assume we can get it from Apps Script.
     const targetUrl = `${appsScriptUrl}?action=GET_TIME`;
-    const finalUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+    const finalUrl = targetUrl;
     const res = await fetch(finalUrl);
     const data = await res.json();
     if (data.success && data.time) return new Date(data.time);
@@ -290,10 +293,10 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
   if (appsScriptUrl && appsScriptUrl.trim() !== '') {
     try {
       const cleanUrl = appsScriptUrl.trim();
-      const finalUrl = `/api/proxy?url=${encodeURIComponent(cleanUrl)}`;
+      const finalUrl = cleanUrl;
       const apiResponse = await fetch(finalUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Use text/plain for CORS preflight avoidance if needed
         body: JSON.stringify({
           action: 'GET',
           module: gidKey.toUpperCase().trim(),
@@ -366,7 +369,7 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
 
   try {
     const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`;
-    const finalUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+    const finalUrl = url;
     const response = await fetch(finalUrl);
     if (!response.ok || (response.headers.get('content-type') || '').includes('html')) {
        const healed = await attemptAutoHeal(gidKey);
@@ -864,10 +867,10 @@ export const uploadFileToDrive = async (fileName: string, mimeType: string, base
     const safeFileName = (fileName || `UPLOAD_${Date.now()}`).trim().replace(/[/\\?%*:|"<>]/g, '-');
     
     try {
-        const finalUrl = `/api/proxy?url=${encodeURIComponent(cleanUrl)}`;
+        const finalUrl = cleanUrl;
         const response = await fetch(finalUrl, { 
             method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
             body: JSON.stringify({ 
                 action: 'UPLOAD', 
                 spreadsheetId, 
@@ -916,10 +919,10 @@ export const syncGidMap = async (): Promise<boolean> => {
 
     // Try POST first (more reliable in some environments)
     try {
-        const finalUrl = `/api/proxy?url=${encodeURIComponent(cleanUrl)}`;
+        const finalUrl = cleanUrl;
         const postRes = await fetch(finalUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ action: 'GET_GID_MAP', spreadsheetId })
         });
         
@@ -938,7 +941,7 @@ export const syncGidMap = async (): Promise<boolean> => {
     try {
         const separator = cleanUrl.includes('?') ? '&' : '?';
         const getUrl = `${cleanUrl}${separator}ssId=${spreadsheetId}`;
-        const finalUrl = `/api/proxy?url=${encodeURIComponent(getUrl)}`;
+        const finalUrl = getUrl;
         const getRes = await fetch(finalUrl);
         if (getRes.ok) {
             const data = await getRes.json();
