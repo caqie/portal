@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { syncGidMap } from '../spreadsheetService';
+import { syncGidMap, saveSharedConfigToServer } from '../spreadsheetService';
 
 interface DatabaseConfigModalProps {
   isOpen: boolean;
@@ -42,12 +42,19 @@ const DatabaseConfigModal: React.FC<DatabaseConfigModalProps> = ({ isOpen, onClo
     setStatusMsg(null);
 
     try {
-      // 1. Save directly to localStorage
+      // 1. Save directly to localStorage & Sync to Server (for other users)
       localStorage.setItem('db_spreadsheet_id', spreadsheetId.trim());
       localStorage.setItem('portal_cloud_config', JSON.stringify({
         appsScriptUrl: appsScriptUrl.trim(),
         driveFolderId: driveFolderId.trim()
       }));
+
+      // Persist configuration to the cloud server
+      await saveSharedConfigToServer(
+        spreadsheetId.trim(),
+        appsScriptUrl.trim(),
+        driveFolderId.trim()
+      );
 
       // Fire event to notify app components of storage update
       window.dispatchEvent(new Event('storage_updated'));

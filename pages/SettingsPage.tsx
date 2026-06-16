@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai, SystemConfig, PageAccess } from '../types';
-import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig, auditSpreadsheet, deleteSheetRemote, EXPECTED_COLUMNS_SCHEMA } from '../spreadsheetService';
+import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig, auditSpreadsheet, deleteSheetRemote, EXPECTED_COLUMNS_SCHEMA, saveSharedConfigToServer } from '../spreadsheetService';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO, APP_ROUTES, UNIT_KERJA, PANGKAT_MAP } from '../constants';
@@ -210,9 +210,13 @@ const SettingsPage = () => {
     setLoading(false);
   };
 
-  const saveCloudConfig = () => {
+  const saveCloudConfig = async () => {
     localStorage.setItem('db_spreadsheet_id', dbConfig.spreadsheetId);
     localStorage.setItem('portal_cloud_config', JSON.stringify({ appsScriptUrl: dbConfig.appsScriptUrl, driveFolderId: dbConfig.driveFolderId }));
+    
+    // Save to server so other users automatically get this configuration
+    await saveSharedConfigToServer(dbConfig.spreadsheetId, dbConfig.appsScriptUrl, dbConfig.driveFolderId);
+
     window.dispatchEvent(new Event('storage_updated'));
     setSuccessMsg("Konfigurasi Database & Drive Berhasil Disimpan.");
     setShowSuccess(true);

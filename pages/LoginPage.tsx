@@ -4,7 +4,6 @@ import { useAuth } from '../AuthContext';
 import { fetchUsersFromSheets, fetchPegawaiFromSheets } from '../spreadsheetService';
 import { Pegawai, AdminUser } from '../types';
 import { DEFAULT_LOGO } from '../constants';
-import DatabaseConfigModal from '../components/DatabaseConfigModal';
 
 const LoginPage = () => {
   const [nip, setNip] = useState('');
@@ -12,8 +11,6 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isDbConfigOpen, setIsDbConfigOpen] = useState(false);
-  const [connError, setConnError] = useState<string | null>(null);
   const { login } = useAuth();
   
   const [systemName, setSystemName] = useState('Portal SDM');
@@ -26,12 +23,6 @@ const LoginPage = () => {
     const savedLogo = localStorage.getItem('portal_system_logo');
     if (savedLogo) setSystemLogo(savedLogo);
     else setSystemLogo(DEFAULT_LOGO);
-
-    // Check for any latent connection warning or spreadsheet failure
-    const lastErr = sessionStorage.getItem('last_spreadsheet_error');
-    if (lastErr) {
-      setConnError(lastErr);
-    }
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,8 +36,6 @@ const LoginPage = () => {
       
       if (users.length === 0) {
         setError('Gagal mengambil data pengguna dari Google Sheet. Koneksi database terganggu atau spreadsheet kosong.');
-        const lastErr = sessionStorage.getItem('last_spreadsheet_error') || 'Gagal koneksi ke Sheet USERS';
-        setConnError(lastErr);
         setLoading(false);
         return;
       }
@@ -106,16 +95,6 @@ const LoginPage = () => {
       <div className="w-full max-w-[440px] animate-fadeIn pb-10 sm:pb-0 relative z-10">
         <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.08)] p-6 sm:p-10 border border-white/60 relative overflow-hidden backdrop-blur-md">
           
-          {/* DATABASE CONFIG TRIGGER BUTTON */}
-          <button 
-            type="button"
-            onClick={() => setIsDbConfigOpen(true)}
-            className="absolute top-6 right-6 h-10 w-10 bg-gray-50 hover:bg-blue-50 text-gray-400 hover:text-blue-600 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95 border border-gray-100/50 shadow-sm z-20 focus:outline-none"
-            title="Pengaturan Koneksi Google Sheets"
-          >
-            <i className="bi bi-database-fill-gear text-lg"></i>
-          </button>
-          
           {/* AKSEN WATERMARK ATAS KARTU */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-blue-600">
              <div 
@@ -130,7 +109,7 @@ const LoginPage = () => {
 
           <div className="text-center mb-6 sm:mb-10 relative">
             <div className="group relative inline-block">
-              <div className="inline-flex items-center justify-center h-20 w-20 sm:h-28 sm:w-28 bg-white rounded-[1.5rem] sm:rounded-[2rem] shadow-xl mb-4 transition-all duration-500 group-hover:scale-105 group-hover:shadow-2xl overflow-hidden p-2.5 sm:p-3 border border-gray-50 shimmer-effect relative z-10">
+               <div className="inline-flex items-center justify-center h-20 w-20 sm:h-28 sm:w-28 bg-white rounded-[1.5rem] sm:rounded-[2rem] shadow-xl mb-4 transition-all duration-500 group-hover:scale-105 group-hover:shadow-2xl overflow-hidden p-2.5 sm:p-3 border border-gray-50 shimmer-effect relative z-10">
                 {systemLogo ? (
                   <img src={systemLogo} className="h-full w-full object-contain relative z-10" alt="Logo" />
                 ) : (
@@ -192,25 +171,6 @@ const LoginPage = () => {
               </div>
             )}
 
-            {connError && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3.5 sm:p-4 rounded-xl space-y-2 animate-fadeIn">
-                <div className="flex items-start space-x-2.5">
-                  <i className="bi bi-exclamation-triangle-fill text-amber-500 shrink-0 text-xs sm:text-sm mt-0.5 animate-pulse"></i>
-                  <div className="space-y-1">
-                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider">Sambungan Spreadsheet Error</p>
-                    <p className="text-[8px] sm:text-[9.5px] font-semibold leading-relaxed font-mono opacity-90 bg-white/40 p-1 rounded">"{connError}"</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsDbConfigOpen(true)}
-                  className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-[9px] uppercase tracking-wider rounded-xl transition-all shadow shadow-amber-600/20 active:scale-95"
-                >
-                  Atur ID Spreadsheet & Sync
-                </button>
-              </div>
-            )}
-
             <button 
               type="submit" 
               disabled={loading}
@@ -239,7 +199,6 @@ const LoginPage = () => {
             </a>
         </div>
       </div>
-      <DatabaseConfigModal isOpen={isDbConfigOpen} onClose={() => setIsDbConfigOpen(false)} />
     </div>
   );
 };

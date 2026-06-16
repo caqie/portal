@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -119,6 +120,45 @@ async function startServer() {
   // API routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // Spreadsheet Config Endpoints
+  const configPath = path.join(process.cwd(), "spreadsheet-config.json");
+
+  app.get("/api/spreadsheet-config", (req, res) => {
+    try {
+      if (fs.existsSync(configPath)) {
+        const fileContent = fs.readFileSync(configPath, "utf-8");
+        const parsed = JSON.parse(fileContent);
+        res.json(parsed);
+        return;
+      }
+    } catch (e) {
+      console.error("Error reading spreadsheet config file:", e);
+    }
+    
+    // Fallback to default values
+    res.json({
+      spreadsheetId: process.env.VITE_SPREADSHEET_ID || "1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4",
+      appsScriptUrl: process.env.VITE_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycby8dTUPkAb1f8EeH3DxXjTd9IZ-yAMUWxSfci9ZBLkMf3gxH3as4GlALPtER6JM-BWD/exec",
+      driveFolderId: process.env.VITE_DRIVE_FOLDER_ID || "19OkO6ZAMnTXaxy-58ntHRVNI85W-u23O"
+    });
+  });
+
+  app.post("/api/spreadsheet-config", (req, res) => {
+    try {
+      const { spreadsheetId, appsScriptUrl, driveFolderId } = req.body;
+      const newConfig = {
+        spreadsheetId: spreadsheetId || "1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4",
+        appsScriptUrl: appsScriptUrl || "https://script.google.com/macros/s/AKfycby8dTUPkAb1f8EeH3DxXjTd9IZ-yAMUWxSfci9ZBLkMf3gxH3as4GlALPtER6JM-BWD/exec",
+        driveFolderId: driveFolderId || "19OkO6ZAMnTXaxy-58ntHRVNI85W-u23O"
+      };
+      fs.writeFileSync(configPath, JSON.stringify(newConfig, null, 2), "utf-8");
+      res.json({ success: true, config: newConfig });
+    } catch (e: any) {
+      console.error("Error saving spreadsheet config file:", e);
+      res.status(500).json({ success: false, error: e.message || String(e) });
+    }
   });
 
   // Generic Proxy Route to bypass CORS and client-side "Failed to fetch"

@@ -82,6 +82,77 @@ const getDbConfig = () => {
   };
 };
 
+export const loadSharedConfigFromServer = async (): Promise<void> => {
+  try {
+    const savedId = localStorage.getItem('db_spreadsheet_id');
+    const savedCloud = localStorage.getItem('portal_cloud_config');
+    
+    // Check if the current client state has a custom (non-default and non-empty) Google Spreadsheet ID
+    const hasCustomLocalId = savedId && savedId.trim() !== '' && savedId !== DEFAULT_SPREADSHEET_ID;
+    
+    const res = await fetch('/api/spreadsheet-config');
+    if (res.ok) {
+      const data = await res.json();
+      
+      // Case A: Server is fresh or has default fallback, but browser has a custom configurated ID.
+      // We automatically register this ID on the server in the background so that it is shared globally!
+      const isServerEmptyOrDefault = !data.spreadsheetId || data.spreadsheetId === DEFAULT_SPREADSHEET_ID;
+      if (hasCustomLocalId && isServerEmptyOrDefault) {
+        let cloudConfig = { appsScriptUrl: DEFAULT_APPS_SCRIPT_URL, driveFolderId: DEFAULT_DRIVE_FOLDER_ID };
+        try {
+          if (savedCloud) {
+            const parsed = JSON.parse(savedCloud);
+            if (parsed.appsScriptUrl) cloudConfig.appsScriptUrl = parsed.appsScriptUrl;
+            if (parsed.driveFolderId) cloudConfig.driveFolderId = parsed.driveFolderId;
+          }
+        } catch (e) {}
+        
+        await saveSharedConfigToServer(savedId!, cloudConfig.appsScriptUrl, cloudConfig.driveFolderId);
+        console.log("[Config Sync] Push local developer preview configs to server successfully!");
+        return;
+      }
+
+      // Case B: Server has a custom configurated ID.
+      // We force-pull it into the current client's localStorage so that all users have the correct database ID automatically!
+      if (data.spreadsheetId) {
+        const localId = localStorage.getItem('db_spreadsheet_id');
+        const localCloudStr = localStorage.getItem('portal_cloud_config');
+        const remoteCloudStr = JSON.stringify({
+          appsScriptUrl: data.appsScriptUrl,
+          driveFolderId: data.driveFolderId
+        });
+        
+        if (localId !== data.spreadsheetId || localCloudStr !== remoteCloudStr) {
+          localStorage.setItem('db_spreadsheet_id', data.spreadsheetId);
+          localStorage.setItem('portal_cloud_config', remoteCloudStr);
+          window.dispatchEvent(new Event('storage_updated'));
+          console.log("[Config Sync] Loaded correct spreadsheet config from shared server storage.");
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Gagal melakukan penyesuaian konfigurasi cloud:", e);
+  }
+};
+
+export const saveSharedConfigToServer = async (
+  spreadsheetId: string, 
+  appsScriptUrl: string, 
+  driveFolderId: string
+): Promise<boolean> => {
+  try {
+    const res = await fetch('/api/spreadsheet-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spreadsheetId, appsScriptUrl, driveFolderId })
+    });
+    return res.ok;
+  } catch (e) {
+    console.error("Gagal menyimpan konfigurasi ke cloud server:", e);
+    return false;
+  }
+};
+
 export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELETE', data: any): Promise<boolean> => {
   const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
   if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;

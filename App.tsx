@@ -35,7 +35,7 @@ import UkomAdminPage from './pages/UkomAdminPage';
 import UkomSupervisorPage from './pages/UkomSupervisorPage';
 import TalentaPage from './pages/TalentaPage';
 import { DEFAULT_LOGO, APP_ROUTES } from './constants';
-import { syncGidMap, fetchSystemConfig } from './spreadsheetService';
+import { syncGidMap, fetchSystemConfig, loadSharedConfigFromServer } from './spreadsheetService';
 import { SystemConfig } from './types';
 
 const SidebarItem = ({ to, icon, label, active, collapsed, onClick, target }: any) => {
@@ -153,8 +153,12 @@ const AppContent = () => {
 
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
-    syncGidMap(); 
-    loadSystemConfig();
+    const initApp = async () => {
+      await loadSharedConfigFromServer();
+      syncGidMap(); 
+      loadSystemConfig();
+    };
+    initApp();
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     const configTimer = setInterval(() => loadSystemConfig(), 30000); // Poll system config every 30 seconds for real-time updates
     return () => {
