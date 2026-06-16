@@ -87,18 +87,25 @@ export const loadSharedConfigFromServer = async (): Promise<void> => {
     const savedId = localStorage.getItem('db_spreadsheet_id');
     const savedCloud = localStorage.getItem('portal_cloud_config');
     
+    const viteId = import.meta.env.VITE_SPREADSHEET_ID;
+    const hasViteId = viteId && viteId.trim() !== '' && viteId !== DEFAULT_SPREADSHEET_ID;
+    
     // Check if the current client state has a custom (non-default and non-empty) Google Spreadsheet ID
     const hasCustomLocalId = savedId && savedId.trim() !== '' && savedId !== DEFAULT_SPREADSHEET_ID;
     
     const res = await fetch('/api/spreadsheet-config');
     if (res.ok) {
       const data = await res.json();
-      
-      // Case A: Server is fresh or has default fallback, but browser has a custom configurated ID.
-      // We automatically register this ID on the server in the background so that it is shared globally!
       const isServerEmptyOrDefault = !data.spreadsheetId || data.spreadsheetId === DEFAULT_SPREADSHEET_ID;
-      if (hasCustomLocalId && isServerEmptyOrDefault) {
-        let cloudConfig = { appsScriptUrl: DEFAULT_APPS_SCRIPT_URL, driveFolderId: DEFAULT_DRIVE_FOLDER_ID };
+      
+      // Case A: Server is fresh or has default fallback, but browser has a custom configurated ID OR there is a custom compiled build ID.
+      // We automatically register this ID on the server in the background so that it is shared globally!
+      if (isServerEmptyOrDefault && (hasCustomLocalId || hasViteId)) {
+        const activeId = hasCustomLocalId ? savedId! : viteId!;
+        let cloudConfig = { 
+          appsScriptUrl: import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL, 
+          driveFolderId: import.meta.env.VITE_DRIVE_FOLDER_ID || DEFAULT_DRIVE_FOLDER_ID 
+        };
         try {
           if (savedCloud) {
             const parsed = JSON.parse(savedCloud);
@@ -107,14 +114,20 @@ export const loadSharedConfigFromServer = async (): Promise<void> => {
           }
         } catch (e) {}
         
-        await saveSharedConfigToServer(savedId!, cloudConfig.appsScriptUrl, cloudConfig.driveFolderId);
-        console.log("[Config Sync] Push local developer preview configs to server successfully!");
+        await saveSharedConfigToServer(activeId, cloudConfig.appsScriptUrl, cloudConfig.driveFolderId);
+        console.log("[Config Sync] Push local/Vite configs to server successfully!");
+        
+        // Ensure localStorage doesn't store the default sheet ID if it was just fallback
+        if (!hasCustomLocalId) {
+          localStorage.removeItem('db_spreadsheet_id');
+          localStorage.removeItem('portal_cloud_config');
+        }
         return;
       }
 
       // Case B: Server has a custom configurated ID.
       // We force-pull it into the current client's localStorage so that all users have the correct database ID automatically!
-      if (data.spreadsheetId) {
+      if (data.spreadsheetId && data.spreadsheetId !== DEFAULT_SPREADSHEET_ID) {
         const localId = localStorage.getItem('db_spreadsheet_id');
         const localCloudStr = localStorage.getItem('portal_cloud_config');
         const remoteCloudStr = JSON.stringify({
@@ -127,6 +140,14 @@ export const loadSharedConfigFromServer = async (): Promise<void> => {
           localStorage.setItem('portal_cloud_config', remoteCloudStr);
           window.dispatchEvent(new Event('storage_updated'));
           console.log("[Config Sync] Loaded correct spreadsheet config from shared server storage.");
+        }
+      } else {
+        // If server returns default values, let's remove default or matching localStorage overrides 
+        // to let the client-side VITE_SPREADSHEET_ID environmental variable take precedence organically.
+        if (savedId === DEFAULT_SPREADSHEET_ID) {
+          localStorage.removeItem('db_spreadsheet_id');
+          localStorage.removeItem('portal_cloud_config');
+          window.dispatchEvent(new Event('storage_updated'));
         }
       }
     }
