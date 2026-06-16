@@ -192,6 +192,7 @@ const Dashboard = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connectionErrorGid, setConnectionErrorGid] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isErrorDismissed, setIsErrorDismissed] = useState(false);
 
   useEffect(() => { 
     if (user) loadDashboardData(); 
@@ -780,8 +781,17 @@ const Dashboard = () => {
       </div>
 
       {/* TROUBLESHOOTING & INTEGRATION PANEL */}
-      {(connectionError || activePegawaiList.length === 0) && (
+      {(connectionError || activePegawaiList.length === 0) && !isErrorDismissed && (
         <div id="connection-troubleshooting-card" className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-[2rem] p-6 md:p-8 shadow-sm relative overflow-hidden animate-fadeIn">
+          {/* Close Button */}
+          <button 
+            onClick={() => setIsErrorDismissed(true)} 
+            className="absolute top-6 right-6 text-amber-500 hover:text-amber-800 transition-colors z-25"
+            title="Sembunyikan pesan ini"
+          >
+            <i className="bi bi-x-circle-fill text-xl md:text-2xl"></i>
+          </button>
+          
           <div className="absolute -right-10 -bottom-10 opacity-10">
             <i className="bi bi-cloud-slash text-9xl text-amber-600"></i>
           </div>

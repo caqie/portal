@@ -322,8 +322,10 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     } else {
       localStorage.removeItem(storageKey);
     }
-    sessionStorage.removeItem('last_spreadsheet_error');
-    sessionStorage.removeItem('last_spreadsheet_error_gid');
+    if (gidKey === 'USERS' || gidKey === 'PEGAWAI') {
+      sessionStorage.removeItem('last_spreadsheet_error');
+      sessionStorage.removeItem('last_spreadsheet_error_gid');
+    }
     return result;
   } catch (error) {
     console.error(`Error fetching table data for ${gidKey}:`, error);
@@ -338,9 +340,17 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     }
 
     const errMsg = error instanceof Error ? error.message : String(error);
-    sessionStorage.setItem('last_spreadsheet_error', errMsg);
-    sessionStorage.setItem('last_spreadsheet_error_gid', `${gidKey} (GID: ${gid})`);
-    sessionStorage.setItem('last_spreadsheet_error_time', Date.now().toString());
+    const isCritical = gidKey === 'USERS' || gidKey === 'PEGAWAI';
+    
+    if (isCritical) {
+      sessionStorage.setItem('last_spreadsheet_error', errMsg);
+      sessionStorage.setItem('last_spreadsheet_error_gid', `${gidKey} (GID: ${gid})`);
+      sessionStorage.setItem('last_spreadsheet_error_time', Date.now().toString());
+    } else {
+      console.warn(`[Optional Connection Warning] Module ${gidKey} failed to load: ${errMsg}`);
+      sessionStorage.setItem(`error_module_${gidKey.toLowerCase()}`, errMsg);
+    }
+    
     if (bypassCache) throw error;
     return safeParseArray(localStorage.getItem(storageKey));
   }
