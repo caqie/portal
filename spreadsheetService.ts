@@ -82,6 +82,163 @@ const getDbConfig = () => {
   };
 };
 
+let backendAvailable: boolean | null = null;
+
+export const checkBackend = async (): Promise<boolean> => {
+  if (backendAvailable !== null) return backendAvailable;
+  try {
+    const res = await fetch('/api/health');
+    if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        backendAvailable = data.status === 'ok';
+        return backendAvailable;
+      }
+    }
+  } catch (e) {}
+  backendAvailable = false;
+  return false;
+};
+
+export const parseDateToYYYYMMDD = (val: any): string => {
+  if (!val) return '';
+  if (val instanceof Date) {
+    if (!isNaN(val.getTime())) {
+      const y = val.getFullYear();
+      const m = String(val.getMonth() + 1).padStart(2, '0');
+      const d = String(val.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return '';
+  }
+
+  let str = String(val).trim();
+  if (!str) return '';
+
+  str = str.replace(/\s+/g, ' ');
+
+  // 1. If already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str;
+  }
+
+  // 2. If contains 'T', ISO format
+  if (str.includes('T')) {
+    const part = str.split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(part)) return part;
+  }
+
+  // 3. Remove time suffix if space present but not Indonesian text date
+  const spaceParts = str.split(' ');
+  if (spaceParts.length > 1) {
+    const hasLetters = /[a-zA-Z]/.test(str);
+    if (!hasLetters) {
+      const firstPart = spaceParts[0];
+      const p = firstPart.split(/[-/]/);
+      if (p.length === 3) {
+        let day = p[0];
+        let month = p[1];
+        let year = p[2];
+        if (year.length === 4 && day.length <= 2 && month.length <= 2) {
+          return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+        if (day.length === 4 && month.length <= 2 && year.length <= 2) {
+          return `${day}-${month.padStart(2, '0')}-${year.padStart(2, '0')}`;
+        }
+      }
+    }
+  }
+
+  // 4. Indonesian text date with words, e.g. "17 Agustus 1945" or "17-Agt-1945"
+  const parts = str.split(/[\s\-\/,]+/);
+  if (parts.length >= 3) {
+    const yearIdx = parts.findIndex(p => /^\d{4}$/.test(p));
+    if (yearIdx !== -1) {
+      const year = parts[yearIdx];
+      let dayVal = '';
+      let monthVal = '';
+
+      if (yearIdx === 2) {
+        dayVal = parts[0];
+        monthVal = parts[1];
+      } else if (yearIdx === 0) {
+        monthVal = parts[1];
+        dayVal = parts[2];
+      }
+
+      if (dayVal && monthVal) {
+        const dayNum = parseInt(dayVal.replace(/\D/g, ''));
+        if (!isNaN(dayNum) && dayNum >= 1 && dayNum <= 31) {
+          const dayStr = String(dayNum).padStart(2, '0');
+          let monthStr = '';
+          const monthClean = monthVal.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+          if (/^\d+$/.test(monthClean)) {
+            const mNum = parseInt(monthClean);
+            if (mNum >= 1 && mNum <= 12) {
+              monthStr = String(mNum).padStart(2, '0');
+            }
+          } else {
+            if (monthClean.startsWith('jan')) monthStr = '01';
+            else if (monthClean.startsWith('feb') || monthClean.startsWith('peb')) monthStr = '02';
+            else if (monthClean.startsWith('mar')) monthStr = '03';
+            else if (monthClean.startsWith('apr')) monthStr = '04';
+            else if (monthClean.startsWith('mei') || monthClean === 'may') monthStr = '05';
+            else if (monthClean.startsWith('jun')) monthStr = '06';
+            else if (monthClean.startsWith('jul')) monthStr = '07';
+            else if (monthClean.startsWith('agu') || monthClean.startsWith('agt') || monthClean.startsWith('aug')) monthStr = '08';
+            else if (monthClean.startsWith('sep')) monthStr = '09';
+            else if (monthClean.startsWith('okt') || monthClean.startsWith('oct')) monthStr = '10';
+            else if (monthClean.startsWith('nov') || monthClean.startsWith('nop')) monthStr = '11';
+            else if (monthClean.startsWith('des') || monthClean.startsWith('dec')) monthStr = '12';
+          }
+
+          if (monthStr) {
+            return `${year}-${monthStr}-${dayStr}`;
+          }
+        }
+      }
+    }
+  }
+
+  // 5. Standard fallback for simple slashes/hyphens (e.g. 17/08/1945)
+  const simpleParts = str.split(/[-/]/);
+  if (simpleParts.length === 3) {
+    let part0 = simpleParts[0].trim();
+    let part1 = simpleParts[1].trim();
+    let part2 = simpleParts[2].trim();
+
+    if (/^\d{4}$/.test(part2)) {
+      const d = parseInt(part0);
+      const m = parseInt(part1);
+      if (!isNaN(d) && !isNaN(m) && d >= 1 && d <= 31 && m >= 1 && m <= 12) {
+        return `${part2}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+    }
+    if (/^\d{4}$/.test(part0)) {
+      const m = parseInt(part1);
+      const d = parseInt(part2);
+      if (!isNaN(d) && !isNaN(m) && d >= 1 && d <= 31 && m >= 1 && m <= 12) {
+        return `${part0}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+    }
+  }
+
+  // 6. JS Date fallback
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+  } catch (e) {}
+
+  return '';
+};
+
 export const loadSharedConfigFromServer = async (): Promise<void> => {
   try {
     const savedId = localStorage.getItem('db_spreadsheet_id');
@@ -192,10 +349,11 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
 
   const cleanUrl = appsScriptUrl.trim();
   try {
-    const finalUrl = cleanUrl;
+    const useBackend = await checkBackend();
+    const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(cleanUrl)}` : cleanUrl;
     const response = await fetch(finalUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Google Apps Script performs best on simple text POST to avoid preflight issues in standard CORS
+      headers: useBackend ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'text/plain;charset=utf-8' }, // Google Apps Script performs best on simple text POST to avoid preflight issues in standard CORS
       body: JSON.stringify({ 
         module: moduleName.toUpperCase().trim(), 
         action: action, 
@@ -221,7 +379,8 @@ export const getServerTime = async (): Promise<Date> => {
   const { appsScriptUrl } = getDbConfig();
   try {
     const targetUrl = `${appsScriptUrl}?action=GET_TIME`;
-    const finalUrl = targetUrl;
+    const useBackend = await checkBackend();
+    const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(targetUrl)}` : targetUrl;
     const res = await fetch(finalUrl);
     const data = await res.json();
     if (data.success && data.time) return new Date(data.time);
@@ -293,10 +452,11 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
   if (appsScriptUrl && appsScriptUrl.trim() !== '') {
     try {
       const cleanUrl = appsScriptUrl.trim();
-      const finalUrl = cleanUrl;
+      const useBackend = await checkBackend();
+      const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(cleanUrl)}` : cleanUrl;
       const apiResponse = await fetch(finalUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Use text/plain for CORS preflight avoidance if needed
+        headers: useBackend ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'text/plain;charset=utf-8' }, // Use text/plain for CORS preflight avoidance if needed
         body: JSON.stringify({
           action: 'GET',
           module: gidKey.toUpperCase().trim(),
@@ -369,7 +529,8 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
 
   try {
     const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`;
-    const finalUrl = url;
+    const useBackend = await checkBackend();
+    const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(url)}` : url;
     const response = await fetch(finalUrl);
     if (!response.ok || (response.headers.get('content-type') || '').includes('html')) {
        const healed = await attemptAutoHeal(gidKey);
@@ -579,25 +740,7 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
 
     // B. Identity & Retirement Enrichment
     if (p.tanggalLahir) {
-      const cleanBirth = (p.tanggalLahir.trim());
-      let parsedBirthStr = '';
-      if (/^\d{4}-\d{2}-\d{2}$/.test(cleanBirth)) parsedBirthStr = cleanBirth;
-      else if (cleanBirth.includes('T')) parsedBirthStr = cleanBirth.split('T')[0];
-      else {
-        const parts = cleanBirth.split(/[-/]/);
-        if (parts.length === 3) {
-          if (parts[0].length <= 2 && parts[2].length === 4) parsedBirthStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-          else if (parts[0].length === 4) parsedBirthStr = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-        }
-      }
-      
-      if (!parsedBirthStr) {
-        try {
-          const d = new Date(cleanBirth);
-          if (!isNaN(d.getTime())) parsedBirthStr = d.toISOString().split('T')[0];
-        } catch (e) {}
-      }
-
+      const parsedBirthStr = parseDateToYYYYMMDD(p.tanggalLahir);
       if (parsedBirthStr) {
         const birth = new Date(parsedBirthStr);
         if (!isNaN(birth.getTime())) {
@@ -635,17 +778,7 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
           const today = new Date();
           let checkDate = retirementDate;
           if (p.tmtPensiun && p.tmtPensiun !== '-') {
-            let tmtClean = p.tmtPensiun.trim();
-            let parsedTmtStr = '';
-            if (/^\d{4}-\d{2}-\d{2}$/.test(tmtClean)) parsedTmtStr = tmtClean;
-            else if (tmtClean.includes('T')) parsedTmtStr = tmtClean.split('T')[0];
-            else {
-              const parts = tmtClean.split(/[-/]/);
-              if (parts.length === 3) {
-                if (parts[0].length <= 2 && parts[2].length === 4) parsedTmtStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-                else if (parts[0].length === 4) parsedTmtStr = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-              }
-            }
+            const parsedTmtStr = parseDateToYYYYMMDD(p.tmtPensiun);
             if (parsedTmtStr) {
               const tmtDate = new Date(parsedTmtStr);
               if (!isNaN(tmtDate.getTime())) {
@@ -867,10 +1000,11 @@ export const uploadFileToDrive = async (fileName: string, mimeType: string, base
     const safeFileName = (fileName || `UPLOAD_${Date.now()}`).trim().replace(/[/\\?%*:|"<>]/g, '-');
     
     try {
-        const finalUrl = cleanUrl;
+        const useBackend = await checkBackend();
+        const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(cleanUrl)}` : cleanUrl;
         const response = await fetch(finalUrl, { 
             method: 'POST', 
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+            headers: useBackend ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'text/plain;charset=utf-8' }, 
             body: JSON.stringify({ 
                 action: 'UPLOAD', 
                 spreadsheetId, 
@@ -919,10 +1053,11 @@ export const syncGidMap = async (): Promise<boolean> => {
 
     // Try POST first (more reliable in some environments)
     try {
-        const finalUrl = cleanUrl;
+        const useBackend = await checkBackend();
+        const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(cleanUrl)}` : cleanUrl;
         const postRes = await fetch(finalUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: useBackend ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ action: 'GET_GID_MAP', spreadsheetId })
         });
         
@@ -941,7 +1076,8 @@ export const syncGidMap = async (): Promise<boolean> => {
     try {
         const separator = cleanUrl.includes('?') ? '&' : '?';
         const getUrl = `${cleanUrl}${separator}ssId=${spreadsheetId}`;
-        const finalUrl = getUrl;
+        const useBackend = await checkBackend();
+        const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(getUrl)}` : getUrl;
         const getRes = await fetch(finalUrl);
         if (getRes.ok) {
             const data = await getRes.json();

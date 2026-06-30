@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai, SystemConfig, PageAccess } from '../types';
-import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig, auditSpreadsheet, deleteSheetRemote, EXPECTED_COLUMNS_SCHEMA, saveSharedConfigToServer } from '../spreadsheetService';
+import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig, auditSpreadsheet, deleteSheetRemote, EXPECTED_COLUMNS_SCHEMA, saveSharedConfigToServer, parseDateToYYYYMMDD } from '../spreadsheetService';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO, APP_ROUTES, UNIT_KERJA, PANGKAT_MAP } from '../constants';
@@ -390,30 +390,7 @@ const SettingsPage = () => {
   };
 
   const parseImportDate = (val: any): string => {
-    if (!val) return '';
-    if (val instanceof Date) {
-      if (!isNaN(val.getTime())) {
-        return val.toISOString().split('T')[0];
-      }
-      return '';
-    }
-    const dateStr = String(val).trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-    
-    const parts = dateStr.split(/[\/\-]/);
-    if (parts.length === 3) {
-      let day = parts[0];
-      let month = parts[1];
-      let year = parts[2];
-      
-      if (year.length === 4 && day.length <= 2 && month.length <= 2) {
-        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      }
-      if (day.length === 4 && month.length <= 2 && year.length <= 2) {
-        return `${day}-${month.padStart(2, '0')}-${year.padStart(2, '0')}`;
-      }
-    }
-    return dateStr;
+    return parseDateToYYYYMMDD(val);
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
-import { fetchPegawaiFromSheets, fetchKGBFromSheets, syncTableRemote, uploadFileToDrive } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, fetchKGBFromSheets, syncTableRemote, uploadFileToDrive, parseDateToYYYYMMDD } from '../spreadsheetService';
 import { Pegawai, KGB } from '../types';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO, getGajiEstimasi, normalizeUnitName, formatPegawaiName } from '../constants';
@@ -94,19 +94,7 @@ const KGBGeneratorPage = () => {
   };
 
   const formatDateForInput = (dateStr: string | undefined): string => {
-    if (!dateStr) return '';
-    const cleanDate = dateStr.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) return cleanDate;
-    const parts = cleanDate.split(/[-/]/);
-    if (parts.length === 3) {
-      if (parts[0].length <= 2 && parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-    }
-    try {
-      const d = new Date(cleanDate);
-      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-    } catch (e) {}
-    return '';
+    return parseDateToYYYYMMDD(dateStr);
   };
 
   const handlePegawaiSelect = (nip: string) => {

@@ -12,6 +12,64 @@ import html2canvas from 'html2canvas';
 // @ts-ignore
 import { jsPDF } from 'jspdf';
 
+const getJabatanClassification = (p: Pegawai): string => {
+  const es = (p.eselon || '').trim().toUpperCase();
+  const j = (p.jabatan || '').trim().toUpperCase();
+  const kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
+
+  // 1. Primary Source of Truth: Trust Column AN (Jenis Jabatan) from Spreadsheet
+  if (kl.includes('PIMPINAN TINGGI') || kl.includes('JPT')) return 'JPT';
+  if (kl.includes('STRUKTURAL') || kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('MANAJERIAL')) return 'STRUKTURAL';
+  if (kl.includes('FUNGSIONAL TERTENTU') || kl.includes('JFT') || kl === 'FUNGSIONAL') return 'FUNGSIONAL';
+  if (kl.includes('FUNGSIONAL UMUM') || kl.includes('JFU') || kl.includes('PELAKSANA')) return 'PELAKSANA';
+
+  // 2. Secondary: Force JFT markers in name (if says AHLI/MADYA/MUDA/PERTAMA, etc)
+  if (j.includes('AHLI') || j.includes('MADYA') || j.includes('MUDA') || 
+      j.includes('PERTAMA') || j.includes('UTAMA') || j.includes('TERAMPIL') || 
+      j.includes('MAHIR') || j.includes('PENYELIA') || j.includes('PELAKSANA LANJUTAN')) return 'FUNGSIONAL';
+
+  // 3. Fallback: Management Keywords - JPT (Eselon I & II)
+  if (j.includes('DIREKTUR JENDERAL') || j.includes('SEKRETARIS DIREKTORAT JENDERAL') || 
+      j.includes('SEKRETARIS UTAMA') || j.includes('STAF AHLI') || j.includes('INSPEKTUR') || 
+      j.includes('KEPALA BIRO') || j.includes('KEPALA PUSAT') || j.includes('DIREKTUR') || 
+      j.includes('SEKRETARIS DIREKTORAT')) {
+    return 'JPT';
+  }
+
+  // 4. Fallback: Management Keywords - Structural (Eselon III & IV)
+  if (j.includes('KEPALA BAGIAN') || j.includes('KABAG') || 
+      j.includes('KEPALA SUBDIREKTORAT') || j.includes('KASUBDIT') || 
+      j.includes('KEPALA BIDANG') || j.includes('KABID') ||
+      j.includes('KEPALA SEKSI') || j.includes('KASI') || 
+      j.includes('KEPALA SUBBAGIAN') || j.includes('KASUBBAG') || 
+      j.includes('KOORDINATOR') || j.includes('SUBKOORDINATOR') ||
+      j.includes('KEPALA KANTOR') || j.includes('KEPALA SATUAN') ||
+      j.startsWith('KEPALA ') || j.includes(' KEPALA ')) {
+    return 'STRUKTURAL';
+  }
+
+  // 5. Fallback: Pelaksana (JFU) Specific Title Keywords
+  if (j.includes('ANALIS') || j.includes('PENATA KELOLA') || j.includes('PENATA LAYANAN') || 
+      j.includes('PENELAAH') || j.includes('PENGADMINISTRASI') || j.includes('PENGELOLA') || 
+      j.includes('PENGOLAH') || j.includes('PENYUSUN') || j.includes('DOKUMENTALIS') || 
+      j.includes('OPERATOR') || j.includes('FASILITATOR') || j.includes('SEKRETARIS PIMPINAN') ||
+      j.includes('KONSELOR') || j.includes('PENGENDALI KONTEN') || j.includes('PETUGAS') || 
+      j.includes('PRAMU') || j.includes('PENGEMUDI') || j.includes('TEKNISI') || 
+      j.includes('STAF') || j.includes('STAFF')) {
+    return 'PELAKSANA';
+  }
+
+  // 6. Fallback: Eselon
+  if (es && es !== '-') {
+    if (es.startsWith('IV') || es.startsWith('4')) return 'STRUKTURAL';
+    if (es.startsWith('III') || es.startsWith('3')) return 'STRUKTURAL';
+    if (es.startsWith('II') || es.startsWith('2')) return 'JPT';
+    if (es.startsWith('I') || es.startsWith('1')) return 'JPT';
+  }
+
+  return 'PELAKSANA';
+};
+
 const LaporanPage = () => {
   const { logActivity } = useAuth();
   const pdfRef = useRef<HTMLDivElement>(null);
@@ -84,12 +142,18 @@ const LaporanPage = () => {
         edu[e] = (edu[e] || 0) + 1; 
       });
 
-      const jab = {
-        jft: list.filter(p => (p.jabatan || '').toUpperCase().includes('AHLI') || (p.jabatan || '').toUpperCase().includes('TERAMPIL')).length,
-        pelaksana: list.filter(p => (p.jabatan || '').toUpperCase().includes('PELAKSANA') || (p.jabatan || '').toUpperCase().includes('OPERATOR') || (p.jabatan || '').toUpperCase().includes('PENGELOLA')).length,
-        struktural: 0
+      const countJab = (p: Pegawai) => {
+        const type = getJabatanClassification(p);
+        if (type === 'JPT' || type === 'STRUKTURAL') return 'STRUKTURAL';
+        if (type === 'FUNGSIONAL') return 'FUNGSIONAL';
+        return 'PELAKSANA';
       };
-      jab.struktural = list.length - jab.jft - jab.pelaksana;
+
+      const jab = {
+        jft: list.filter(p => countJab(p) === 'FUNGSIONAL').length,
+        pelaksana: list.filter(p => countJab(p) === 'PELAKSANA').length,
+        struktural: list.filter(p => countJab(p) === 'STRUKTURAL').length
+      };
 
       return { total: list.length, units, ranks, gender, edu, jab };
     };

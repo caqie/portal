@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pegawai, Dossier } from '../types';
-import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, findPegawaiByNip } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, findPegawaiByNip, parseDateToYYYYMMDD } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
 import { normalizeUnitName, UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, DEFAULT_LOGO, BANK_LIST, formatPegawaiName, polishGelarDanNama } from '../constants';
@@ -58,6 +58,7 @@ const PegawaiPage = () => {
   const [filterPendidikan, setFilterPendidikan] = useState(sessionStorage.getItem('pegawai_filterPendidikan') || 'Semua Pendidikan');
   const [filterJurusan, setFilterJurusan] = useState(sessionStorage.getItem('pegawai_filterJurusan') || 'Semua Jurusan');
   const [filterKlasifikasi, setFilterKlasifikasi] = useState(sessionStorage.getItem('pegawai_filterKlasifikasi') || 'Semua Klasifikasi');
+  const [filterAgama, setFilterAgama] = useState(sessionStorage.getItem('pegawai_filterAgama') || 'Semua Agama');
   const [jurusanSearch, setJurusanSearch] = useState('');
 
   // Persist filters and scroll to sessionStorage
@@ -73,7 +74,8 @@ const PegawaiPage = () => {
     sessionStorage.setItem('pegawai_filterPendidikan', filterPendidikan);
     sessionStorage.setItem('pegawai_filterJurusan', filterJurusan);
     sessionStorage.setItem('pegawai_filterKlasifikasi', filterKlasifikasi);
-  }, [searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi]);
+    sessionStorage.setItem('pegawai_filterAgama', filterAgama);
+  }, [searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama]);
 
   // Restore scroll position
   useEffect(() => {
@@ -157,33 +159,7 @@ const PegawaiPage = () => {
   const [healReport, setHealReport] = useState<{ id: string; p: Pegawai; nameBefore: string; nameAfter: string; jurusanBefore: string; jurusanAfter: string; pendidikanBefore: string; pendidikanAfter: string }[]>([]);
 
   const parseImportDate = (val: any): string => {
-    if (!val) return '';
-    if (val instanceof Date) {
-      if (!isNaN(val.getTime())) {
-        return val.toISOString().split('T')[0];
-      }
-      return '';
-    }
-    const dateStr = String(val).trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-    
-    // Check DD/MM/YYYY or DD-MM-YYYY
-    const parts = dateStr.split(/[\/\-]/);
-    if (parts.length === 3) {
-      let day = parts[0];
-      let month = parts[1];
-      let year = parts[2];
-      
-      // Check if parts[2] looks like a year (4 digits)
-      if (year.length === 4 && day.length <= 2 && month.length <= 2) {
-        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      }
-      // Check if parts[0] looks like a year (4 digits) i.e. YYYY/MM/DD
-      if (day.length === 4 && month.length <= 2 && year.length <= 2) {
-        return `${day}-${month.padStart(2, '0')}-${year.padStart(2, '0')}`;
-      }
-    }
-    return dateStr;
+    return parseDateToYYYYMMDD(val);
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -660,19 +636,7 @@ const PegawaiPage = () => {
   };
 
   const formatDateForInput = (dateStr: string | undefined): string => {
-    if (!dateStr) return '';
-    const cleanDate = dateStr.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) return cleanDate;
-    const parts = cleanDate.split(/[-/]/);
-    if (parts.length === 3) {
-      if (parts[0].length <= 2 && parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-      if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-    }
-    try {
-      const d = new Date(cleanDate);
-      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-    } catch (e) {}
-    return '';
+    return parseDateToYYYYMMDD(dateStr);
   };
 
   const handleEditPegawai = (p: Pegawai) => {
@@ -686,6 +650,52 @@ const PegawaiPage = () => {
     });
     setIsModalOpen(true);
   };
+
+  const getNormalizedAgama = (a: string): string => {
+    const norm = (a || '').trim();
+    const lower = norm.toLowerCase().replace(/[\s.-]/g, '');
+    if (!lower) return '';
+    if (lower === 'islam') return 'Islam';
+    if (lower === 'kristen' || lower === 'protestan' || lower === 'kristenprotestan' || lower === 'protestant') return 'Kristen';
+    if (lower === 'katolik' || lower === 'kristenkatolik' || lower === 'catholic') return 'Katolik';
+    if (lower === 'hindu') return 'Hindu';
+    if (lower === 'buddha' || lower === 'budha') return 'Buddha';
+    if (lower === 'konghucu' || lower === 'khc') return 'Konghucu';
+    return norm.charAt(0).toUpperCase() + norm.slice(1);
+  };
+
+  const AGAMA_LIST = useMemo(() => {
+    const base = ['Islam', 'Kristen', 'Katolik', 'Hindu', 'Buddha', 'Konghucu'];
+    const found = new Set<string>();
+    (pegawaiList || []).forEach(p => {
+      if (p.agama) {
+        const norm = getNormalizedAgama(p.agama);
+        if (norm) {
+          found.add(norm);
+        }
+      }
+    });
+    const finalSet = new Set<string>();
+    const normalized = new Set<string>();
+    
+    found.forEach(item => {
+      const lower = item.toLowerCase();
+      if (!normalized.has(lower)) {
+        normalized.add(lower);
+        finalSet.add(item);
+      }
+    });
+    
+    base.forEach(item => {
+      const lower = item.toLowerCase();
+      if (!normalized.has(lower)) {
+        normalized.add(lower);
+        finalSet.add(item);
+      }
+    });
+    
+    return Array.from(finalSet).sort((a, b) => a.localeCompare(b));
+  }, [pegawaiList]);
 
   const filteredPegawai = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -714,6 +724,11 @@ const PegawaiPage = () => {
       // Klasifikasi match (supporting multiple)
       const selectedKlasifikasis = filterKlasifikasi === 'Semua Klasifikasi' || !filterKlasifikasi ? [] : filterKlasifikasi.split(',').filter(Boolean);
       const klasifikasiMatch = selectedKlasifikasis.length === 0 || selectedKlasifikasis.map(x => x.toLowerCase()).includes((p.klasifikasiJabatan || '').trim().toLowerCase());
+
+      // Agama match (normalizing Kristen and Protestan)
+      const pAgamaNorm = getNormalizedAgama(p.agama || '');
+      const filterAgamaNorm = getNormalizedAgama(filterAgama);
+      const agamaMatch = filterAgama === 'Semua Agama' || pAgamaNorm.toLowerCase() === filterAgamaNorm.toLowerCase();
 
       // Golongan range match
       let golonganMatch = true;
@@ -761,9 +776,9 @@ const PegawaiPage = () => {
         }
       }
 
-      return match && unitMatch && jenisMatch && statusMatch && golonganMatch && pendidikanMatch && jurusanMatch && ageMatch && klasifikasiMatch;
+      return match && unitMatch && jenisMatch && statusMatch && golonganMatch && pendidikanMatch && jurusanMatch && ageMatch && klasifikasiMatch && agamaMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi]);
+  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama]);
 
   const filteredForCounts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -789,6 +804,11 @@ const PegawaiPage = () => {
       const selectedKlasifikasis = filterKlasifikasi === 'Semua Klasifikasi' || !filterKlasifikasi ? [] : filterKlasifikasi.split(',').filter(Boolean);
       const klasifikasiMatch = selectedKlasifikasis.length === 0 || selectedKlasifikasis.map(x => x.toLowerCase()).includes((p.klasifikasiJabatan || '').trim().toLowerCase());
 
+      // Agama match (for counts, normalizing Kristen and Protestan)
+      const pAgamaNorm = getNormalizedAgama(p.agama || '');
+      const filterAgamaNorm = getNormalizedAgama(filterAgama);
+      const agamaMatch = filterAgama === 'Semua Agama' || pAgamaNorm.toLowerCase() === filterAgamaNorm.toLowerCase();
+
       let ageMatch = true;
       if (minAge || maxAge) {
         const birthDateStr = formatDateForInput(p.tanggalLahir);
@@ -803,9 +823,9 @@ const PegawaiPage = () => {
           } else ageMatch = false;
         } else ageMatch = false;
       }
-      return match && unitMatch && jenisMatch && ageMatch && pendidikanMatch && jurusanMatch && klasifikasiMatch;
+      return match && unitMatch && jenisMatch && ageMatch && pendidikanMatch && jurusanMatch && klasifikasiMatch && agamaMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterJenis, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi]);
+  }, [pegawaiList, searchTerm, filterUnit, filterJenis, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -1575,6 +1595,16 @@ const PegawaiPage = () => {
               onChange={e => setMaxAge(e.target.value)} 
             />
           </div>
+          <select 
+            className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all cursor-pointer" 
+            value={filterAgama} 
+            onChange={e => setFilterAgama(e.target.value)}
+          >
+            <option>Semua Agama</option>
+            {AGAMA_LIST.map(a => (
+              <option key={a} value={a}>{a.toUpperCase()}</option>
+            ))}
+          </select>
           <button 
             onClick={() => {
               setSearchTerm('');
@@ -1588,6 +1618,7 @@ const PegawaiPage = () => {
               setFilterPendidikan('Semua Pendidikan');
               setFilterJurusan('Semua Jurusan');
               setFilterKlasifikasi('Semua Klasifikasi');
+              setFilterAgama('Semua Agama');
               setJurusanSearch('');
             }}
             className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-slate-100/50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none hover:bg-rose-50 hover:text-rose-600 transition-all text-slate-400 flex items-center justify-center gap-2"
