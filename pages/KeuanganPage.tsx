@@ -118,7 +118,8 @@ const KeuanganPage = () => {
       setActiveView('list');
       loadData(true);
     } else {
-      alert("Gagal menyimpan data.");
+      const lastErr = sessionStorage.getItem('last_spreadsheet_error');
+      alert("Gagal menyimpan data." + (lastErr ? `\n\nDetail: ${lastErr}` : ""));
     }
     setSyncing(false);
   };

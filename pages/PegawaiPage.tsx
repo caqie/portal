@@ -1035,7 +1035,8 @@ const PegawaiPage = () => {
       setIsModalOpen(false);
       setShowSuccess(true);
     } else {
-      alert("Gagal menyimpan data ke server.");
+      const lastErr = sessionStorage.getItem('last_spreadsheet_error');
+      alert("Gagal menyimpan data ke server." + (lastErr ? `\n\nDetail: ${lastErr}` : ""));
     }
     setSyncing(false);
   };

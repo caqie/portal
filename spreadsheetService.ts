@@ -337,6 +337,29 @@ export const saveSharedConfigToServer = async (
   }
 };
 
+const extractErrorMessageFromHtml = (html: string): string => {
+  if (!html) return "No response text received.";
+  const match = html.match(/class=["']errorMessage["'][^>]*>([\s\S]*?)<\/div>/i);
+  if (match && match[1]) {
+    return match[1].replace(/<[^>]*>/g, '').trim();
+  }
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (bodyMatch && bodyMatch[1]) {
+    const cleanBody = bodyMatch[1].replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                                  .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+                                  .replace(/<[^>]*>/g, '')
+                                  .trim();
+    if (cleanBody.length > 0) {
+      return cleanBody.substring(0, 300).replace(/\s+/g, ' ');
+    }
+  }
+  const titleMatch = html.match(/<title>([\s\S]*?)<\/title>/i);
+  if (titleMatch && titleMatch[1]) {
+    return `Error: ${titleMatch[1].trim()}`;
+  }
+  return "Unknown HTML response from server.";
+};
+
 export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELETE', data: any): Promise<boolean> => {
   const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
   if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
@@ -345,6 +368,45 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
   if (action === 'DELETE' && !data?.id && !data?.nip && !data?.nama) {
     console.warn(`Sync blocked: Action DELETE for module ${moduleName} requires id, nip, or nama. Received:`, data);
     return false;
+  }
+
+  // Normalize PENDIDIKAN field for PEGAWAI module to prevent Spreadsheet Validation violations
+  let finalData = data;
+  if (moduleName.toUpperCase().trim() === 'PEGAWAI' && action === 'SAVE' && data) {
+    finalData = { ...data };
+    
+    const normalizePendidikan = (val: any): string => {
+      if (!val) return "";
+      const s = String(val).trim().toUpperCase();
+      if (s.startsWith("SD") || s === "SD/SEDERAJAT") return "SD";
+      if (s.startsWith("SLTA") || s.startsWith("SMA") || s.startsWith("SMK") || s.startsWith("MAN") || s === "SLTP" || s === "SMP") return "SLTA";
+      if (s === "D-III" || s === "D3" || s === "D III" || s === "D-3" || s === "DIII") return "DIII";
+      if (s === "D-IV" || s === "D4" || s === "D IV" || s === "D-4" || s === "DIV") return "D IV";
+      if (s === "S-1" || s === "S1" || s === "S 1" || s === "SARJANA") return "S1";
+      if (s === "S-2" || s === "S2" || s === "S 2" || s === "MAGISTER") return "S2";
+      if (s === "S-3" || s === "S3" || s === "S 3" || s === "DOKTOR") return "S3";
+      if (s === "PROFESI") return "S1";
+      
+      if (s.includes("D3") || s.includes("D-III") || s.includes("D III") || s.includes("D-3")) return "DIII";
+      if (s.includes("D4") || s.includes("D-IV") || s.includes("D IV") || s.includes("D-4") || s.includes("DIV")) return "D IV";
+      if (s.includes("S1") || s.includes("S-1") || s.includes("S 1") || s.includes("SARJANA")) return "S1";
+      if (s.includes("S2") || s.includes("S-2") || s.includes("S 2") || s.includes("MAGISTER")) return "S2";
+      if (s.includes("S3") || s.includes("S-3") || s.includes("S 3") || s.includes("DOKTOR")) return "S3";
+      if (s.includes("SD")) return "SD";
+      if (s.includes("SMA") || s.includes("SMK") || s.includes("SLTA") || s.includes("ALIAH") || s.includes("PONDOK") || s.includes("PESANTREN")) return "SLTA";
+      
+      const allowed = ["D IV", "DIII", "S1", "S2", "S3", "SD", "SLTA"];
+      const matched = allowed.find(a => s.replace(/[^A-Z0-9]/g, '') === a.replace(/[^A-Z0-9]/g, ''));
+      if (matched) return matched;
+      return "S1";
+    };
+
+    Object.keys(finalData).forEach(key => {
+      const cleanKey = key.toLowerCase().replace(/[\s_]/g, '');
+      if (cleanKey === 'pendidikan') {
+        finalData[key] = normalizePendidikan(finalData[key]);
+      }
+    });
   }
 
   const cleanUrl = appsScriptUrl.trim();
@@ -360,17 +422,32 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
         spreadsheetId: spreadsheetId,
         driveFolderId: driveFolderId,
         timestamp: new Date().toISOString(), 
-        payload: data 
+        payload: finalData 
       })
     });
     if (!response.ok) throw new Error(`Network error: ${response.status} ${response.statusText}`);
-    const result = await response.json();
+    
+    const text = await response.text();
+    let result: any;
+    try {
+      result = JSON.parse(text);
+    } catch (parseError) {
+      const errMsg = extractErrorMessageFromHtml(text);
+      console.warn("Failed to parse Remote Sync response as JSON. Extracting error:", errMsg);
+      sessionStorage.setItem('last_spreadsheet_error', errMsg);
+      return false;
+    }
+
     if (!result.success) {
       console.error("Remote Sync Business Error:", result.message || "Unknown error", "Payload:", data);
+      sessionStorage.setItem('last_spreadsheet_error', result.message || "Unknown error");
+    } else {
+      sessionStorage.removeItem('last_spreadsheet_error');
     }
     return result.success === true;
-  } catch (error) { 
+  } catch (error: any) { 
     console.error("Remote Sync Exception:", error);
+    sessionStorage.setItem('last_spreadsheet_error', error?.message || String(error));
     return false; 
   }
 };
@@ -382,8 +459,15 @@ export const getServerTime = async (): Promise<Date> => {
     const useBackend = await checkBackend();
     const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(targetUrl)}` : targetUrl;
     const res = await fetch(finalUrl);
-    const data = await res.json();
-    if (data.success && data.time) return new Date(data.time);
+    if (!res.ok) return new Date();
+    
+    const text = await res.text();
+    try {
+      const data = JSON.parse(text);
+      if (data.success && data.time) return new Date(data.time);
+    } catch (parseError) {
+      console.warn("Failed to parse Server Time response as JSON. Response text snippet:", text.substring(0, 300));
+    }
     return new Date();
   } catch (e) {
     return new Date();
@@ -1062,10 +1146,15 @@ export const syncGidMap = async (): Promise<boolean> => {
         });
         
         if (postRes.ok) {
-            const data = await postRes.json();
-            if (data.success) {
-                localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap));
-                return true;
+            const text = await postRes.text();
+            try {
+                const data = JSON.parse(text);
+                if (data.success) {
+                    localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap));
+                    return true;
+                }
+            } catch (err) {
+                console.warn("syncGidMap POST: Response is not valid JSON. Snippet:", text.substring(0, 300));
             }
         }
     } catch (postError) {
@@ -1080,10 +1169,15 @@ export const syncGidMap = async (): Promise<boolean> => {
         const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(getUrl)}` : getUrl;
         const getRes = await fetch(finalUrl);
         if (getRes.ok) {
-            const data = await getRes.json();
-            if (data.success) {
-                localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap));
-                return true;
+            const text = await getRes.text();
+            try {
+                const data = JSON.parse(text);
+                if (data.success) {
+                    localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap));
+                    return true;
+                }
+            } catch (err) {
+                console.warn("syncGidMap GET: Response is not valid JSON. Snippet:", text.substring(0, 300));
             }
         }
         return false;

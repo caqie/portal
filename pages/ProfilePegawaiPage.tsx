@@ -260,7 +260,8 @@ const ProfilePegawaiPage = () => {
       setPegawai(syncedPegawai); // Update local state with synced data
       // loadData(); // No need to reload everything if we just updated local state
     } else {
-      alert("Gagal menyimpan data.");
+      const lastErr = sessionStorage.getItem('last_spreadsheet_error');
+      alert("Gagal menyimpan data." + (lastErr ? `\n\nDetail: ${lastErr}` : ""));
     }
     setSyncing(false);
   };

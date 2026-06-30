@@ -1,12 +1,12 @@
-
 /**
- * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 5.1.2 - FINAL STABLE)
+ * PORTAL SDM DJKI - BACKEND CORE (PRO VERSION 5.2.0 - FINAL STABLE)
  * ----------------------------------------------------------------
  * Fitur Utama:
  * - Smart Sync: Otomatis menambah kolom baru dan cerdas dalam pencocokan NIP/ID.
  * - Secure Upload: Upload ke folder spesifik dengan URL Direct yang stabil.
- * - Sparse Update: Mengupdate baris tanpa merusak ArrayFormula di kolom lain.
+ * - Sparse Update: Mengupdate baris tanpa merusak ArrayFormula di kolom lain (SetValues Batching).
  * - Setup Helper: Mempermudah aktivasi izin (Authorization).
+ * - Server Time Sync: sinkronisasi waktu akurat untuk kebutuhan absensi mandiri.
  */
 
 var FOLDER_ID_DATABASE = "19OkO6ZAMnTXaxy-58ntHRVNI85W-u23O"; 
@@ -18,7 +18,7 @@ var FOLDER_ID_DATABASE = "19OkO6ZAMnTXaxy-58ntHRVNI85W-u23O";
 function setup() {
   DriveApp.getRootFolder();
   SpreadsheetApp.getActiveSpreadsheet();
-  console.log("Izin berhasil diberikan! Sekarang silakan lakukan Deploy > New Version.");
+  console.log("Izin berhasil diberikan! Sekarang silakan lakukan Deploy > New Web App.");
 }
 
 function doGet(e) {
@@ -118,6 +118,38 @@ function handleGet(ss, moduleName) {
   } catch (e) { return createResponse({ success: false, message: e.toString() }); }
 }
 
+function normalizePendidikanForGAS(val) {
+  if (!val) return "";
+  var s = val.toString().trim().toUpperCase();
+  if (s.indexOf("SD") === 0 || s === "SD/SEDERAJAT") return "SD";
+  if (s.indexOf("SLTA") === 0 || s.indexOf("SMA") === 0 || s.indexOf("SMK") === 0 || s.indexOf("MAN") === 0 || s === "SLTP" || s === "SMP") return "SLTA";
+  if (s === "D-III" || s === "D3" || s === "D III" || s === "D-3" || s === "DIII") return "DIII";
+  if (s === "D-IV" || s === "D4" || s === "D IV" || s === "D-4" || s === "DIV") return "D IV";
+  if (s === "S-1" || s === "S1" || s === "S 1" || s === "SARJANA") return "S1";
+  if (s === "S-2" || s === "S2" || s === "S 2" || s === "MAGISTER") return "S2";
+  if (s === "S-3" || s === "S3" || s === "S 3" || s === "DOKTOR") return "S3";
+  if (s === "PROFESI") return "S1";
+  
+  // Fuzzy contains match
+  if (s.indexOf("D3") > -1 || s.indexOf("D-III") > -1 || s.indexOf("D III") > -1 || s.indexOf("D-3") > -1) return "DIII";
+  if (s.indexOf("D4") > -1 || s.indexOf("D-IV") > -1 || s.indexOf("D IV") > -1 || s.indexOf("D-4") > -1 || s.indexOf("DIV") > -1) return "D IV";
+  if (s.indexOf("S1") > -1 || s.indexOf("S-1") > -1 || s.indexOf("S 1") > -1 || s.indexOf("SARJANA") > -1) return "S1";
+  if (s.indexOf("S2") > -1 || s.indexOf("S-2") > -1 || s.indexOf("S 2") > -1 || s.indexOf("MAGISTER") > -1) return "S2";
+  if (s.indexOf("S3") > -1 || s.indexOf("S-3") > -1 || s.indexOf("S 3") > -1 || s.indexOf("DOKTOR") > -1) return "S3";
+  if (s.indexOf("SD") > -1) return "SD";
+  if (s.indexOf("SMA") > -1 || s.indexOf("SMK") > -1 || s.indexOf("SLTA") > -1 || s.indexOf("ALIAH") > -1 || s.indexOf("PONDOK") > -1 || s.indexOf("PESANTREN") > -1) return "SLTA";
+  
+  var allowed = ["D IV", "DIII", "S1", "S2", "S3", "SD", "SLTA"];
+  for (var i = 0; i < allowed.length; i++) {
+    var a = allowed[i];
+    if (s.replace(/[^A-Z0-9]/g, '') === a.replace(/[^A-Z0-9]/g, '')) {
+      return a;
+    }
+  }
+  
+  return "S1"; // Ultimate safe fallback
+}
+
 function handleSave(ss, moduleName, payload) {
   try {
     var sheet = getOrCreateSheet(ss, moduleName, payload);
@@ -127,7 +159,7 @@ function handleSave(ss, moduleName, payload) {
     payloadKeys.forEach(function(key) {
       var keyLower = key.toLowerCase().replace(/[\s_]/g, '');
       var found = headers.some(function(h) {
-        return h.toString().toLowerCase().replace(/[\s_]/g, '') === keyLower;
+        return h && h.toString().toLowerCase().replace(/[\s_]/g, '') === keyLower;
       });
       if (!found) {
         sheet.getRange(1, headers.length + 1).setValue(key.toUpperCase());
@@ -148,50 +180,55 @@ function handleSave(ss, moduleName, payload) {
     }
     
     for (var h = 0; h < headers.length; h++) {
-      var hName = headers[h].toString().toLowerCase().replace(/[\s_]/g, '');
-      if (hName === 'id') {
-        keyIndex = h;
-        if (payload.id) break; 
-      }
-      if (hName === 'nip' && keyIndex === -1) {
-        keyIndex = h;
-      }
+       var hName = headers[h] ? headers[h].toString().toLowerCase().replace(/[\s_]/g, '') : '';
+       if (hName === 'id') {
+         keyIndex = h;
+         if (payload.id) break; 
+       }
+       if (hName === 'nip' && keyIndex === -1) {
+         keyIndex = h;
+       }
     }
 
     if (keyIndex > -1 && targetKey !== "" && lastRow > 1) {
       var displayValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getValues();
       for (var i = 1; i < displayValues.length; i++) {
-        var cellValue = displayValues[i][0].toString().trim();
+        var cellValue = displayValues[i][0] ? displayValues[i][0].toString().trim() : '';
         if (isNipMatching) cellValue = cellValue.replace(/\D/g, '');
 
         if (cellValue === targetKey) {
           var rowNum = i + 1;
-          payloadKeys.forEach(function(key) {
-            var keyLower = key.toLowerCase().replace(/[\s_]/g, '');
-            var colIdx = -1;
-            for (var h = 0; h < headers.length; h++) {
-              if (headers[h].toString().toLowerCase().replace(/[\s_]/g, '') === keyLower) {
-                colIdx = h;
-                break;
-              }
-            }
-            if (colIdx > -1) {
+          var existingRowValues = sheet.getRange(rowNum, 1, 1, headers.length).getValues()[0];
+          var rowValues = headers.map(function(h, colIdx) {
+            var hName = h ? h.toString().toLowerCase().replace(/[\s_]/g, '') : '';
+            var key = Object.keys(payload).find(function(k) {
+              return k.toLowerCase().replace(/[\s_]/g, '') === hName;
+            });
+            if (key !== undefined) {
               var val = payload[key];
-              var finalVal = (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
-              sheet.getRange(rowNum, colIdx + 1).setValue(finalVal);
+              if (moduleName === 'PEGAWAI' && hName === 'pendidikan') {
+                val = normalizePendidikanForGAS(val);
+              }
+              return (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
+            } else {
+              return existingRowValues[colIdx];
             }
           });
+          sheet.getRange(rowNum, 1, 1, headers.length).setValues([rowValues]);
           return createResponse({ success: true, message: "Updated." });
         }
       }
     }
 
     var rowData = headers.map(function(h) {
-      var headerClean = h.toString().toLowerCase().replace(/[\s_]/g, '');
+      var hName = h ? h.toString().toLowerCase().replace(/[\s_]/g, '') : '';
       var key = Object.keys(payload).find(function(k) {
-        return k.toLowerCase().replace(/[\s_]/g, '') === headerClean;
+        return k.toLowerCase().replace(/[\s_]/g, '') === hName;
       });
       var val = key ? payload[key] : "";
+      if (moduleName === 'PEGAWAI' && hName === 'pendidikan') {
+        val = normalizePendidikanForGAS(val);
+      }
       return (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
     });
 
@@ -221,7 +258,7 @@ function handleDelete(ss, moduleName, payload) {
     }
 
     for (var h = 0; h < headers.length; h++) {
-      var hName = headers[h].toString().toLowerCase().replace(/[\s_]/g, '');
+      var hName = headers[h] ? headers[h].toString().toLowerCase().replace(/[\s_]/g, '') : '';
       if (hName === 'id') {
         keyIndex = h;
         if (payload.id) break;
@@ -238,7 +275,7 @@ function handleDelete(ss, moduleName, payload) {
     var dataValues = sheet.getRange(1, keyIndex + 1, lastRow, 1).getValues();
     var deletedCount = 0;
     for (var i = dataValues.length - 1; i >= 1; i--) {
-      var val = dataValues[i][0].toString().trim();
+      var val = dataValues[i][0] ? dataValues[i][0].toString().trim() : '';
       if (isNip) val = val.replace(/\D/g, '');
 
       if (val === searchKey) {
@@ -334,7 +371,7 @@ function handleAuditDatabase(ss, payload) {
       if (matchingModule) {
         matchingModule.requiredColumns.forEach(function(col) {
           var found = headers.some(function(h) {
-            return h.toString().toUpperCase().replace(/[\s_]/g, '') === col.toUpperCase().replace(/[\s_]/g, '');
+            return h && h.toString().toUpperCase().replace(/[\s_]/g, '') === col.toUpperCase().replace(/[\s_]/g, '');
           });
           if (!found) missingColumns.push(col);
         });
