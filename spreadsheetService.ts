@@ -40,7 +40,16 @@ export const DEFAULT_GIDS = {
 
 export const EXPECTED_COLUMNS_SCHEMA = {
   USERS: ['ID', 'NIP', 'NAME', 'PASSWORD', 'ROLE', 'STATUS'],
-  PEGAWAI: ['ID', 'NIP', 'NAMA', 'JABATAN', 'UNIT KERJA', 'GOL RUANG', 'JENIS PEGAWAI', 'STATUS'],
+  PEGAWAI: [
+    'ID', 'NIP', 'NAMA', 'JABATAN', 'UNIT KERJA', 'GOL RUANG', 'JENIS PEGAWAI', 'STATUS',
+    'GENDER', 'TEMPAT LAHIR', 'TANGGAL LAHIR', 'AGAMA', 'ALAMAT', 'NO HP', 'EMAIL',
+    'NIK', 'NPWP', 'NO BPJS', 'NO REKENING GAJI', 'NAMA BANK', 'PENDIDIKAN', 'JURUSAN',
+    'PANGKAT', 'TMT PANGKAT', 'TMT JABATAN', 'TMT CPNS', 'ESELON', 'SUB BAGIAN', 'BAGIAN',
+    'MASA KERJA', 'MASA KERJA GOLONGAN', 'STATUS PERKAWINAN', 'JENIS JABATAN', 'KLASIFIKASI JABATAN',
+    'FOTO', 'BUP', 'USIA', 'TGL PENSIUN', 'TMT PENSIUN', 'TMT PENSIUN DISPLAY', 'SISA MASA KERJA',
+    'KETERANGAN PENSIUN', 'USIA PENSIUN', 'MASA KERJA PENSIUN', 'RIWAYAT PENDIDIKAN',
+    'RIWAYAT JABATAN', 'RIWAYATPANGKAT', 'RIWAYATPELATIHAN', 'KELUARGA'
+  ],
   DOSSIER: ['ID', 'NIP', 'NAMAPEGAWAI', 'FILENAME', 'FILEURL'],
   SKP: ['ID', 'NIP', 'NAMAPEGAWAI', 'TAHUN', 'PREDIKATKINERJA'],
   PAK: ['ID', 'NIP', 'NAMAPEGAWAI', 'NOMOR', 'JUMLAHKREDIT'],
@@ -443,12 +452,101 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
       sessionStorage.setItem('last_spreadsheet_error', result.message || "Unknown error");
     } else {
       sessionStorage.removeItem('last_spreadsheet_error');
+      
+      // Update local storage cache in-place so changes are reflected immediately
+      const storageKeyMap: Record<string, string> = {
+        'PEGAWAI': 'portal_pegawai_db',
+        'PENGEMBANGAN': 'portal_pengembangan_db',
+        'KGB': 'portal_kgb_db',
+        'KEGIATAN': 'kegiatan_db',
+        'DOSSIER': 'portal_dossiers_db',
+        'USERS': 'portal_users_db',
+        'CONFIG': 'portal_config_db',
+        'SATYA_LENCANA': 'satya_lencana_db',
+        'ABK_ANJAB': 'abk_db',
+        'PERSURATAN': 'portal_persuratan_db',
+        'SKP': 'skp_db',
+        'MAGANG_PKL': 'portal_magang_db',
+        'TUGAS_RUTIN': 'tugas_rutin_db',
+        'PELANTIKAN': 'pelantikan_db',
+        'PENSIUN': 'pensiun_db',
+        'PAK': 'pak_db',
+        'SPMT_SPP': 'spmt_spp_db',
+        'KENAIKAN': 'kenaikan_db',
+        'KEUANGAN': 'portal_keuangan_db'
+      };
+      
+      const key = storageKeyMap[moduleName.toUpperCase().trim()];
+      if (key) {
+        try {
+          const cached = localStorage.getItem(key);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed)) {
+              if (action === 'SAVE') {
+                const index = parsed.findIndex((item: any) => 
+                  (item.id && data.id && item.id === data.id) || 
+                  (item.nip && data.nip && item.nip === data.nip)
+                );
+                if (index !== -1) {
+                  parsed[index] = { ...parsed[index], ...data };
+                } else {
+                  parsed.push(data);
+                }
+                localStorage.setItem(key, JSON.stringify(parsed));
+              } else if (action === 'DELETE') {
+                const filtered = parsed.filter((item: any) => 
+                  !(item.id && data.id && item.id === data.id) && 
+                  !(item.nip && data.nip && item.nip === data.nip)
+                );
+                localStorage.setItem(key, JSON.stringify(filtered));
+              }
+            }
+          }
+        } catch (e) {
+          localStorage.removeItem(key);
+        }
+      }
     }
     return result.success === true;
   } catch (error: any) { 
     console.error("Remote Sync Exception:", error);
     sessionStorage.setItem('last_spreadsheet_error', error?.message || String(error));
     return false; 
+  }
+};
+
+export const cleanupEmptyRowsRemote = async (moduleName: string): Promise<{ success: boolean; message: string; deletedCount?: number }> => {
+  const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
+  if (!appsScriptUrl || appsScriptUrl.trim() === '') return { success: false, message: 'URL Apps Script kosong.' };
+  
+  const cleanUrl = appsScriptUrl.trim();
+  try {
+    const useBackend = await checkBackend();
+    const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(cleanUrl)}` : cleanUrl;
+    const response = await fetch(finalUrl, {
+      method: 'POST',
+      headers: useBackend ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ 
+        module: moduleName.toUpperCase().trim(), 
+        action: 'CLEANUP_EMPTY_ROWS', 
+        spreadsheetId: spreadsheetId,
+        driveFolderId: driveFolderId,
+        timestamp: new Date().toISOString()
+      })
+    });
+    if (!response.ok) throw new Error(`Network error: ${response.status} ${response.statusText}`);
+    
+    const text = await response.text();
+    let result: any;
+    try {
+      result = JSON.parse(text);
+    } catch (parseError) {
+      return { success: false, message: extractErrorMessageFromHtml(text) };
+    }
+    return { success: result.success === true, message: result.message || '', deletedCount: result.deletedCount };
+  } catch (error: any) { 
+    return { success: false, message: error?.message || String(error) };
   }
 };
 
@@ -856,25 +954,6 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
 
           if (!p.tmtPensiun || p.tmtPensiun === '-') {
             p.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
-          }
-
-          // Auto Pensiun Status
-          const today = new Date();
-          let checkDate = retirementDate;
-          if (p.tmtPensiun && p.tmtPensiun !== '-') {
-            const parsedTmtStr = parseDateToYYYYMMDD(p.tmtPensiun);
-            if (parsedTmtStr) {
-              const tmtDate = new Date(parsedTmtStr);
-              if (!isNaN(tmtDate.getTime())) {
-                checkDate = tmtDate;
-              }
-            }
-          }
-          
-          if (today >= checkDate) {
-            if (p.status === 'Aktif' || p.status === 'Tugas Belajar') {
-              p.status = 'Pensiun';
-            }
           }
         }
       }

@@ -531,22 +531,6 @@ const PegawaiPage = () => {
             if (!enriched.tmtPensiun || enriched.tmtPensiun === '-') {
               enriched.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
             }
-
-            // 3. Auto Status
-            const today = new Date();
-            let checkDate = retirementDate;
-            if (enriched.tmtPensiun && enriched.tmtPensiun !== '-') {
-              const tmtDate = new Date(formatDateForInput(enriched.tmtPensiun));
-              if (!isNaN(tmtDate.getTime())) {
-                checkDate = tmtDate;
-              }
-            }
-            
-            if (today >= checkDate) {
-              if (enriched.status === 'Aktif' || enriched.status === 'Tugas Belajar') {
-                enriched.status = 'Pensiun';
-              }
-            }
           }
         }
         return enriched;
@@ -606,21 +590,6 @@ const PegawaiPage = () => {
 
             if (!enriched.tmtPensiun || enriched.tmtPensiun === '-') {
               enriched.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
-            }
-
-            const today = new Date();
-            let checkDate = retirementDate;
-            if (enriched.tmtPensiun && enriched.tmtPensiun !== '-') {
-              const tmtDate = new Date(formatDateForInput(enriched.tmtPensiun));
-              if (!isNaN(tmtDate.getTime())) {
-                checkDate = tmtDate;
-              }
-            }
-            
-            if (today >= checkDate) {
-              if (enriched.status === 'Aktif' || enriched.status === 'Tugas Belajar') {
-                enriched.status = 'Pensiun';
-              }
             }
           }
         }
@@ -1012,9 +981,9 @@ const PegawaiPage = () => {
     if (!formData.nip || !formData.nama) return alert("NIP dan Nama wajib diisi.");
     setSyncing(true);
     
-    // Auto-normalize name, academic titles, and extract education & jurusan
+    // Keep the exact name and academic titles entered by the user, while using polishGelarDanNama to suggest education/jurusan
     const polished = polishGelarDanNama(formData.nama);
-    const finalNama = polished.formattedName;
+    const finalNama = formData.nama.trim();
     const finalJurusan = formData.jurusan || polished.jurusan;
     const finalPendidikan = formData.pendidikan || polished.pendidikan;
     

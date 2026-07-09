@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai, SystemConfig, PageAccess } from '../types';
-import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig, auditSpreadsheet, deleteSheetRemote, EXPECTED_COLUMNS_SCHEMA, saveSharedConfigToServer, parseDateToYYYYMMDD } from '../spreadsheetService';
+import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig, auditSpreadsheet, deleteSheetRemote, EXPECTED_COLUMNS_SCHEMA, saveSharedConfigToServer, parseDateToYYYYMMDD, cleanupEmptyRowsRemote } from '../spreadsheetService';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO, APP_ROUTES, UNIT_KERJA, PANGKAT_MAP } from '../constants';
@@ -387,6 +387,25 @@ const SettingsPage = () => {
       }
     } catch (e) { console.error(e); }
     finally { setSyncing(false); setCleanupProgress({ current: 0, total: 0, active: false }); }
+  };
+
+  const handleCleanupEmptyRows = async () => {
+    if (!confirm("Bersihkan baris kosong/stray yang tidak memiliki NIP, Nama, dan ID di Google Sheet?")) return;
+    setSyncing(true);
+    try {
+      const res = await cleanupEmptyRowsRemote('PEGAWAI');
+      if (res.success) {
+        setSuccessMsg(res.message || "Berhasil membersihkan baris kosong di database.");
+        setShowSuccess(true);
+        loadSettingsData();
+      } else {
+        alert(res.message || "Gagal membersihkan baris kosong.");
+      }
+    } catch (e: any) {
+      alert("Terjadi kesalahan: " + (e.message || String(e)));
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const parseImportDate = (val: any): string => {
@@ -1221,11 +1240,16 @@ const SettingsPage = () => {
                            </div>
                         </div>
                      </div>
-                     <button onClick={handleCleanupData} disabled={syncing || (duplicateNips.length === 0 && invalidItems.length === 0)} className="w-full py-4 bg-white border-2 border-amber-500 text-amber-600 rounded-2xl font-black text-[10px] uppercase active:scale-95 transition-all flex items-center justify-center gap-3">
-                        {cleanupProgress.active ? (
-                           <><div className="h-4 w-4 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin"></div> Pembersihan...</>
-                        ) : <><i className="bi bi-stars"></i> Bersihkan Database</>}
-                     </button>
+                     <div className="flex flex-col gap-2">
+                        <button onClick={handleCleanupData} disabled={syncing || (duplicateNips.length === 0 && invalidItems.length === 0)} className="w-full py-4 bg-white border-2 border-amber-500 text-amber-600 rounded-2xl font-black text-[10px] uppercase active:scale-95 transition-all flex items-center justify-center gap-3">
+                           {cleanupProgress.active ? (
+                              <><div className="h-4 w-4 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin"></div> Pembersihan...</>
+                           ) : <><i className="bi bi-stars"></i> Bersihkan Database</>}
+                        </button>
+                        <button onClick={handleCleanupEmptyRows} disabled={syncing} className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase active:scale-95 transition-all flex items-center justify-center gap-3 shadow-md shadow-amber-500/10">
+                           <i className="bi bi-eraser-fill text-sm"></i> Bersihkan Baris Kosong / Rusak
+                        </button>
+                     </div>
                   </div>
 
                   {/* RESET DATABASE */}

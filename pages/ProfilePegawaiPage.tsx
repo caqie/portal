@@ -150,10 +150,6 @@ const ProfilePegawaiPage = () => {
                 enriched.sisaMasaKerja = `${diffYears} Thn ${diffMonths} Bln`;
               } else {
                 enriched.sisaMasaKerja = 'Pensiun';
-                // Automatically set status to Pensiun if it's currently Aktif or Tugas Belajar
-                if (enriched.status === 'Aktif' || enriched.status === 'Tugas Belajar') {
-                  enriched.status = 'Pensiun';
-                }
               }
             }
           } catch (e) {}
@@ -174,13 +170,13 @@ const ProfilePegawaiPage = () => {
   const syncHistoryToDetail = (p: Pegawai): Pegawai => {
     let updated = { ...p };
 
-    // Auto-normalize name, titles, and extract education & jurusan
+    // Respect the original name and titles from the database, while using polishGelarDanNama as fallback for empty education/jurusan
     const polished = polishGelarDanNama(updated.nama);
-    updated.nama = polished.formattedName;
-    if (polished.jurusan) {
+    updated.nama = updated.nama.trim();
+    if (!updated.jurusan && polished.jurusan) {
       updated.jurusan = polished.jurusan;
     }
-    if (polished.pendidikan) {
+    if (!updated.pendidikan && polished.pendidikan) {
       updated.pendidikan = polished.pendidikan;
     }
 

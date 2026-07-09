@@ -54,6 +54,7 @@ function doPost(e) {
     if (action === 'GET') return handleGet(ss, moduleName);
     if (action === 'AUDIT_DATABASE') return handleAuditDatabase(ss, payload);
     if (action === 'DELETE_SHEET') return handleDeleteSheet(ss, payload);
+    if (action === 'CLEANUP_EMPTY_ROWS') return handleCleanupEmptyRows(ss, moduleName);
     if (action === 'GET_GID_MAP') {
       var sheets = ss.getSheets();
       var gidMap = {};
@@ -404,4 +405,48 @@ function handleDeleteSheet(ss, sheetId) {
      }
      return createResponse({ success: false, message: "Sheet not found." });
   } catch (e) { return createResponse({ success: false, message: e.toString() }); }
+}
+
+function handleCleanupEmptyRows(ss, moduleName) {
+  try {
+    var sheet = findSheetByName(ss, moduleName);
+    if (!sheet) return createResponse({ success: false, message: "Sheet not found" });
+    
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return createResponse({ success: true, message: "Sheet empty" });
+    
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    
+    var idColIdx = -1;
+    var nipColIdx = -1;
+    var namaColIdx = -1;
+    
+    for (var h = 0; h < headers.length; h++) {
+      var hName = headers[h] ? headers[h].toString().toLowerCase().replace(/[\s_]/g, '') : '';
+      if (hName === 'id') idColIdx = h;
+      if (hName === 'nip') nipColIdx = h;
+      if (hName === 'nama') namaColIdx = h;
+    }
+    
+    var dataRange = sheet.getRange(1, 1, lastRow, headers.length);
+    var dataValues = dataRange.getValues();
+    var deletedCount = 0;
+    
+    // Scan backwards so row deletion doesn't shift the indices of remaining rows
+    for (var r = lastRow - 1; r >= 1; r--) {
+      var row = dataValues[r];
+      var idVal = idColIdx > -1 ? (row[idColIdx] ? row[idColIdx].toString().trim() : '') : '';
+      var nipVal = nipColIdx > -1 ? (row[nipColIdx] ? row[nipColIdx].toString().trim() : '') : '';
+      var namaVal = namaColIdx > -1 ? (row[namaColIdx] ? row[namaColIdx].toString().trim() : '') : '';
+      
+      // If essential identification fields are empty, delete the row
+      if (idVal === "" && nipVal === "" && namaVal === "") {
+        sheet.deleteRow(r + 1);
+        deletedCount++;
+      }
+    }
+    return createResponse({ success: true, deletedCount: deletedCount, message: "Berhasil membersihkan " + deletedCount + " baris kosong dari sheet " + moduleName });
+  } catch (e) {
+    return createResponse({ success: false, message: e.toString() });
+  }
 }

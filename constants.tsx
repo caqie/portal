@@ -463,11 +463,11 @@ export const polishGelarDanNama = (rawInput: string): {
 
 /**
  * Helper to format Pegawai Name correctly:
- * - Proper capitalization for Degrees/Titles (Gelar)
- * - ALL CAPS for the actual Name
+ * Preserves the exact name and academic titles (gelar) as stored in the database.
  */
 export const formatPegawaiName = (nama: string): string => {
-  return polishGelarDanNama(nama).formattedName;
+  if (!nama) return '';
+  return nama.trim();
 };
 
 /**
