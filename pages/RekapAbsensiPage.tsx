@@ -297,11 +297,26 @@ const RekapAbsensiPage = () => {
 
     // Sheet 2: Detail logs harian untuk penelaahan mendalam (auditing)
     const detailData: any[] = [];
-    results.forEach(r => {
+    results.forEach((r, empIndex) => {
+      let lastMonthYear = '';
       r.days.forEach(d => {
+        const curDate = d.date;
+        const curMonthYear = curDate instanceof Date && !isNaN(curDate.getTime())
+          ? `${curDate.getFullYear()}-${curDate.getMonth()}`
+          : '';
+          
+        const isNewMonth = curMonthYear !== lastMonthYear;
+        if (isNewMonth) {
+          lastMonthYear = curMonthYear;
+        }
+
         detailData.push({
-          'NIP': r.nip,
-          'Nama Pegawai': r.nama,
+          'No': isNewMonth ? empIndex + 1 : '',
+          'Nama Pegawai': isNewMonth ? r.nama : '',
+          'NIP': isNewMonth ? r.nip : '',
+          'Departemen / Unit Kerja': isNewMonth ? r.departemen : '',
+          'Golongan': isNewMonth ? r.golongan : '',
+          'Jabatan': isNewMonth ? r.jabatan : '',
           'Tanggal': d.dateStr,
           'Hari': d.dayName,
           'Wajib Masuk': d.requiredCheckInStr || '-',
