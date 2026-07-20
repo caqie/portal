@@ -288,6 +288,10 @@ const RekapAbsensiPage = () => {
       'Dinas Luar Full (DL FULL)': r.summary.dlFullCount,
       'Cuti / Sakit / Izin (Excused)': r.summary.excusedCount,
       'Tidak Hadir (Alpa)': r.summary.absentCount,
+      'Terlambat (Kali)': r.summary.lateCount || 0,
+      'Durasi Terlambat (Menit)': r.summary.totalLateMinutes || 0,
+      'Pulang Cepat (Kali)': r.summary.earlyLeaveCount || 0,
+      'Durasi Pulang Cepat (Menit)': r.summary.totalEarlyLeaveMinutes || 0,
       'Persentase Kehadiran (%)': `${r.summary.attendanceRate}%`
     }));
 
@@ -300,8 +304,12 @@ const RekapAbsensiPage = () => {
           'Nama Pegawai': r.nama,
           'Tanggal': d.dateStr,
           'Hari': d.dayName,
+          'Wajib Masuk': d.requiredCheckInStr || '-',
           'Jam Masuk': d.jamMasuk || '-',
+          'Status Terlambat': d.isLate ? `Terlambat (${d.lateMinutes} Menit)` : (d.jamMasuk ? 'Tepat Waktu' : '-'),
+          'Wajib Pulang': d.requiredCheckOutStr || '-',
           'Jam Keluar': d.jamKeluar || '-',
+          'Status Pulang Cepat': d.isEarlyLeave ? `Pulang Cepat (${d.earlyLeaveMinutes} Menit)` : (d.jamKeluar ? 'Sesuai Ketentuan' : '-'),
           'Status Dokumen': d.status || '-',
           'Hari Libur/Weekend': d.isWeekend ? 'Akhir Pekan' : (d.isHoliday ? 'Hari Libur Nasional/Cuti Bersama' : 'Hari Kerja'),
           'Klasifikasi Kehadiran': d.attendanceType === 'PRESENT' ? 'Hadir' :
@@ -749,6 +757,8 @@ const RekapAbsensiPage = () => {
                       <th className="px-4 py-4 text-center">DL Full</th>
                       <th className="px-4 py-4 text-center">Cuti/Izin</th>
                       <th className="px-4 py-4 text-center">Alpa</th>
+                      <th className="px-4 py-4 text-center">Terlambat</th>
+                      <th className="px-4 py-4 text-center">Pulang Cepat</th>
                       <th className="px-4 py-4 text-center">Persentase</th>
                       <th className="px-6 py-4 text-right">Audit</th>
                     </tr>
@@ -771,6 +781,14 @@ const RekapAbsensiPage = () => {
                         <td className="px-4 py-4 text-center font-bold text-blue-600">{r.summary.dlFullCount} Hari</td>
                         <td className="px-4 py-4 text-center font-bold text-amber-600">{r.summary.excusedCount} Hari</td>
                         <td className="px-4 py-4 text-center font-bold text-red-500">{r.summary.absentCount} Hari</td>
+                        <td className="px-4 py-4 text-center">
+                          <p className="font-extrabold text-orange-600">{r.summary.lateCount || 0} Kali</p>
+                          <p className="text-[9px] font-semibold text-gray-400 mt-0.5">{r.summary.totalLateMinutes || 0} m</p>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <p className="font-extrabold text-rose-500">{r.summary.earlyLeaveCount || 0} Kali</p>
+                          <p className="text-[9px] font-semibold text-gray-400 mt-0.5">{r.summary.totalEarlyLeaveMinutes || 0} m</p>
+                        </td>
                         <td className="px-4 py-4 text-center">
                           <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-black ${r.summary.attendanceRate >= 90 ? 'bg-emerald-50 text-emerald-600' : (r.summary.attendanceRate >= 75 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600')}`}>
                             {r.summary.attendanceRate}%
@@ -826,7 +844,7 @@ const RekapAbsensiPage = () => {
               <div>
                 <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[8px] font-black uppercase rounded-lg tracking-widest border border-blue-100">AUDIT ABSENSI PEGAWAI</span>
                 <h4 className="text-lg md:text-xl font-black text-gray-900 uppercase mt-2">{selectedResultDetail.nama}</h4>
-                <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">NIP. {selectedResultDetail.nip} • {selectedResultDetail.jabatan} • {selectedResultDetail.periode}</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">NIP. {selectedResultDetail.nip} • {selectedResultDetail.jabatan} {selectedResultDetail.golongan && selectedResultDetail.golongan !== '-' ? `(${selectedResultDetail.golongan})` : ''} • {selectedResultDetail.departemen} • {selectedResultDetail.periode}</p>
               </div>
               <button 
                 onClick={() => { setShowDetailModal(false); setSelectedResultDetail(null); }}
@@ -839,30 +857,40 @@ const RekapAbsensiPage = () => {
             {/* Modal Body with scrolling */}
             <div className="p-6 md:p-8 overflow-y-auto flex-1 space-y-6 custom-scrollbar">
               {/* Info stats */}
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-8 gap-4">
                 <div className="bg-gray-50 p-4 rounded-xl text-center border border-gray-100">
                   <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider">Hari Kalender</p>
-                  <p className="text-base font-black text-gray-950 mt-1">{selectedResultDetail.summary.totalCalendarDays} Hari</p>
+                  <p className="text-xs font-black text-gray-950 mt-1">{selectedResultDetail.summary.totalCalendarDays} Hari</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-xl text-center border border-gray-100">
                   <p className="text-[8px] font-black text-gray-400 uppercase tracking-wider">Efektif Kerja</p>
-                  <p className="text-base font-black text-gray-950 mt-1">{selectedResultDetail.summary.effectiveWorkdays} Hari</p>
+                  <p className="text-xs font-black text-gray-950 mt-1">{selectedResultDetail.summary.effectiveWorkdays} Hari</p>
                 </div>
                 <div className="bg-emerald-50/30 p-4 rounded-xl text-center border border-emerald-100/50">
                   <p className="text-[8px] font-black text-emerald-600 uppercase tracking-wider">Hadir</p>
-                  <p className="text-base font-black text-emerald-600 mt-1">{selectedResultDetail.summary.presentCount} Hari</p>
+                  <p className="text-xs font-black text-emerald-600 mt-1">{selectedResultDetail.summary.presentCount} Hari</p>
                 </div>
                 <div className="bg-blue-50/30 p-4 rounded-xl text-center border border-blue-100/50">
                   <p className="text-[8px] font-black text-blue-600 uppercase tracking-wider">DL Full</p>
-                  <p className="text-base font-black text-blue-600 mt-1">{selectedResultDetail.summary.dlFullCount} Hari</p>
+                  <p className="text-xs font-black text-blue-600 mt-1">{selectedResultDetail.summary.dlFullCount} Hari</p>
                 </div>
                 <div className="bg-amber-50/30 p-4 rounded-xl text-center border border-amber-100/50">
-                  <p className="text-[8px] font-black text-amber-600 uppercase tracking-wider">Cuti / Sakit / Izin</p>
-                  <p className="text-base font-black text-amber-600 mt-1">{selectedResultDetail.summary.excusedCount} Hari</p>
+                  <p className="text-[8px] font-black text-amber-600 uppercase tracking-wider">Cuti/Izin</p>
+                  <p className="text-xs font-black text-amber-600 mt-1">{selectedResultDetail.summary.excusedCount} Hari</p>
                 </div>
                 <div className="bg-rose-50/30 p-4 rounded-xl text-center border border-rose-100/50">
                   <p className="text-[8px] font-black text-rose-500 uppercase tracking-wider">Alpa</p>
-                  <p className="text-base font-black text-rose-500 mt-1">{selectedResultDetail.summary.absentCount} Hari</p>
+                  <p className="text-xs font-black text-rose-500 mt-1">{selectedResultDetail.summary.absentCount} Hari</p>
+                </div>
+                <div className="bg-orange-50/30 p-4 rounded-xl text-center border border-orange-100/50">
+                  <p className="text-[8px] font-black text-orange-600 uppercase tracking-wider">Terlambat</p>
+                  <p className="text-xs font-black text-orange-600 mt-1">{selectedResultDetail.summary.lateCount || 0} Kali</p>
+                  <p className="text-[8px] text-gray-400 font-bold mt-0.5">{selectedResultDetail.summary.totalLateMinutes || 0} m</p>
+                </div>
+                <div className="bg-rose-50/30 p-4 rounded-xl text-center border border-rose-100/50">
+                  <p className="text-[8px] font-black text-rose-500 uppercase tracking-wider">Pulang Cepat</p>
+                  <p className="text-xs font-black text-rose-500 mt-1">{selectedResultDetail.summary.earlyLeaveCount || 0} Kali</p>
+                  <p className="text-[8px] text-gray-400 font-bold mt-0.5">{selectedResultDetail.summary.totalEarlyLeaveMinutes || 0} m</p>
                 </div>
               </div>
 
@@ -874,7 +902,9 @@ const RekapAbsensiPage = () => {
                       <th className="px-4 py-3">Tanggal</th>
                       <th className="px-4 py-3">Hari</th>
                       <th className="px-4 py-3">Jam Masuk</th>
+                      <th className="px-4 py-3">Wajib Masuk</th>
                       <th className="px-4 py-3">Jam Keluar</th>
+                      <th className="px-4 py-3">Wajib Pulang</th>
                       <th className="px-4 py-3">Status Dokumen</th>
                       <th className="px-4 py-3 text-right">Klasifikasi Hitungan</th>
                     </tr>
@@ -884,8 +914,24 @@ const RekapAbsensiPage = () => {
                       <tr key={d.dateStr + index} className="hover:bg-gray-50/50">
                         <td className="px-4 py-2.5 font-mono font-bold text-gray-900">{d.dateStr}</td>
                         <td className="px-4 py-2.5 font-semibold text-gray-600 uppercase">{d.dayName}</td>
-                        <td className="px-4 py-2.5 font-mono text-gray-800">{d.jamMasuk || '-'}</td>
-                        <td className="px-4 py-2.5 font-mono text-gray-800">{d.jamKeluar || '-'}</td>
+                        <td className="px-4 py-2.5">
+                          <span className="font-mono text-gray-800">{d.jamMasuk || '-'}</span>
+                          {d.isLate && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-100 font-black text-[7px] uppercase">
+                              +{d.lateMinutes}m
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-gray-400 text-[10px]">{d.requiredCheckInStr || '-'}</td>
+                        <td className="px-4 py-2.5">
+                          <span className="font-mono text-gray-800">{d.jamKeluar || '-'}</span>
+                          {d.isEarlyLeave && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-100 font-black text-[7px] uppercase">
+                              -{d.earlyLeaveMinutes}m
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-gray-400 text-[10px]">{d.requiredCheckOutStr || '-'}</td>
                         <td className="px-4 py-2.5">
                           {d.status ? (
                             <span className="font-extrabold text-blue-600 uppercase text-[9px]">{d.status}</span>
@@ -893,24 +939,24 @@ const RekapAbsensiPage = () => {
                             <span className="text-gray-400">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-right">
+                        <td className="px-4 py-2.5 text-right space-x-1">
                           {d.attendanceType === 'PRESENT' && (
-                            <span className="px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 font-extrabold text-[8px] uppercase">Hadir Kerja</span>
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 font-extrabold text-[8px] uppercase">Hadir</span>
                           )}
                           {d.attendanceType === 'DL_FULL' && (
-                            <span className="px-2.5 py-1 rounded bg-blue-50 text-blue-700 border border-blue-100 font-extrabold text-[8px] uppercase">DL FULL</span>
+                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 font-extrabold text-[8px] uppercase">DL FULL</span>
                           )}
                           {d.attendanceType === 'EXCUSED' && (
-                            <span className="px-2.5 py-1 rounded bg-amber-50 text-amber-700 border border-amber-100 font-extrabold text-[8px] uppercase">Excused ({d.status || 'Cuti'})</span>
+                            <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100 font-extrabold text-[8px] uppercase">Excused</span>
                           )}
                           {d.attendanceType === 'ABSENT' && (
-                            <span className="px-2.5 py-1 rounded bg-rose-50 text-rose-700 border border-rose-100 font-extrabold text-[8px] uppercase">Mangkir (Alpa)</span>
+                            <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-100 font-extrabold text-[8px] uppercase">Alpa</span>
                           )}
                           {d.attendanceType === 'WEEKEND' && (
-                            <span className="px-2.5 py-1 rounded bg-slate-50 text-slate-500 border border-slate-100 font-extrabold text-[8px] uppercase">Akhir Pekan</span>
+                            <span className="px-2 py-0.5 rounded bg-slate-50 text-slate-500 border border-slate-100 font-extrabold text-[8px] uppercase">Weekend</span>
                           )}
                           {d.attendanceType === 'HOLIDAY' && (
-                            <span className="px-2.5 py-1 rounded bg-blue-50 text-blue-600 border border-blue-100 font-extrabold text-[8px] uppercase">Hari Libur</span>
+                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100 font-extrabold text-[8px] uppercase">Libur</span>
                           )}
                         </td>
                       </tr>

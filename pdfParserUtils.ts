@@ -14,6 +14,12 @@ export interface ParsedDay {
   isHoliday: boolean;
   isEffectiveWorkday: boolean;
   attendanceType: 'PRESENT' | 'DL_FULL' | 'EXCUSED' | 'ABSENT' | 'WEEKEND' | 'HOLIDAY';
+  isLate?: boolean;
+  lateMinutes?: number;
+  isEarlyLeave?: boolean;
+  earlyLeaveMinutes?: number;
+  requiredCheckInStr?: string;
+  requiredCheckOutStr?: string;
 }
 
 export interface ParsedAttendance {
@@ -35,6 +41,10 @@ export interface ParsedAttendance {
     absentCount: number;
     excusedCount: number;
     attendanceRate: number;
+    lateCount: number;
+    earlyLeaveCount: number;
+    totalLateMinutes: number;
+    totalEarlyLeaveMinutes: number;
   };
 }
 
@@ -138,6 +148,22 @@ export const getIsoDateStr = (date: Date): string => {
   return `${y}-${m}-${d}`;
 };
 
+export const timeToMinutes = (timeStr: string | null): number | null => {
+  if (!timeStr) return null;
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+};
+
+export const minutesToTimeStr = (minutes: number): string => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
 export const parseLine = (line: string) => {
   const trimmed = line.trim();
   const dateMatch = trimmed.match(/^(\d{1,2}\s+[A-Za-z]{3,10}\s+\d{4})/i);
@@ -219,27 +245,27 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
   const lines = fullText.split('\n');
   lines.forEach(line => {
     const lower = line.toLowerCase();
-    if (lower.includes('nama :') || lower.includes('nama:')) {
+    if (lower.includes('nama')) {
       const match = line.match(/nama\s*:\s*(.*)/i);
       if (match) nama = match[1].trim();
     }
-    if (lower.includes('nip :') || lower.includes('nip:')) {
-      const match = line.match(/nip\s*:\s*([0-9\s]+)/i);
+    if (lower.includes('nip')) {
+      const match = line.match(/nip\s*:\s*([^\s]+)/i) || line.match(/nip\s*:\s*(.*)/i);
       if (match) nip = match[1].trim().replace(/\s+/g, '');
     }
-    if (lower.includes('departemen :') || lower.includes('departemen:')) {
+    if (lower.includes('departemen')) {
       const match = line.match(/departemen\s*:\s*(.*)/i);
       if (match) departemen = match[1].trim();
     }
-    if (lower.includes('golongan :') || lower.includes('golongan:')) {
+    if (lower.includes('golongan')) {
       const match = line.match(/golongan\s*:\s*(.*)/i);
       if (match) golongan = match[1].trim();
     }
-    if (lower.includes('jabatan :') || lower.includes('jabatan:')) {
+    if (lower.includes('jabatan')) {
       const match = line.match(/jabatan\s*:\s*(.*)/i);
       if (match) jabatan = match[1].trim();
     }
-    if (lower.includes('periode:') || lower.includes('periode :')) {
+    if (lower.includes('periode')) {
       const match = line.match(/periode\s*:\s*(.*)/i);
       if (match) periode = match[1].trim();
     }
@@ -253,6 +279,18 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
   if (!nip) {
     const nipLine = lines.find(l => l.match(/NIP\s*:/i));
     if (nipLine) nip = nipLine.replace(/.*NIP\s*:\s*/i, '').trim().replace(/\s+/g, '');
+  }
+  if (!departemen) {
+    const deptLine = lines.find(l => l.match(/Departemen\s*:/i));
+    if (deptLine) departemen = deptLine.replace(/.*Departemen\s*:\s*/i, '').trim();
+  }
+  if (!golongan) {
+    const golLine = lines.find(l => l.match(/Golongan\s*:/i));
+    if (golLine) golongan = golLine.replace(/.*Golongan\s*:\s*/i, '').trim();
+  }
+  if (!jabatan) {
+    const jabLine = lines.find(l => l.match(/Jabatan\s*:/i));
+    if (jabLine) jabatan = jabLine.replace(/.*Jabatan\s*:\s*/i, '').trim();
   }
   if (!periode) {
     const periodLine = lines.find(l => l.match(/PERIODE\s*:/i));
@@ -314,6 +352,88 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
         }
       }
       
+      let isLate = false;
+      let lateMinutes = 0;
+      let isEarlyLeave = false;
+      let earlyLeaveMinutes = 0;
+      let requiredCheckInStr = '';
+      let requiredCheckOutStr = '';
+
+      if (isEffectiveWorkday && (attendanceType === 'PRESENT' || attendanceType === 'DL_FULL')) {
+        const inMin = timeToMinutes(parsed.jamMasuk);
+        const outMin = timeToMinutes(parsed.jamKeluar);
+        const lowerDay = parsed.dayName.toLowerCase();
+
+        const hasIzinSah = parsed.status ? (
+          parsed.status.toLowerCase().includes('izin sah') || 
+          parsed.status.toLowerCase().includes('ijin sah')
+        ) : false;
+
+        if (lowerDay === 'senin') {
+          requiredCheckInStr = '07:30';
+          requiredCheckOutStr = '16:00';
+          
+          if (!hasIzinSah) {
+            if (inMin !== null) {
+              if (inMin > 450) { // after 07:30
+                isLate = true;
+                lateMinutes = inMin - 450;
+              }
+            }
+            if (outMin !== null) {
+              if (outMin < 960) { // before 16:00
+                isEarlyLeave = true;
+                earlyLeaveMinutes = 960 - outMin;
+              }
+            }
+          }
+        } else if (lowerDay === 'selasa' || lowerDay === 'rabu' || lowerDay === 'kamis') {
+          requiredCheckInStr = '07:30 - 08:30 (Flexi)';
+          
+          if (inMin !== null) {
+            if (!hasIzinSah && inMin > 510) { // after 08:30
+              isLate = true;
+              lateMinutes = inMin - 510;
+            }
+            
+            // Required checkout time: Check-in + 8.5 hours (510 minutes), capped at 17:30 (1050), min 16:00 (960)
+            const calculatedOutMin = Math.max(960, Math.min(1050, inMin + 510));
+            requiredCheckOutStr = minutesToTimeStr(calculatedOutMin) + ' (Flexi)';
+            
+            if (outMin !== null) {
+              if (!hasIzinSah && outMin < calculatedOutMin) {
+                isEarlyLeave = true;
+                earlyLeaveMinutes = calculatedOutMin - outMin;
+              }
+            }
+          } else {
+            requiredCheckOutStr = '16:00';
+            if (!hasIzinSah && outMin !== null && outMin < 960) {
+              isEarlyLeave = true;
+              earlyLeaveMinutes = 960 - outMin;
+            }
+          }
+        } else if (lowerDay === 'jumat') {
+          requiredCheckInStr = '07:30';
+          requiredCheckOutStr = '16:30';
+          
+          if (!hasIzinSah) {
+            if (inMin !== null) {
+              if (inMin > 450) { // after 07:30
+                isLate = true;
+                lateMinutes = inMin - 450;
+              }
+            }
+            if (outMin !== null) {
+              if (outMin < 990) { // before 16:30
+                isEarlyLeave = true;
+                earlyLeaveMinutes = 990 - outMin;
+              }
+            }
+          }
+        }
+      }
+
       days.push({
         dateStr: parsed.dateStr,
         date: dateObj,
@@ -324,7 +444,13 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
         isWeekend,
         isHoliday,
         isEffectiveWorkday,
-        attendanceType
+        attendanceType,
+        isLate,
+        lateMinutes,
+        isEarlyLeave,
+        earlyLeaveMinutes,
+        requiredCheckInStr,
+        requiredCheckOutStr
       });
     }
   });
@@ -339,6 +465,11 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
   const excusedCount = days.filter(d => d.isEffectiveWorkday && d.attendanceType === 'EXCUSED').length;
   const absentCount = days.filter(d => d.isEffectiveWorkday && d.attendanceType === 'ABSENT').length;
   
+  const lateCount = days.filter(d => d.isLate).length;
+  const earlyLeaveCount = days.filter(d => d.isEarlyLeave).length;
+  const totalLateMinutes = days.reduce((sum, d) => sum + (d.lateMinutes || 0), 0);
+  const totalEarlyLeaveMinutes = days.reduce((sum, d) => sum + (d.earlyLeaveMinutes || 0), 0);
+
   const attendanceRate = effectiveWorkdays > 0 
     ? Math.round(((presentCount + dlFullCount) / effectiveWorkdays) * 100) 
     : 100;
@@ -361,7 +492,11 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
       dlFullCount,
       absentCount,
       excusedCount,
-      attendanceRate
+      attendanceRate,
+      lateCount,
+      earlyLeaveCount,
+      totalLateMinutes,
+      totalEarlyLeaveMinutes
     }
   };
 };
