@@ -39,6 +39,11 @@ const RekapAbsensiPage = () => {
     failed: 0,
     currentFileName: ''
   });
+  
+  // Duplication Filtering & Accumulation States
+  const [skippedDuplicatesCount, setSkippedDuplicatesCount] = useState(0);
+  const [duplicateSkippedNames, setDuplicateSkippedNames] = useState<string[]>([]);
+  const [accumulateMode, setAccumulateMode] = useState(true); // Default to true so users can easily append/merge by default
 
   // Holiday States
   const [holidays, setHolidays] = useState<Holiday[]>(() => {
@@ -199,6 +204,35 @@ const RekapAbsensiPage = () => {
     logActivity('DOWNLOAD', 'Absensi', 'Mengekspor rekap absensi ke PDF');
   };
 
+  // Helper to add files with automatic duplicate name checking
+  const addFilesWithoutDuplicates = (newFiles: File[]) => {
+    let skippedCount = 0;
+    const skippedNames: string[] = [];
+    
+    const filteredNewFiles = newFiles.filter(file => {
+      // Check if file name already exists in current queue selection
+      const isDuplicate = selectedFiles.some(f => f.name === file.name);
+      if (isDuplicate) {
+        skippedCount++;
+        skippedNames.push(file.name);
+        return false;
+      }
+      return true;
+    });
+
+    if (filteredNewFiles.length > 0) {
+      setSelectedFiles(prev => [...prev, ...filteredNewFiles]);
+    }
+    
+    if (skippedCount > 0) {
+      setSkippedDuplicatesCount(prev => prev + skippedCount);
+      setDuplicateSkippedNames(prev => {
+        const combined = [...prev, ...skippedNames];
+        return Array.from(new Set(combined));
+      });
+    }
+  };
+
   // Drag and Drop handlers
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -216,19 +250,25 @@ const RekapAbsensiPage = () => {
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const filesArray = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
-      setSelectedFiles(prev => [...prev, ...filesArray]);
+      addFilesWithoutDuplicates(filesArray);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const filesArray = Array.from(e.target.files).filter(f => f.type === 'application/pdf');
-      setSelectedFiles(prev => [...prev, ...filesArray]);
+      addFilesWithoutDuplicates(filesArray);
     }
   };
 
   const clearFiles = () => {
     setSelectedFiles([]);
+    setResults([]);
+    setSkippedDuplicatesCount(0);
+    setDuplicateSkippedNames([]);
+  };
+
+  const clearResults = () => {
     setResults([]);
   };
 
@@ -263,7 +303,30 @@ const RekapAbsensiPage = () => {
     }
 
     setIsParsing(false);
-    setResults(parsedResults);
+    
+    if (accumulateMode) {
+      // Merge results with existing results based on NIP
+      setResults(prev => {
+        const merged = [...prev];
+        parsedResults.forEach(newRes => {
+          const idx = merged.findIndex(r => r.nip === newRes.nip || r.nama.toLowerCase() === newRes.nama.toLowerCase());
+          if (idx > -1) {
+            merged[idx] = newRes; // Overwrite duplicate employee record with new one
+          } else {
+            merged.push(newRes);
+          }
+        });
+        return merged;
+      });
+    } else {
+      setResults(parsedResults);
+    }
+    
+    // Clear queue so they can drop other files if they want
+    setSelectedFiles([]);
+    setSkippedDuplicatesCount(0);
+    setDuplicateSkippedNames([]);
+    
     logActivity('CREATE', 'Absensi', `Memproses parsing ${parsedResults.length} file PDF absensi bulanan.`);
   };
 
@@ -662,32 +725,72 @@ const RekapAbsensiPage = () => {
                 <span className="px-3 py-1 bg-white border border-gray-100 text-gray-400 text-[8px] font-black uppercase rounded-lg shadow-sm mt-3 tracking-widest">HANYA FORMAT PDF</span>
               </div>
 
+              {/* Warning for skipped duplicates */}
+              {skippedDuplicatesCount > 0 && (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-amber-800 text-xs font-black uppercase">
+                    <i className="bi bi-exclamation-triangle-fill text-lg"></i>
+                    <span>{skippedDuplicatesCount} File Duplikat Otomatis Diabaikan</span>
+                  </div>
+                  <p className="text-[10px] text-amber-600 font-bold uppercase leading-relaxed">
+                    Sistem otomatis mengabaikan file berikut agar tidak terjadi penumpukan dalam antrean pemrosesan:
+                  </p>
+                  <div className="max-h-24 overflow-y-auto divide-y divide-amber-100 pr-1 custom-scrollbar text-[9px] font-mono text-amber-700 bg-white/50 p-2.5 rounded-xl border border-amber-100/50">
+                    {duplicateSkippedNames.map((name, idx) => (
+                      <div key={idx} className="py-1 flex items-center justify-between">
+                        <span className="truncate">{name}</span>
+                        <span className="shrink-0 px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-black text-[7px]">DUPLIKAT</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Selected Files Stat and parse trigger */}
               {selectedFiles.length > 0 && (
-                <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-center sm:text-left">
-                    <p className="text-xs font-black text-gray-950 uppercase">{selectedFiles.length} Berkas PDF Terpilih</p>
-                    <p className="text-[9px] text-gray-400 font-bold uppercase mt-0.5">Siap untuk dikalkulasikan ke rekapitulasi kehadiran.</p>
+                <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="text-center sm:text-left">
+                      <p className="text-xs font-black text-gray-950 uppercase">{selectedFiles.length} Berkas PDF Terpilih</p>
+                      <p className="text-[9px] text-gray-400 font-bold uppercase mt-0.5">Siap untuk dikalkulasikan ke rekapitulasi kehadiran.</p>
+                    </div>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <button 
+                        onClick={clearFiles} 
+                        disabled={isParsing}
+                        className="flex-1 sm:flex-none px-4 py-3 border-2 border-gray-200 hover:border-gray-300 text-gray-600 font-black text-[10px] uppercase rounded-xl transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        Batal
+                      </button>
+                      <button 
+                        onClick={handleParseFiles} 
+                        disabled={isParsing || !pdfjsLoaded}
+                        className="flex-1 sm:flex-none px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase rounded-xl tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isParsing ? (
+                          <>Menganalisis...</>
+                        ) : (
+                          <><i className="bi bi-calculator-fill text-xs"></i> Mulai Parsing &amp; Hitung</>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <button 
-                      onClick={clearFiles} 
-                      disabled={isParsing}
-                      className="flex-1 sm:flex-none px-4 py-3 border-2 border-gray-200 hover:border-gray-300 text-gray-600 font-black text-[10px] uppercase rounded-xl transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      Batal
-                    </button>
-                    <button 
-                      onClick={handleParseFiles} 
-                      disabled={isParsing || !pdfjsLoaded}
-                      className="flex-1 sm:flex-none px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase rounded-xl tracking-wider shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {isParsing ? (
-                        <>Menganalisis...</>
-                      ) : (
-                        <><i className="bi bi-calculator-fill text-xs"></i> Mulai Parsing &amp; Hitung</>
-                      )}
-                    </button>
+
+                  {/* Accumulation Mode Switch */}
+                  <div className="border-t border-gray-200/50 pt-3 flex items-center gap-3">
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        checked={accumulateMode} 
+                        onChange={e => setAccumulateMode(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                      <div className="ml-3">
+                        <span className="text-[10px] font-black text-gray-800 uppercase">Gabungkan dengan Hasil Sebelumnya (Mode Akumulasi)</span>
+                        <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5">Mengizinkan penggabungan data pegawai dari beberapa kali unggahan terpisah.</p>
+                      </div>
+                    </label>
                   </div>
                 </div>
               )}
@@ -723,12 +826,20 @@ const RekapAbsensiPage = () => {
                   <h4 className="text-lg font-black text-gray-950 uppercase tracking-tight">Hasil Rekapitulasi Presensi</h4>
                   <p className="text-[10px] text-gray-400 font-bold uppercase">Jumlah Hari Kerja Efektif, Kehadiran, Alpa, dan Cuti Berhasil Dihitung Berdasarkan PDF</p>
                 </div>
-                <button 
-                  onClick={handleExportResultsExcel}
-                  className="h-14 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-3 w-full md:w-auto"
-                >
-                  <i className="bi bi-file-earmark-spreadsheet-fill text-xl"></i> Unduh Rekap Excel (.xlsx)
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
+                  <button 
+                    onClick={() => { if (confirm("Apakah Anda yakin ingin menghapus semua hasil rekapitulasi saat ini?")) clearResults(); }}
+                    className="h-14 px-5 border-2 border-red-200 hover:border-red-300 text-red-600 rounded-2xl font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2 w-full sm:w-auto bg-red-50/10 hover:bg-red-50/40"
+                  >
+                    <i className="bi bi-trash-fill text-base"></i> Bersihkan Hasil
+                  </button>
+                  <button 
+                    onClick={handleExportResultsExcel}
+                    className="h-14 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-3 w-full sm:w-auto"
+                  >
+                    <i className="bi bi-file-earmark-spreadsheet-fill text-xl"></i> Unduh Rekap Excel (.xlsx)
+                  </button>
+                </div>
               </div>
 
               {/* RESULTS SEARCH & TOTALS STATS */}
