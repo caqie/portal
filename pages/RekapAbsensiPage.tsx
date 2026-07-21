@@ -334,29 +334,184 @@ const RekapAbsensiPage = () => {
   const handleExportResultsExcel = () => {
     if (results.length === 0) return;
     
-    // Sheet 1: Summary ringkasan
-    const summaryData = results.map((r, index) => ({
-      'No': index + 1,
-      'NIP': r.nip,
-      'Nama': r.nama,
-      'Departemen / Unit Kerja': r.departemen,
-      'Golongan': r.golongan,
-      'Jabatan': r.jabatan,
-      'Periode Laporan': r.periode,
-      'Total Hari Kalender': r.summary.totalCalendarDays,
-      'Hari Sabtu/Minggu (Weekend)': r.summary.weekendsCount,
-      'Hari Libur Nasional & Cuti Bersama': r.summary.holidaysCount,
-      'Hari Kerja Efektif': r.summary.effectiveWorkdays,
-      'Hadir (Hari)': r.summary.presentCount,
-      'Dinas Luar Full (DL FULL)': r.summary.dlFullCount,
-      'Cuti / Sakit / Izin (Excused)': r.summary.excusedCount,
-      'Tidak Hadir (Alpa)': r.summary.absentCount,
-      'Terlambat (Kali)': r.summary.lateCount || 0,
-      'Durasi Terlambat (Menit)': r.summary.totalLateMinutes || 0,
-      'Pulang Cepat (Kali)': r.summary.earlyLeaveCount || 0,
-      'Durasi Pulang Cepat (Menit)': r.summary.totalEarlyLeaveMinutes || 0,
-      'Persentase Kehadiran (%)': `${r.summary.attendanceRate}%`
-    }));
+    // Create sheet array of arrays
+    const aoa: any[][] = [];
+
+    // Row 1: Title
+    aoa.push(["REKAPITULASI ABSENSI SIMPEG", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+
+    // Row 2: Unit Kerja
+    aoa.push(["UNIT KERJA : Direktorat Jenderal Kekayaan Intelektual", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+
+    // Row 3: Periode
+    let periodeStr = "2026-01-01 s.d 2026-06-30";
+    if (results.length > 0) {
+      const period = results[0].periode;
+      if (period) {
+        periodeStr = period;
+      }
+    }
+    aoa.push([`PERIODE : ${periodeStr}`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+
+    // Row 4: Empty row
+    aoa.push([]);
+
+    // Row 5: Table Header Grouping Row
+    aoa.push([
+      "NO",               // Col A
+      "NIP",              // Col B
+      "NAMA",             // Col C
+      "UNIT KERJA",       // Col D
+      "ABSENSI",          // Col E - Merged E5:I5
+      "",
+      "",
+      "",
+      "",
+      "IZIN",             // Col J - Merged J5:M5
+      "",
+      "",
+      "",
+      "DINAS LUAR",       // Col N - Merged N5:O5
+      "",
+      "TOTAL"             // Col P - Merged P5:P6
+    ]);
+
+    // Row 6: Table Header Sub-row
+    aoa.push([
+      "",                 // Col A
+      "",                 // Col B
+      "",                 // Col C
+      "",                 // Col D
+      "TERLAMBAT",        // Col E
+      "PULANG CEPAT",     // Col F
+      "TERLAMBAT (Menit)",// Col G
+      "PULANG CEPAT (Menit)",// Col H
+      "TANPA KETERANGAN", // Col I
+      "TERLAMBAT",        // Col J
+      "PULANG CEPAT",     // Col K
+      "LUPA ABSEN MASUK", // Col L
+      "LUPA ABSEN PULANG",// Col M
+      "FULL",             // Col N
+      "HALF",             // Col O
+      ""                  // Col P
+    ]);
+
+    // Data rows
+    results.forEach((r, index) => {
+      const absensi_terlambat = r.summary.lateCount || 0;
+      const absensi_pulang_cepat = r.summary.earlyLeaveCount || 0;
+      const absensi_terlambat_menit = r.summary.totalLateMinutes || 0;
+      const absensi_pulang_cepat_menit = r.summary.totalEarlyLeaveMinutes || 0;
+      const absensi_tanpa_keterangan = r.summary.absentCount || 0;
+
+      const izin_terlambat = r.days.filter(d => {
+        if (!d.status) return false;
+        const s = d.status.toLowerCase();
+        return (s.includes('terlambat') || s.includes('late')) && (s.includes('izin') || s.includes('ijin') || s.includes('sah') || s.includes('dispensasi'));
+      }).length;
+
+      const izin_pulang_cepat = r.days.filter(d => {
+        if (!d.status) return false;
+        const s = d.status.toLowerCase();
+        return (s.includes('pulang cepat') || (s.includes('pulang') && s.includes('cepat'))) && (s.includes('izin') || s.includes('ijin') || s.includes('sah') || s.includes('dispensasi'));
+      }).length;
+
+      const lupa_absen_masuk = r.days.filter(d => {
+        if (!d.status) return false;
+        const s = d.status.toLowerCase();
+        return s.includes('lupa') && (s.includes('masuk') || s.includes('in') || s.includes('datang'));
+      }).length;
+
+      const lupa_absen_pulang = r.days.filter(d => {
+        if (!d.status) return false;
+        const s = d.status.toLowerCase();
+        return s.includes('lupa') && (s.includes('pulang') || s.includes('out') || s.includes('keluar'));
+      }).length;
+
+      const dlFull = r.days.filter(d => {
+        if (!d.status) return false;
+        const s = d.status.toLowerCase();
+        return s.includes('dl full') || s === 'dl' || s.includes('dinas luar full') || (s.includes('dinas luar') && !s.includes('half'));
+      }).length;
+
+      const dlHalf = r.days.filter(d => {
+        if (!d.status) return false;
+        const s = d.status.toLowerCase();
+        return s.includes('dl half') || s.includes('dinas luar half');
+      }).length;
+
+      const total = absensi_terlambat + absensi_pulang_cepat + absensi_tanpa_keterangan + izin_terlambat + izin_pulang_cepat + lupa_absen_masuk + lupa_absen_pulang + dlFull + dlHalf;
+
+      aoa.push([
+        index + 1,
+        r.nip,
+        r.nama,
+        r.departemen,
+        absensi_terlambat,
+        absensi_pulang_cepat,
+        absensi_terlambat_menit,
+        absensi_pulang_cepat_menit,
+        absensi_tanpa_keterangan,
+        izin_terlambat,
+        izin_pulang_cepat,
+        lupa_absen_masuk,
+        lupa_absen_pulang,
+        dlFull,
+        dlHalf,
+        total
+      ]);
+    });
+
+    const wsSummary = XLSX.utils.aoa_to_sheet(aoa);
+
+    // Apply merges
+    wsSummary['!merges'] = [
+      // Merge A1:P1 for Title
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 15 } },
+      // Merge A2:P2 for Unit Kerja
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
+      // Merge A3:P3 for Periode
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 15 } },
+      
+      // Merge A5:A6 for NO
+      { s: { r: 4, c: 0 }, e: { r: 5, c: 0 } },
+      // Merge B5:B6 for NIP
+      { s: { r: 4, c: 1 }, e: { r: 5, c: 1 } },
+      // Merge C5:C6 for NAMA
+      { s: { r: 4, c: 2 }, e: { r: 5, c: 2 } },
+      // Merge D5:D6 for UNIT KERJA
+      { s: { r: 4, c: 3 }, e: { r: 5, c: 3 } },
+      
+      // Merge E5:I5 for ABSENSI
+      { s: { r: 4, c: 4 }, e: { r: 4, c: 8 } },
+      // Merge J5:M5 for IZIN
+      { s: { r: 4, c: 9 }, e: { r: 4, c: 12 } },
+      // Merge N5:O5 for DINAS LUAR
+      { s: { r: 4, c: 13 }, e: { r: 4, c: 14 } },
+      
+      // Merge P5:P6 for TOTAL
+      { s: { r: 4, c: 15 }, e: { r: 5, c: 15 } }
+    ];
+
+    // Set Column Widths
+    wsSummary['!cols'] = [
+      { wch: 6 },  // NO
+      { wch: 22 }, // NIP
+      { wch: 30 }, // NAMA
+      { wch: 45 }, // UNIT KERJA
+      { wch: 12 }, // ABSENSI - TERLAMBAT
+      { wch: 15 }, // ABSENSI - PULANG CEPAT
+      { wch: 18 }, // ABSENSI - TERLAMBAT (Menit)
+      { wch: 20 }, // ABSENSI - PULANG CEPAT (Menit)
+      { wch: 18 }, // ABSENSI - TANPA KETERANGAN
+      { wch: 12 }, // IZIN - TERLAMBAT
+      { wch: 15 }, // IZIN - PULANG CEPAT
+      { wch: 20 }, // IZIN - LUPA ABSEN MASUK
+      { wch: 20 }, // IZIN - LUPA ABSEN PULANG
+      { wch: 10 }, // DINAS LUAR - FULL
+      { wch: 10 }, // DINAS LUAR - HALF
+      { wch: 10 }  // TOTAL
+    ];
 
     // Sheet 2: Detail logs harian untuk penelaahan mendalam (auditing)
     const detailData: any[] = [];
@@ -400,7 +555,6 @@ const RekapAbsensiPage = () => {
     });
 
     const wb = XLSX.utils.book_new();
-    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
     const wsDetail = XLSX.utils.json_to_sheet(detailData);
 
     XLSX.utils.book_append_sheet(wb, wsSummary, "Ringkasan Absensi");

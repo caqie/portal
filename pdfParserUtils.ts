@@ -187,8 +187,23 @@ export const parseLine = (line: string) => {
   });
   status = status.trim();
   
-  const jamMasuk = times[0] || null;
-  const jamKeluar = times[1] || null;
+  let jamMasuk: string | null = null;
+  let jamKeluar: string | null = null;
+  
+  if (times.length >= 2) {
+    jamMasuk = times[0] || null;
+    jamKeluar = times[times.length - 1] || null;
+  } else if (times.length === 1) {
+    const timeStr = times[0] || null;
+    if (timeStr) {
+      const hourPart = parseInt(timeStr.split(':')[0], 10);
+      if (!isNaN(hourPart) && hourPart >= 11) {
+        jamKeluar = timeStr;
+      } else {
+        jamMasuk = timeStr;
+      }
+    }
+  }
   
   return {
     dateStr,
@@ -197,6 +212,50 @@ export const parseLine = (line: string) => {
     jamKeluar,
     status: status || null
   };
+};
+
+export const isRamadanPeriod = (date: Date, holidays: Holiday[]): boolean => {
+  const year = date.getFullYear();
+  
+  // Find all holidays in this year that contain 'hari raya idul fitri'
+  const idulFitriHolidays = holidays
+    .filter(h => {
+      const isCorrectYear = h.date.startsWith(`${year}-`);
+      const nameLower = h.name.toLowerCase();
+      return isCorrectYear && nameLower.includes('hari raya idul fitri');
+    })
+    .map(h => {
+      const parts = h.date.split('-');
+      return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    })
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  if (idulFitriHolidays.length === 0) {
+    // Fallback if no holiday is found in the list.
+    // In 2026, Ramadan starts February 19, 2026 and ends March 20, 2026.
+    if (year === 2026) {
+      const ramadanStart = new Date(2026, 1, 19); // Feb 19
+      const ramadanEnd = new Date(2026, 2, 20);   // Mar 20
+      return date >= ramadanStart && date <= ramadanEnd;
+    }
+    return false;
+  }
+
+  const earliestIdulFitri = idulFitriHolidays[0];
+
+  // Ramadan is defined as approximately 30 days before the earliest Idul Fitri holiday
+  const ramadanStart = new Date(earliestIdulFitri.getTime());
+  ramadanStart.setDate(earliestIdulFitri.getDate() - 30);
+
+  const ramadanEnd = new Date(earliestIdulFitri.getTime());
+  ramadanEnd.setDate(earliestIdulFitri.getDate() - 1);
+
+  // Normalize all dates to midnight for comparison
+  const targetTime = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const startTime = new Date(ramadanStart.getFullYear(), ramadanStart.getMonth(), ramadanStart.getDate()).getTime();
+  const endTime = new Date(ramadanEnd.getFullYear(), ramadanEnd.getMonth(), ramadanEnd.getDate()).getTime();
+
+  return targetTime >= startTime && targetTime <= endTime;
 };
 
 export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<ParsedAttendance> => {
@@ -369,11 +428,40 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
           parsed.status.toLowerCase().includes('ijin sah')
         ) : false;
 
-        if (lowerDay === 'senin') {
+        const isDlHalf = parsed.status ? (
+          parsed.status.toLowerCase().includes('dl half') ||
+          parsed.status.toLowerCase().includes('dinas luar half')
+        ) : false;
+
+        const skipLatenessAndEarlyLeave = hasIzinSah || isDlHalf;
+
+        const isRamadan = dateObj ? isRamadanPeriod(dateObj, holidays) : false;
+
+        if (isRamadan) {
+          const isFriday = lowerDay === 'jumat';
+          requiredCheckInStr = '08:00 (Ramadhan)';
+          requiredCheckOutStr = isFriday ? '15:30 (Ramadhan)' : '15:00 (Ramadhan)';
+          
+          if (!skipLatenessAndEarlyLeave) {
+            if (inMin !== null) {
+              if (inMin > 480) { // after 08:00 (480 mins)
+                isLate = true;
+                lateMinutes = inMin - 480;
+              }
+            }
+            if (outMin !== null) {
+              const requiredOutMin = isFriday ? 930 : 900; // 15:30 is 930 mins, 15:00 is 900 mins
+              if (outMin < requiredOutMin) {
+                isEarlyLeave = true;
+                earlyLeaveMinutes = requiredOutMin - outMin;
+              }
+            }
+          }
+        } else if (lowerDay === 'senin') {
           requiredCheckInStr = '07:30';
           requiredCheckOutStr = '16:00';
           
-          if (!hasIzinSah) {
+          if (!skipLatenessAndEarlyLeave) {
             if (inMin !== null) {
               if (inMin > 450) { // after 07:30
                 isLate = true;
@@ -391,7 +479,7 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
           requiredCheckInStr = '07:30 - 08:30 (Flexi)';
           
           if (inMin !== null) {
-            if (!hasIzinSah && inMin > 510) { // after 08:30
+            if (!skipLatenessAndEarlyLeave && inMin > 510) { // after 08:30
               isLate = true;
               lateMinutes = inMin - 510;
             }
@@ -401,14 +489,14 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
             requiredCheckOutStr = minutesToTimeStr(calculatedOutMin) + ' (Flexi)';
             
             if (outMin !== null) {
-              if (!hasIzinSah && outMin < calculatedOutMin) {
+              if (!skipLatenessAndEarlyLeave && outMin < calculatedOutMin) {
                 isEarlyLeave = true;
                 earlyLeaveMinutes = calculatedOutMin - outMin;
               }
             }
           } else {
             requiredCheckOutStr = '16:00';
-            if (!hasIzinSah && outMin !== null && outMin < 960) {
+            if (!skipLatenessAndEarlyLeave && outMin !== null && outMin < 960) {
               isEarlyLeave = true;
               earlyLeaveMinutes = 960 - outMin;
             }
@@ -417,7 +505,7 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
           requiredCheckInStr = '07:30';
           requiredCheckOutStr = '16:30';
           
-          if (!hasIzinSah) {
+          if (!skipLatenessAndEarlyLeave) {
             if (inMin !== null) {
               if (inMin > 450) { // after 07:30
                 isLate = true;
