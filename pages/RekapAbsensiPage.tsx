@@ -338,10 +338,10 @@ const RekapAbsensiPage = () => {
     const aoa: any[][] = [];
 
     // Row 1: Title
-    aoa.push(["REKAPITULASI ABSENSI SIMPEG", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+    aoa.push(["REKAPITULASI ABSENSI SIMPEG", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 
     // Row 2: Unit Kerja
-    aoa.push(["UNIT KERJA : Direktorat Jenderal Kekayaan Intelektual", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+    aoa.push(["UNIT KERJA : Direktorat Jenderal Kekayaan Intelektual", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 
     // Row 3: Periode
     let periodeStr = "2026-01-01 s.d 2026-06-30";
@@ -351,7 +351,7 @@ const RekapAbsensiPage = () => {
         periodeStr = period;
       }
     }
-    aoa.push([`PERIODE : ${periodeStr}`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+    aoa.push([`PERIODE : ${periodeStr}`, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
 
     // Row 4: Empty row
     aoa.push([]);
@@ -373,7 +373,10 @@ const RekapAbsensiPage = () => {
       "",
       "DINAS LUAR",       // Col N - Merged N5:O5
       "",
-      "TOTAL"             // Col P - Merged P5:P6
+      "TOTAL",            // Col P - Merged P5:P6
+      "KETERANGAN TANGGAL", // Col Q - Merged Q5:S5
+      "",
+      ""
     ]);
 
     // Row 6: Table Header Sub-row
@@ -393,7 +396,10 @@ const RekapAbsensiPage = () => {
       "LUPA ABSEN PULANG",// Col M
       "FULL",             // Col N
       "HALF",             // Col O
-      ""                  // Col P
+      "",                 // Col P
+      "TERLAMBAT",        // Col Q
+      "PULANG CEPAT",     // Col R
+      "TANPA KETERANGAN"  // Col S
     ]);
 
     // Data rows
@@ -403,6 +409,21 @@ const RekapAbsensiPage = () => {
       const absensi_terlambat_menit = r.summary.totalLateMinutes || 0;
       const absensi_pulang_cepat_menit = r.summary.totalEarlyLeaveMinutes || 0;
       const absensi_tanpa_keterangan = r.summary.absentCount || 0;
+
+      const datesTerlambat = r.days
+        .filter(d => d.isEffectiveWorkday && d.isLate)
+        .map(d => d.dateStr)
+        .join(', ') || '-';
+
+      const datesPulangCepat = r.days
+        .filter(d => d.isEffectiveWorkday && d.isEarlyLeave)
+        .map(d => d.dateStr)
+        .join(', ') || '-';
+
+      const datesTanpaKeterangan = r.days
+        .filter(d => d.isEffectiveWorkday && d.attendanceType === 'ABSENT')
+        .map(d => d.dateStr)
+        .join(', ') || '-';
 
       const izin_terlambat = r.days.filter(d => {
         if (!d.status) return false;
@@ -458,7 +479,10 @@ const RekapAbsensiPage = () => {
         lupa_absen_pulang,
         dlFull,
         dlHalf,
-        total
+        total,
+        datesTerlambat,
+        datesPulangCepat,
+        datesTanpaKeterangan
       ]);
     });
 
@@ -466,12 +490,12 @@ const RekapAbsensiPage = () => {
 
     // Apply merges
     wsSummary['!merges'] = [
-      // Merge A1:P1 for Title
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 15 } },
-      // Merge A2:P2 for Unit Kerja
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
-      // Merge A3:P3 for Periode
-      { s: { r: 2, c: 0 }, e: { r: 2, c: 15 } },
+      // Merge A1:S1 for Title
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 18 } },
+      // Merge A2:S2 for Unit Kerja
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 18 } },
+      // Merge A3:S3 for Periode
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 18 } },
       
       // Merge A5:A6 for NO
       { s: { r: 4, c: 0 }, e: { r: 5, c: 0 } },
@@ -490,7 +514,10 @@ const RekapAbsensiPage = () => {
       { s: { r: 4, c: 13 }, e: { r: 4, c: 14 } },
       
       // Merge P5:P6 for TOTAL
-      { s: { r: 4, c: 15 }, e: { r: 5, c: 15 } }
+      { s: { r: 4, c: 15 }, e: { r: 5, c: 15 } },
+
+      // Merge Q5:S5 for KETERANGAN TANGGAL
+      { s: { r: 4, c: 16 }, e: { r: 4, c: 18 } }
     ];
 
     // Set Column Widths
@@ -510,7 +537,10 @@ const RekapAbsensiPage = () => {
       { wch: 20 }, // IZIN - LUPA ABSEN PULANG
       { wch: 10 }, // DINAS LUAR - FULL
       { wch: 10 }, // DINAS LUAR - HALF
-      { wch: 10 }  // TOTAL
+      { wch: 10 }, // TOTAL
+      { wch: 30 }, // KETERANGAN TANGGAL - TERLAMBAT
+      { wch: 30 }, // KETERANGAN TANGGAL - PULANG CEPAT
+      { wch: 30 }  // KETERANGAN TANGGAL - TANPA KETERANGAN
     ];
 
     // Sheet 2: Detail logs harian untuk penelaahan mendalam (auditing)
@@ -1044,31 +1074,47 @@ const RekapAbsensiPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 text-xs">
-                    {paginatedResults.map((r, i) => (
-                      <tr key={r.nip + r.fileName} className="hover:bg-blue-50/10 transition-all">
-                        <td className="px-6 py-4 font-mono text-gray-400">{(resultsCurrentPage - 1) * resultsPerPage + i + 1}</td>
-                        <td className="px-6 py-4">
-                          <p className="font-extrabold text-gray-950 uppercase">{r.nama}</p>
-                          <p className="font-mono text-[9px] text-gray-400 mt-0.5">NIP. {r.nip}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="font-semibold text-gray-800 uppercase truncate max-w-[200px]" title={r.jabatan}>{r.jabatan}</p>
-                          <p className="text-[9px] text-gray-400 uppercase truncate max-w-[200px]" title={r.departemen}>{r.departemen}</p>
-                        </td>
-                        <td className="px-6 py-4 font-medium text-gray-600 uppercase">{r.periode}</td>
-                        <td className="px-4 py-4 text-center font-bold text-gray-900">{r.summary.effectiveWorkdays} Hari</td>
-                        <td className="px-4 py-4 text-center font-bold text-emerald-600">{r.summary.presentCount} Hari</td>
-                        <td className="px-4 py-4 text-center font-bold text-blue-600">{r.summary.dlFullCount} Hari</td>
-                        <td className="px-4 py-4 text-center font-bold text-amber-600">{r.summary.excusedCount} Hari</td>
-                        <td className="px-4 py-4 text-center font-bold text-red-500">{r.summary.absentCount} Hari</td>
-                        <td className="px-4 py-4 text-center">
-                          <p className="font-extrabold text-orange-600">{r.summary.lateCount || 0} Kali</p>
-                          <p className="text-[9px] font-semibold text-gray-400 mt-0.5">{r.summary.totalLateMinutes || 0} m</p>
-                        </td>
-                        <td className="px-4 py-4 text-center">
-                          <p className="font-extrabold text-rose-500">{r.summary.earlyLeaveCount || 0} Kali</p>
-                          <p className="text-[9px] font-semibold text-gray-400 mt-0.5">{r.summary.totalEarlyLeaveMinutes || 0} m</p>
-                        </td>
+                    {paginatedResults.map((r, i) => {
+                      const lateDatesStr = r.days.filter(d => d.isEffectiveWorkday && d.isLate).map(d => d.dateStr).join(', ');
+                      const earlyLeaveDatesStr = r.days.filter(d => d.isEffectiveWorkday && d.isEarlyLeave).map(d => d.dateStr).join(', ');
+                      const absentDatesStr = r.days.filter(d => d.isEffectiveWorkday && d.attendanceType === 'ABSENT').map(d => d.dateStr).join(', ');
+
+                      return (
+                        <tr key={r.nip + r.fileName} className="hover:bg-blue-50/10 transition-all">
+                          <td className="px-6 py-4 font-mono text-gray-400">{(resultsCurrentPage - 1) * resultsPerPage + i + 1}</td>
+                          <td className="px-6 py-4">
+                            <p className="font-extrabold text-gray-950 uppercase">{r.nama}</p>
+                            <p className="font-mono text-[9px] text-gray-400 mt-0.5">NIP. {r.nip}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-gray-800 uppercase truncate max-w-[200px]" title={r.jabatan}>{r.jabatan}</p>
+                            <p className="text-[9px] text-gray-400 uppercase truncate max-w-[200px]" title={r.departemen}>{r.departemen}</p>
+                          </td>
+                          <td className="px-6 py-4 font-medium text-gray-600 uppercase">{r.periode}</td>
+                          <td className="px-4 py-4 text-center font-bold text-gray-900">{r.summary.effectiveWorkdays} Hari</td>
+                          <td className="px-4 py-4 text-center font-bold text-emerald-600">{r.summary.presentCount} Hari</td>
+                          <td className="px-4 py-4 text-center font-bold text-blue-600">{r.summary.dlFullCount} Hari</td>
+                          <td className="px-4 py-4 text-center font-bold text-amber-600">{r.summary.excusedCount} Hari</td>
+                          <td className="px-4 py-4 text-center font-bold text-red-500" title={absentDatesStr ? `Tanggal Alpa: ${absentDatesStr}` : undefined}>
+                            <span>{r.summary.absentCount} Hari</span>
+                            {absentDatesStr && (
+                              <p className="text-[8px] font-mono text-red-400 truncate max-w-[100px] mx-auto mt-0.5">{absentDatesStr}</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 text-center" title={lateDatesStr ? `Tanggal Terlambat: ${lateDatesStr}` : undefined}>
+                            <p className="font-extrabold text-orange-600">{r.summary.lateCount || 0} Kali</p>
+                            <p className="text-[9px] font-semibold text-gray-400 mt-0.5">{r.summary.totalLateMinutes || 0} m</p>
+                            {lateDatesStr && (
+                              <p className="text-[8px] font-mono text-orange-500 truncate max-w-[100px] mx-auto mt-0.5">{lateDatesStr}</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 text-center" title={earlyLeaveDatesStr ? `Tanggal Pulang Cepat: ${earlyLeaveDatesStr}` : undefined}>
+                            <p className="font-extrabold text-rose-500">{r.summary.earlyLeaveCount || 0} Kali</p>
+                            <p className="text-[9px] font-semibold text-gray-400 mt-0.5">{r.summary.totalEarlyLeaveMinutes || 0} m</p>
+                            {earlyLeaveDatesStr && (
+                              <p className="text-[8px] font-mono text-rose-400 truncate max-w-[100px] mx-auto mt-0.5">{earlyLeaveDatesStr}</p>
+                            )}
+                          </td>
                         <td className="px-4 py-4 text-center">
                           <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-black ${r.summary.attendanceRate >= 90 ? 'bg-emerald-50 text-emerald-600' : (r.summary.attendanceRate >= 75 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600')}`}>
                             {r.summary.attendanceRate}%
@@ -1083,7 +1129,8 @@ const RekapAbsensiPage = () => {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>

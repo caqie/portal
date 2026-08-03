@@ -34,6 +34,7 @@ import UkomExamPage from './pages/UkomExamPage';
 import UkomAdminPage from './pages/UkomAdminPage';
 import UkomSupervisorPage from './pages/UkomSupervisorPage';
 import TalentaPage from './pages/TalentaPage';
+import QuizDJKIPage from './pages/QuizDJKIPage';
 import { DEFAULT_LOGO, APP_ROUTES } from './constants';
 import { syncGidMap, fetchSystemConfig, loadSharedConfigFromServer } from './spreadsheetService';
 import { SystemConfig } from './types';
@@ -213,7 +214,7 @@ const AppContent = () => {
     );
   }
 
-  if (!isAuthenticated && !location.pathname.startsWith('/ukom') && location.pathname !== '/login') return <Navigate to="/login" replace />;
+  if (!isAuthenticated && !location.pathname.startsWith('/ukom') && !location.pathname.startsWith('/quizdjki') && location.pathname !== '/login') return <Navigate to="/login" replace />;
   if (location.pathname === '/login' && isAuthenticated) return <Navigate to="/" replace />;
   if (location.pathname === '/login') return <LoginPage />;
   
@@ -286,6 +287,25 @@ const AppContent = () => {
     );
   }
 
+  // QuizDJKI Standalone Portal Layout (Runs full screen in its own tab without Portal SDM sidebar/header)
+  if (location.pathname.startsWith('/quizdjki')) {
+    if (isPageInMaintenance(location.pathname) && !isSuperadmin) {
+      return (
+        <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+          <MaintenanceView />
+        </div>
+      );
+    }
+    return (
+      <div className="h-screen w-full bg-[#250850] overflow-y-auto">
+        <Routes>
+          <Route path="/quizdjki" element={<QuizDJKIPage />} />
+          <Route path="*" element={<Navigate to="/quizdjki" replace />} />
+        </Routes>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-[#F8F9FC] text-gray-900 font-['Inter']">
       {isSidebarOpen && window.innerWidth < 1024 && (
@@ -345,9 +365,10 @@ const AppContent = () => {
             )}
             {hasAccess('/rekap-absensi') && <SidebarItem to="/rekap-absensi" icon="bi-clipboard-data-fill" label="Rekapitulasi" active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />}
 
-            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Uji Kompetensi</div>}
+            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Uji & Game Kompetensi</div>}
             {hasAccess('/ukom/admin') && <SidebarItem to="/ukom/admin" icon="bi-pc-display-horizontal" label="Admin CAT" active={location.pathname === '/ukom/admin'} collapsed={isCollapsed} />}
             {hasAccess('/ukom/login') && <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian" active={location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin'} collapsed={isCollapsed} target="_blank" />}
+            {hasAccess('/quizdjki') && <SidebarItem to="/quizdjki" icon="bi-controller" label="QuizDJKI (Game)" active={location.pathname === '/quizdjki'} collapsed={isCollapsed} target="_blank" />}
 
             {(hasAccess('/settings') || hasAccess('/logs')) && (
               <>
@@ -455,6 +476,7 @@ const AppContent = () => {
                   <Route path="/pengembangan" element={< PengembanganPage />} />
                   <Route path="/talenta" element={<TalentaPage />} />
                   <Route path="/ukom/admin" element={<UkomAdminPage />} />
+                  <Route path="/quizdjki" element={<QuizDJKIPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </div>
@@ -481,10 +503,15 @@ const AppContent = () => {
 };
 
 const App = () => {
-  const isUkomStrict = window.location.pathname.includes('ukomdjki') || window.location.search.includes('portal=ukom');
+  const urlPath = window.location.pathname;
+  const urlSearch = window.location.search;
+  const isUkomStrict = urlPath.includes('ukomdjki') || urlSearch.includes('portal=ukom');
   let initialPath = sessionStorage.getItem('portal_last_path') || '/';
   
-  if (isUkomStrict) {
+  if (urlPath.startsWith('/quizdjki') || urlSearch.includes('pin=')) {
+    initialPath = urlPath + urlSearch;
+    sessionStorage.setItem('portal_last_path', initialPath);
+  } else if (isUkomStrict) {
     initialPath = '/ukom/login';
   } else {
     // Cek apakah ada permintaan akses langsung (untuk tab baru)

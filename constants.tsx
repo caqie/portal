@@ -555,5 +555,6 @@ export const APP_ROUTES = [
   { path: '/pengembangan', label: 'Pengembangan Kompetensi', icon: 'bi-book' },
   { path: '/ukom/admin', label: 'Admin UKOM (CAT)', icon: 'bi-pc-display-horizontal' },
   { path: '/ukom/supervisor', label: 'Pengawas UKOM', icon: 'bi-shield-check' },
-  { path: '/ukom/login', label: 'Portal Ujian UKOM', icon: 'bi-pencil-square' }
+  { path: '/ukom/login', label: 'Portal Ujian UKOM', icon: 'bi-pencil-square' },
+  { path: '/quizdjki', label: 'QuizDJKI (Game)', icon: 'bi-controller' }
 ];

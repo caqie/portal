@@ -763,7 +763,18 @@ const Dashboard = () => {
              <i className="bi bi-cpu-fill text-blue-600"></i> Real-time Analytics Dashboard
           </p>
         </div>
-        <div className="flex gap-2 md:gap-3 w-full md:w-auto">
+        <div className="flex gap-2 md:gap-3 w-full md:w-auto flex-wrap">
+          <button 
+            onClick={() => {
+              localStorage.setItem('portal_direct_access', '/quizdjki');
+              window.open(window.location.origin, '_blank');
+            }}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 md:gap-3 bg-gradient-to-r from-purple-600 to-pink-600 p-3 md:p-4 px-4 md:px-6 rounded-xl md:rounded-2xl text-white text-[9px] md:text-[10px] font-black tracking-widest shadow-xl shadow-purple-600/20 active:scale-95 transition-all hover:scale-105"
+            title="Buka Game QuizDJKI di Tab Baru"
+          >
+            <i className="bi bi-controller text-base md:text-lg"></i>
+            <span>QuizDJKI ⚡</span>
+          </button>
           <button onClick={handleDownloadFullAnalytics} className="flex-1 md:flex-none flex items-center justify-center gap-2 md:gap-3 bg-emerald-600 p-3 md:p-4 px-4 md:px-8 rounded-xl md:rounded-2xl text-white text-[9px] md:text-[10px] font-black tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">
              <i className="bi bi-file-earmark-spreadsheet-fill text-base md:text-lg"></i> 
              <span className="hidden xs:inline">Download Stats</span>

@@ -387,7 +387,7 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
         if (hasTime) {
           if (parsed.status) {
             const lowerStatus = parsed.status.toLowerCase();
-            if (lowerStatus.includes('dl full') || lowerStatus === 'dl full') {
+            if (lowerStatus.includes('dl full') || lowerStatus.includes('dinas luar full') || lowerStatus === 'dl' || (lowerStatus.includes('dinas luar') && !lowerStatus.includes('half'))) {
               attendanceType = 'DL_FULL';
             } else {
               attendanceType = 'PRESENT';
@@ -397,9 +397,9 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
           }
         } else if (parsed.status) {
           const lowerStatus = parsed.status.toLowerCase();
-          if (lowerStatus.includes('dl half') || lowerStatus.includes('ijin sah') || lowerStatus.includes('izin sah')) {
+          if (lowerStatus.includes('dl half') || lowerStatus.includes('dinas luar half') || lowerStatus.includes('ijin sah') || lowerStatus.includes('izin sah')) {
             attendanceType = 'PRESENT';
-          } else if (lowerStatus.includes('dl full') || lowerStatus === 'dl full' || lowerStatus === 'dl') {
+          } else if (lowerStatus.includes('dl full') || lowerStatus.includes('dinas luar full') || lowerStatus === 'dl' || (lowerStatus.includes('dinas luar') && !lowerStatus.includes('half'))) {
             attendanceType = 'DL_FULL';
           } else if (lowerStatus.includes('tanpa keterangan') || lowerStatus.includes('alpa') || lowerStatus.includes('mangkir')) {
             attendanceType = 'ABSENT';
@@ -433,7 +433,14 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
           parsed.status.toLowerCase().includes('dinas luar half')
         ) : false;
 
-        const skipLatenessAndEarlyLeave = hasIzinSah || isDlHalf;
+        const isDlFull = attendanceType === 'DL_FULL' || (parsed.status ? (
+          parsed.status.toLowerCase().includes('dl full') ||
+          parsed.status.toLowerCase().includes('dinas luar full') ||
+          parsed.status.toLowerCase() === 'dl' ||
+          (parsed.status.toLowerCase().includes('dinas luar') && !parsed.status.toLowerCase().includes('half'))
+        ) : false);
+
+        const skipLatenessAndEarlyLeave = hasIzinSah || isDlHalf || isDlFull;
 
         const isRamadan = dateObj ? isRamadanPeriod(dateObj, holidays) : false;
 
