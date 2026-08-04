@@ -543,9 +543,12 @@ const Dashboard = () => {
         return (d.getMonth() + 1) === parseInt(selectedMonth);
       };
 
-      if (ret && ret.tmtPensiun && ret.tmtPensiun.getFullYear() === currentYear) {
-        if (selectedMonth === 'Semua' || (ret.tmtPensiun.getMonth() + 1) === parseInt(selectedMonth)) {
-            listPensiun.push({ nama: p.nama, nip: p.nip, tmt: ret.tmtPensiun.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), sisa: ret.sisaMasaKerja });
+      if (ret && ret.tmtPensiun) {
+        const retDate = typeof ret.tmtPensiun.getFullYear === 'function' ? ret.tmtPensiun : new Date(ret.tmtPensiun);
+        if (!isNaN(retDate.getTime()) && retDate.getFullYear() === currentYear) {
+          if (selectedMonth === 'Semua' || (retDate.getMonth() + 1) === parseInt(selectedMonth)) {
+            listPensiun.push({ nama: p.nama, nip: p.nip, tmt: retDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }), sisa: ret.sisaMasaKerja });
+          }
         }
       }
       const anchorDate = p.tmtPangkat || p.tmtCpns;

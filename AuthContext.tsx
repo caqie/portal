@@ -10,6 +10,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isSuperadmin: boolean;
   canEdit: boolean;
+  isAdminUangMakan: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,7 +71,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isAuthenticated = !!user;
   const isSuperadmin = user?.role === 'Superadmin';
-  const canEdit = user?.role === 'Superadmin' || user?.role === 'Editor';
+  const isAdminUangMakan = user?.role === 'Admin Uang Makan';
+  const canEdit = user?.role === 'Superadmin' || user?.role === 'Editor' || user?.role === 'Admin Uang Makan';
 
   if (loading) {
     return (
@@ -81,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, logActivity, isAuthenticated, isSuperadmin, canEdit }}>
+    <AuthContext.Provider value={{ user, login, logout, logActivity, isAuthenticated, isSuperadmin, canEdit, isAdminUangMakan }}>
       {children}
     </AuthContext.Provider>
   );

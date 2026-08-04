@@ -142,7 +142,7 @@ const SettingsPage = () => {
     setSystemConfig(prev => {
       const pageAccess = prev?.pageAccess || [];
       const existing = pageAccess.find(a => a.route === path);
-      const allRoles = ['Superadmin', 'Editor', 'Viewer'];
+      const allRoles = ['Superadmin', 'Editor', 'Viewer', 'Admin Uang Makan'];
       let newAccess: PageAccess[];
       
       if (existing) {
@@ -1100,7 +1100,7 @@ const SettingsPage = () => {
                               <div>
                                 <label className={labelClass}>Role yang Diizinkan</label>
                                 <div className="flex flex-wrap gap-3 mt-2">
-                                  {['Superadmin', 'Editor', 'Viewer'].map(role => {
+                                  {['Superadmin', 'Editor', 'Viewer', 'Admin Uang Makan'].map(role => {
                                     const isChecked = access?.roles.includes(role);
                                     return (
                                       <label key={role} className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${isChecked ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-500 hover:border-blue-200'}`}>
@@ -1307,7 +1307,7 @@ const SettingsPage = () => {
                      </button>
                    </div>
                  </div>
-                 <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Role Akses</label><select className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})}><option value="Superadmin">Superadmin</option><option value="Editor">Editor</option><option value="Viewer">Viewer</option></select></div>
+                 <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Role Akses</label><select className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})}><option value="Superadmin">Superadmin</option><option value="Editor">Editor</option><option value="Viewer">Viewer</option><option value="Admin Uang Makan">Admin Uang Makan</option></select></div>
                  <div className="space-y-1.5">
                    <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Status Akun</label>
                    <div className="flex gap-2">

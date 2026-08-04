@@ -540,6 +540,7 @@ export const APP_ROUTES = [
   { path: '/dossiers', label: 'E-Dossier Digital', icon: 'bi-folder-fill' },
   { path: '/absensi-online', label: 'Absensi Wajah', icon: 'bi-camera-fill' },
   { path: '/rekap-absensi', label: 'Rekapitulasi Absensi', icon: 'bi-clipboard-data-fill' },
+  { path: '/uang-makan', label: 'Admin Uang Makan', icon: 'bi-cash-coin' },
   { path: '/settings', label: 'Pengaturan Sistem', icon: 'bi-gear-wide-connected' },
   { path: '/logs', label: 'Audit Logs', icon: 'bi-clock-history' },
   { path: '/skp', label: 'SKP', icon: 'bi-file-earmark-text' },

@@ -45,8 +45,48 @@ export interface ParsedAttendance {
     earlyLeaveCount: number;
     totalLateMinutes: number;
     totalEarlyLeaveMinutes: number;
+    uangMakanHariMasukCount?: number;
   };
 }
+
+export const isHariMasukUM = (d: ParsedDay): boolean => {
+  // 1. Exclude weekends (Sabtu / Minggu) and holidays (National Holidays / Cuti Bersama)
+  if (d.isWeekend || d.isHoliday) return false;
+
+  const statusLower = (d.status || '').toLowerCase();
+
+  // 2. Exclude DL Full (Dinas Luar Full)
+  if (
+    d.attendanceType === 'DL_FULL' ||
+    statusLower.includes('dl full') ||
+    statusLower.includes('dinas luar full') ||
+    statusLower === 'dl' ||
+    (statusLower.includes('dinas luar') && !statusLower.includes('half'))
+  ) {
+    return false;
+  }
+
+  // 3. Exclude Cuti (Cuti Tahunan, Cuti Sakit, Cuti Bersama, Cuti Besar, etc.)
+  if (statusLower.includes('cuti')) {
+    return false;
+  }
+
+  // Check presence of check-in OR check-out time (even if only 1 exists)
+  const hasJamMasuk = Boolean(d.jamMasuk && d.jamMasuk !== '-' && d.jamMasuk !== 'null' && d.jamMasuk.trim() !== '');
+  const hasJamKeluar = Boolean(d.jamKeluar && d.jamKeluar !== '-' && d.jamKeluar !== 'null' && d.jamKeluar.trim() !== '');
+  const hasAbsensi = hasJamMasuk || hasJamKeluar;
+
+  // Check for DL Half or Izin Sah
+  const isDlHalf = statusLower.includes('dl half') || statusLower.includes('dinas luar half') || statusLower.includes('half');
+  const isIzinSah = statusLower.includes('izin sah') || statusLower.includes('ijin sah') || statusLower.includes('izin') || statusLower.includes('ijin');
+
+  // Included if has absensi (jam masuk or jam keluar) OR is DL Half OR is Izin Sah
+  if (hasAbsensi || isDlHalf || isIzinSah) {
+    return true;
+  }
+
+  return false;
+};
 
 export const DEFAULT_HOLIDAYS: Holiday[] = [
   // Late 2025
@@ -141,11 +181,29 @@ export const isHolidayStatus = (status: string): boolean => {
   );
 };
 
-export const getIsoDateStr = (date: Date): string => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+export const getIsoDateStr = (date: Date | string | null | undefined): string => {
+  if (!date) return '';
+  if (typeof date === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+    if (/^\d{4}-\d{2}-\d{2}T/.test(date)) return date.split('T')[0];
+    const parsed = new Date(date);
+    if (!isNaN(parsed.getTime())) {
+      date = parsed;
+    } else {
+      return date;
+    }
+  }
+
+  if (typeof (date as any).getFullYear === 'function') {
+    const dObj = date as Date;
+    if (isNaN(dObj.getTime())) return '';
+    const y = dObj.getFullYear();
+    const m = String(dObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  return String(date);
 };
 
 export const timeToMinutes = (timeStr: string | null): number | null => {
@@ -214,14 +272,21 @@ export const parseLine = (line: string) => {
   };
 };
 
-export const isRamadanPeriod = (date: Date, holidays: Holiday[]): boolean => {
+export const isRamadanPeriod = (dateInput: Date | string, holidays: Holiday[]): boolean => {
+  if (!dateInput) return false;
+  const date = typeof (dateInput as any).getFullYear === 'function' 
+    ? (dateInput as Date) 
+    : new Date(dateInput);
+    
+  if (isNaN(date.getTime())) return false;
   const year = date.getFullYear();
   
   // Find all holidays in this year that contain 'hari raya idul fitri'
   const idulFitriHolidays = holidays
     .filter(h => {
+      if (!h || !h.date) return false;
       const isCorrectYear = h.date.startsWith(`${year}-`);
-      const nameLower = h.name.toLowerCase();
+      const nameLower = (h.name || '').toLowerCase();
       return isCorrectYear && nameLower.includes('hari raya idul fitri');
     })
     .map(h => {
@@ -564,6 +629,7 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
   const earlyLeaveCount = days.filter(d => d.isEarlyLeave).length;
   const totalLateMinutes = days.reduce((sum, d) => sum + (d.lateMinutes || 0), 0);
   const totalEarlyLeaveMinutes = days.reduce((sum, d) => sum + (d.earlyLeaveMinutes || 0), 0);
+  const uangMakanHariMasukCount = days.filter(isHariMasukUM).length;
 
   const attendanceRate = effectiveWorkdays > 0 
     ? Math.round(((presentCount + dlFullCount) / effectiveWorkdays) * 100) 
@@ -591,7 +657,8 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
       lateCount,
       earlyLeaveCount,
       totalLateMinutes,
-      totalEarlyLeaveMinutes
+      totalEarlyLeaveMinutes,
+      uangMakanHariMasukCount
     }
   };
 };

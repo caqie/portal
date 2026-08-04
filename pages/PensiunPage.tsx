@@ -131,31 +131,43 @@ const PensiunPage = () => {
       const ret = getRetirementDetails(p.nip, p.jabatan);
       return { ...p, retirement: ret };
     }).filter(p => {
-      if (!p.retirement) return false;
+      if (!p.retirement || !p.retirement.tmtPensiun) return false;
       const termMatch = `${p.nama} ${p.nip}`.toLowerCase().includes(searchTerm.toLowerCase());
       const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
       const jenisMatch = filterJenis === 'Semua Jenis' || (p.jenisPegawai || '').toUpperCase() === filterJenis.toUpperCase();
       
-      const pYear = p.retirement.tmtPensiun.getFullYear();
+      const tmtPensiunDate = typeof p.retirement.tmtPensiun.getFullYear === 'function' ? p.retirement.tmtPensiun : new Date(p.retirement.tmtPensiun);
+      if (isNaN(tmtPensiunDate.getTime())) return false;
+
+      const pYear = tmtPensiunDate.getFullYear();
       const yearStartMatch = filterYearStart === 'Semua' || pYear >= parseInt(filterYearStart);
       const yearEndMatch = filterYearEnd === 'Semua' || pYear <= parseInt(filterYearEnd);
       
       const now = new Date();
-      const diffYears = (p.retirement.tmtPensiun.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      const diffYears = (tmtPensiunDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
       
       // If a specific period is selected, we show all for that period regardless of the 5-year window
       const isWithinWindow = diffYears <= 5;
       const hasYearFilter = filterYearStart !== 'Semua' || filterYearEnd !== 'Semua';
       
       return termMatch && unitMatch && jenisMatch && (hasYearFilter ? (yearStartMatch && yearEndMatch) : isWithinWindow);
-    }).sort((a, b) => a.retirement!.tmtPensiun.getTime() - b.retirement!.tmtPensiun.getTime());
+    }).sort((a, b) => {
+      const dateA = typeof a.retirement?.tmtPensiun?.getFullYear === 'function' ? a.retirement.tmtPensiun : new Date(a.retirement?.tmtPensiun || '');
+      const dateB = typeof b.retirement?.tmtPensiun?.getFullYear === 'function' ? b.retirement.tmtPensiun : new Date(b.retirement?.tmtPensiun || '');
+      return dateA.getTime() - dateB.getTime();
+    });
   }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterYearStart, filterYearEnd]);
 
   const availableYears = useMemo(() => {
     const years = new Set<string>();
     pegawaiList.forEach(p => {
       const ret = getRetirementDetails(p.nip, p.jabatan);
-      if (ret) years.add(ret.tmtPensiun.getFullYear().toString());
+      if (ret && ret.tmtPensiun) {
+        const retDate = typeof ret.tmtPensiun.getFullYear === 'function' ? ret.tmtPensiun : new Date(ret.tmtPensiun);
+        if (!isNaN(retDate.getTime())) {
+          years.add(retDate.getFullYear().toString());
+        }
+      }
     });
     return Array.from(years).sort();
   }, [pegawaiList]);

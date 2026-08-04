@@ -16,6 +16,7 @@ import PelantikanGeneratorPage from './pages/PelantikanGeneratorPage';
 import SpmtSppPage from './pages/SpmtSppPage';
 import AbsensiOnlinePage from './pages/AbsensiOnlinePage';
 import RekapAbsensiPage from './pages/RekapAbsensiPage';
+import UangMakanPage from './pages/UangMakanPage';
 import SKPPage from './pages/SKPPage';
 import PAKPage from './pages/PAKPage';
 import ABKAnjabPage from './pages/ABKAnjabPage';
@@ -215,8 +216,16 @@ const AppContent = () => {
   }
 
   if (!isAuthenticated && !location.pathname.startsWith('/ukom') && !location.pathname.startsWith('/quizdjki') && location.pathname !== '/login') return <Navigate to="/login" replace />;
-  if (location.pathname === '/login' && isAuthenticated) return <Navigate to="/" replace />;
+  if (location.pathname === '/login' && isAuthenticated) {
+    if (user?.role === 'Admin Uang Makan') {
+      return <Navigate to="/uang-makan" replace />;
+    }
+    return <Navigate to="/" replace />;
+  }
   if (location.pathname === '/login') return <LoginPage />;
+  if (location.pathname === '/' && user?.role === 'Admin Uang Makan') {
+    return <Navigate to="/uang-makan" replace />;
+  }
   
   const formattedDate = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -228,6 +237,7 @@ const AppContent = () => {
 
   const hasAccess = (path: string) => {
     if (isSuperadmin) return true;
+    if (user?.role === 'Admin Uang Makan' && (path === '/uang-makan' || path === '/rekap-absensi')) return true;
     const access = (systemConfig.pageAccess || []).find(a => a.route === path);
     if (!access) {
       // Default access rules if not configured
@@ -358,12 +368,13 @@ const AppContent = () => {
               </>
             )}
 
-            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Kehadiran</div>}
+            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Kehadiran &amp; Uang Makan</div>}
             {/* Hanya tampilkan menu absensi di Mobile View */}
             {isMobileView && hasAccess('/absensi-online') && (
               <SidebarItem to="/absensi-online" icon="bi-camera-fill" label="Absensi Wajah" active={location.pathname === '/absensi-online'} collapsed={isCollapsed} />
             )}
-            {hasAccess('/rekap-absensi') && <SidebarItem to="/rekap-absensi" icon="bi-clipboard-data-fill" label="Rekapitulasi" active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />}
+            {hasAccess('/rekap-absensi') && <SidebarItem to="/rekap-absensi" icon="bi-clipboard-data-fill" label="Rekapitulasi Absensi" active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />}
+            {hasAccess('/uang-makan') && <SidebarItem to="/uang-makan" icon="bi-cash-coin" label="Admin Uang Makan" active={location.pathname === '/uang-makan'} collapsed={isCollapsed} />}
 
             {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Uji & Game Kompetensi</div>}
             {hasAccess('/ukom/admin') && <SidebarItem to="/ukom/admin" icon="bi-pc-display-horizontal" label="Admin CAT" active={location.pathname === '/ukom/admin'} collapsed={isCollapsed} />}
@@ -462,6 +473,7 @@ const AppContent = () => {
                   <Route path="/logs" element={<ActivityLogPage />} />
                   <Route path="/absensi-online" element={<AbsensiOnlinePage />} />
                   <Route path="/rekap-absensi" element={<RekapAbsensiPage />} />
+                  <Route path="/uang-makan" element={<UangMakanPage />} />
                   <Route path="/skp" element={<SKPPage />} />
                   <Route path="/pak" element={<PAKPage />} />
                   <Route path="/anjab-abk" element={<ABKAnjabPage />} />

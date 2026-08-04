@@ -339,7 +339,7 @@ export interface KGB {
 export interface Dossier { id: string; nip: string; namaPegawai: string; tanggal: string; keterangan: string; fileName: string; fileUrl?: string; }
 export interface TugasRutin { id: string; timestamp: string; bulan: string; tahun: number; jenis: TaskType; detail: string; data?: any; }
 export interface AuditLog { id: string; timestamp: string; userNip: string; userName: string; action: 'CREATE' | 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'LOGIN'; module: string; description: string; }
-export interface AdminUser { id: string; nip: string; name: string; password?: string; role: 'Superadmin' | 'Editor' | 'Viewer'; foto?: string; status?: 'Aktif' | 'Nonaktif'; }
+export interface AdminUser { id: string; nip: string; name: string; password?: string; role: 'Superadmin' | 'Editor' | 'Viewer' | 'Admin Uang Makan'; foto?: string; status?: 'Aktif' | 'Nonaktif'; }
 export interface CloudConfig { driveFolderId: string; appsScriptUrl: string; logoUrl?: string; }
 export interface SpmtSppRecord { 
   id: string; 
