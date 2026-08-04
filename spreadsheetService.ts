@@ -42,10 +42,10 @@ export const EXPECTED_COLUMNS_SCHEMA = {
   USERS: ['ID', 'NIP', 'NAME', 'PASSWORD', 'ROLE', 'STATUS'],
   PEGAWAI: [
     'ID', 'NIP', 'NAMA', 'JABATAN', 'UNIT KERJA', 'GOL RUANG', 'JENIS PEGAWAI', 'STATUS',
-    'GENDER', 'TEMPAT LAHIR', 'TANGGAL LAHIR', 'AGAMA', 'ALAMAT', 'NO HP', 'EMAIL',
-    'NIK', 'NPWP', 'NO BPJS', 'NO REKENING GAJI', 'NAMA BANK', 'PENDIDIKAN', 'JURUSAN',
+    'GENDER', 'TEMPAT LAHIR', 'TANGGAL LAHIR', 'AGAMA', 'ALAMAT', 'JENIS JABATAN', 'KLASIFIKASI JABATAN',
+    'NO HP', 'EMAIL', 'NIK', 'NPWP', 'NO BPJS', 'NO REKENING GAJI', 'NAMA BANK', 'PENDIDIKAN', 'JURUSAN',
     'PANGKAT', 'TMT PANGKAT', 'TMT JABATAN', 'TMT CPNS', 'ESELON', 'SUB BAGIAN', 'BAGIAN',
-    'MASA KERJA', 'MASA KERJA GOLONGAN', 'STATUS PERKAWINAN', 'JENIS JABATAN', 'KLASIFIKASI JABATAN',
+    'MASA KERJA', 'MASA KERJA GOLONGAN', 'STATUS PERKAWINAN',
     'FOTO', 'BUP', 'USIA', 'TGL PENSIUN', 'TMT PENSIUN', 'TMT PENSIUN DISPLAY', 'SISA MASA KERJA',
     'KETERANGAN PENSIUN', 'USIA PENSIUN', 'MASA KERJA PENSIUN', 'RIWAYAT PENDIDIKAN',
     'RIWAYAT JABATAN', 'RIWAYATPANGKAT', 'RIWAYATPELATIHAN', 'KELUARGA'
@@ -828,8 +828,8 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       nama: nama || '(NAMA KOSONG)', 
       statusPerkawinan: get('STATUSPERKAWINAN') || get('STATUSKAWIN') || get('MARITALSTATUS') || get('STATUS_KAWIN'),
       jabatan: get('JABATAN') || get('NAMAJABATAN') || get('JAB'), 
-      jenisJabatan: get('JENISJABATAN') || get('TIPEJABATAN') || get('KATEGORIJABATAN'),
-      klasifikasiJabatan: get('KLASIFIKASI') || get('KLASIFIKASIJABATAN') || get('KATEGORI'),
+      jenisJabatan: get('JENISJABATAN') || get('JENIS JABATAN') || get('TIPEJABATAN') || get('KATEGORIJABATAN') || (cols[13] ? cols[13].trim() : ''),
+      klasifikasiJabatan: get('KLASIFIKASIJABATAN') || get('KLASIFIKASI JABATAN') || get('KLASIFIKASI') || get('KATEGORI') || (cols[14] ? cols[14].trim() : ''),
       subBagian: get('SUBBAGIAN') || get('SUB_BAGIAN'), 
       bagian: get('BAGIAN'),
       unitKerja: get('UNITKERJA') || get('UNIT_KERJA') || 'DJKI', 
@@ -890,34 +890,37 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       keluarga: getJson('KELUARGA')
     } as Pegawai;
 
-    // A. Classification Enrichment (Forced dynamic check)
-    const es = (p.eselon || '').trim().toUpperCase();
-    const j = (p.jabatan || '').trim().toUpperCase();
-    const kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
-    
-    if (kl.includes('PIMPINAN TINGGI') || kl.includes('JPT')) {
-      p.klasifikasiJabatan = 'JPT';
-    } else if (kl.includes('STRUKTURAL') || kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('MANAJERIAL')) {
-      p.klasifikasiJabatan = 'STRUKTURAL';
-    } else if (kl.includes('FUNGSIONAL TERTENTU') || kl.includes('JFT') || kl === 'FUNGSIONAL') {
-      p.klasifikasiJabatan = 'FUNGSIONAL';
-    } else if (kl.includes('FUNGSIONAL UMUM') || kl.includes('JFU') || kl.includes('PELAKSANA')) {
-      p.klasifikasiJabatan = 'PELAKSANA';
-    } else if (j.includes('AHLI') || j.includes('MADYA') || j.includes('MUDA') || 
-               j.includes('PERTAMA') || j.includes('UTAMA') || j.includes('TERAMPIL') || 
-               j.includes('MAHIR') || j.includes('PENYELIA') || j.includes('PELAKSANA LANJUTAN')) {
-      p.klasifikasiJabatan = 'FUNGSIONAL';
-    } else if (j.includes('DIREKTUR JENDERAL') || j.includes('SEKRETARIS DIREKTORAT JENDERAL') || 
-               j.includes('SEKRETARIS UTAMA') || j.includes('STAF AHLI') || j.includes('INSPEKTUR') || 
-               j.includes('KEPALA BIRO') || j.includes('KEPALA PUSAT') || j.includes('DIREKTUR') || 
-               j.includes('SEKRETARIS DIREKTORAT')) {
-      p.klasifikasiJabatan = 'JPT';
-    } else if (es.startsWith('I') || es.startsWith('II')) {
-      p.klasifikasiJabatan = 'JPT';
-    } else if (es.startsWith('III') || es.startsWith('IV') || es.startsWith('V')) {
-      p.klasifikasiJabatan = 'STRUKTURAL';
-    } else {
-      p.klasifikasiJabatan = 'PELAKSANA';
+    // A. Classification Enrichment (Preserve raw values from Column N & O if present)
+    if (!p.jenisJabatan || p.jenisJabatan === '-') {
+      p.jenisJabatan = (p.klasifikasiJabatan && p.klasifikasiJabatan !== '-') ? p.klasifikasiJabatan : '';
+    }
+    if (!p.klasifikasiJabatan || p.klasifikasiJabatan === '-') {
+      p.klasifikasiJabatan = (p.jenisJabatan && p.jenisJabatan !== '-') ? p.jenisJabatan : '';
+    }
+
+    if (!p.klasifikasiJabatan || p.klasifikasiJabatan === '-') {
+      const es = (p.eselon || '').trim().toUpperCase();
+      const j = (p.jabatan || '').trim().toUpperCase();
+      if (j.includes('AHLI') || j.includes('MADYA') || j.includes('MUDA') || 
+          j.includes('PERTAMA') || j.includes('UTAMA') || j.includes('TERAMPIL') || 
+          j.includes('MAHIR') || j.includes('PENYELIA') || j.includes('PELAKSANA LANJUTAN')) {
+        p.klasifikasiJabatan = 'FUNGSIONAL';
+      } else if (j.includes('DIREKTUR JENDERAL') || j.includes('SEKRETARIS DIREKTORAT JENDERAL') || 
+                 j.includes('SEKRETARIS UTAMA') || j.includes('STAF AHLI') || j.includes('INSPEKTUR') || 
+                 j.includes('KEPALA BIRO') || j.includes('KEPALA PUSAT') || j.includes('DIREKTUR') || 
+                 j.includes('SEKRETARIS DIREKTORAT')) {
+        p.klasifikasiJabatan = 'JPT';
+      } else if (es.startsWith('I') || es.startsWith('II')) {
+        p.klasifikasiJabatan = 'JPT';
+      } else if (es.startsWith('III') || es.startsWith('IV') || es.startsWith('V')) {
+        p.klasifikasiJabatan = 'STRUKTURAL';
+      } else {
+        p.klasifikasiJabatan = 'PELAKSANA';
+      }
+    }
+
+    if (!p.jenisJabatan || p.jenisJabatan === '-') {
+      p.jenisJabatan = p.klasifikasiJabatan;
     }
 
     // B. Identity & Retirement Enrichment

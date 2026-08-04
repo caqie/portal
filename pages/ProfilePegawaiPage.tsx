@@ -47,6 +47,18 @@ const ProfilePegawaiPage = () => {
     return parseDateToYYYYMMDD(dateStr);
   };
 
+  const formatDateIndoDisplay = (dateStr: string | undefined): string => {
+    if (!dateStr || dateStr === '-') return '-';
+    const ymd = parseDateToYYYYMMDD(dateStr);
+    if (!ymd || ymd === '-') return dateStr || '-';
+    const parts = ymd.split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+      const [year, month, day] = parts;
+      return `${day}-${month}-${year}`;
+    }
+    return dateStr;
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -99,9 +111,13 @@ const ProfilePegawaiPage = () => {
           if (diff) enriched.masaKerjaPensiun = `${diff.years} Thn ${diff.months} Bln`;
         }
 
-        // 4. Force dynamic classification (Override sheet data for UI consistency)
-        enriched.jenisJabatan = getJabatanClassification(enriched);
-        enriched.klasifikasiJabatan = enriched.jenisJabatan;
+        // 4. Ensure classification fallback only if missing
+        if (!enriched.jenisJabatan || enriched.jenisJabatan === '-') {
+          enriched.jenisJabatan = getJabatanClassification(enriched);
+        }
+        if (!enriched.klasifikasiJabatan || enriched.klasifikasiJabatan === '-') {
+          enriched.klasifikasiJabatan = enriched.jenisJabatan;
+        }
 
         // 5. Retirement Info (BUP, Usia Pensiun, Tgl Pensiun)
         if (!enriched.bup || enriched.bup === '-') {
@@ -790,7 +806,7 @@ const ProfilePegawaiPage = () => {
                         {isEditing ? (
                           <input type="date" className={inputNoCapsClass} value={formatDateForInput(pegawai.tanggalLahir)} onChange={e => updateField('tanggalLahir', e.target.value)} />
                         ) : (
-                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{formatDateForInput(pegawai.tanggalLahir) || '-'}</div>
+                          <div className="px-6 py-4 bg-gray-50/50 border border-gray-100 rounded-2xl text-[13px] font-bold text-gray-900 min-h-[54px] flex items-center select-all">{formatDateIndoDisplay(pegawai.tanggalLahir)}</div>
                         )}
                       </div>
                       <div className="space-y-2">
@@ -917,11 +933,19 @@ const ProfilePegawaiPage = () => {
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Jenis Jabatan</label>
-                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.jenisJabatan || '-'}</div>
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.jenisJabatan || ''} onChange={e => updateField('jenisJabatan', e.target.value)} />
+                      ) : (
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.jenisJabatan || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Klasifikasi Jabatan</label>
-                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.klasifikasiJabatan || '-'}</div>
+                      {isEditing ? (
+                        <input type="text" className={inputClass} value={pegawai.klasifikasiJabatan || ''} onChange={e => updateField('klasifikasiJabatan', e.target.value)} />
+                      ) : (
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{pegawai.klasifikasiJabatan || '-'}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Eselon</label>
@@ -944,7 +968,7 @@ const ProfilePegawaiPage = () => {
                       {isEditing ? (
                         <input type="date" className={inputNoCapsClass} value={formatDateForInput(pegawai.tmtJabatan)} onChange={e => updateField('tmtJabatan', e.target.value)} />
                       ) : (
-                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateForInput(pegawai.tmtJabatan) || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateIndoDisplay(pegawai.tmtJabatan)}</div>
                       )}
                     </div>
                     <div className="space-y-2 col-span-full">
@@ -1045,12 +1069,12 @@ const ProfilePegawaiPage = () => {
                       {isEditing ? (
                         <input type="date" className={inputNoCapsClass} value={formatDateForInput(pegawai.tmtPangkat)} onChange={e => updateField('tmtPangkat', e.target.value)} />
                       ) : (
-                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateForInput(pegawai.tmtPangkat) || '-'}</div>
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateIndoDisplay(pegawai.tmtPangkat)}</div>
                       )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>TMT CPNS</label>
-                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateForInput(pegawai.tmtCpns) || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateIndoDisplay(pegawai.tmtCpns)}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Masa Kerja (Thn Bln)</label>
@@ -1058,11 +1082,11 @@ const ProfilePegawaiPage = () => {
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Tgl Pensiun</label>
-                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateForInput(pegawai.tglPensiun) || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateIndoDisplay(pegawai.tglPensiun)}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>TMT Pensiun</label>
-                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateForInput(pegawai.tmtPensiun) || '-'}</div>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateIndoDisplay(pegawai.tmtPensiun)}</div>
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Usia Pensiun</label>
@@ -1289,7 +1313,7 @@ const ProfilePegawaiPage = () => {
                           {isEditing ? (
                             <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(k.tanggalLahir)} onChange={e => updateHistoryItem('keluarga', idx, 'tanggalLahir', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateForInput(k.tanggalLahir) || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(k.tanggalLahir)}</div>
                           )}
                         </div>
                         <div className="space-y-1">
@@ -1469,7 +1493,7 @@ const ProfilePegawaiPage = () => {
                           {isEditing ? (
                             <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(j.tmtJabatan)} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tmtJabatan', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateForInput(j.tmtJabatan) || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(j.tmtJabatan)}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
@@ -1485,7 +1509,7 @@ const ProfilePegawaiPage = () => {
                           {isEditing ? (
                             <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(j.tanggalSk)} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tanggalSk', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateForInput(j.tanggalSk) || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(j.tanggalSk)}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
@@ -1569,7 +1593,7 @@ const ProfilePegawaiPage = () => {
                           {isEditing ? (
                             <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(p.tmtPangkat)} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tmtPangkat', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateForInput(p.tmtPangkat) || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(p.tmtPangkat)}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
@@ -1585,7 +1609,7 @@ const ProfilePegawaiPage = () => {
                           {isEditing ? (
                             <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(p.tanggalSk)} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tanggalSk', e.target.value)} />
                           ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateForInput(p.tanggalSk) || '-'}</div>
+                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(p.tanggalSk)}</div>
                           )}
                         </div>
                         <div className="space-y-1 md:col-span-2">
@@ -1867,7 +1891,7 @@ const ProfilePegawaiPage = () => {
                         <tr><td className="w-[180px] py-1">1. Nama Lengkap</td><td className="w-4 py-1 text-center">:</td><td className="py-1 font-bold underline">{formatPegawaiName(pegawai.nama)}</td></tr>
                         <tr><td className="py-1">2. NIP</td><td className="py-1 text-center">:</td><td className="py-1 font-bold">{pegawai.nip}</td></tr>
                         <tr><td className="py-1">3. NIK</td><td className="py-1 text-center">:</td><td className="py-1">{pegawai.nik || '-'}</td></tr>
-                        <tr><td className="py-1">4. Tempat, Tgl Lahir</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{pegawai.tempatLahir || '-'}, {formatDateForInput(pegawai.tanggalLahir) || '-'}</td></tr>
+                        <tr><td className="py-1">4. Tempat, Tgl Lahir</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{pegawai.tempatLahir || '-'}, {formatDateIndoDisplay(pegawai.tanggalLahir)}</td></tr>
                         <tr><td className="py-1">5. Jenis Kelamin</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{pegawai.gender === 'L' ? 'LAKI-LAKI' : 'PEREMPUAN'}</td></tr>
                         <tr><td className="py-1">6. Agama</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{pegawai.agama || '-'}</td></tr>
                         <tr><td className="py-1">7. Alamat Domisili</td><td className="py-1 text-center">:</td><td className="py-1 uppercase leading-tight">{pegawai.alamat || '-'}</td></tr>
@@ -1882,13 +1906,13 @@ const ProfilePegawaiPage = () => {
                   <table className="w-full border-collapse">
                      <tbody>
                         <tr><td className="w-[180px] py-1">1. Nama Jabatan</td><td className="w-4 py-1 text-center">:</td><td className="py-1 font-bold uppercase">{pegawai.jabatan || '-'}</td></tr>
-                        <tr><td className="py-1">2. TMT Jabatan</td><td className="py-1 text-center">:</td><td className="py-1">{formatDateForInput(pegawai.tmtJabatan) || '-'}</td></tr>
+                        <tr><td className="py-1">2. TMT Jabatan</td><td className="py-1 text-center">:</td><td className="py-1">{formatDateIndoDisplay(pegawai.tmtJabatan)}</td></tr>
                         <tr><td className="py-1">3. Eselon</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{pegawai.eselon || '-'}</td></tr>
                         <tr><td className="py-1">4. Pangkat (Golongan)</td><td className="py-1 text-center">:</td><td className="py-1 uppercase font-bold">{pegawai.pangkat} ({pegawai.golRuang})</td></tr>
-                        <tr><td className="py-1">5. TMT Pangkat</td><td className="py-1 text-center">:</td><td className="py-1">{formatDateForInput(pegawai.tmtPangkat) || '-'}</td></tr>
+                        <tr><td className="py-1">5. TMT Pangkat</td><td className="py-1 text-center">:</td><td className="py-1">{formatDateIndoDisplay(pegawai.tmtPangkat)}</td></tr>
                         <tr><td className="py-1">6. Masa Kerja Golongan</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{pegawai.masaKerja || '-'}</td></tr>
                         <tr><td className="py-1">7. Unit Kerja</td><td className="py-1 text-center">:</td><td className="py-1 uppercase">{pegawai.unitKerja}</td></tr>
-                        <tr><td className="py-1">8. TMT CPNS / Kontrak</td><td className="py-1 text-center">:</td><td className="py-1">{formatDateForInput(pegawai.tmtCpns) || '-'}</td></tr>
+                        <tr><td className="py-1">8. TMT CPNS / Kontrak</td><td className="py-1 text-center">:</td><td className="py-1">{formatDateIndoDisplay(pegawai.tmtCpns)}</td></tr>
                      </tbody>
                   </table>
                </section>

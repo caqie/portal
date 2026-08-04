@@ -495,8 +495,10 @@ const PegawaiPage = () => {
       const enrichedData = pData.map(p => {
         const enriched = { ...p };
         
-        // 1. Classification Enrichment (Forced dynamic check)
-        enriched.klasifikasiJabatan = getJabatanClassification(enriched);
+        // 1. Classification Enrichment (Only fallback if missing)
+        if (!enriched.klasifikasiJabatan || enriched.klasifikasiJabatan === '-') {
+          enriched.klasifikasiJabatan = getJabatanClassification(enriched);
+        }
         
         // 2. Identity & Retirement Enrichment
         if (enriched.tanggalLahir) {
@@ -559,7 +561,9 @@ const PegawaiPage = () => {
       
       const enrichedData = pData.map(p => {
         const enriched = { ...p };
-        enriched.klasifikasiJabatan = getJabatanClassification(enriched);
+        if (!enriched.klasifikasiJabatan || enriched.klasifikasiJabatan === '-') {
+          enriched.klasifikasiJabatan = getJabatanClassification(enriched);
+        }
         
         if (enriched.tanggalLahir) {
           const birth = new Date(formatDateForInput(enriched.tanggalLahir));
@@ -664,6 +668,18 @@ const PegawaiPage = () => {
     });
     
     return Array.from(finalSet).sort((a, b) => a.localeCompare(b));
+  }, [pegawaiList]);
+
+  const KLASIFIKASI_LIST = useMemo(() => {
+    const defaultSet = ['JPT', 'STRUKTURAL', 'FUNGSIONAL', 'PELAKSANA'];
+    const found = new Set<string>(defaultSet);
+    (pegawaiList || []).forEach(p => {
+      const kl = (p.klasifikasiJabatan || '').trim();
+      if (kl && kl !== '-') {
+        found.add(kl);
+      }
+    });
+    return Array.from(found);
   }, [pegawaiList]);
 
   const filteredPegawai = useMemo(() => {
@@ -1356,7 +1372,7 @@ const PegawaiPage = () => {
                   <span className="text-[9px] md:text-[11px] font-black uppercase tracking-wider text-gray-700">Semua Klasifikasi</span>
                 </label>
                 <div className="h-px bg-gray-100 my-1"></div>
-                {['JPT', 'STRUKTURAL', 'FUNGSIONAL', 'PELAKSANA'].map(klas => {
+                {KLASIFIKASI_LIST.map(klas => {
                   const currentList = filterKlasifikasi === 'Semua Klasifikasi' ? [] : filterKlasifikasi.split(',').filter(Boolean);
                   const isChecked = currentList.includes(klas);
                   const handleCheckboxChange = () => {
@@ -1841,8 +1857,8 @@ const PegawaiPage = () => {
                     <div className="flex items-center gap-3 md:gap-4"><div className="h-6 md:h-8 w-1.5 md:w-2 bg-indigo-600 rounded-full"></div><h5 className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase tracking-widest">B. Jabatan & Penempatan (Auto)</h5></div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                         <div className="sm:col-span-2"><label className={labelClass}>Nama Jabatan</label><input type="text" className={inputClass} value={formData.jabatan || ''} onChange={e => setFormData({...formData, jabatan: e.target.value})} /></div>
-                        <div><label className={labelClass}>Jenis Jabatan (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.jenisJabatan || '-'} /></div>
-                        <div><label className={labelClass}>Klasifikasi Jabatan (Auto)</label><input type="text" readOnly className={`${inputClass} bg-gray-100`} value={formData.klasifikasiJabatan || '-'} /></div>
+                        <div><label className={labelClass}>Jenis Jabatan</label><input type="text" className={inputClass} value={formData.jenisJabatan || ''} onChange={e => setFormData({...formData, jenisJabatan: e.target.value})} /></div>
+                        <div><label className={labelClass}>Klasifikasi Jabatan</label><input type="text" className={inputClass} value={formData.klasifikasiJabatan || ''} onChange={e => setFormData({...formData, klasifikasiJabatan: e.target.value})} /></div>
                        <div><label className={labelClass}>TMT Jabatan</label><input type="date" className={inputNoCapsClass} value={formData.tmtJabatan || ''} onChange={e => setFormData({...formData, tmtJabatan: e.target.value})} /></div>
                        <div><label className={labelClass}>Eselon (Jika Ada)</label><select className={inputClass} value={formData.eselon || '-'} onChange={e => setFormData({...formData, eselon: e.target.value})}><option value="-">-</option><option value="I.a">I.a</option><option value="I.b">I.b</option><option value="II.a">II.a</option><option value="II.b">II.b</option><option value="III.a">III.a</option><option value="IV.a">IV.a</option></select></div>
                        <div className="sm:col-span-2">
