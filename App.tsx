@@ -36,11 +36,42 @@ import UkomAdminPage from './pages/UkomAdminPage';
 import UkomSupervisorPage from './pages/UkomSupervisorPage';
 import TalentaPage from './pages/TalentaPage';
 import QuizDJKIPage from './pages/QuizDJKIPage';
+import LayananSDMPage from './pages/LayananSDM/LayananSDMPage';
+import PengajuanLayananPage from './pages/LayananSDM/PengajuanLayananPage';
+import PengajuanSayaPage from './pages/LayananSDM/PengajuanSayaPage';
+import DetailPengajuanPage from './pages/LayananSDM/DetailPengajuanPage';
+import AdminLayananSDMPage from './pages/Admin/AdminLayananSDMPage';
+import AdminDetailPengajuanPage from './pages/Admin/AdminDetailPengajuanPage';
+import NotificationBellSDM from './components/LayananSDM/NotificationBellSDM';
 import { DEFAULT_LOGO, APP_ROUTES } from './constants';
 import { syncGidMap, fetchSystemConfig, loadSharedConfigFromServer } from './spreadsheetService';
-import { SystemConfig } from './types';
+import { SystemConfig, PengajuanSDM } from './types';
 
-const SidebarItem = ({ to, icon, label, active, collapsed, onClick, target }: any) => {
+interface SidebarItemProps {
+  to: string;
+  icon: string;
+  label: string;
+  active: boolean;
+  collapsed: boolean;
+  onClick?: (e: React.MouseEvent) => void;
+  target?: string;
+  badge?: number | string | null;
+  badgeColor?: string;
+  badgePulse?: boolean;
+}
+
+const SidebarItem = ({ 
+  to, 
+  icon, 
+  label, 
+  active, 
+  collapsed, 
+  onClick, 
+  target, 
+  badge, 
+  badgeColor = 'bg-blue-600', 
+  badgePulse = false 
+}: SidebarItemProps) => {
   const handleClick = (e: React.MouseEvent) => {
     if (target === '_blank') {
       e.preventDefault();
@@ -63,14 +94,24 @@ const SidebarItem = ({ to, icon, label, active, collapsed, onClick, target }: an
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-500 rounded-r-full shadow-[0_0_12px_rgba(59,130,246,0.1)]"></div>
       )}
       
-      <div className={`flex items-center justify-center ${collapsed ? 'w-full' : 'w-6'} transition-all`}>
+      <div className={`flex items-center justify-center ${collapsed ? 'w-full' : 'w-6'} transition-all relative`}>
         <i className={`bi ${icon} ${active ? 'text-blue-500' : 'text-inherit'} ${collapsed ? 'text-2xl' : 'text-lg'} transition-transform group-hover:scale-110`}></i>
+        {collapsed && badge !== undefined && badge !== null && (
+          <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ${badgeColor} ${badgePulse ? 'animate-ping' : ''} border-2 border-[#0f172a]`}></span>
+        )}
       </div>
       
       {!collapsed && (
-        <span className="ml-4 font-bold text-[11px] tracking-[0.1em] whitespace-nowrap overflow-hidden">
-          {label}
-        </span>
+        <div className="ml-4 flex-1 flex items-center justify-between overflow-hidden">
+          <span className="font-bold text-[11px] tracking-[0.1em] whitespace-nowrap overflow-hidden truncate">
+            {label}
+          </span>
+          {badge !== undefined && badge !== null && (
+            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black text-white ${badgeColor} ${badgePulse ? 'animate-pulse' : ''}`}>
+              {badge}
+            </span>
+          )}
+        </div>
       )}
     </Link>
   );
@@ -88,6 +129,48 @@ const AppContent = () => {
   
   const location = useLocation();
   const { user, logout, isSuperadmin, canEdit, isAuthenticated } = useAuth();
+
+  const [userSdmBadge, setUserSdmBadge] = useState<{ count: number; isUrgent: boolean }>({ count: 0, isUrgent: false });
+  const [adminSdmBadge, setAdminSdmBadge] = useState<number>(0);
+
+  useEffect(() => {
+    const computeSdmBadges = () => {
+      try {
+        const raw = localStorage.getItem('layanan_sdm_pengajuan_db');
+        if (!raw) return;
+        const list: PengajuanSDM[] = JSON.parse(raw);
+        if (!Array.isArray(list)) return;
+
+        // User badges
+        if (user?.nip) {
+          const myTickets = list.filter(p => p.nip === user.nip);
+          const needRevision = myTickets.filter(p => p.status === 'PERLU_PERBAIKAN').length;
+          const inProgress = myTickets.filter(p => p.status === 'DIAJUKAN' || p.status === 'DALAM_PROSES' || p.status === 'DIVERIFIKASI').length;
+          if (needRevision > 0) {
+            setUserSdmBadge({ count: needRevision, isUrgent: true });
+          } else if (inProgress > 0) {
+            setUserSdmBadge({ count: inProgress, isUrgent: false });
+          } else {
+            setUserSdmBadge({ count: 0, isUrgent: false });
+          }
+        }
+
+        // Admin badges
+        const pendingAdmin = list.filter(p => p.status === 'DIAJUKAN').length;
+        setAdminSdmBadge(pendingAdmin);
+      } catch (e) {
+        // silent
+      }
+    };
+
+    computeSdmBadges();
+    window.addEventListener('storage_updated', computeSdmBadges);
+    window.addEventListener('sdm_notifications_updated', computeSdmBadges);
+    return () => {
+      window.removeEventListener('storage_updated', computeSdmBadges);
+      window.removeEventListener('sdm_notifications_updated', computeSdmBadges);
+    };
+  }, [user]);
 
   // Mode Ujian Terisolasi (Strict Mode)
   const isUkomStrict = window.location.pathname.includes('ukomdjki') || window.location.search.includes('portal=ukom');
@@ -237,7 +320,16 @@ const AppContent = () => {
 
   const hasAccess = (path: string) => {
     if (isSuperadmin) return true;
-    if (user?.role === 'Admin Uang Makan' && (path === '/uang-makan' || path === '/rekap-absensi')) return true;
+    if (user?.role === 'Admin Uang Makan') {
+      return (
+        path === '/uang-makan' ||
+        path === '/rekap-absensi' ||
+        path === '/pegawai' ||
+        path.startsWith('/pegawai/') ||
+        path === '/quizdjki' ||
+        path.startsWith('/quiz')
+      );
+    }
     const access = (systemConfig.pageAccess || []).find(a => a.route === path);
     if (!access) {
       // Default access rules if not configured
@@ -263,7 +355,7 @@ const AppContent = () => {
       </div>
       <h2 className="text-3xl font-black text-gray-900 tracking-tighter mb-4">Halaman Dalam Pengembangan</h2>
       <p className="text-gray-500 max-w-md font-medium">Mohon maaf, halaman ini sedang dalam proses pemeliharaan atau pengembangan fitur baru. Silakan kembali lagi nanti.</p>
-      <Link to="/" className="mt-10 px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold tracking-widest shadow-xl hover:bg-blue-700 transition-all">Kembali ke Dashboard</Link>
+      <Link to={user?.role === 'Admin Uang Makan' ? "/uang-makan" : "/"} className="mt-10 px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold tracking-widest shadow-xl hover:bg-blue-700 transition-all">Kembali</Link>
     </div>
   );
 
@@ -274,7 +366,7 @@ const AppContent = () => {
       </div>
       <h2 className="text-3xl font-black text-gray-900 tracking-tighter mb-4">Akses Terbatas</h2>
       <p className="text-gray-500 max-w-md font-medium">Anda tidak memiliki izin untuk mengakses halaman ini. Silakan hubungi administrator jika Anda merasa ini adalah kesalahan.</p>
-      <Link to="/" className="mt-10 px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold tracking-widest shadow-xl hover:bg-gray-800 transition-all">Kembali ke Dashboard</Link>
+      <Link to={user?.role === 'Admin Uang Makan' ? "/uang-makan" : "/"} className="mt-10 px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold tracking-widest shadow-xl hover:bg-gray-800 transition-all">Kembali</Link>
     </div>
   );
 
@@ -332,7 +424,7 @@ const AppContent = () => {
           </button>
 
           <div className={`pt-8 md:pt-10 pb-6 md:pb-8 flex flex-col items-center ${isCollapsed ? 'px-2' : 'px-6 md:px-8'}`}>
-            <Link to="/" className={`relative transition-all duration-500 ${isCollapsed ? 'w-12 h-12 md:w-14 md:h-14' : 'w-20 h-20 md:w-24 md:h-24'} mb-3 md:mb-4 active:scale-95 group`}>
+            <Link to={user?.role === 'Admin Uang Makan' ? "/uang-makan" : "/"} className={`relative transition-all duration-500 ${isCollapsed ? 'w-12 h-12 md:w-14 md:h-14' : 'w-20 h-20 md:w-24 md:h-24'} mb-3 md:mb-4 active:scale-95 group`}>
                 <div className="w-full h-full bg-white rounded-xl md:rounded-2xl p-2 md:p-2.5 border-2 md:border-4 border-white ring-1 ring-white/10 shadow-2xl flex items-center justify-center overflow-hidden shimmer-effect">
                    <img src={systemLogo || DEFAULT_LOGO} className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-110" />
                 </div>
@@ -366,6 +458,35 @@ const AppContent = () => {
                 {hasAccess('/keuangan') && <SidebarItem to="/keuangan" icon="bi-cash-stack" label="Keuangan" active={location.pathname === '/keuangan'} collapsed={isCollapsed} />}
                 {hasAccess('/dossiers') && <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />}
               </>
+            )}
+
+            {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Layanan SDM KI</div>}
+            {hasAccess('/layanan-sdm') && (
+              <SidebarItem to="/layanan-sdm" icon="bi-headset" label="Portal Layanan SDM" active={location.pathname === '/layanan-sdm' || (location.pathname.startsWith('/layanan-sdm') && !location.pathname.includes('pengajuan-saya'))} collapsed={isCollapsed} />
+            )}
+            {hasAccess('/layanan-sdm/pengajuan-saya') && (
+              <SidebarItem 
+                to="/layanan-sdm/pengajuan-saya" 
+                icon="bi-inboxes-fill" 
+                label="Pengajuan Saya" 
+                active={location.pathname === '/layanan-sdm/pengajuan-saya'} 
+                collapsed={isCollapsed} 
+                badge={userSdmBadge.count > 0 ? userSdmBadge.count : null}
+                badgeColor={userSdmBadge.isUrgent ? 'bg-amber-500' : 'bg-blue-600'}
+                badgePulse={userSdmBadge.isUrgent}
+              />
+            )}
+            {(isSuperadmin || canEdit || user?.role?.includes('Admin')) && hasAccess('/admin/layanan-sdm') && (
+              <SidebarItem 
+                to="/admin/layanan-sdm" 
+                icon="bi-shield-check" 
+                label="Admin Layanan SDM" 
+                active={location.pathname.startsWith('/admin/layanan-sdm')} 
+                collapsed={isCollapsed} 
+                badge={adminSdmBadge > 0 ? adminSdmBadge : null}
+                badgeColor="bg-rose-600"
+                badgePulse={adminSdmBadge > 0}
+              />
             )}
 
             {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Kehadiran &amp; Uang Makan</div>}
@@ -418,7 +539,10 @@ const AppContent = () => {
               <span className="text-[9px] font-black text-gray-400 tracking-widest mt-0.5">{formattedDate}</span>
             </div>
             
-            <div className="flex items-center gap-2 md:gap-6">
+            <div className="flex items-center gap-2 md:gap-5">
+              {/* Notifikasi Layanan SDM Bell */}
+              <NotificationBellSDM />
+
               <div className="flex flex-col items-end">
                 <span className="text-[9px] md:text-[11px] font-black text-gray-950 truncate max-w-[100px] md:max-w-none">{user?.name}</span>
                 <span className="text-[7px] md:text-[9px] font-bold text-blue-600 tracking-tighter uppercase">{user?.role}</span>
@@ -489,6 +613,12 @@ const AppContent = () => {
                   <Route path="/talenta" element={<TalentaPage />} />
                   <Route path="/ukom/admin" element={<UkomAdminPage />} />
                   <Route path="/quizdjki" element={<QuizDJKIPage />} />
+                  <Route path="/layanan-sdm" element={<LayananSDMPage />} />
+                  <Route path="/layanan-sdm/pengajuan" element={<PengajuanLayananPage />} />
+                  <Route path="/layanan-sdm/pengajuan-saya" element={<PengajuanSayaPage />} />
+                  <Route path="/layanan-sdm/pengajuan/:id" element={<DetailPengajuanPage />} />
+                  <Route path="/admin/layanan-sdm" element={<AdminLayananSDMPage />} />
+                  <Route path="/admin/layanan-sdm/pengajuan/:id" element={<AdminDetailPengajuanPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </div>

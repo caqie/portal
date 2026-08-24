@@ -1,5 +1,6 @@
 
-import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom, PenilaianTalenta, TalentPool, AssessmentTalenta, NineBoxTalenta, PengembanganTalenta } from './types';
+import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom, PenilaianTalenta, TalentPool, AssessmentTalenta, NineBoxTalenta, PengembanganTalenta, PengajuanSDM, DokumenPengajuan, LogPengajuan, PesanPengajuan, MasterLayanan, MasterPetugasSDM } from './types';
+import { MASTER_LAYANAN_DATA } from './layananMasterData';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8dTUPkAb1f8EeH3DxXjTd9IZ-yAMUWxSfci9ZBLkMf3gxH3as4GlALPtER6JM-BWD/exec';
@@ -35,7 +36,13 @@ export const DEFAULT_GIDS = {
   TALENT_POOL: '718102',
   ASSESSMENT_TALENTA: '718103',
   NINEBOX: '718104',
-  PENGEMBANGAN_TALENTA: '718105'
+  PENGEMBANGAN_TALENTA: '718105',
+  MASTER_LAYANAN: '718201',
+  LAYANAN_SDM: '718202',
+  LAYANAN_SDM_DOKUMEN: '718203',
+  LAYANAN_SDM_LOG: '718204',
+  LAYANAN_SDM_PESAN: '718205',
+  MASTER_PETUGAS_SDM: '718206'
 };
 
 export const EXPECTED_COLUMNS_SCHEMA = {
@@ -72,7 +79,13 @@ export const EXPECTED_COLUMNS_SCHEMA = {
   TALENT_POOL: ['ID', 'PEGAWAI_ID', 'RANKING', 'STATUS_TALENTA', 'READINESS_LEVEL', 'REKOMENDASI_JABATAN', 'CREATED_AT'],
   ASSESSMENT_TALENTA: ['ID', 'PEGAWAI_ID', 'HASIL_ASSESSMENT', 'POTENSI', 'KOMPETENSI', 'ASSESSOR', 'CATATAN', 'TANGGAL_ASSESSMENT'],
   NINEBOX: ['ID', 'PEGAWAI_ID', 'KINERJA', 'POTENSI', 'POSISI_BOX', 'REKOMENDASI'],
-  PENGEMBANGAN_TALENTA: ['ID', 'PEGAWAI_ID', 'JENIS_PENGEMBANGAN', 'NAMA_PELATIHAN', 'PENYELENGGARA', 'TANGGAL_MULAI', 'TANGGAL_SELESAI', 'STATUS']
+  PENGEMBANGAN_TALENTA: ['ID', 'PEGAWAI_ID', 'JENIS_PENGEMBANGAN', 'NAMA_PELATIHAN', 'PENYELENGGARA', 'TANGGAL_MULAI', 'TANGGAL_SELESAI', 'STATUS'],
+  MASTER_LAYANAN: ['ID', 'KODELAYANAN', 'KATEGORI', 'NAMALAYANAN', 'DESKRIPSI', 'AKTIF', 'SLAHARI', 'ICON', 'FIELDS', 'REQUIREDDOCUMENTS', 'ROLEPETUGAS', 'URUTAN'],
+  LAYANAN_SDM: ['ID', 'NOMORTIKET', 'NIP', 'NAMA', 'UNITKERJA', 'JABATAN', 'PANGKAT', 'STATUSKEPEGAWAIAN', 'EMAIL', 'NOHP', 'KATEGORI', 'IDLAYANAN', 'NAMALAYANAN', 'TANGGALPENGAJUAN', 'STATUS', 'PRIORITAS', 'PETUGASID', 'PETUGASNAMA', 'KETERANGAN', 'DATAFORM', 'CATATANVERIFIKATOR', 'CATATANPERBAIKAN', 'ALASANPENOLAKAN', 'HASIL', 'LINKHASIL', 'NOMORSURATHASIL', 'FILEHASILURL', 'TANGGALSELESAI', 'CREATEDAT', 'UPDATEDAT'],
+  LAYANAN_SDM_DOKUMEN: ['ID', 'IDPENGAJUAN', 'NOMORTIKET', 'NAMADOKUMEN', 'JENISDOKUMEN', 'FILEID', 'FILENAME', 'FILEURL', 'FILEBASE64', 'MIMETYPE', 'SIZE', 'UPLOADEDBY', 'UPLOADEDAT', 'VERSI', 'AKTIF'],
+  LAYANAN_SDM_LOG: ['ID', 'IDPENGAJUAN', 'NOMORTIKET', 'TIMESTAMP', 'NIPUSER', 'NAMAUSER', 'ROLE', 'STATUSLAMA', 'STATUSBARU', 'CATATAN'],
+  LAYANAN_SDM_PESAN: ['ID', 'IDPENGAJUAN', 'NOMORTIKET', 'PENGIRIMNIP', 'PENGIRIMNAMA', 'ROLE', 'PESAN', 'FILEID', 'FILEURL', 'FILENAME', 'TIMESTAMP', 'DIBACA'],
+  MASTER_PETUGAS_SDM: ['ID', 'NIP', 'NAMA', 'UNIT', 'ROLE', 'AKTIF', 'JENISLAYANAN']
 };
 
 const getDbConfig = () => {
@@ -924,6 +937,11 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
     }
 
     // B. Identity & Retirement Enrichment
+    const statusLower = (p.status || '').trim().toLowerCase();
+    if (statusLower === 'pensiun' || statusLower === 'retired' || statusLower.startsWith('bup')) {
+      p.status = 'Tidak Aktif';
+    }
+
     if (p.tanggalLahir) {
       const parsedBirthStr = parseDateToYYYYMMDD(p.tanggalLahir);
       if (parsedBirthStr) {
@@ -1721,4 +1739,383 @@ export const fetchPengembanganTalentaFromSheets = (bypassCache = false) => fetch
       status: get('STATUS')
     } as PengembanganTalenta;
 }, bypassCache);
+
+// ==========================================
+// LAYANAN SDM KI (TICKETING & HELPDESK ENGINE)
+// ==========================================
+
+export const fetchMasterLayananFromSheets = async (bypassCache = false): Promise<MasterLayanan[]> => {
+  const data = await fetchTableData<MasterLayanan>('MASTER_LAYANAN', 'master_layanan_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    const getJson = (k: string) => {
+      try {
+        const val = get(k);
+        return val ? JSON.parse(val) : [];
+      } catch (e) {
+        return [];
+      }
+    };
+
+    return {
+      id: get('ID'),
+      kodeLayanan: get('KODELAYANAN') || get('KODE_LAYANAN') || get('ID'),
+      kategori: get('KATEGORI'),
+      namaLayanan: get('NAMALAYANAN') || get('NAMA_LAYANAN'),
+      deskripsi: get('DESKRIPSI'),
+      aktif: get('AKTIF') !== 'false' && get('AKTIF') !== '0',
+      slaHari: parseInt(get('SLAHARI') || get('SLA_HARI')) || 3,
+      icon: get('ICON') || 'bi-gear-fill',
+      fields: getJson('FIELDS'),
+      requiredDocuments: getJson('REQUIREDDOCUMENTS') || getJson('REQUIRED_DOCUMENTS'),
+      rolePetugas: get('ROLEPETUGAS') || get('ROLE_PETUGAS'),
+      urutan: parseInt(get('URUTAN')) || 1
+    } as MasterLayanan;
+  }, bypassCache);
+
+  if (!data || data.length === 0) {
+    return MASTER_LAYANAN_DATA;
+  }
+  return data;
+};
+
+export const fetchLayananSDMFromSheets = (bypassCache = false): Promise<PengajuanSDM[]> => {
+  return fetchTableData<PengajuanSDM>('LAYANAN_SDM', 'layanan_sdm_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    const getJson = (k: string) => {
+      try {
+        const val = get(k);
+        return val ? JSON.parse(val) : {};
+      } catch (e) {
+        return {};
+      }
+    };
+
+    return {
+      id: get('ID'),
+      idPengajuan: get('ID'),
+      nomorTiket: get('NOMORTIKET') || get('NOMOR_TIKET') || get('ID'),
+      nip: get('NIP'),
+      nama: get('NAMA'),
+      unitKerja: get('UNITKERJA') || get('UNIT_KERJA'),
+      jabatan: get('JABATAN'),
+      pangkat: get('PANGKAT'),
+      statusKepegawaian: get('STATUSKEPEGAWAIAN') || get('STATUS_KEPEGAWAIAN'),
+      email: get('EMAIL'),
+      noHp: get('NOHP') || get('NO_HP'),
+      kategori: get('KATEGORI'),
+      idLayanan: get('IDLAYANAN') || get('ID_LAYANAN'),
+      namaLayanan: get('NAMALAYANAN') || get('NAMA_LAYANAN'),
+      tanggalPengajuan: get('TANGGALPENGAJUAN') || get('TANGGAL_PENGAJUAN') || parseDateToYYYYMMDD(new Date()),
+      status: (get('STATUS') || 'DIAJUKAN') as any,
+      prioritas: (get('PRIORITAS') || 'NORMAL') as any,
+      petugasId: get('PETUGASID') || get('PETUGAS_ID'),
+      petugasNama: get('PETUGASNAMA') || get('PETUGAS_NAMA'),
+      keterangan: get('KETERANGAN'),
+      dataForm: getJson('DATAFORM') || getJson('DATA_FORM'),
+      catatanVerifikator: get('CATATANVERIFIKATOR') || get('CATATAN_VERIFIKATOR'),
+      catatanPerbaikan: get('CATATANPERBAIKAN') || get('CATATAN_PERBAIKAN'),
+      alasanPenolakan: get('ALASANPENOLAKAN') || get('ALASAN_PENOLAKAN'),
+      hasil: get('HASIL'),
+      linkHasil: get('LINKHASIL') || get('LINK_HASIL'),
+      nomorSuratHasil: get('NOMORSURATHASIL') || get('NOMOR_SURAT_HASIL'),
+      fileHasilUrl: get('FILEHASILURL') || get('FILE_HASIL_URL'),
+      tanggalSelesai: get('TANGGALSELESAI') || get('TANGGAL_SELESAI'),
+      createdAt: get('CREATEDAT') || get('CREATED_AT'),
+      updatedAt: get('UPDATEDAT') || get('UPDATED_AT')
+    } as PengajuanSDM;
+  }, bypassCache);
+};
+
+export const fetchDokumenPengajuanFromSheets = (idPengajuanOrTiket?: string, bypassCache = false): Promise<DokumenPengajuan[]> => {
+  return fetchTableData<DokumenPengajuan>('LAYANAN_SDM_DOKUMEN', 'layanan_sdm_dokumen_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return {
+      id: get('ID'),
+      idDokumen: get('ID'),
+      idPengajuan: get('IDPENGAJUAN') || get('ID_PENGAJUAN'),
+      nomorTiket: get('NOMORTIKET') || get('NOMOR_TIKET'),
+      namaDokumen: get('NAMADOKUMEN') || get('NAMA_DOKUMEN'),
+      jenisDokumen: get('JENISDOKUMEN') || get('JENIS_DOKUMEN'),
+      fileId: get('FILEID') || get('FILE_ID'),
+      fileName: get('FILENAME') || get('FILE_NAME'),
+      fileUrl: get('FILEURL') || get('FILE_URL'),
+      mimeType: get('MIMETYPE') || get('MIME_TYPE'),
+      size: parseInt(get('SIZE')) || 0,
+      uploadedBy: get('UPLOADEDBY') || get('UPLOADED_BY'),
+      uploadedAt: get('UPLOADEDAT') || get('UPLOADED_AT'),
+      versi: parseInt(get('VERSI')) || 1,
+      aktif: get('AKTIF') !== 'false' && get('AKTIF') !== '0'
+    } as DokumenPengajuan;
+  }, bypassCache).then(docs => {
+    if (!idPengajuanOrTiket) return docs;
+    return docs.filter(d => d.idPengajuan === idPengajuanOrTiket || d.nomorTiket === idPengajuanOrTiket);
+  });
+};
+
+export const fetchLogPengajuanFromSheets = (idPengajuanOrTiket?: string, bypassCache = false): Promise<LogPengajuan[]> => {
+  return fetchTableData<LogPengajuan>('LAYANAN_SDM_LOG', 'layanan_sdm_log_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return {
+      id: get('ID'),
+      idLog: get('ID'),
+      idPengajuan: get('IDPENGAJUAN') || get('ID_PENGAJUAN'),
+      nomorTiket: get('NOMORTIKET') || get('NOMOR_TIKET'),
+      timestamp: get('TIMESTAMP'),
+      nipUser: get('NIPUSER') || get('NIP_USER'),
+      namaUser: get('NAMAUSER') || get('NAMA_USER'),
+      role: get('ROLE'),
+      statusLama: get('STATUSLAMA') || get('STATUS_LAMA'),
+      statusBaru: get('STATUSBARU') || get('STATUS_BARU'),
+      catatan: get('CATATAN')
+    } as LogPengajuan;
+  }, bypassCache).then(logs => {
+    if (!idPengajuanOrTiket) return logs;
+    return logs.filter(l => l.idPengajuan === idPengajuanOrTiket || l.nomorTiket === idPengajuanOrTiket);
+  });
+};
+
+export const fetchPesanPengajuanFromSheets = (idPengajuanOrTiket?: string, bypassCache = false): Promise<PesanPengajuan[]> => {
+  return fetchTableData<PesanPengajuan>('LAYANAN_SDM_PESAN', 'layanan_sdm_pesan_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    return {
+      id: get('ID'),
+      idPesan: get('ID'),
+      idPengajuan: get('IDPENGAJUAN') || get('ID_PENGAJUAN'),
+      nomorTiket: get('NOMORTIKET') || get('NOMOR_TIKET'),
+      pengirimNip: get('PENGIRIMNIP') || get('PENGIRIM_NIP'),
+      pengirimNama: get('PENGIRIMNAMA') || get('PENGIRIM_NAMA'),
+      role: get('ROLE'),
+      pesan: get('PESAN'),
+      fileId: get('FILEID') || get('FILE_ID'),
+      fileUrl: get('FILEURL') || get('FILE_URL'),
+      fileName: get('FILENAME') || get('FILE_NAME'),
+      timestamp: get('TIMESTAMP'),
+      dibaca: get('DIBACA') === 'true' || get('DIBACA') === '1'
+    } as PesanPengajuan;
+  }, bypassCache).then(pesan => {
+    if (!idPengajuanOrTiket) return pesan;
+    return pesan.filter(p => p.idPengajuan === idPengajuanOrTiket || p.nomorTiket === idPengajuanOrTiket);
+  });
+};
+
+export const generateNomorTiketSDMKI = async (year = new Date().getFullYear()): Promise<string> => {
+  try {
+    const records = await fetchLayananSDMFromSheets(true);
+    const prefix = `SDMKI-${year}-`;
+    const filtered = records
+      .map(r => r.nomorTiket || '')
+      .filter(t => t.startsWith(prefix));
+    
+    let maxSeq = 0;
+    filtered.forEach(t => {
+      const parts = t.split('-');
+      if (parts.length === 3) {
+        const seq = parseInt(parts[2]);
+        if (!isNaN(seq) && seq > maxSeq) {
+          maxSeq = seq;
+        }
+      }
+    });
+
+    const nextSeq = maxSeq + 1;
+    return `${prefix}${String(nextSeq).padStart(6, '0')}`;
+  } catch (e) {
+    const rand = Math.floor(100000 + Math.random() * 900000);
+    return `SDMKI-${year}-${rand}`;
+  }
+};
+
+export const savePengajuanSDMToSheets = async (
+  item: PengajuanSDM,
+  currentUser?: { nip: string; name: string; role?: string },
+  logCatatan?: string,
+  statusLama?: string
+): Promise<boolean> => {
+  const currentList = await fetchLayananSDMFromSheets(false);
+  const nowIso = new Date().toISOString();
+  const existingIdx = currentList.findIndex(x => x.id === item.id || (item.nomorTiket && x.nomorTiket === item.nomorTiket));
+  
+  const payloadToSave = {
+    ...item,
+    dataForm: typeof item.dataForm === 'object' ? JSON.stringify(item.dataForm) : (item.dataForm || '{}'),
+    updatedAt: nowIso,
+    createdAt: item.createdAt || nowIso
+  };
+
+  let updatedList: PengajuanSDM[];
+  if (existingIdx >= 0) {
+    updatedList = [...currentList];
+    updatedList[existingIdx] = { ...item, updatedAt: nowIso };
+  } else {
+    updatedList = [item, ...currentList];
+  }
+
+  // Update local storage cache
+  localStorage.setItem('layanan_sdm_db', JSON.stringify(updatedList));
+  window.dispatchEvent(new Event('storage_updated'));
+
+  // Sync to remote sheet
+  const syncSuccess = await syncTableRemote('LAYANAN_SDM', 'SAVE', payloadToSave);
+
+  // Write log trail
+  if (currentUser) {
+    const logItem: LogPengajuan = {
+      id: `LOG_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      idPengajuan: item.id,
+      nomorTiket: item.nomorTiket,
+      timestamp: nowIso,
+      nipUser: currentUser.nip,
+      namaUser: currentUser.name,
+      role: currentUser.role || 'Pegawai',
+      statusLama: statusLama || (existingIdx >= 0 ? currentList[existingIdx].status : '-'),
+      statusBaru: item.status,
+      catatan: logCatatan || `Status pengajuan diubah menjadi ${item.status}`
+    };
+
+    const currentLogs = await fetchLogPengajuanFromSheets(undefined, false);
+    localStorage.setItem('layanan_sdm_log_db', JSON.stringify([logItem, ...currentLogs]));
+    syncTableRemote('LAYANAN_SDM_LOG', 'SAVE', logItem).catch(console.error);
+  }
+
+  return syncSuccess;
+};
+
+export const saveDokumenPengajuanToSheets = async (doc: DokumenPengajuan): Promise<boolean> => {
+  const currentDocs = await fetchDokumenPengajuanFromSheets(undefined, false);
+  const idx = currentDocs.findIndex(d => d.id === doc.id);
+  let updated: DokumenPengajuan[];
+  if (idx >= 0) {
+    updated = [...currentDocs];
+    updated[idx] = doc;
+  } else {
+    updated = [doc, ...currentDocs];
+  }
+
+  localStorage.setItem('layanan_sdm_dokumen_db', JSON.stringify(updated));
+  window.dispatchEvent(new Event('storage_updated'));
+
+  const payload = {
+    ...doc,
+    fileBase64: '' // do not send huge base64 payload in row data, only URL
+  };
+  return syncTableRemote('LAYANAN_SDM_DOKUMEN', 'SAVE', payload);
+};
+
+export const sendPesanPengajuanToSheets = async (pesan: PesanPengajuan): Promise<boolean> => {
+  const currentPesan = await fetchPesanPengajuanFromSheets(undefined, false);
+  const updated = [...currentPesan, pesan];
+  localStorage.setItem('layanan_sdm_pesan_db', JSON.stringify(updated));
+  window.dispatchEvent(new Event('storage_updated'));
+  return syncTableRemote('LAYANAN_SDM_PESAN', 'SAVE', pesan);
+};
+
+export interface SLAInfo {
+  slaHari: number;
+  tanggalPengajuan: string;
+  deadlineDate: Date;
+  deadlineStr: string;
+  hariTersisa: number;
+  statusSla: 'ON_TRACK' | 'WARNING' | 'OVERDUE' | 'COMPLETED';
+  label: string;
+  colorClass: string;
+  badgeClass: string;
+}
+
+export const calculateSLA = (
+  tanggalPengajuan: string,
+  slaHari = 3,
+  statusPengajuan?: string,
+  tanggalSelesai?: string
+): SLAInfo => {
+  const start = new Date(tanggalPengajuan || new Date());
+  
+  // Calculate business days (skip Saturday and Sunday)
+  let count = 0;
+  const deadline = new Date(start);
+  while (count < slaHari) {
+    deadline.setDate(deadline.getDate() + 1);
+    const dayOfWeek = deadline.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      count++;
+    }
+  }
+
+  const deadlineStr = deadline.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+
+  if (statusPengajuan === 'SELESAI') {
+    const doneDate = tanggalSelesai ? new Date(tanggalSelesai) : new Date();
+    const isLate = doneDate > deadline;
+    return {
+      slaHari,
+      tanggalPengajuan,
+      deadlineDate: deadline,
+      deadlineStr,
+      hariTersisa: 0,
+      statusSla: 'COMPLETED',
+      label: isLate ? 'Selesai (Melewati SLA)' : 'Selesai Tepat Waktu',
+      colorClass: isLate ? 'text-amber-600' : 'text-emerald-600',
+      badgeClass: isLate ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    };
+  }
+
+  if (statusPengajuan === 'DITOLAK' || statusPengajuan === 'DIBATALKAN') {
+    return {
+      slaHari,
+      tanggalPengajuan,
+      deadlineDate: deadline,
+      deadlineStr,
+      hariTersisa: 0,
+      statusSla: 'COMPLETED',
+      label: statusPengajuan === 'DITOLAK' ? 'Ditolak' : 'Dibatalkan',
+      colorClass: 'text-slate-500',
+      badgeClass: 'bg-slate-100 text-slate-600 border-slate-200'
+    };
+  }
+
+  const today = new Date();
+  const diffTime = deadline.getTime() - today.getTime();
+  const hariTersisa = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (hariTersisa < 0) {
+    return {
+      slaHari,
+      tanggalPengajuan,
+      deadlineDate: deadline,
+      deadlineStr,
+      hariTersisa,
+      statusSla: 'OVERDUE',
+      label: `Terlambat ${Math.abs(hariTersisa)} hari`,
+      colorClass: 'text-rose-600',
+      badgeClass: 'bg-rose-50 text-rose-700 border-rose-200 font-medium'
+    };
+  } else if (hariTersisa <= 1) {
+    return {
+      slaHari,
+      tanggalPengajuan,
+      deadlineDate: deadline,
+      deadlineStr,
+      hariTersisa,
+      statusSla: 'WARNING',
+      label: hariTersisa === 0 ? 'Hari ini deadline' : '1 hari tersisa',
+      colorClass: 'text-amber-600',
+      badgeClass: 'bg-amber-50 text-amber-700 border-amber-200 font-medium'
+    };
+  }
+
+  return {
+    slaHari,
+    tanggalPengajuan,
+    deadlineDate: deadline,
+    deadlineStr,
+    hariTersisa,
+    statusSla: 'ON_TRACK',
+    label: `${hariTersisa} hari tersisa`,
+    colorClass: 'text-emerald-600',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-medium'
+  };
+};
 

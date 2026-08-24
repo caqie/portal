@@ -3,6 +3,17 @@ import { useAuth } from '../AuthContext';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  Cell
+} from 'recharts';
 import { 
   DEFAULT_HOLIDAYS, 
   parseSinglePdf, 
@@ -99,8 +110,8 @@ export const calculateUangMakanByGolongan = (
 const UangMakanPage: React.FC = () => {
   const { user, logActivity } = useAuth();
 
-  // Active View Tab: Rekap Pegawai | Detail Absensi | Kalender Libur
-  const [activeTab, setActiveTab] = useState<'rekap_pegawai' | 'detail_absensi' | 'kalender_libur'>('rekap_pegawai');
+  // Active View Tab: Dashboard | Rekap Pegawai | Detail Absensi | Kalender Libur
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'rekap_pegawai' | 'detail_absensi' | 'kalender_libur'>('dashboard');
 
   // Tariff Config State
   const [tariffConfig, setTariffConfig] = useState<TariffConfig>(() => {
@@ -466,6 +477,136 @@ const UangMakanPage: React.FC = () => {
       totalFilesDrive: storedPdfs.length
     };
   }, [results, tariffConfig, storedPdfs]);
+
+  // Analytics and Aggregations for Recharts Dashboard
+  const chartAnalyticsData = useMemo(() => {
+    if (results.length === 0) {
+      return {
+        monthlyData: [],
+        golonganData: [],
+        hasData: false,
+        totalNetOverall: 0,
+        totalBrutoOverall: 0,
+        totalPphOverall: 0,
+        totalPegawaiOverall: 0,
+        totalHariOverall: 0
+      };
+    }
+
+    const monthlyMap: Record<string, {
+      month: string;
+      totalBruto: number;
+      totalPph: number;
+      totalNet: number;
+      gol4Net: number;
+      gol3Net: number;
+      gol12Net: number;
+      pegawaiCount: number;
+      totalDays: number;
+    }> = {};
+
+    const golonganMap: Record<string, {
+      category: string;
+      totalNet: number;
+      totalBruto: number;
+      totalPph: number;
+      pegawaiCount: number;
+      totalDays: number;
+    }> = {
+      'Golongan IV': { category: 'Golongan IV', totalNet: 0, totalBruto: 0, totalPph: 0, pegawaiCount: 0, totalDays: 0 },
+      'Golongan III': { category: 'Golongan III', totalNet: 0, totalBruto: 0, totalPph: 0, pegawaiCount: 0, totalDays: 0 },
+      'Golongan I & II': { category: 'Golongan I & II', totalNet: 0, totalBruto: 0, totalPph: 0, pegawaiCount: 0, totalDays: 0 },
+    };
+
+    let totalNetOverall = 0;
+    let totalBrutoOverall = 0;
+    let totalPphOverall = 0;
+    let totalHariOverall = 0;
+    const uniqueNips = new Set<string>();
+
+    results.forEach(r => {
+      const umDays = r.days.filter(isHariMasukUM).length;
+      const calc = calculateUangMakanByGolongan(r.golongan || '', umDays, tariffConfig);
+
+      totalNetOverall += calc.netTotal;
+      totalBrutoOverall += calc.brutoTotal;
+      totalPphOverall += calc.pphTotal;
+      totalHariOverall += umDays;
+      if (r.nip) uniqueNips.add(r.nip);
+
+      let monthLabel = (r.periode || '').trim();
+      if (!monthLabel) {
+        const firstValidDay = r.days.find(d => d.dateStr || d.date);
+        if (firstValidDay) {
+          const dStr = firstValidDay.dateStr || (firstValidDay.date ? getIsoDateStr(firstValidDay.date) : '');
+          if (dStr && dStr.includes('-')) {
+            const parts = dStr.split('-');
+            if (parts.length >= 2) {
+              monthLabel = `${parts[1]}-${parts[0]}`;
+            }
+          }
+        }
+      }
+      if (!monthLabel) monthLabel = 'Periode Aktif';
+
+      if (!monthlyMap[monthLabel]) {
+        monthlyMap[monthLabel] = {
+          month: monthLabel,
+          totalBruto: 0,
+          totalPph: 0,
+          totalNet: 0,
+          gol4Net: 0,
+          gol3Net: 0,
+          gol12Net: 0,
+          pegawaiCount: 0,
+          totalDays: 0
+        };
+      }
+
+      monthlyMap[monthLabel].totalBruto += calc.brutoTotal;
+      monthlyMap[monthLabel].totalPph += calc.pphTotal;
+      monthlyMap[monthLabel].totalNet += calc.netTotal;
+      monthlyMap[monthLabel].pegawaiCount += 1;
+      monthlyMap[monthLabel].totalDays += umDays;
+
+      if (calc.categoryName.includes('IV')) {
+        monthlyMap[monthLabel].gol4Net += calc.netTotal;
+        golonganMap['Golongan IV'].totalNet += calc.netTotal;
+        golonganMap['Golongan IV'].totalBruto += calc.brutoTotal;
+        golonganMap['Golongan IV'].totalPph += calc.pphTotal;
+        golonganMap['Golongan IV'].pegawaiCount += 1;
+        golonganMap['Golongan IV'].totalDays += umDays;
+      } else if (calc.categoryName.includes('III')) {
+        monthlyMap[monthLabel].gol3Net += calc.netTotal;
+        golonganMap['Golongan III'].totalNet += calc.netTotal;
+        golonganMap['Golongan III'].totalBruto += calc.brutoTotal;
+        golonganMap['Golongan III'].totalPph += calc.pphTotal;
+        golonganMap['Golongan III'].pegawaiCount += 1;
+        golonganMap['Golongan III'].totalDays += umDays;
+      } else {
+        monthlyMap[monthLabel].gol12Net += calc.netTotal;
+        golonganMap['Golongan I & II'].totalNet += calc.netTotal;
+        golonganMap['Golongan I & II'].totalBruto += calc.brutoTotal;
+        golonganMap['Golongan I & II'].totalPph += calc.pphTotal;
+        golonganMap['Golongan I & II'].pegawaiCount += 1;
+        golonganMap['Golongan I & II'].totalDays += umDays;
+      }
+    });
+
+    const monthlyData = Object.values(monthlyMap);
+    const golonganData = Object.values(golonganMap);
+
+    return {
+      monthlyData,
+      golonganData,
+      hasData: monthlyData.length > 0,
+      totalNetOverall,
+      totalBrutoOverall,
+      totalPphOverall,
+      totalPegawaiOverall: uniqueNips.size || results.length,
+      totalHariOverall
+    };
+  }, [results, tariffConfig]);
 
   // Filtered Results for pegawai
   const filteredResults = useMemo(() => {
@@ -1090,6 +1231,16 @@ const UangMakanPage: React.FC = () => {
         {/* TAB NAVIGATION */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-gray-100 p-1.5 rounded-2xl">
           <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'dashboard'
+                ? 'bg-white text-emerald-800 shadow-md'
+                : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <i className="bi bi-pie-chart-fill"></i> Dashboard Ringkasan Realisasi
+          </button>
+          <button
             onClick={() => setActiveTab('rekap_pegawai')}
             className={`flex-1 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
               activeTab === 'rekap_pegawai'
@@ -1097,7 +1248,7 @@ const UangMakanPage: React.FC = () => {
                 : 'text-gray-500 hover:text-gray-900'
             }`}
           >
-            <i className="bi bi-person-lines-fill"></i> Tab 1: Rekap Uang Makan Per Golongan
+            <i className="bi bi-person-lines-fill"></i> Tab 1: Rekap Per Golongan
           </button>
           <button
             onClick={() => setActiveTab('detail_absensi')}
@@ -1107,7 +1258,7 @@ const UangMakanPage: React.FC = () => {
                 : 'text-gray-500 hover:text-gray-900'
             }`}
           >
-            <i className="bi bi-calendar3"></i> Tab 2: Detail Tanggal Absensi (Format Sheet 3)
+            <i className="bi bi-calendar3"></i> Tab 2: Detail Absensi
           </button>
           <button
             onClick={() => setActiveTab('kalender_libur')}
@@ -1117,9 +1268,230 @@ const UangMakanPage: React.FC = () => {
                 : 'text-gray-500 hover:text-gray-900'
             }`}
           >
-            <i className="bi bi-calendar-event-fill"></i> Tab 3: Pengaturan Kalender Libur ({holidays.length})
+            <i className="bi bi-calendar-event-fill"></i> Tab 3: Kalender Libur ({holidays.length})
           </button>
         </div>
+
+        {/* DASHBOARD RINGKASAN REALISASI BULANAN */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-8 animate-fadeIn">
+            {/* TOP STAT CARDS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-gradient-to-br from-emerald-600 to-teal-800 p-6 rounded-2xl text-white shadow-lg relative overflow-hidden">
+                <div className="absolute -right-3 -bottom-3 text-white/10 text-6xl font-black">
+                  <i className="bi bi-cash-stack"></i>
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100">Total Realisasi Bersih (Net)</p>
+                <h3 className="text-xl md:text-2xl font-black mt-2 tracking-tight">
+                  Rp {chartAnalyticsData.totalNetOverall.toLocaleString('id-ID')}
+                </h3>
+                <p className="text-[9px] font-medium text-emerald-100 mt-2 flex items-center gap-1">
+                  <i className="bi bi-check-circle-fill"></i> Dana Siap Dibayarkan Ke Pegawai
+                </p>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Hak Bruto</p>
+                <h3 className="text-xl md:text-2xl font-black text-slate-900 mt-2 tracking-tight">
+                  Rp {chartAnalyticsData.totalBrutoOverall.toLocaleString('id-ID')}
+                </h3>
+                <p className="text-[9px] font-bold text-sky-600 mt-2 flex items-center gap-1">
+                  <i className="bi bi-calculator-fill"></i> Sebelum Potongan PPh
+                </p>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Potongan PPh</p>
+                <h3 className="text-xl md:text-2xl font-black text-rose-600 mt-2 tracking-tight">
+                  Rp {chartAnalyticsData.totalPphOverall.toLocaleString('id-ID')}
+                </h3>
+                <p className="text-[9px] font-bold text-rose-500 mt-2 flex items-center gap-1">
+                  <i className="bi bi-shield-x"></i> PPh Pasal 21 PMK
+                </p>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Penerima &amp; Total Hari</p>
+                <h3 className="text-xl md:text-2xl font-black text-slate-800 mt-2 tracking-tight">
+                  {chartAnalyticsData.totalPegawaiOverall} <span className="text-xs font-bold text-gray-400">Pegawai</span>
+                </h3>
+                <p className="text-[9px] font-bold text-emerald-600 mt-2 flex items-center gap-1">
+                  <i className="bi bi-calendar-check-fill"></i> Total {chartAnalyticsData.totalHariOverall} Hari Masuk
+                </p>
+              </div>
+            </div>
+
+            {/* RECHARTS BAR CHARTS SECTION */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* CHART 1: Total Realisasi Pembayaran Bulanan */}
+              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-gray-100 pb-4">
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-gray-900 tracking-wider flex items-center gap-2">
+                      <i className="bi bi-bar-chart-line-fill text-emerald-600 text-sm"></i> Realisasi Pembayaran Bulanan (Rp)
+                    </h4>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase mt-0.5">
+                      Grafik Batang Perbandingan Nominal Bersih, Bruto, dan PPh
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-[9px] font-black uppercase border border-emerald-100">
+                    Grafik Batang Recharts
+                  </span>
+                </div>
+
+                <div className="h-72 w-full pt-2">
+                  {chartAnalyticsData.hasData ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartAnalyticsData.monthlyData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="month" tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} dy={10} />
+                        <YAxis
+                          tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }}
+                          tickFormatter={(v) => `Rp ${(v / 1000000).toFixed(1)}M`}
+                        />
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              return (
+                                <div className="bg-slate-900 text-white p-3 rounded-2xl shadow-xl border border-slate-700 text-xs font-sans">
+                                  <p className="font-black text-emerald-400 mb-2 border-b border-slate-700 pb-1 uppercase tracking-wider">{label}</p>
+                                  {payload.map((entry: any, index: number) => (
+                                    <div key={`item-${index}`} className="flex items-center justify-between gap-4 my-1">
+                                      <span className="flex items-center gap-1.5 text-slate-300 font-bold uppercase text-[10px]">
+                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }}></span>
+                                        {entry.name}:
+                                      </span>
+                                      <span className="font-mono font-black text-white">Rp {(entry.value || 0).toLocaleString('id-ID')}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 800, paddingTop: '10px' }} />
+                        <Bar dataKey="totalNet" name="Uang Makan Bersih (Net)" fill="#059669" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="totalBruto" name="Total Bruto" fill="#0284c7" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="totalPph" name="Potongan PPh" fill="#e11d48" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 p-6">
+                      <i className="bi bi-bar-chart-line text-4xl text-gray-300 mb-2"></i>
+                      <p className="text-xs font-black uppercase text-gray-600">Belum ada data realisasi bulanan</p>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">Unggah PDF berkas absensi untuk melihat grafik rekapitulasi</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CHART 2: Breakdown Realisasi Per Golongan */}
+              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-gray-100 pb-4">
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-gray-900 tracking-wider flex items-center gap-2">
+                      <i className="bi bi-pie-chart-fill text-purple-600 text-sm"></i> Realisasi Uang Makan Per Golongan
+                    </h4>
+                    <p className="text-[9px] font-bold text-gray-400 uppercase mt-0.5">
+                      Distribusi Pembayaran Per Kategori Golongan PMK
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full text-[9px] font-black uppercase border border-purple-100">
+                    Breakdown Golongan
+                  </span>
+                </div>
+
+                <div className="h-72 w-full pt-2">
+                  {chartAnalyticsData.hasData ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartAnalyticsData.golonganData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="category" tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} dy={10} />
+                        <YAxis
+                          tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }}
+                          tickFormatter={(v) => `Rp ${(v / 1000000).toFixed(1)}M`}
+                        />
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="bg-slate-900 text-white p-3 rounded-2xl shadow-xl border border-slate-700 text-xs font-sans">
+                                  <p className="font-black text-purple-400 mb-2 border-b border-slate-700 pb-1 uppercase tracking-wider">{label}</p>
+                                  <div className="space-y-1 text-[10px]">
+                                    <p className="flex justify-between gap-4 font-bold"><span className="text-slate-400">Total Bersih:</span> <span className="font-mono font-black text-emerald-400">Rp {(data.totalNet || 0).toLocaleString('id-ID')}</span></p>
+                                    <p className="flex justify-between gap-4 font-bold"><span className="text-slate-400">Total Bruto:</span> <span className="font-mono text-sky-300">Rp {(data.totalBruto || 0).toLocaleString('id-ID')}</span></p>
+                                    <p className="flex justify-between gap-4 font-bold"><span className="text-slate-400">Potongan PPh:</span> <span className="font-mono text-rose-300">Rp {(data.totalPph || 0).toLocaleString('id-ID')}</span></p>
+                                    <p className="flex justify-between gap-4 font-bold"><span className="text-slate-400">Jumlah Pegawai:</span> <span className="font-mono text-amber-300">{data.pegawaiCount} Orang</span></p>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar dataKey="totalNet" name="Total Realisasi Bersih" radius={[8, 8, 0, 0]}>
+                          {chartAnalyticsData.golonganData.map((entry, index) => {
+                            let color = '#10b981';
+                            if (entry.category.includes('IV')) color = '#9333ea';
+                            else if (entry.category.includes('III')) color = '#2563eb';
+                            return <Cell key={`cell-${index}`} fill={color} />;
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 p-6">
+                      <i className="bi bi-pie-chart text-4xl text-gray-300 mb-2"></i>
+                      <p className="text-xs font-black uppercase text-gray-600">Belum ada data per golongan</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* MONTHLY SUMMARY TABLE BREAKDOWN */}
+            {chartAnalyticsData.hasData && (
+              <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                  <h4 className="text-xs font-black uppercase text-gray-900 tracking-wider flex items-center gap-2">
+                    <i className="bi bi-table text-emerald-600"></i> Tabel Ringkasan Realisasi Pembayaran Bulanan
+                  </h4>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">
+                    {chartAnalyticsData.monthlyData.length} Periode Terbaca
+                  </span>
+                </div>
+                <div className="overflow-x-auto border border-gray-100 rounded-2xl shadow-inner">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 text-[9px] font-black uppercase text-gray-400 border-b border-gray-100 tracking-wider">
+                        <th className="p-3">Periode Bulan</th>
+                        <th className="p-3 text-center">Jumlah Pegawai</th>
+                        <th className="p-3 text-center">Total Hari Masuk</th>
+                        <th className="p-3 text-right">Hak Bruto (Rp)</th>
+                        <th className="p-3 text-right">Potongan PPh (Rp)</th>
+                        <th className="p-3 text-right">Diterima Bersih / Net (Rp)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 text-xs font-bold">
+                      {chartAnalyticsData.monthlyData.map((m, idx) => (
+                        <tr key={idx} className="hover:bg-emerald-50/30 transition-colors">
+                          <td className="p-3 font-black text-gray-900 uppercase">{m.month}</td>
+                          <td className="p-3 text-center text-gray-600">{m.pegawaiCount} Orang</td>
+                          <td className="p-3 text-center text-gray-600">{m.totalDays} Hari</td>
+                          <td className="p-3 text-right font-mono text-sky-700">Rp {m.totalBruto.toLocaleString('id-ID')}</td>
+                          <td className="p-3 text-right font-mono text-rose-600">Rp {m.totalPph.toLocaleString('id-ID')}</td>
+                          <td className="p-3 text-right font-mono font-black text-emerald-600">Rp {m.totalNet.toLocaleString('id-ID')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* TAB 1: REKAP UANG MAKAN PER PEGAWAI ACCORDING TO PMK GOLONGAN */}
         {activeTab === 'rekap_pegawai' && (

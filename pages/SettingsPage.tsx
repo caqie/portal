@@ -462,7 +462,7 @@ const SettingsPage = () => {
               const lower = parsedVal.toLowerCase();
               if (lower === 'aktif' || lower === 'active' || lower.startsWith('aktif')) payload.status = 'Aktif';
               else if (lower === 'tidak aktif' || lower === 'non aktif' || lower === 'non-aktif' || lower === 'inactive' || lower.startsWith('tidak')) payload.status = 'Tidak Aktif';
-              else if (lower === 'pensiun' || lower === 'retired' || lower.startsWith('pensiun') || lower.startsWith('bup')) payload.status = 'Pensiun';
+              else if (lower === 'pensiun' || lower === 'retired' || lower.startsWith('pensiun') || lower.startsWith('bup')) payload.status = 'Tidak Aktif';
               else if (lower === 'tugas belajar' || lower === 'tubel' || lower.startsWith('tugas')) payload.status = 'Tugas Belajar';
               else payload.status = parsedVal;
             } else if (normalizedKey === 'gender' || normalizedKey === 'jeniskelamin' || normalizedKey === 'jk' || normalizedKey === 'lp' || normalizedKey === 'genderlp') {

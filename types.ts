@@ -561,3 +561,185 @@ export interface PengembanganTalenta {
   status: string;
 }
 
+// === LAYANAN SDM KI (HELPDESK & TICKETING SYSTEM) ===
+
+export type StatusPengajuan =
+  | 'DRAFT'
+  | 'DIAJUKAN'
+  | 'MENUNGGU_VERIFIKASI'
+  | 'DIVERIFIKASI'
+  | 'DALAM_PROSES'
+  | 'PERLU_PERBAIKAN'
+  | 'MENUNGGU_PEMOHON'
+  | 'SELESAI'
+  | 'DITOLAK'
+  | 'DIBATALKAN';
+
+export type PrioritasPengajuan = 'NORMAL' | 'URGENT';
+
+export interface LayananCategory {
+  id: string;
+  nama: string;
+  deskripsi: string;
+  icon: string;
+  color: string;
+}
+
+export interface FormFieldOption {
+  value: string;
+  label: string;
+}
+
+export interface FormFieldConfig {
+  name: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select' | 'date' | 'number';
+  options?: string[];
+  placeholder?: string;
+  required: boolean;
+  helperText?: string;
+  defaultValue?: string;
+}
+
+export interface RequiredDocConfig {
+  id: string;
+  label: string;
+  required: boolean;
+  description?: string;
+}
+
+export interface MasterLayanan {
+  id: string;
+  kodeLayanan: string;
+  kategori: string;
+  namaLayanan: string;
+  deskripsi?: string;
+  aktif: boolean;
+  slaHari: number;
+  icon?: string;
+  fields: FormFieldConfig[];
+  requiredDocuments: RequiredDocConfig[];
+  rolePetugas?: string;
+  urutan?: number;
+}
+
+export interface PengajuanSDM {
+  id: string;
+  idPengajuan?: string;
+  nomorTiket: string;
+  nip: string;
+  nama: string;
+  unitKerja: string;
+  jabatan: string;
+  pangkat: string;
+  statusKepegawaian?: string;
+  email?: string;
+  noHp?: string;
+  kategori: string;
+  idLayanan: string;
+  namaLayanan: string;
+  tanggalPengajuan: string;
+  status: StatusPengajuan;
+  prioritas: PrioritasPengajuan;
+  petugasId?: string;
+  petugasNama?: string;
+  keterangan?: string;
+  dataForm: Record<string, any>;
+  catatanVerifikator?: string;
+  catatanPerbaikan?: string;
+  alasanPenolakan?: string;
+  hasil?: string;
+  linkHasil?: string;
+  nomorSuratHasil?: string;
+  fileHasilUrl?: string;
+  tanggalSelesai?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface DokumenPengajuan {
+  id: string;
+  idDokumen?: string;
+  idPengajuan: string;
+  nomorTiket: string;
+  namaDokumen: string;
+  jenisDokumen: string;
+  fileId?: string;
+  fileName: string;
+  fileUrl?: string;
+  fileBase64?: string;
+  mimeType?: string;
+  size?: number;
+  uploadedBy: string;
+  uploadedAt: string;
+  versi?: number;
+  aktif: boolean;
+}
+
+export interface LogPengajuan {
+  id: string;
+  idLog?: string;
+  idPengajuan: string;
+  nomorTiket: string;
+  timestamp: string;
+  nipUser: string;
+  namaUser: string;
+  role: string;
+  statusLama: string;
+  statusBaru: string;
+  catatan: string;
+}
+
+export interface PesanPengajuan {
+  id: string;
+  idPesan?: string;
+  idPengajuan: string;
+  nomorTiket: string;
+  pengirimNip: string;
+  pengirimNama: string;
+  role: string;
+  pesan: string;
+  fileId?: string;
+  fileUrl?: string;
+  fileName?: string;
+  timestamp: string;
+  dibaca: boolean;
+}
+
+export interface MasterPetugasSDM {
+  id: string;
+  nip: string;
+  nama: string;
+  unit: string;
+  role: string;
+  aktif: boolean;
+  jenisLayanan?: string[];
+}
+
+export type TipeNotifikasiSDM = 
+  | 'PERLU_PERBAIKAN'
+  | 'STATUS_CHANGE'
+  | 'TIKET_BARU'
+  | 'PESAN_BARU'
+  | 'SLA_WARNING'
+  | 'SELESAI'
+  | 'DITOLAK'
+  | 'INFO';
+
+export interface NotifikasiSDM {
+  id: string;
+  idPengajuan: string;
+  nomorTiket: string;
+  judul: string;
+  pesan: string;
+  tipe: TipeNotifikasiSDM;
+  link: string;
+  timestamp: string;
+  dibaca: boolean;
+  targetRole?: 'USER' | 'ADMIN' | 'ALL';
+  targetNip?: string;
+  namaLayanan?: string;
+  prioritas?: 'HIGH' | 'MEDIUM' | 'LOW';
+  extraData?: Record<string, any>;
+}
+

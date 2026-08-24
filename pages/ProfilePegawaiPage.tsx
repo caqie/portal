@@ -5,7 +5,7 @@ import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFrom
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
-import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, BANK_LIST, formatPegawaiName, polishGelarDanNama } from '../constants';
+import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, BANK_LIST, formatPegawaiName, polishGelarDanNama, getJabatanClassification } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import AutocompleteInput from '../components/AutocompleteInput';
 import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
@@ -574,63 +574,7 @@ const ProfilePegawaiPage = () => {
     setPegawai({ ...pegawai, [field]: list });
   };
 
-  const getJabatanClassification = (p: Pegawai): string => {
-    const es = (p.eselon || '').trim().toUpperCase();
-    const j = (p.jabatan || '').trim().toUpperCase();
-    const kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
 
-    // 1. Primary Source of Truth: Trust Column AN (Jenis Jabatan) from Spreadsheet
-    if (kl.includes('PIMPINAN TINGGI') || kl.includes('JPT')) return 'JPT';
-    if (kl.includes('STRUKTURAL') || kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('MANAJERIAL')) return 'STRUKTURAL';
-    if (kl.includes('FUNGSIONAL TERTENTU') || kl.includes('JFT') || kl === 'FUNGSIONAL') return 'FUNGSIONAL';
-    if (kl.includes('FUNGSIONAL UMUM') || kl.includes('JFU') || kl.includes('PELAKSANA')) return 'PELAKSANA';
-
-    // 2. Secondary: Force JFT markers in name (if says AHLI/MADYA/MUDA/PERTAMA, etc)
-    if (j.includes('AHLI') || j.includes('MADYA') || j.includes('MUDA') || 
-        j.includes('PERTAMA') || j.includes('UTAMA') || j.includes('TERAMPIL') || 
-        j.includes('MAHIR') || j.includes('PENYELIA') || j.includes('PELAKSANA LANJUTAN')) return 'FUNGSIONAL';
-
-    // 3. Fallback: Management Keywords - JPT (Eselon I & II)
-    if (j.includes('DIREKTUR JENDERAL') || j.includes('SEKRETARIS DIREKTORAT JENDERAL') || 
-        j.includes('SEKRETARIS UTAMA') || j.includes('STAF AHLI') || j.includes('INSPEKTUR') || 
-        j.includes('KEPALA BIRO') || j.includes('KEPALA PUSAT') || j.includes('DIREKTUR') || 
-        j.includes('SEKRETARIS DIREKTORAT')) {
-      return 'JPT';
-    }
-
-    // 4. Fallback: Management Keywords - Structural (Eselon III & IV)
-    if (j.includes('KEPALA BAGIAN') || j.includes('KABAG') || 
-        j.includes('KEPALA SUBDIREKTORAT') || j.includes('KASUBDIT') || 
-        j.includes('KEPALA BIDANG') || j.includes('KABID') ||
-        j.includes('KEPALA SEKSI') || j.includes('KASI') || 
-        j.includes('KEPALA SUBBAGIAN') || j.includes('KASUBBAG') || 
-        j.includes('KOORDINATOR') || j.includes('SUBKOORDINATOR') ||
-        j.includes('KEPALA KANTOR') || j.includes('KEPALA SATUAN') ||
-        j.startsWith('KEPALA ') || j.includes(' KEPALA ')) {
-      return 'STRUKTURAL';
-    }
-
-    // 5. Fallback: Pelaksana (JFU) Specific Title Keywords
-    if (j.includes('ANALIS') || j.includes('PENATA KELOLA') || j.includes('PENATA LAYANAN') || 
-        j.includes('PENELAAH') || j.includes('PENGADMINISTRASI') || j.includes('PENGELOLA') || 
-        j.includes('PENGOLAH') || j.includes('PENYUSUN') || j.includes('DOKUMENTALIS') || 
-        j.includes('OPERATOR') || j.includes('FASILITATOR') || j.includes('SEKRETARIS PIMPINAN') ||
-        j.includes('KONSELOR') || j.includes('PENGENDALI KONTEN') || j.includes('PETUGAS') || 
-        j.includes('PRAMU') || j.includes('PENGEMUDI') || j.includes('TEKNISI') || 
-        j.includes('STAF') || j.includes('STAFF')) {
-      return 'PELAKSANA';
-    }
-
-    // 6. Fallback: Eselon
-    if (es && es !== '-') {
-      if (es.startsWith('IV') || es.startsWith('4')) return 'STRUKTURAL';
-      if (es.startsWith('III') || es.startsWith('3')) return 'STRUKTURAL';
-      if (es.startsWith('II') || es.startsWith('2')) return 'JPT';
-      if (es.startsWith('I') || es.startsWith('1')) return 'JPT';
-    }
-
-    return 'PELAKSANA';
-  };
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -913,10 +857,10 @@ const ProfilePegawaiPage = () => {
                     <div className="space-y-2">
                       <label className={labelClass}>Status Pegawai</label>
                       {isEditing ? (
-                        <select className={inputClass} value={pegawai.status || ''} onChange={e => updateField('status', e.target.value)}>
+                        <select className={inputClass} value={pegawai.status || ''} onChange={e => updateField('status', e.target.value === 'Pensiun' ? 'Tidak Aktif' : e.target.value)}>
                           <option value="Aktif">AKTIF</option>
                           <option value="Tidak Aktif">TIDAK AKTIF</option>
-                          <option value="Pensiun">PENSIUN</option>
+                          <option value="Pensiun">PENSIUN (OTOMATIS TIDAK AKTIF)</option>
                           <option value="Tugas Belajar">TUGAS BELAJAR</option>
                         </select>
                       ) : (

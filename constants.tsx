@@ -87,6 +87,64 @@ export const normalizeUnitName = (rawUnit: string): string => {
   return UNIT_KERJA.find(u => u.toLowerCase().includes(cleaned)) || 'LAINNYA';
 };
 
+export const getJabatanClassification = (p: { eselon?: string; jabatan?: string; klasifikasiJabatan?: string; jenisJabatan?: string }): 'JPT' | 'STRUKTURAL' | 'FUNGSIONAL' | 'PELAKSANA' => {
+  const es = (p.eselon || '').trim().toUpperCase();
+  const j = (p.jabatan || '').trim().toUpperCase();
+  const kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
+
+  // 1. Primary Source of Truth: Trust Column AN/AO (Jenis/Klasifikasi Jabatan) from Spreadsheet
+  if (kl.includes('PIMPINAN TINGGI') || kl.includes('JPT')) return 'JPT';
+  if (kl.includes('STRUKTURAL') || kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('MANAJERIAL')) return 'STRUKTURAL';
+  if (kl.includes('FUNGSIONAL UMUM') || kl.includes('JFU') || kl.includes('PELAKSANA')) return 'PELAKSANA';
+  if (kl.includes('FUNGSIONAL') || kl.includes('JFT')) return 'FUNGSIONAL';
+
+  // 2. Secondary: Explicit Functional Job Titles (JFT) in DJKI / Kemenkumham
+  if (
+    j.includes('AHLI') || j.includes('MADYA') || j.includes('MUDA') || 
+    j.includes('PERTAMA') || j.includes('UTAMA') || j.includes('TERAMPIL') || 
+    j.includes('MAHIR') || j.includes('PENYELIA') || j.includes('PELAKSANA LANJUTAN') ||
+    j.includes('PEMERIKSA PATEN') || j.includes('PEMERIKSA MEREK') || j.includes('PEMERIKSA DESAIN') ||
+    j.includes('ANALIS KI') || j.includes('ANALIS KEKAYAAN INTELEKTUAL') ||
+    j.includes('ARSIPARIS') || j.includes('PUSTAKAWAN') || j.includes('AUDITOR') || 
+    j.includes('WIDYAISWARA') || j.includes('PERANCANG') || j.includes('ASSESSOR') || j.includes('ASESOR')
+  ) {
+    return 'FUNGSIONAL';
+  }
+
+  // 3. Fallback: Management Keywords - JPT (Eselon I & II)
+  if (
+    j.includes('DIREKTUR JENDERAL') || j.includes('SEKRETARIS DIREKTORAT JENDERAL') || 
+    j.includes('SEKRETARIS UTAMA') || j.includes('STAF AHLI') || j.includes('INSPEKTUR') || 
+    j.includes('KEPALA BIRO') || j.includes('KEPALA PUSAT') || j.includes('DIREKTUR') || 
+    j.includes('SEKRETARIS DIREKTORAT')
+  ) {
+    return 'JPT';
+  }
+
+  // 4. Fallback: Management Keywords - Structural (Eselon III & IV / Administrator / Pengawas)
+  if (
+    j.includes('KEPALA BAGIAN') || j.includes('KABAG') || 
+    j.includes('KEPALA SUBDIREKTORAT') || j.includes('KASUBDIT') || 
+    j.includes('KEPALA BIDANG') || j.includes('KABID') ||
+    j.includes('KEPALA SEKSI') || j.includes('KASI') || 
+    j.includes('KEPALA SUBBAGIAN') || j.includes('KASUBBAG') || 
+    j.includes('KOORDINATOR') || j.includes('SUBKOORDINATOR') ||
+    j.includes('KEPALA KANTOR') || j.includes('KEPALA SATUAN') ||
+    j.startsWith('KEPALA ') || j.includes(' KEPALA ')
+  ) {
+    return 'STRUKTURAL';
+  }
+
+  // 5. Fallback: Eselon
+  if (es && es !== '-') {
+    if (es.startsWith('IV') || es.startsWith('4') || es.startsWith('III') || es.startsWith('3')) return 'STRUKTURAL';
+    if (es.startsWith('II') || es.startsWith('2') || es.startsWith('I') || es.startsWith('1')) return 'JPT';
+  }
+
+  // 6. Default Fallback
+  return 'PELAKSANA';
+};
+
 /**
  * KOMPREHENSIF GELAR MAP
  */
@@ -557,5 +615,8 @@ export const APP_ROUTES = [
   { path: '/ukom/admin', label: 'Admin UKOM (CAT)', icon: 'bi-pc-display-horizontal' },
   { path: '/ukom/supervisor', label: 'Pengawas UKOM', icon: 'bi-shield-check' },
   { path: '/ukom/login', label: 'Portal Ujian UKOM', icon: 'bi-pencil-square' },
-  { path: '/quizdjki', label: 'QuizDJKI (Game)', icon: 'bi-controller' }
+  { path: '/quizdjki', label: 'QuizDJKI (Game)', icon: 'bi-controller' },
+  { path: '/layanan-sdm', label: 'Layanan SDM KI (Helpdesk)', icon: 'bi-headset' },
+  { path: '/layanan-sdm/pengajuan-saya', label: 'Pengajuan Saya (SDM)', icon: 'bi-inboxes-fill' },
+  { path: '/admin/layanan-sdm', label: 'Admin Layanan SDM', icon: 'bi-shield-check' }
 ];

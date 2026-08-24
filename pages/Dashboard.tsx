@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets, fetchKGBFromSheets, fetchKegiatanFromSheets, fetchAbsensiHistoryFromSheets } from '../spreadsheetService';
 import { Pegawai, Pengembangan, KGB, Kegiatan, AbsensiRecord } from '../types';
 import { useAuth } from '../AuthContext';
-import { UNIT_KERJA, normalizeUnitName, formatPegawaiName } from '../constants';
+import { UNIT_KERJA, normalizeUnitName, formatPegawaiName, getJabatanClassification } from '../constants';
 import * as XLSX from 'xlsx';
 import CalendarView from '../components/CalendarView';
+import LayananSDMAlertBanner from '../components/LayananSDM/LayananSDMAlertBanner';
 
 const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: string, value: string | number, icon: string, color: string, loading?: boolean, subtext?: string }) => (
   <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] shadow-sm border border-gray-100 flex items-center space-x-3 md:space-x-4 hover:shadow-xl transition-all duration-300 group">
@@ -26,6 +28,7 @@ const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: str
 );
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { user, logActivity } = useAuth();
   const [pegawai, setPegawai] = useState<Pegawai[]>(() => {
     const cached = localStorage.getItem('portal_pegawai_db');
@@ -131,64 +134,6 @@ const Dashboard = () => {
       return '-';
   };
 
-  const getJabatanClassification = (p: Pegawai) => {
-    const es = (p.eselon || '').trim().toUpperCase();
-    const j = (p.jabatan || '').trim().toUpperCase();
-    const kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
-
-    // 1. Primary Source of Truth: Trust Column AN (Jenis Jabatan) from Spreadsheet
-    if (kl.includes('PIMPINAN TINGGI') || kl.includes('JPT')) return 'JPT';
-    if (kl.includes('STRUKTURAL') || kl.includes('ADMINISTRATOR') || kl.includes('PENGAWAS') || kl.includes('MANAJERIAL')) return 'STRUKTURAL';
-    if (kl.includes('FUNGSIONAL TERTENTU') || kl.includes('JFT') || kl === 'FUNGSIONAL') return 'FUNGSIONAL';
-    if (kl.includes('FUNGSIONAL UMUM') || kl.includes('JFU') || kl.includes('PELAKSANA')) return 'PELAKSANA';
-
-    // 2. Secondary: Force JFT markers in name (if says AHLI/MADYA/MUDA/PERTAMA, etc)
-    if (j.includes('AHLI') || j.includes('MADYA') || j.includes('MUDA') || 
-        j.includes('PERTAMA') || j.includes('UTAMA') || j.includes('TERAMPIL') || 
-        j.includes('MAHIR') || j.includes('PENYELIA') || j.includes('PELAKSANA LANJUTAN')) return 'FUNGSIONAL';
-
-    // 3. Fallback: Management Keywords - JPT (Eselon I & II)
-    if (j.includes('DIREKTUR JENDERAL') || j.includes('SEKRETARIS DIREKTORAT JENDERAL') || 
-        j.includes('SEKRETARIS UTAMA') || j.includes('STAF AHLI') || j.includes('INSPEKTUR') || 
-        j.includes('KEPALA BIRO') || j.includes('KEPALA PUSAT') || j.includes('DIREKTUR') || 
-        j.includes('SEKRETARIS DIREKTORAT')) {
-      return 'JPT';
-    }
-
-    // 4. Fallback: Management Keywords - Structural (Eselon III & IV)
-    if (j.includes('KEPALA BAGIAN') || j.includes('KABAG') || 
-        j.includes('KEPALA SUBDIREKTORAT') || j.includes('KASUBDIT') || 
-        j.includes('KEPALA BIDANG') || j.includes('KABID') ||
-        j.includes('KEPALA SEKSI') || j.includes('KASI') || 
-        j.includes('KEPALA SUBBAGIAN') || j.includes('KASUBBAG') || 
-        j.includes('KOORDINATOR') || j.includes('SUBKOORDINATOR') ||
-        j.includes('KEPALA KANTOR') || j.includes('KEPALA SATUAN') ||
-        j.startsWith('KEPALA ') || j.includes(' KEPALA ')) {
-      return 'STRUKTURAL';
-    }
-
-    // 5. Fallback: Pelaksana (JFU) Specific Title Keywords
-    if (j.includes('ANALIS') || j.includes('PENATA KELOLA') || j.includes('PENATA LAYANAN') || 
-        j.includes('PENELAAH') || j.includes('PENGADMINISTRASI') || j.includes('PENGELOLA') || 
-        j.includes('PENGOLAH') || j.includes('PENYUSUN') || j.includes('DOKUMENTALIS') || 
-        j.includes('OPERATOR') || j.includes('FASILITATOR') || j.includes('SEKRETARIS PIMPINAN') ||
-        j.includes('KONSELOR') || j.includes('PENGENDALI KONTEN') || j.includes('PETUGAS') || 
-        j.includes('PRAMU') || j.includes('PENGEMUDI') || j.includes('TEKNISI') || 
-        j.includes('STAF') || j.includes('STAFF')) {
-      return 'PELAKSANA';
-    }
-
-    // 6. Fallback: Eselon
-    if (es && es !== '-') {
-      if (es.startsWith('IV') || es.startsWith('4')) return 'STRUKTURAL';
-      if (es.startsWith('III') || es.startsWith('3')) return 'STRUKTURAL';
-      if (es.startsWith('II') || es.startsWith('2')) return 'JPT';
-      if (es.startsWith('I') || es.startsWith('1')) return 'JPT';
-    }
-
-    return 'PELAKSANA';
-  };
-
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connectionErrorGid, setConnectionErrorGid] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -284,28 +229,28 @@ const Dashboard = () => {
       total: 0,
       totalTitles: new Set<string>()
     };
+
     activePegawaiList.forEach(p => {
       const cls = getJabatanClassification(p);
-      const jab = (p.jabatan || '').trim().toUpperCase();
-      
-      if (jab) {
-        stats.totalTitles.add(jab);
-        if (cls === 'JPT') {
-          stats.jpt++;
-          stats.jptTitles.add(jab);
-        } else if (cls === 'STRUKTURAL') {
-          stats.struktural++;
-          stats.strukturalTitles.add(jab);
-        } else if (cls === 'FUNGSIONAL') {
-          stats.fungsional++;
-          stats.fungsionalTitles.add(jab);
-        } else if (cls === 'PELAKSANA') {
-          stats.pelaksana++;
-          stats.pelaksanaTitles.add(jab);
-        }
+      const jab = (p.jabatan || 'TANPA JABATAN').trim().toUpperCase();
+
+      stats.totalTitles.add(jab);
+      if (cls === 'JPT') {
+        stats.jpt++;
+        stats.jptTitles.add(jab);
+      } else if (cls === 'STRUKTURAL') {
+        stats.struktural++;
+        stats.strukturalTitles.add(jab);
+      } else if (cls === 'FUNGSIONAL') {
+        stats.fungsional++;
+        stats.fungsionalTitles.add(jab);
+      } else {
+        stats.pelaksana++;
+        stats.pelaksanaTitles.add(jab);
       }
       stats.total++;
     });
+
     return {
       jpt: stats.jpt,
       jptUnique: stats.jptTitles.size,
@@ -768,6 +713,14 @@ const Dashboard = () => {
         </div>
         <div className="flex gap-2 md:gap-3 w-full md:w-auto flex-wrap">
           <button 
+            onClick={() => navigate('/layanan-sdm')}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 md:gap-3 bg-blue-600 hover:bg-blue-700 p-3 md:p-4 px-4 md:px-6 rounded-xl md:rounded-2xl text-white text-[9px] md:text-[10px] font-black tracking-widest shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
+            title="Layanan SDM KI (Helpdesk & Permohonan)"
+          >
+            <i className="bi bi-headset text-base md:text-lg"></i>
+            <span>Layanan SDM</span>
+          </button>
+          <button 
             onClick={() => {
               localStorage.setItem('portal_direct_access', '/quizdjki');
               window.open(window.location.origin, '_blank');
@@ -793,6 +746,9 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
+
+      {/* NOTIFIKASI LAYANAN SDM BANNER */}
+      <LayananSDMAlertBanner />
 
       {/* TROUBLESHOOTING & INTEGRATION PANEL */}
       {(connectionError || activePegawaiList.length === 0) && !isErrorDismissed && (

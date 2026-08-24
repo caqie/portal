@@ -72,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAuthenticated = !!user;
   const isSuperadmin = user?.role === 'Superadmin';
   const isAdminUangMakan = user?.role === 'Admin Uang Makan';
-  const canEdit = user?.role === 'Superadmin' || user?.role === 'Editor' || user?.role === 'Admin Uang Makan';
+  const canEdit = user?.role === 'Superadmin' || user?.role === 'Editor';
 
   if (loading) {
     return (
