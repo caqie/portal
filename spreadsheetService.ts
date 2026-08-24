@@ -1,6 +1,7 @@
 
 import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom, PenilaianTalenta, TalentPool, AssessmentTalenta, NineBoxTalenta, PengembanganTalenta, PengajuanSDM, DokumenPengajuan, LogPengajuan, PesanPengajuan, MasterLayanan, MasterPetugasSDM } from './types';
 import { MASTER_LAYANAN_DATA } from './layananMasterData';
+import { getJabatanClassification } from './constants';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8dTUPkAb1f8EeH3DxXjTd9IZ-yAMUWxSfci9ZBLkMf3gxH3as4GlALPtER6JM-BWD/exec';
@@ -903,37 +904,11 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       keluarga: getJson('KELUARGA')
     } as Pegawai;
 
-    // A. Classification Enrichment (Preserve raw values from Column N & O if present)
-    if (!p.jenisJabatan || p.jenisJabatan === '-') {
-      p.jenisJabatan = (p.klasifikasiJabatan && p.klasifikasiJabatan !== '-') ? p.klasifikasiJabatan : '';
-    }
-    if (!p.klasifikasiJabatan || p.klasifikasiJabatan === '-') {
-      p.klasifikasiJabatan = (p.jenisJabatan && p.jenisJabatan !== '-') ? p.jenisJabatan : '';
-    }
-
-    if (!p.klasifikasiJabatan || p.klasifikasiJabatan === '-') {
-      const es = (p.eselon || '').trim().toUpperCase();
-      const j = (p.jabatan || '').trim().toUpperCase();
-      if (j.includes('AHLI') || j.includes('MADYA') || j.includes('MUDA') || 
-          j.includes('PERTAMA') || j.includes('UTAMA') || j.includes('TERAMPIL') || 
-          j.includes('MAHIR') || j.includes('PENYELIA') || j.includes('PELAKSANA LANJUTAN')) {
-        p.klasifikasiJabatan = 'FUNGSIONAL';
-      } else if (j.includes('DIREKTUR JENDERAL') || j.includes('SEKRETARIS DIREKTORAT JENDERAL') || 
-                 j.includes('SEKRETARIS UTAMA') || j.includes('STAF AHLI') || j.includes('INSPEKTUR') || 
-                 j.includes('KEPALA BIRO') || j.includes('KEPALA PUSAT') || j.includes('DIREKTUR') || 
-                 j.includes('SEKRETARIS DIREKTORAT')) {
-        p.klasifikasiJabatan = 'JPT';
-      } else if (es.startsWith('I') || es.startsWith('II')) {
-        p.klasifikasiJabatan = 'JPT';
-      } else if (es.startsWith('III') || es.startsWith('IV') || es.startsWith('V')) {
-        p.klasifikasiJabatan = 'STRUKTURAL';
-      } else {
-        p.klasifikasiJabatan = 'PELAKSANA';
-      }
-    }
-
-    if (!p.jenisJabatan || p.jenisJabatan === '-') {
-      p.jenisJabatan = p.klasifikasiJabatan;
+    // A. Classification Enrichment
+    const determinedClass = getJabatanClassification(p);
+    p.klasifikasiJabatan = determinedClass;
+    if (!p.jenisJabatan || p.jenisJabatan === '-' || p.jenisJabatan.trim() === '') {
+      p.jenisJabatan = determinedClass;
     }
 
     // B. Identity & Retirement Enrichment

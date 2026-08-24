@@ -20,12 +20,14 @@ import {
   Holiday, 
   ParsedAttendance, 
   isHariMasukUM, 
-  getIsoDateStr 
+  getIsoDateStr,
+  ensurePdfJsLoaded
 } from '../pdfParserUtils';
 import { 
   savePdfToStore, 
   getAllStoredPdfs, 
   deletePdfFromStore, 
+  deleteStoredPdfsByMonth,
   clearAllStoredPdfs, 
   fileToBase64, 
   formatBytes, 
@@ -54,6 +56,39 @@ export const DEFAULT_TARIFF_CONFIG: TariffConfig = {
   gol4Tax: 15
 };
 
+// Helper to enrich parsed attendance with Master Pegawai database if available
+export const enrichWithMasterPegawai = (record: ParsedAttendance): ParsedAttendance => {
+  try {
+    const raw = localStorage.getItem('portal_pegawai_db');
+    if (!raw) return record;
+    const employees = JSON.parse(raw);
+    if (!Array.isArray(employees)) return record;
+
+    const matched = employees.find((p: any) => {
+      const cleanPnip = (p.nip || '').replace(/\s+/g, '');
+      const cleanRnip = (record.nip || '').replace(/\s+/g, '');
+      const matchNip = cleanPnip && cleanRnip && cleanPnip !== '-' && cleanPnip === cleanRnip;
+      const matchNama = p.nama && record.nama && p.nama.toLowerCase().trim() === record.nama.toLowerCase().trim();
+      return matchNip || matchNama;
+    });
+
+    if (matched) {
+      const gol = matched.golRuang || matched.golongan || matched.pangkat;
+      const jab = matched.jabatan;
+      const dept = matched.unitKerja;
+      return {
+        ...record,
+        golongan: (!record.golongan || record.golongan === '-' || record.golongan.trim() === '') && gol ? gol : record.golongan,
+        jabatan: (!record.jabatan || record.jabatan === '-' || record.jabatan.trim() === '') && jab ? jab : record.jabatan,
+        departemen: (!record.departemen || record.departemen === '-' || record.departemen.trim() === '') && dept ? dept : record.departemen,
+      };
+    }
+  } catch (err) {
+    console.error('Error enriching from master pegawai:', err);
+  }
+  return record;
+};
+
 // Helper to calculate Uang Makan based on Golongan PMK Standards
 export const calculateUangMakanByGolongan = (
   golonganRaw: string, 
@@ -65,11 +100,11 @@ export const calculateUangMakanByGolongan = (
   let taxPercent = config.gol3Tax;
   let categoryName = 'Golongan III';
 
-  // Match Roman numerals (IV, III, II, I) or Arabic numbers (4, 3, 2, 1) cleanly
-  const isGol4 = /(^|[^\w])(IV|4)([\.\/a-e\s_-]|$)/i.test(gol) || gol.includes('GOLONGAN IV') || gol.includes('GOL IV') || gol.includes('GOLONGAN 4');
-  const isGol3 = /(^|[^\w])(III|3)([\.\/a-e\s_-]|$)/i.test(gol) || gol.includes('GOLONGAN III') || gol.includes('GOL III') || gol.includes('GOLONGAN 3');
-  const isGol2 = /(^|[^\w])(II|2)([\.\/a-e\s_-]|$)/i.test(gol) || gol.includes('GOLONGAN II') || gol.includes('GOL II') || gol.includes('GOLONGAN 2');
-  const isGol1 = /(^|[^\w])(I|1)([\.\/a-e\s_-]|$)/i.test(gol) || gol.includes('GOLONGAN I') || gol.includes('GOL I') || gol.includes('GOLONGAN 1');
+  // Check Roman numerals (IV, III, II, I) or Arabic numbers (4, 3, 2, 1) or text representations
+  const isGol4 = /(^|[^\w])(IV|4)([\.\/a-e\s_-]|$)/i.test(gol) || gol.includes('GOLONGAN IV') || gol.includes('GOL IV') || gol.includes('GOLONGAN 4') || gol.includes('GOL 4') || gol.includes('PEMBINA') || gol.includes('UTAMA');
+  const isGol3 = /(^|[^\w])(III|3)([\.\/a-e\s_-]|$)/i.test(gol) || gol.includes('GOLONGAN III') || gol.includes('GOL III') || gol.includes('GOLONGAN 3') || gol.includes('GOL 3') || gol.includes('PENATA');
+  const isGol2 = /(^|[^\w])(II|2)([\.\/a-e\s_-]|$)/i.test(gol) || gol.includes('GOLONGAN II') || gol.includes('GOL II') || gol.includes('GOLONGAN 2') || gol.includes('GOL 2') || gol.includes('PENGATUR');
+  const isGol1 = /(^|[^\w])(I|1)([\.\/a-e\s_-]|$)/i.test(gol) || gol.includes('GOLONGAN I') || gol.includes('GOL I') || gol.includes('GOLONGAN 1') || gol.includes('GOL 1') || gol.includes('JURU');
 
   if (isGol4) {
     rate = config.gol4Rate;
@@ -175,10 +210,39 @@ const UangMakanPage: React.FC = () => {
   const [pdfSearchTerm, setPdfSearchTerm] = useState<string>('');
   const [pdfPreviewModal, setPdfPreviewModal] = useState<StoredPdfRecord | null>(null);
 
-  // Table Search & Pagination
+  // Table Search & Pagination & Filter
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filterGolongan, setFilterGolongan] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 15;
+
+  // New interactive states
+  const [selectedEmployeeDetail, setSelectedEmployeeDetail] = useState<ParsedAttendance | null>(null);
+  const [editingGolongan, setEditingGolongan] = useState<{ index: number; currentGol: string; newGol: string; empName: string; empNip: string } | null>(null);
+  const [isSyncingMaster, setIsSyncingMaster] = useState<boolean>(false);
+  const [isActionLoading, setIsActionLoading] = useState<boolean>(false);
+
+  // Notification Toast State
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmText: string;
+    cancelText?: string;
+    isDanger?: boolean;
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
+
+  // Auto-dismiss notification toast
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   // Load stored PDF files from IndexedDB
   const reloadStoredPdfs = async () => {
@@ -195,16 +259,112 @@ const UangMakanPage: React.FC = () => {
     reloadStoredPdfs();
   }, []);
 
+  // Sync Golongan, Jabatan, and Departemen from Master Pegawai Database
+  const handleSyncGolonganFromMaster = () => {
+    try {
+      setIsSyncingMaster(true);
+      const raw = localStorage.getItem('portal_pegawai_db');
+      if (!raw) {
+        setNotification({ message: 'Data Master Pegawai belum tersimpan di cache. Silakan buka halaman Pegawai terlebih dahulu.', type: 'info' });
+        setIsSyncingMaster(false);
+        return;
+      }
+      const employees = JSON.parse(raw);
+      if (!Array.isArray(employees) || employees.length === 0) {
+        setNotification({ message: 'Data Master Pegawai kosong.', type: 'error' });
+        setIsSyncingMaster(false);
+        return;
+      }
+
+      let updatedCount = 0;
+      setResults(prev => {
+        return prev.map(rec => {
+          const enriched = enrichWithMasterPegawai(rec);
+          if (
+            enriched.golongan !== rec.golongan ||
+            enriched.jabatan !== rec.jabatan ||
+            enriched.departemen !== rec.departemen
+          ) {
+            updatedCount++;
+            return enriched;
+          }
+          return rec;
+        });
+      });
+
+      setNotification({ message: `Sinkronisasi berhasil! ${updatedCount} data pegawai diperbarui dengan golongan & jabatan resmi dari Master Pegawai.`, type: 'success' });
+      logActivity('UPDATE', 'Uang Makan', `Menyinkronkan data golongan & jabatan ${updatedCount} pegawai dari Master Pegawai.`);
+    } catch (err: any) {
+      setNotification({ message: 'Gagal menyinkronkan data: ' + err.message, type: 'error' });
+    } finally {
+      setIsSyncingMaster(false);
+    }
+  };
+
+  // Delete individual employee record
+  const handleDeleteEmployee = (index: number, empName: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Hapus Data Pegawai Dari Rekap?',
+      description: `Apakah Anda yakin ingin menghapus data rekapitulasi untuk "${empName}"?`,
+      confirmText: 'Ya, Hapus',
+      isDanger: true,
+      onConfirm: () => {
+        setResults(prev => prev.filter((_, i) => i !== index));
+        setNotification({ message: `Data pegawai "${empName}" berhasil dihapus dari rekap.`, type: 'success' });
+        logActivity('DELETE', 'Uang Makan', `Menghapus data pegawai ${empName} dari rekapitulasi Uang Makan.`);
+        setConfirmModal(null);
+      }
+    });
+  };
+
+  // Clear all parsed results
+  const handleClearAllResults = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Hapus Semua Hasil Rekapitulasi?',
+      description: `Apakah Anda yakin ingin menghapus seluruh (${results.length}) data rekapitulasi uang makan pegawai yang sudah diproses?`,
+      confirmText: 'Ya, Hapus Semua Hasil',
+      isDanger: true,
+      onConfirm: () => {
+        setResults([]);
+        localStorage.removeItem('absen_pdf_parsed_results');
+        setNotification({ message: 'Seluruh data rekapitulasi uang makan berhasil dibersihkan.', type: 'success' });
+        logActivity('DELETE', 'Uang Makan', 'Membersihkan seluruh data rekapitulasi uang makan.');
+        setConfirmModal(null);
+      }
+    });
+  };
+
+  // Save manual edit Golongan
+  const handleSaveEditedGolongan = () => {
+    if (!editingGolongan) return;
+    const { index, newGol, empName } = editingGolongan;
+    setResults(prev => {
+      const next = [...prev];
+      if (next[index]) {
+        next[index] = {
+          ...next[index],
+          golongan: newGol.trim() || '-'
+        };
+      }
+      return next;
+    });
+    setNotification({ message: `Golongan pegawai ${empName} diperbarui menjadi ${newGol}.`, type: 'success' });
+    logActivity('UPDATE', 'Uang Makan', `Mengubah golongan pegawai ${empName} menjadi ${newGol}`);
+    setEditingGolongan(null);
+  };
+
   // Holiday Management Functions
   const handleAddHoliday = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newHolidayDate || !newHolidayName.trim()) {
-      alert('Mohon isi tanggal dan keterangan hari libur / cuti bersama.');
+      setNotification({ message: 'Mohon isi tanggal dan keterangan hari libur / cuti bersama.', type: 'error' });
       return;
     }
 
     if (holidays.some(h => h.date === newHolidayDate)) {
-      alert(`Tanggal ${newHolidayDate} sudah terdaftar sebagai hari libur.`);
+      setNotification({ message: `Tanggal ${newHolidayDate} sudah terdaftar sebagai hari libur.`, type: 'info' });
       return;
     }
 
@@ -212,20 +372,41 @@ const UangMakanPage: React.FC = () => {
     setHolidays(updated);
     setNewHolidayDate('');
     setNewHolidayName('');
+    setNotification({ message: `Hari libur "${newHolidayName}" (${newHolidayDate}) berhasil ditambahkan.`, type: 'success' });
     logActivity('CREATE', 'Uang Makan', `Menambahkan hari libur: ${newHolidayDate} (${newHolidayName})`);
   };
 
-  const handleDeleteHoliday = (date: string) => {
-    if (!confirm(`Hapus tanggal libur ${date} dari kalender?`)) return;
-    const updated = holidays.filter(h => h.date !== date);
-    setHolidays(updated);
-    logActivity('DELETE', 'Uang Makan', `Menghapus hari libur: ${date}`);
+  const handleDeleteHoliday = (date: string, name?: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Hapus Hari Libur Dari Kalender?',
+      description: `Apakah Anda yakin ingin menghapus tanggal libur ${date} ${name ? `(${name})` : ''} dari kalender kerja?`,
+      confirmText: 'Ya, Hapus',
+      isDanger: true,
+      onConfirm: () => {
+        const updated = holidays.filter(h => h.date !== date);
+        setHolidays(updated);
+        setNotification({ message: `Hari libur ${date} berhasil dihapus.`, type: 'success' });
+        logActivity('DELETE', 'Uang Makan', `Menghapus hari libur: ${date}`);
+        setConfirmModal(null);
+      }
+    });
   };
 
   const handleResetHolidays = () => {
-    if (!confirm('Kembalikan kalender libur ke daftar standar nasional 2025/2026?')) return;
-    setHolidays(DEFAULT_HOLIDAYS);
-    logActivity('UPDATE', 'Uang Makan', 'Mereset kalender libur ke standar nasional.');
+    setConfirmModal({
+      isOpen: true,
+      title: 'Kembalikan Kalender Ke Standar Nasional?',
+      description: 'Apakah Anda yakin ingin mereset seluruh kalender hari libur dan cuti bersama ke daftar standar nasional 2025/2026?',
+      confirmText: 'Ya, Reset Kalender',
+      isDanger: false,
+      onConfirm: () => {
+        setHolidays(DEFAULT_HOLIDAYS);
+        setNotification({ message: 'Kalender libur berhasil direset ke standar nasional.', type: 'success' });
+        logActivity('UPDATE', 'Uang Makan', 'Mereset kalender libur ke standar nasional.');
+        setConfirmModal(null);
+      }
+    });
   };
 
   // Recalculate parsed attendance data when holidays change
@@ -339,6 +520,12 @@ const UangMakanPage: React.FC = () => {
       failed: 0
     });
 
+    try {
+      await ensurePdfJsLoaded();
+    } catch (e: any) {
+      console.warn('PDF.js init check:', e);
+    }
+
     const parsedResults: ParsedAttendance[] = [];
     const batchSize = 4;
 
@@ -348,7 +535,8 @@ const UangMakanPage: React.FC = () => {
         try {
           setParseProgress(prev => ({ ...prev, currentFileName: file.name }));
           const base64Str = await fileToBase64(file);
-          const resObj = await parseSinglePdf(file, holidays);
+          const rawResObj = await parseSinglePdf(file, holidays);
+          const resObj = enrichWithMasterPegawai(rawResObj);
           parsedResults.push(resObj);
 
           const monthFolder = deriveMonthFolder(resObj.periode);
@@ -406,26 +594,89 @@ const UangMakanPage: React.FC = () => {
     logActivity('CREATE', 'Uang Makan', `Memproses parsing ${parsedResults.length} berkas PDF Uang Makan dan menyimpan ke arsip drive.`);
   };
 
-  const handleDeleteStoredPdf = async (pdf: StoredPdfRecord) => {
-    if (!confirm(`Hapus berkas PDF "${pdf.fileName}" dari arsip drive bulan ${formatMonthFolderLabel(pdf.monthFolder)}?`)) return;
-    try {
-      await deletePdfFromStore(pdf.id);
-      await reloadStoredPdfs();
-      logActivity('DELETE', 'Uang Makan', `Menghapus berkas PDF ${pdf.fileName} dari arsip drive.`);
-    } catch (err) {
-      console.error('Gagal menghapus file PDF:', err);
-    }
+  const handleDeleteStoredPdf = (pdf: StoredPdfRecord) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Hapus Berkas PDF Dari Arsip?',
+      description: `Apakah Anda yakin ingin menghapus berkas "${pdf.fileName}" (${formatBytes(pdf.fileSize)}) dari arsip drive folder ${formatMonthFolderLabel(pdf.monthFolder)}?`,
+      confirmText: 'Ya, Hapus Berkas',
+      isDanger: true,
+      onConfirm: async () => {
+        setIsActionLoading(true);
+        try {
+          await deletePdfFromStore(pdf.id);
+          setStoredPdfs(prev => prev.filter(p => p.id !== pdf.id));
+          await reloadStoredPdfs();
+          setNotification({ message: `Berkas "${pdf.fileName}" berhasil dihapus dari arsip.`, type: 'success' });
+          logActivity('DELETE', 'Uang Makan', `Menghapus berkas PDF ${pdf.fileName} dari arsip drive.`);
+        } catch (err: any) {
+          console.error('Gagal menghapus file PDF:', err);
+          setNotification({ message: 'Gagal menghapus berkas PDF.', type: 'error' });
+        } finally {
+          setIsActionLoading(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
-  const handleClearAllStoredPdfs = async () => {
-    if (!confirm('Apakah Anda yakin ingin menghapus SEMUA berkas PDF di arsip drive Uang Makan?')) return;
-    try {
-      await clearAllStoredPdfs();
-      await reloadStoredPdfs();
-      logActivity('DELETE', 'Uang Makan', 'Membersihkan seluruh arsip drive PDF Uang Makan.');
-    } catch (err) {
-      console.error('Error clearing stored PDFs:', err);
-    }
+  const handleClearAllStoredPdfs = () => {
+    const isFiltered = selectedMonthFolder !== 'all';
+    const folderCount = storedPdfs.filter(p => p.monthFolder === selectedMonthFolder).length;
+
+    setConfirmModal({
+      isOpen: true,
+      title: isFiltered ? `Hapus Arsip PDF (${formatMonthFolderLabel(selectedMonthFolder)})?` : 'Hapus Semua Berkas Arsip PDF?',
+      description: isFiltered
+        ? `Terdapat ${folderCount} berkas PDF di folder ${formatMonthFolderLabel(selectedMonthFolder)}. Apakah Anda ingin menghapus seluruh arsip PDF atau hanya folder bulan ini?`
+        : `Terdapat total ${storedPdfs.length} berkas PDF tersimpan di seluruh folder bulan. Apakah Anda yakin ingin menghapus SEMUA berkas arsip PDF dari IndexedDB lokal? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: 'Ya, Hapus Semua Arsip PDF',
+      isDanger: true,
+      onConfirm: async () => {
+        setIsActionLoading(true);
+        try {
+          await clearAllStoredPdfs();
+          setStoredPdfs([]);
+          await reloadStoredPdfs();
+          setNotification({ message: 'Seluruh arsip berkas PDF berhasil dibersihkan.', type: 'success' });
+          logActivity('DELETE', 'Uang Makan', 'Membersihkan seluruh arsip drive PDF Uang Makan.');
+        } catch (err: any) {
+          console.error('Error clearing stored PDFs:', err);
+          setNotification({ message: 'Gagal membersihkan arsip PDF: ' + (err.message || 'Terjadi kesalahan.'), type: 'error' });
+        } finally {
+          setIsActionLoading(false);
+          setConfirmModal(null);
+        }
+      }
+    });
+  };
+
+  const handleDeleteCurrentMonthFolder = (folderKey: string) => {
+    const count = storedPdfs.filter(p => p.monthFolder === folderKey).length;
+    setConfirmModal({
+      isOpen: true,
+      title: `Hapus Arsip Folder ${formatMonthFolderLabel(folderKey)}?`,
+      description: `Apakah Anda yakin ingin menghapus ${count} berkas PDF di folder bulan ${formatMonthFolderLabel(folderKey)}?`,
+      confirmText: 'Ya, Hapus Folder Ini',
+      isDanger: true,
+      onConfirm: async () => {
+        setIsActionLoading(true);
+        try {
+          await deleteStoredPdfsByMonth(folderKey);
+          setStoredPdfs(prev => prev.filter(p => p.monthFolder !== folderKey));
+          await reloadStoredPdfs();
+          setSelectedMonthFolder('all');
+          setNotification({ message: `Arsip PDF folder ${formatMonthFolderLabel(folderKey)} berhasil dihapus.`, type: 'success' });
+          logActivity('DELETE', 'Uang Makan', `Menghapus arsip PDF folder ${folderKey}.`);
+        } catch (err: any) {
+          console.error('Gagal menghapus folder bulan:', err);
+          setNotification({ message: 'Gagal menghapus arsip folder bulan.', type: 'error' });
+        } finally {
+          setIsActionLoading(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
   // Folders per month
@@ -612,13 +863,26 @@ const UangMakanPage: React.FC = () => {
   const filteredResults = useMemo(() => {
     return results.filter(r => {
       const q = searchTerm.toLowerCase().trim();
-      if (!q) return true;
-      return (r.nama && r.nama.toLowerCase().includes(q)) || 
-             (r.nip && r.nip.includes(q)) || 
-             (r.golongan && r.golongan.toLowerCase().includes(q)) ||
-             (r.periode && r.periode.toLowerCase().includes(q));
+      const matchSearch = !q || 
+        (r.nama && r.nama.toLowerCase().includes(q)) || 
+        (r.nip && r.nip.includes(q)) || 
+        (r.golongan && r.golongan.toLowerCase().includes(q)) ||
+        (r.periode && r.periode.toLowerCase().includes(q));
+
+      if (!matchSearch) return false;
+
+      if (filterGolongan !== 'all') {
+        const umDays = r.days.filter(isHariMasukUM).length;
+        const calc = calculateUangMakanByGolongan(r.golongan || '', umDays, tariffConfig);
+        if (filterGolongan === 'gol4' && calc.categoryName !== 'Golongan IV') return false;
+        if (filterGolongan === 'gol3' && calc.categoryName !== 'Golongan III') return false;
+        if (filterGolongan === 'gol2' && calc.categoryName !== 'Golongan II') return false;
+        if (filterGolongan === 'gol1' && calc.categoryName !== 'Golongan I') return false;
+      }
+
+      return true;
     });
-  }, [results, searchTerm]);
+  }, [results, searchTerm, filterGolongan, tariffConfig]);
 
   // Detail Uang Makan flattened array for Tab 2
   const detailUangMakanFlattened = useMemo(() => {
@@ -1064,12 +1328,23 @@ const UangMakanPage: React.FC = () => {
           </div>
 
           {storedPdfs.length > 0 && (
-            <button
-              onClick={handleClearAllStoredPdfs}
-              className="px-4 py-2 border-2 border-red-200 hover:border-red-300 text-red-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all hover:bg-red-50 flex items-center gap-1.5 shrink-0"
-            >
-              <i className="bi bi-trash3-fill"></i> Hapus Semua Arsip PDF
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {selectedMonthFolder !== 'all' && (
+                <button
+                  onClick={() => handleDeleteCurrentMonthFolder(selectedMonthFolder)}
+                  className="px-3.5 py-2 border border-amber-300 hover:border-amber-400 text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
+                  title={`Hapus semua berkas PDF di folder ${formatMonthFolderLabel(selectedMonthFolder)}`}
+                >
+                  <i className="bi bi-folder-x"></i> Hapus Folder {formatMonthFolderLabel(selectedMonthFolder)}
+                </button>
+              )}
+              <button
+                onClick={handleClearAllStoredPdfs}
+                className="px-4 py-2 border-2 border-red-200 hover:border-red-300 text-red-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all hover:bg-red-50 flex items-center gap-1.5 shrink-0"
+              >
+                <i className="bi bi-trash3-fill"></i> Hapus Semua Arsip PDF
+              </button>
+            </div>
           )}
         </div>
 
@@ -1496,16 +1771,58 @@ const UangMakanPage: React.FC = () => {
         {/* TAB 1: REKAP UANG MAKAN PER PEGAWAI ACCORDING TO PMK GOLONGAN */}
         {activeTab === 'rekap_pegawai' && (
           <div className="space-y-4">
-            {/* SEARCH INPUT */}
-            <div className="relative">
-              <i className="bi bi-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-              <input
-                type="text"
-                placeholder="Cari berdasarkan Nama, NIP, Golongan, atau Periode..."
-                value={searchTerm}
-                onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold uppercase outline-none focus:border-emerald-600 focus:bg-white transition-all"
-              />
+            {/* TOOLBAR: SEARCH, GOLONGAN FILTER & ACTIONS */}
+            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+              <div className="flex flex-1 flex-col sm:flex-row gap-2">
+                {/* SEARCH INPUT */}
+                <div className="relative flex-1">
+                  <i className="bi bi-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                  <input
+                    type="text"
+                    placeholder="Cari berdasarkan Nama, NIP, Golongan, atau Periode..."
+                    value={searchTerm}
+                    onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold uppercase outline-none focus:border-emerald-600 focus:bg-white transition-all"
+                  />
+                </div>
+
+                {/* FILTER GOLONGAN */}
+                <select
+                  value={filterGolongan}
+                  onChange={e => { setFilterGolongan(e.target.value); setCurrentPage(1); }}
+                  className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold uppercase text-gray-700 outline-none focus:border-emerald-600 focus:bg-white"
+                >
+                  <option value="all">Semua Golongan</option>
+                  <option value="gol4">Golongan IV (Rp 41.000 / 15%)</option>
+                  <option value="gol3">Golongan III (Rp 37.000 / 5%)</option>
+                  <option value="gol2">Golongan II (Rp 35.000 / 0%)</option>
+                  <option value="gol1">Golongan I (Rp 35.000 / 0%)</option>
+                </select>
+              </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleSyncGolonganFromMaster}
+                  disabled={isSyncingMaster || results.length === 0}
+                  className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
+                  title="Ambil data golongan & jabatan resmi dari Master Pegawai"
+                >
+                  <i className={`bi bi-arrow-repeat ${isSyncingMaster ? 'animate-spin' : ''}`}></i>
+                  <span>Sinkron Master Pegawai</span>
+                </button>
+
+                {results.length > 0 && (
+                  <button
+                    onClick={handleClearAllResults}
+                    className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold uppercase flex items-center gap-1.5 transition-all"
+                    title="Hapus seluruh hasil rekapitulasi"
+                  >
+                    <i className="bi bi-trash-fill"></i>
+                    <span>Hapus Semua</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {results.length > 0 ? (
@@ -1525,10 +1842,12 @@ const UangMakanPage: React.FC = () => {
                         <th className="px-3 py-3.5 text-center">PPh</th>
                         <th className="px-4 py-3.5 text-right">Pot. PPh</th>
                         <th className="px-5 py-3.5 text-right">Diterima Bersih</th>
+                        <th className="px-4 py-3.5 text-center">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-xs font-bold text-gray-800">
                       {paginatedResults.map((r, idx) => {
+                        const globalIndex = results.findIndex(res => res === r || (res.nip === r.nip && res.periode === r.periode));
                         const umDays = r.days.filter(isHariMasukUM).length;
                         const calc = calculateUangMakanByGolongan(r.golongan || '', umDays, tariffConfig);
 
@@ -1537,12 +1856,30 @@ const UangMakanPage: React.FC = () => {
                             <td className="px-4 py-3.5 text-center font-mono text-[10px] text-gray-400">
                               {(currentPage - 1) * itemsPerPage + idx + 1}
                             </td>
-                            <td className="px-5 py-3.5 font-extrabold text-gray-900 uppercase">{r.nama}</td>
+                            <td className="px-5 py-3.5 font-extrabold text-gray-900 uppercase">
+                              <div className="flex flex-col">
+                                <span>{r.nama}</span>
+                                {r.jabatan && r.jabatan !== '-' && (
+                                  <span className="text-[10px] text-gray-400 font-normal lowercase capitalize">{r.jabatan}</span>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-4 py-3.5 font-mono text-[11px] text-gray-500">{r.nip}</td>
                             <td className="px-4 py-3.5 text-center">
-                              <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded-lg text-[10px] font-black uppercase">
-                                {r.golongan || '-'}
-                              </span>
+                              <button
+                                onClick={() => setEditingGolongan({
+                                  index: globalIndex >= 0 ? globalIndex : idx,
+                                  currentGol: r.golongan || '',
+                                  newGol: r.golongan || '',
+                                  empName: r.nama,
+                                  empNip: r.nip
+                                })}
+                                className="px-2 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-800 rounded-lg text-[10px] font-black uppercase transition-colors inline-flex items-center gap-1 group"
+                                title="Klik untuk mengubah Golongan"
+                              >
+                                <span>{r.golongan || '-'}</span>
+                                <i className="bi bi-pencil-fill text-[9px] text-gray-400 group-hover:text-emerald-700"></i>
+                              </button>
                             </td>
                             <td className="px-4 py-3.5 text-center text-[10px] text-gray-500">{r.periode}</td>
                             <td className="px-4 py-3.5 text-center">
@@ -1564,6 +1901,37 @@ const UangMakanPage: React.FC = () => {
                             </td>
                             <td className="px-5 py-3.5 text-right font-mono font-black text-emerald-700 text-sm">
                               Rp {calc.netTotal.toLocaleString('id-ID')}
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => setSelectedEmployeeDetail(r)}
+                                  className="p-1.5 bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white rounded-lg transition-all"
+                                  title="Lihat Detail Hari Kehadiran"
+                                >
+                                  <i className="bi bi-eye-fill text-xs"></i>
+                                </button>
+                                <button
+                                  onClick={() => setEditingGolongan({
+                                    index: globalIndex >= 0 ? globalIndex : idx,
+                                    currentGol: r.golongan || '',
+                                    newGol: r.golongan || '',
+                                    empName: r.nama,
+                                    empNip: r.nip
+                                  })}
+                                  className="p-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white rounded-lg transition-all"
+                                  title="Ubah Golongan"
+                                >
+                                  <i className="bi bi-pencil-square text-xs"></i>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteEmployee(globalIndex >= 0 ? globalIndex : idx, r.nama)}
+                                  className="p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-lg transition-all"
+                                  title="Hapus Pegawai dari Rekap"
+                                >
+                                  <i className="bi bi-trash-fill text-xs"></i>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1820,6 +2188,338 @@ const UangMakanPage: React.FC = () => {
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* DETAIL KEHADIRAN PEGAWAI MODAL */}
+      {selectedEmployeeDetail && (() => {
+        const umDays = selectedEmployeeDetail.days.filter(isHariMasukUM).length;
+        const calc = calculateUangMakanByGolongan(selectedEmployeeDetail.golongan || '', umDays, tariffConfig);
+        const totalKalender = selectedEmployeeDetail.days.length;
+        const totalWeekend = selectedEmployeeDetail.days.filter(d => d.isWeekend).length;
+        const totalLibur = selectedEmployeeDetail.days.filter(d => d.isHoliday).length;
+        const totalTidakMasuk = totalKalender - totalWeekend - totalLibur - umDays;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 md:p-6 animate-fadeIn">
+            <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
+              {/* Modal Header */}
+              <div className="p-5 md:p-6 border-b border-gray-100 flex items-center justify-between bg-slate-900 text-white">
+                <div className="flex items-center gap-3">
+                  <span className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-2xl">
+                    <i className="bi bi-person-badge-fill text-2xl"></i>
+                  </span>
+                  <div>
+                    <h4 className="text-base font-black uppercase text-white tracking-tight">{selectedEmployeeDetail.nama}</h4>
+                    <p className="text-xs text-slate-300 font-mono">
+                      NIP: {selectedEmployeeDetail.nip} • Periode: {selectedEmployeeDetail.periode} • Golongan: {selectedEmployeeDetail.golongan || '-'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedEmployeeDetail(null)}
+                  className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
+                >
+                  <i className="bi bi-x-lg"></i>
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                {/* Summary Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                    <span className="text-[10px] font-black uppercase text-emerald-700 block">Hari Masuk UM</span>
+                    <span className="text-xl font-black text-emerald-900 font-mono">{umDays} Hari</span>
+                  </div>
+                  <div className="p-3.5 bg-sky-50 border border-sky-100 rounded-2xl">
+                    <span className="text-[10px] font-black uppercase text-sky-700 block">Hak Bruto (Rp)</span>
+                    <span className="text-base font-black text-sky-900 font-mono">Rp {calc.brutoTotal.toLocaleString('id-ID')}</span>
+                  </div>
+                  <div className="p-3.5 bg-amber-50 border border-amber-100 rounded-2xl">
+                    <span className="text-[10px] font-black uppercase text-amber-700 block">Pot. PPh ({calc.taxPercent}%)</span>
+                    <span className="text-base font-black text-amber-900 font-mono">Rp {calc.pphTotal.toLocaleString('id-ID')}</span>
+                  </div>
+                  <div className="p-3.5 bg-purple-50 border border-purple-100 rounded-2xl">
+                    <span className="text-[10px] font-black uppercase text-purple-700 block">Diterima Bersih</span>
+                    <span className="text-base font-black text-purple-900 font-mono">Rp {calc.netTotal.toLocaleString('id-ID')}</span>
+                  </div>
+                </div>
+
+                {/* Breakdown Statistics */}
+                <div className="flex flex-wrap gap-2 text-xs font-bold">
+                  <span className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-xl">Total Hari: {totalKalender}</span>
+                  <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl">Masuk Efektif (UM): {umDays}</span>
+                  <span className="px-3 py-1.5 bg-rose-100 text-rose-800 rounded-xl">Libur / Cuti Bersama: {totalLibur}</span>
+                  <span className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-xl">Akhir Pekan: {totalWeekend}</span>
+                  <span className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-xl">Tidak Hadir / DL Full: {Math.max(0, totalTidakMasuk)}</span>
+                </div>
+
+                {/* Daily Table */}
+                <div className="overflow-x-auto border border-gray-100 rounded-2xl shadow-inner">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50/80 text-[9px] font-black uppercase text-gray-400 border-b border-gray-100 tracking-wider">
+                        <th className="px-3 py-2.5 text-center w-10">Tgl</th>
+                        <th className="px-3 py-2.5">Hari</th>
+                        <th className="px-3 py-2.5 text-center">Masuk</th>
+                        <th className="px-3 py-2.5 text-center">Pulang</th>
+                        <th className="px-4 py-2.5">Keterangan / Status</th>
+                        <th className="px-3 py-2.5 text-center">Status UM</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-xs font-bold text-gray-800">
+                      {selectedEmployeeDetail.days.map((day, idx) => {
+                        const isUM = isHariMasukUM(day);
+                        return (
+                          <tr key={idx} className={isUM ? 'bg-emerald-50/20' : day.isWeekend || day.isHoliday ? 'bg-gray-50/50 opacity-75' : ''}>
+                            <td className="px-3 py-2 text-center font-mono text-[11px] font-black text-gray-500">
+                              {idx + 1}
+                            </td>
+                            <td className="px-3 py-2 text-gray-700 text-[11px] uppercase">
+                              {day.dayName || '-'}
+                            </td>
+                            <td className="px-3 py-2 text-center font-mono text-[11px] text-gray-700">
+                              {day.jamMasuk || '-'}
+                            </td>
+                            <td className="px-3 py-2 text-center font-mono text-[11px] text-gray-700">
+                              {day.jamKeluar || '-'}
+                            </td>
+                            <td className="px-4 py-2 text-[11px] text-gray-600">
+                              {day.status || (day.isWeekend ? 'Akhir Pekan' : day.isHoliday ? 'Hari Libur Nasional' : '-')}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {isUM ? (
+                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-black uppercase">
+                                  Dihitung UM
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-md text-[10px] font-bold uppercase">
+                                  Tidak Dihitung
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <button
+                  onClick={() => setSelectedEmployeeDetail(null)}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black uppercase rounded-xl transition-all shadow-md"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* EDIT GOLONGAN MODAL */}
+      {editingGolongan && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-slate-900 text-white">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
+                  <i className="bi bi-pencil-square text-lg"></i>
+                </span>
+                <h4 className="text-sm font-black uppercase">Ubah Golongan Pegawai</h4>
+              </div>
+              <button
+                onClick={() => setEditingGolongan(null)}
+                className="p-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all"
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <p className="text-xs font-black uppercase text-gray-900">{editingGolongan.empName}</p>
+                <p className="text-[11px] font-mono text-gray-500">NIP: {editingGolongan.empNip}</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-gray-500 block mb-2">Pilih Golongan Standar PMK</label>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingGolongan(prev => prev ? { ...prev, newGol: 'Golongan IV' } : null)}
+                    className={`p-3 text-left rounded-xl border transition-all ${
+                      editingGolongan.newGol.includes('IV') || editingGolongan.newGol.includes('4')
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-black ring-2 ring-emerald-600/20'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    <div className="text-xs font-black">Golongan IV</div>
+                    <div className="text-[10px] text-gray-500">Rp 41.000 (PPh 15%)</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditingGolongan(prev => prev ? { ...prev, newGol: 'Golongan III' } : null)}
+                    className={`p-3 text-left rounded-xl border transition-all ${
+                      editingGolongan.newGol.includes('III') || editingGolongan.newGol.includes('3')
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-black ring-2 ring-emerald-600/20'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    <div className="text-xs font-black">Golongan III</div>
+                    <div className="text-[10px] text-gray-500">Rp 37.000 (PPh 5%)</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditingGolongan(prev => prev ? { ...prev, newGol: 'Golongan II' } : null)}
+                    className={`p-3 text-left rounded-xl border transition-all ${
+                      editingGolongan.newGol.includes('II') || editingGolongan.newGol.includes('2')
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-black ring-2 ring-emerald-600/20'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    <div className="text-xs font-black">Golongan II</div>
+                    <div className="text-[10px] text-gray-500">Rp 35.000 (PPh 0%)</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditingGolongan(prev => prev ? { ...prev, newGol: 'Golongan I' } : null)}
+                    className={`p-3 text-left rounded-xl border transition-all ${
+                      editingGolongan.newGol.includes('I') && !editingGolongan.newGol.includes('II') && !editingGolongan.newGol.includes('III') && !editingGolongan.newGol.includes('IV')
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-black ring-2 ring-emerald-600/20'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    <div className="text-xs font-black">Golongan I</div>
+                    <div className="text-[10px] text-gray-500">Rp 35.000 (PPh 0%)</div>
+                  </button>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-gray-500 block mb-1">Atau Masukkan Teks Golongan Kustom</label>
+                  <input
+                    type="text"
+                    value={editingGolongan.newGol}
+                    onChange={e => setEditingGolongan(prev => prev ? { ...prev, newGol: e.target.value } : null)}
+                    placeholder="Contoh: IV/a, III/c, II/d..."
+                    className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold uppercase outline-none focus:border-emerald-600 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingGolongan(null)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-black uppercase rounded-xl transition-all"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditedGolongan}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase rounded-xl transition-all shadow-md flex items-center gap-1.5"
+              >
+                <i className="bi bi-check-lg"></i> Simpan Golongan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION MODAL */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-[2rem] max-w-md w-full overflow-hidden shadow-2xl border border-gray-100 animate-scale-in">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3.5">
+                <div className={`p-3 rounded-2xl ${confirmModal.isDanger ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                  <i className={`bi ${confirmModal.isDanger ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill'} text-2xl`}></i>
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-gray-900 leading-tight">
+                    {confirmModal.title}
+                  </h3>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Konfirmasi Tindakan</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <p className="text-xs text-gray-700 leading-relaxed font-medium">
+                  {confirmModal.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={isActionLoading}
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2.5 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 text-xs font-black uppercase rounded-xl transition-all disabled:opacity-50"
+              >
+                {confirmModal.cancelText || 'Batal'}
+              </button>
+              <button
+                type="button"
+                disabled={isActionLoading}
+                onClick={async () => {
+                  if (confirmModal.onConfirm) {
+                    await confirmModal.onConfirm();
+                  }
+                }}
+                className={`px-5 py-2.5 text-white text-xs font-black uppercase rounded-xl transition-all shadow-md flex items-center gap-2 disabled:opacity-50 ${
+                  confirmModal.isDanger 
+                    ? 'bg-red-600 hover:bg-red-700 shadow-red-600/20' 
+                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                }`}
+              >
+                {isActionLoading ? (
+                  <>
+                    <i className="bi bi-arrow-repeat animate-spin"></i>
+                    Memproses...
+                  </>
+                ) : (
+                  <>
+                    <i className={`bi ${confirmModal.isDanger ? 'bi-trash3-fill' : 'bi-check-lg'}`}></i>
+                    {confirmModal.confirmText}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING TOAST NOTIFICATION */}
+      {notification && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl border bg-white animate-slide-up max-w-md">
+          <span className={`p-2 rounded-xl text-lg shrink-0 ${
+            notification.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
+            notification.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'
+          }`}>
+            <i className={`bi ${
+              notification.type === 'success' ? 'bi-check-circle-fill' :
+              notification.type === 'error' ? 'bi-x-circle-fill' : 'bi-info-circle-fill'
+            }`}></i>
+          </span>
+          <p className="text-xs font-bold text-gray-800 flex-1 leading-snug">
+            {notification.message}
+          </p>
+          <button
+            onClick={() => setNotification(null)}
+            className="text-gray-400 hover:text-gray-600 p-1 text-xs"
+          >
+            <i className="bi bi-x-lg"></i>
+          </button>
         </div>
       )}
     </div>

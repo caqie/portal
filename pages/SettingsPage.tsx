@@ -1168,13 +1168,14 @@ const SettingsPage = () => {
                           }`}>
                             {u.status || 'Aktif'}
                           </span>
-                        </td>                        <td className="px-10 py-5 text-right">
-                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                                <button onClick={() => { setUserFormData(u); setShowPassword(false); setIsUserModalOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 rounded-xl text-amber-500 hover:bg-amber-500 hover:text-white shadow-sm flex items-center justify-center transition-all"><i className="bi bi-pencil-square"></i></button>
-                                {isSuperadmin && u.nip !== currentUser?.nip && (
-                                    <button onClick={() => { if(window.confirm('Hapus user ini?')) handleUserAction('DELETE', u) }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 hover:bg-rose-500 hover:text-white shadow-sm flex items-center justify-center transition-all"><i className="bi bi-trash-fill"></i></button>
-                                )}
-                            </div>
+                        </td>
+                        <td className="px-10 py-5 text-right">
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={() => { setUserFormData(u); setShowPassword(false); setIsUserModalOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 rounded-xl text-amber-500 hover:bg-amber-500 hover:text-white shadow-sm flex items-center justify-center transition-all"><i className="bi bi-pencil-square"></i></button>
+                            {isSuperadmin && u.nip !== currentUser?.nip && (
+                              <button onClick={() => { if(window.confirm('Hapus user ini?')) handleUserAction('DELETE', u) }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 hover:bg-rose-500 hover:text-white shadow-sm flex items-center justify-center transition-all"><i className="bi bi-trash-fill"></i></button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

@@ -6,11 +6,12 @@ import { useAuth } from '../AuthContext';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { DEFAULT_HOLIDAYS, parseSinglePdf, Holiday, ParsedAttendance, isHariMasukUM, getIsoDateStr } from '../pdfParserUtils';
+import { DEFAULT_HOLIDAYS, parseSinglePdf, ensurePdfJsLoaded, Holiday, ParsedAttendance, isHariMasukUM, getIsoDateStr } from '../pdfParserUtils';
 import { 
   savePdfToStore, 
   getAllStoredPdfs, 
   deletePdfFromStore, 
+  deleteStoredPdfsByMonth,
   clearAllStoredPdfs, 
   fileToBase64, 
   formatBytes, 
@@ -56,6 +57,29 @@ const RekapAbsensiPage = () => {
   const [selectedMonthFolder, setSelectedMonthFolder] = useState<string>('all');
   const [pdfSearchTerm, setPdfSearchTerm] = useState<string>('');
   const [pdfPreviewModal, setPdfPreviewModal] = useState<StoredPdfRecord | null>(null);
+  const [isActionLoading, setIsActionLoading] = useState<boolean>(false);
+
+  // Notification Toast State
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmText: string;
+    cancelText?: string;
+    isDanger?: boolean;
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
+
+  // Auto-dismiss notification toast
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   const [isParsing, setIsParsing] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -118,21 +142,8 @@ const RekapAbsensiPage = () => {
   // Load PDF.js from CDN to avoid build-time worker complications in Vite
   const loadPdfJS = async () => {
     try {
-      if ((window as any).pdfjsLib) {
-        setPdfjsLoaded(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js';
-      script.onload = () => {
-        const pdfjsLib = (window as any).pdfjsLib;
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-        setPdfjsLoaded(true);
-      };
-      script.onerror = () => {
-        setPdfjsError('Gagal memuat pustaka parser PDF dari CDN. Harap periksa koneksi internet.');
-      };
-      document.head.appendChild(script);
+      await ensurePdfJsLoaded();
+      setPdfjsLoaded(true);
     } catch (err: any) {
       setPdfjsError(err.message || String(err));
     }
@@ -415,38 +426,90 @@ const RekapAbsensiPage = () => {
   };
 
   // Delete single PDF from Drive Storage
-  const handleDeleteStoredPdf = async (pdf: StoredPdfRecord) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus berkas PDF "${pdf.fileName}" dari arsip drive bulan ${formatMonthFolderLabel(pdf.monthFolder)}?`)) return;
-
-    try {
-      await deletePdfFromStore(pdf.id);
-      await reloadStoredPdfs();
-
-      const shouldRemoveParsed = confirm(`Hapus juga hasil rekapitulasi presensi untuk pegawai ${pdf.nama} (${pdf.nip})?`);
-      if (shouldRemoveParsed) {
-        setResults(prev => prev.filter(r => r.nip !== pdf.nip || r.periode !== pdf.periode));
+  const handleDeleteStoredPdf = (pdf: StoredPdfRecord) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Hapus Berkas PDF Dari Arsip?',
+      description: `Apakah Anda yakin ingin menghapus berkas PDF "${pdf.fileName}" (${formatBytes(pdf.fileSize)}) dari arsip drive folder ${formatMonthFolderLabel(pdf.monthFolder)}?`,
+      confirmText: 'Ya, Hapus Berkas',
+      isDanger: true,
+      onConfirm: async () => {
+        setIsActionLoading(true);
+        try {
+          await deletePdfFromStore(pdf.id);
+          setStoredPdfs(prev => prev.filter(p => p.id !== pdf.id));
+          await reloadStoredPdfs();
+          setNotification({ message: `Berkas "${pdf.fileName}" berhasil dihapus dari arsip.`, type: 'success' });
+          logActivity('DELETE', 'Absensi', `Menghapus berkas PDF ${pdf.fileName} dari arsip drive.`);
+        } catch (err: any) {
+          console.error('Gagal menghapus file PDF:', err);
+          setNotification({ message: 'Gagal menghapus berkas PDF.', type: 'error' });
+        } finally {
+          setIsActionLoading(false);
+          setConfirmModal(null);
+        }
       }
-
-      logActivity('DELETE', 'Absensi', `Menghapus berkas PDF ${pdf.fileName} dari arsip drive.`);
-    } catch (err) {
-      console.error('Gagal menghapus file PDF:', err);
-      alert('Gagal menghapus file PDF dari penyimpanan.');
-    }
+    });
   };
 
   // Clear all stored PDFs from Drive Storage
-  const handleClearAllStoredPdfs = async () => {
-    if (!confirm('Apakah Anda yakin ingin menghapus SEMUA berkas PDF yang tersimpan di arsip drive?')) return;
-    try {
-      await clearAllStoredPdfs();
-      await reloadStoredPdfs();
-      if (confirm('Bersihkan juga seluruh hasil rekapitulasi presensi saat ini?')) {
-        setResults([]);
+  const handleClearAllStoredPdfs = () => {
+    const isFiltered = selectedMonthFolder !== 'all';
+    const folderCount = storedPdfs.filter(p => p.monthFolder === selectedMonthFolder).length;
+
+    setConfirmModal({
+      isOpen: true,
+      title: isFiltered ? `Hapus Arsip PDF (${formatMonthFolderLabel(selectedMonthFolder)})?` : 'Hapus Semua Berkas Arsip PDF?',
+      description: isFiltered
+        ? `Terdapat ${folderCount} berkas PDF di folder ${formatMonthFolderLabel(selectedMonthFolder)}. Apakah Anda ingin menghapus seluruh berkas arsip PDF lokal IndexedDB?`
+        : `Terdapat total ${storedPdfs.length} berkas PDF tersimpan di seluruh folder bulan. Apakah Anda yakin ingin mengosongkan seluruh arsip PDF lokal IndexedDB?`,
+      confirmText: 'Ya, Hapus Semua Arsip PDF',
+      isDanger: true,
+      onConfirm: async () => {
+        setIsActionLoading(true);
+        try {
+          await clearAllStoredPdfs();
+          setStoredPdfs([]);
+          await reloadStoredPdfs();
+          setNotification({ message: 'Seluruh arsip berkas PDF berhasil dibersihkan.', type: 'success' });
+          logActivity('DELETE', 'Absensi', 'Membersihkan seluruh arsip drive PDF absensi.');
+        } catch (err: any) {
+          console.error('Error clearing stored PDFs:', err);
+          setNotification({ message: 'Gagal membersihkan arsip PDF: ' + (err.message || 'Terjadi kesalahan.'), type: 'error' });
+        } finally {
+          setIsActionLoading(false);
+          setConfirmModal(null);
+        }
       }
-      logActivity('DELETE', 'Absensi', 'Membersihkan seluruh arsip drive PDF absensi.');
-    } catch (err) {
-      console.error('Error clearing stored PDFs:', err);
-    }
+    });
+  };
+
+  const handleDeleteCurrentMonthFolder = (folderKey: string) => {
+    const count = storedPdfs.filter(p => p.monthFolder === folderKey).length;
+    setConfirmModal({
+      isOpen: true,
+      title: `Hapus Arsip Folder ${formatMonthFolderLabel(folderKey)}?`,
+      description: `Apakah Anda yakin ingin menghapus ${count} berkas PDF di folder bulan ${formatMonthFolderLabel(folderKey)}?`,
+      confirmText: 'Ya, Hapus Folder Ini',
+      isDanger: true,
+      onConfirm: async () => {
+        setIsActionLoading(true);
+        try {
+          await deleteStoredPdfsByMonth(folderKey);
+          setStoredPdfs(prev => prev.filter(p => p.monthFolder !== folderKey));
+          await reloadStoredPdfs();
+          setSelectedMonthFolder('all');
+          setNotification({ message: `Arsip PDF folder ${formatMonthFolderLabel(folderKey)} berhasil dihapus.`, type: 'success' });
+          logActivity('DELETE', 'Absensi', `Menghapus arsip PDF folder ${folderKey}.`);
+        } catch (err: any) {
+          console.error('Gagal menghapus folder bulan:', err);
+          setNotification({ message: 'Gagal menghapus arsip folder bulan.', type: 'error' });
+        } finally {
+          setIsActionLoading(false);
+          setConfirmModal(null);
+        }
+      }
+    });
   };
 
   // Unique Month Folders
@@ -1004,12 +1067,23 @@ const RekapAbsensiPage = () => {
               </div>
 
               {storedPdfs.length > 0 && (
-                <button
-                  onClick={handleClearAllStoredPdfs}
-                  className="px-4 py-2 border-2 border-red-200 hover:border-red-300 text-red-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all hover:bg-red-50 flex items-center gap-1.5 shrink-0"
-                >
-                  <i className="bi bi-trash3-fill"></i> Bersihkan Semua Berkas PDF
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {selectedMonthFolder !== 'all' && (
+                    <button
+                      onClick={() => handleDeleteCurrentMonthFolder(selectedMonthFolder)}
+                      className="px-3.5 py-2 border border-amber-300 hover:border-amber-400 text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0"
+                      title={`Hapus semua berkas PDF di folder ${formatMonthFolderLabel(selectedMonthFolder)}`}
+                    >
+                      <i className="bi bi-folder-x"></i> Hapus Folder {formatMonthFolderLabel(selectedMonthFolder)}
+                    </button>
+                  )}
+                  <button
+                    onClick={handleClearAllStoredPdfs}
+                    className="px-4 py-2 border-2 border-red-200 hover:border-red-300 text-red-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all hover:bg-red-50 flex items-center gap-1.5 shrink-0"
+                  >
+                    <i className="bi bi-trash3-fill"></i> Bersihkan Semua Berkas PDF
+                  </button>
+                </div>
               )}
             </div>
 
@@ -1617,6 +1691,94 @@ const RekapAbsensiPage = () => {
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION MODAL */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-[2rem] max-w-md w-full overflow-hidden shadow-2xl border border-gray-100 animate-scale-in">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3.5">
+                <div className={`p-3 rounded-2xl ${confirmModal.isDanger ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                  <i className={`bi ${confirmModal.isDanger ? 'bi-exclamation-triangle-fill' : 'bi-info-circle-fill'} text-2xl`}></i>
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-gray-900 leading-tight">
+                    {confirmModal.title}
+                  </h3>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">Konfirmasi Tindakan</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <p className="text-xs text-gray-700 leading-relaxed font-medium">
+                  {confirmModal.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={isActionLoading}
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2.5 bg-white hover:bg-gray-100 border border-gray-200 text-gray-700 text-xs font-black uppercase rounded-xl transition-all disabled:opacity-50"
+              >
+                {confirmModal.cancelText || 'Batal'}
+              </button>
+              <button
+                type="button"
+                disabled={isActionLoading}
+                onClick={async () => {
+                  if (confirmModal.onConfirm) {
+                    await confirmModal.onConfirm();
+                  }
+                }}
+                className={`px-5 py-2.5 text-white text-xs font-black uppercase rounded-xl transition-all shadow-md flex items-center gap-2 disabled:opacity-50 ${
+                  confirmModal.isDanger 
+                    ? 'bg-red-600 hover:bg-red-700 shadow-red-600/20' 
+                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                }`}
+              >
+                {isActionLoading ? (
+                  <>
+                    <i className="bi bi-arrow-repeat animate-spin"></i>
+                    Memproses...
+                  </>
+                ) : (
+                  <>
+                    <i className={`bi ${confirmModal.isDanger ? 'bi-trash3-fill' : 'bi-check-lg'}`}></i>
+                    {confirmModal.confirmText}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING TOAST NOTIFICATION */}
+      {notification && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl border bg-white animate-slide-up max-w-md">
+          <span className={`p-2 rounded-xl text-lg shrink-0 ${
+            notification.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
+            notification.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'
+          }`}>
+            <i className={`bi ${
+              notification.type === 'success' ? 'bi-check-circle-fill' :
+              notification.type === 'error' ? 'bi-x-circle-fill' : 'bi-info-circle-fill'
+            }`}></i>
+          </span>
+          <p className="text-xs font-bold text-gray-800 flex-1 leading-snug">
+            {notification.message}
+          </p>
+          <button
+            onClick={() => setNotification(null)}
+            className="text-gray-400 hover:text-gray-600 p-1 text-xs"
+          >
+            <i className="bi bi-x-lg"></i>
+          </button>
         </div>
       )}
     </div>

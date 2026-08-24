@@ -323,7 +323,6 @@ const AppContent = () => {
     if (user?.role === 'Admin Uang Makan') {
       return (
         path === '/uang-makan' ||
-        path === '/rekap-absensi' ||
         path === '/pegawai' ||
         path.startsWith('/pegawai/') ||
         path === '/quizdjki' ||

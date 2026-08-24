@@ -53,9 +53,9 @@ export const isHariMasukUM = (d: ParsedDay): boolean => {
   // 1. Exclude weekends (Sabtu / Minggu) and holidays (National Holidays / Cuti Bersama)
   if (d.isWeekend || d.isHoliday) return false;
 
-  const statusLower = (d.status || '').toLowerCase();
+  const statusLower = (d.status || '').toLowerCase().trim();
 
-  // 2. Exclude DL Full (Dinas Luar Full)
+  // 2. Exclude DL Full (Dinas Luar Full / SPPD)
   if (
     d.attendanceType === 'DL_FULL' ||
     statusLower.includes('dl full') ||
@@ -66,8 +66,28 @@ export const isHariMasukUM = (d: ParsedDay): boolean => {
     return false;
   }
 
-  // 3. Exclude Cuti (Cuti Tahunan, Cuti Sakit, Cuti Bersama, Cuti Besar, etc.)
+  // 3. Exclude Cuti (Cuti Tahunan, Cuti Sakit, Cuti Bersama, Cuti Besar, Cuti Melahirkan, etc.)
   if (statusLower.includes('cuti')) {
+    return false;
+  }
+
+  // 4. Exclude Sakit / SKD (Surat Keterangan Dokter) without presence
+  if (statusLower.includes('sakit') || statusLower.includes('skd')) {
+    return false;
+  }
+
+  // 5. Exclude Tugas Belajar / TB
+  if (statusLower.includes('tugas belajar') || statusLower === 'tb') {
+    return false;
+  }
+
+  // 6. Exclude Alpa / Mangkir / Tanpa Keterangan
+  if (
+    statusLower.includes('tanpa keterangan') ||
+    statusLower.includes('alpa') ||
+    statusLower.includes('mangkir') ||
+    statusLower === 'tk'
+  ) {
     return false;
   }
 
@@ -76,9 +96,9 @@ export const isHariMasukUM = (d: ParsedDay): boolean => {
   const hasJamKeluar = Boolean(d.jamKeluar && d.jamKeluar !== '-' && d.jamKeluar !== 'null' && d.jamKeluar.trim() !== '');
   const hasAbsensi = hasJamMasuk || hasJamKeluar;
 
-  // Check for DL Half or Izin Sah
+  // Check for DL Half or Izin Sah Kedinasan
   const isDlHalf = statusLower.includes('dl half') || statusLower.includes('dinas luar half') || statusLower.includes('half');
-  const isIzinSah = statusLower.includes('izin sah') || statusLower.includes('ijin sah') || statusLower.includes('izin') || statusLower.includes('ijin');
+  const isIzinSah = statusLower.includes('izin sah') || statusLower.includes('ijin sah') || statusLower.includes('hadir sah');
 
   // Included if has absensi (jam masuk or jam keluar) OR is DL Half OR is Izin Sah
   if (hasAbsensi || isDlHalf || isIzinSah) {
@@ -323,8 +343,81 @@ export const isRamadanPeriod = (dateInput: Date | string, holidays: Holiday[]): 
   return targetTime >= startTime && targetTime <= endTime;
 };
 
+export const ensurePdfJsLoaded = async (): Promise<any> => {
+  if (typeof window === 'undefined') {
+    throw new Error('PDF parsing is only supported in the browser');
+  }
+
+  const existingPdfJs = (window as any).pdfjsLib;
+  if (existingPdfJs) {
+    if (!existingPdfJs.GlobalWorkerOptions?.workerSrc) {
+      existingPdfJs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    return existingPdfJs;
+  }
+
+  // Load dynamically if not loaded yet
+  return new Promise((resolve, reject) => {
+    // Check if script is already injected
+    const existingScript = document.querySelector('script[src*="pdf.js"], script[src*="pdf.min.js"]');
+    if (existingScript) {
+      existingScript.addEventListener('load', () => {
+        const lib = (window as any).pdfjsLib;
+        if (lib) {
+          lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          resolve(lib);
+        } else {
+          reject(new Error('PDF.js failed to initialize'));
+        }
+      });
+      existingScript.addEventListener('error', () => {
+        reject(new Error('Gagal memuat pustaka PDF.js dari CDN'));
+      });
+      // In case it already finished loading
+      setTimeout(() => {
+        if ((window as any).pdfjsLib) {
+          const lib = (window as any).pdfjsLib;
+          lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          resolve(lib);
+        }
+      }, 500);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.async = true;
+    script.onload = () => {
+      const lib = (window as any).pdfjsLib;
+      if (lib) {
+        lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        resolve(lib);
+      } else {
+        reject(new Error('PDF.js object not found after script load'));
+      }
+    };
+    script.onerror = () => {
+      // Fallback CDN if cdnjs fails
+      const fallbackScript = document.createElement('script');
+      fallbackScript.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+      fallbackScript.onload = () => {
+        const lib = (window as any).pdfjsLib;
+        if (lib) {
+          lib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+          resolve(lib);
+        } else {
+          reject(new Error('PDF.js failed to load from fallback CDN'));
+        }
+      };
+      fallbackScript.onerror = () => reject(new Error('Gagal memuat pustaka PDF.js. Periksa koneksi internet.'));
+      document.head.appendChild(fallbackScript);
+    };
+    document.head.appendChild(script);
+  });
+};
+
 export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<ParsedAttendance> => {
-  const pdfjsLib = (window as any).pdfjsLib;
+  const pdfjsLib = await ensurePdfJsLoaded();
   if (!pdfjsLib) {
     throw new Error('PDF.js library is not loaded yet');
   }

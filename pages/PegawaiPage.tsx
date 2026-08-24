@@ -439,9 +439,10 @@ const PegawaiPage = () => {
       const enrichedData = pData.map(p => {
         const enriched = { ...p };
         
-        // 1. Classification Enrichment (Only fallback if missing)
-        if (!enriched.klasifikasiJabatan || enriched.klasifikasiJabatan === '-') {
-          enriched.klasifikasiJabatan = getJabatanClassification(enriched);
+        // 1. Classification Enrichment
+        enriched.klasifikasiJabatan = getJabatanClassification(enriched);
+        if (!enriched.jenisJabatan || enriched.jenisJabatan === '-' || enriched.jenisJabatan.trim() === '') {
+          enriched.jenisJabatan = enriched.klasifikasiJabatan;
         }
         
         // 2. Identity & Retirement Enrichment
