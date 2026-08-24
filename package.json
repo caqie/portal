@@ -8,6 +8,7 @@
     "@google/genai": "^1.34.0",
     "@types/qrcode": "^1.5.6",
     "@vladmandic/face-api": "1.7.15",
+    "bootstrap-icons": "^1.13.1",
     "docx": "^9.1.0",
     "express": "^5.2.1",
     "file-saver": "^2.0.5",

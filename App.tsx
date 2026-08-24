@@ -94,8 +94,8 @@ const SidebarItem = ({
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-blue-500 rounded-r-full shadow-[0_0_12px_rgba(59,130,246,0.1)]"></div>
       )}
       
-      <div className={`flex items-center justify-center ${collapsed ? 'w-full' : 'w-6'} transition-all relative`}>
-        <i className={`bi ${icon} ${active ? 'text-blue-500' : 'text-inherit'} ${collapsed ? 'text-2xl' : 'text-lg'} transition-transform group-hover:scale-110`}></i>
+      <div className={`flex items-center justify-center ${collapsed ? 'w-full' : 'w-6'} transition-all relative shrink-0`}>
+        <i className={`bi ${icon} ${active ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'} ${collapsed ? 'text-2xl' : 'text-lg'} transition-transform group-hover:scale-110 shrink-0`}></i>
         {collapsed && badge !== undefined && badge !== null && (
           <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ${badgeColor} ${badgePulse ? 'animate-ping' : ''} border-2 border-[#0f172a]`}></span>
         )}
