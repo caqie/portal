@@ -338,7 +338,7 @@ export interface KGB {
 }
 export interface Dossier { id: string; nip: string; namaPegawai: string; tanggal: string; keterangan: string; fileName: string; fileUrl?: string; }
 export interface TugasRutin { id: string; timestamp: string; bulan: string; tahun: number; jenis: TaskType; detail: string; data?: any; }
-export interface AuditLog { id: string; timestamp: string; userNip: string; userName: string; action: 'CREATE' | 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'LOGIN'; module: string; description: string; }
+export interface AuditLog { id: string; timestamp: string; userNip: string; userName: string; action: 'CREATE' | 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'LOGIN' | 'EXPORT' | 'PRESENSI'; module: string; description: string; }
 export interface AdminUser { id: string; nip: string; name: string; password?: string; role: 'Superadmin' | 'Editor' | 'Viewer' | 'Admin Uang Makan'; foto?: string; status?: 'Aktif' | 'Nonaktif'; }
 export interface CloudConfig { driveFolderId: string; appsScriptUrl: string; logoUrl?: string; }
 export interface SpmtSppRecord { 
@@ -742,4 +742,149 @@ export interface NotifikasiSDM {
   prioritas?: 'HIGH' | 'MEDIUM' | 'LOW';
   extraData?: Record<string, any>;
 }
+
+// ============================================================
+// === SMART PRESENSI & BIOMETRIC GEOLOCATION MODULE TYPES ===
+// ============================================================
+
+export type FaceRegistrationStatus =
+  | 'NOT_REGISTERED'
+  | 'PENDING'
+  | 'REGISTERED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'REQUIRED_UPDATE';
+
+export interface FaceRegistration {
+  id: string;
+  employee_id: string; // NIP
+  nip: string;
+  nama: string;
+  unitKerja?: string;
+  jabatan?: string;
+  status: FaceRegistrationStatus;
+  face_template_reference: string; // Biometric template abstraction ID / secured token
+  source_type: 'UPLOAD'; // Strict requirement: Face registration uses photo upload only
+  source_file_reference?: string; // Restricted thumbnail/reference
+  version: number; // e.g. 1, 2, 3...
+  quality_score: number; // 0 - 100
+  face_count: number; // Must be exactly 1 for valid registration
+  notes?: string;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+  verified_at?: string;
+  verified_by?: string;
+}
+
+export type GeofenceGeometryType = 'POLYGON' | 'CIRCLE';
+
+export interface PolygonPoint {
+  latitude: number;
+  longitude: number;
+  label?: string;
+}
+
+export interface AttendanceLocation {
+  id: string;
+  name: string;
+  description: string;
+  geometry_type: GeofenceGeometryType;
+  status: 'ACTIVE' | 'INACTIVE';
+  accuracy_limit: number; // Maximum allowed GPS accuracy in meters (e.g. 30)
+  polygon_points: PolygonPoint[]; // Minimum 4 points, supports N points (4, 5, 6, 7, ... 20+)
+  center_latitude?: number;
+  center_longitude?: number;
+  radius_meter?: number;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+}
+
+export type SmartAttendanceType = 'CHECK_IN' | 'CHECK_OUT';
+
+export type SmartAttendanceStatus =
+  | 'PRESENT'
+  | 'LATE'
+  | 'EARLY_LEAVE'
+  | 'ABSENT'
+  | 'INVALID_LOCATION'
+  | 'INVALID_FACE'
+  | 'LIVENESS_FAILED'
+  | 'GPS_INACCURATE'
+  | 'PENDING_REVIEW';
+
+export interface SmartAttendanceRecord {
+  id: string;
+  attendance_request_id: string; // e.g. ATT-20260826-000001
+  employee_id: string; // NIP
+  nama: string;
+  unitKerja: string;
+  attendance_date: string; // YYYY-MM-DD
+  attendance_time: string; // HH:mm:ss WIB
+  attendance_type: SmartAttendanceType;
+  status: SmartAttendanceStatus;
+  face_verified: boolean;
+  liveness_verified: boolean;
+  face_match_score: number; // Percentage, e.g. 98
+  latitude: number;
+  longitude: number;
+  gps_accuracy: number; // in meters
+  geofence_id: string;
+  geofence_name: string;
+  geofence_type: GeofenceGeometryType;
+  geofence_result: 'INSIDE' | 'OUTSIDE';
+  schedule_id?: string;
+  schedule_name?: string;
+  device_reference?: string;
+  verification_timestamp: string;
+  created_at: string;
+  notes?: string;
+  is_anomaly?: boolean;
+}
+
+export interface AttendanceSchedule {
+  id: string;
+  name: string;
+  dayOfWeek: number; // 0: Sun, 1: Mon, ..., 5: Fri
+  dayName: string;
+  checkInStart: string; // e.g. 06:00:00
+  checkInLimit: string; // e.g. 07:30:00 or 08:30:00 (flexy)
+  checkOutStart: string; // e.g. 16:00:00 or 16:30:00
+  checkOutEnd: string; // e.g. 21:00:00
+  isFlexy: boolean;
+  flexyDesc?: string;
+}
+
+export interface SmartAttendanceConfig {
+  face_match_threshold: number; // e.g. 80 (80%)
+  gps_accuracy_limit: number; // e.g. 30 meters
+  geofence_boundary_policy: 'INSIDE' | 'STRICT';
+  liveness_timeout: number; // in seconds (e.g. 15)
+  camera_timeout: number; // in seconds (e.g. 20)
+  attendance_duplicate_window: number; // in minutes (e.g. 60)
+  timezone: string; // e.g. 'Asia/Jakarta'
+  attendance_retention: string;
+  face_registration_retention: string;
+  audit_retention: string;
+}
+
+export type LivenessChallengeType = 
+  | 'BLINK'
+  | 'LOOK_LEFT'
+  | 'LOOK_RIGHT'
+  | 'SMILE'
+  | 'NOD_HEAD';
+
+export interface LivenessChallenge {
+  id: string;
+  type: LivenessChallengeType;
+  instruction: string;
+  subInstruction: string;
+  icon: string;
+  durationMs: number;
+}
+
 

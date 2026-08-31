@@ -7,6 +7,8 @@ import { UNIT_KERJA, normalizeUnitName, formatPegawaiName, getJabatanClassificat
 import * as XLSX from 'xlsx';
 import CalendarView from '../components/CalendarView';
 import LayananSDMAlertBanner from '../components/LayananSDM/LayananSDMAlertBanner';
+import UserSelfServiceDashboard from '../components/UserSelfServiceDashboard';
+import ExternalAppLinks from '../components/ExternalAppLinks';
 
 const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: string, value: string | number, icon: string, color: string, loading?: boolean, subtext?: string }) => (
   <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] shadow-sm border border-gray-100 flex items-center space-x-3 md:space-x-4 hover:shadow-xl transition-all duration-300 group">
@@ -29,7 +31,7 @@ const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: str
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, logActivity } = useAuth();
+  const { user, logActivity, isSuperadmin } = useAuth();
   const [pegawai, setPegawai] = useState<Pegawai[]>(() => {
     const cached = localStorage.getItem('portal_pegawai_db');
     if (cached) {
@@ -702,11 +704,49 @@ const Dashboard = () => {
     logActivity('DOWNLOAD', 'Dashboard', 'Download Matriks Jabatan Lengkap (Excel Export)');
   };
 
+  const isViewerRole = !isSuperadmin && user?.role !== 'Editor' && user?.role !== 'Admin Uang Makan';
+  const [viewMode, setViewMode] = useState<'user' | 'admin'>(() => isViewerRole ? 'user' : 'admin');
+
+  useEffect(() => {
+    if (isViewerRole) {
+      setViewMode('user');
+    }
+  }, [isViewerRole]);
+
+  // If in user view mode (Default for Viewer / Pegawai / User role)
+  if (viewMode === 'user') {
+    return (
+      <UserSelfServiceDashboard 
+        canViewAdminSwitch={isSuperadmin || user?.role === 'Editor'} 
+        onSwitchToAdminView={() => setViewMode('admin')} 
+      />
+    );
+  }
+
   return (
     <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
+      {/* Top Banner for Admin with option to preview User Dashboard */}
+      {(isSuperadmin || user?.role === 'Editor') && (
+        <div className="flex items-center justify-between bg-white px-5 py-3 rounded-2xl border border-gray-200/80 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-blue-600"></span>
+            <span className="text-xs font-bold text-gray-700">Mode Tampilan: <strong>Admin Intelligence Hub SDM DJKI</strong></span>
+          </div>
+          <button
+            onClick={() => setViewMode('user')}
+            className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-all"
+          >
+            <i className="bi bi-person-workspace"></i>
+            <span>Buka Dashboard Mandiri Pegawai (User View)</span>
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
         <div className="w-full md:w-auto">
-          <h3 className="text-xl md:text-3xl font-black text-gray-950 tracking-tighter leading-none">Intelligence Hub DJKI</h3>
+          <h3 className="text-xl md:text-3xl font-black text-gray-950 tracking-tighter leading-none">
+            {isViewerRole ? "Statistik & Ringkasan SDM DJKI" : "Intelligence Hub DJKI"}
+          </h3>
           <p className="text-[9px] md:text-[10px] text-gray-400 font-bold tracking-[0.2em] md:tracking-[0.3em] mt-2 md:mt-3 flex items-center gap-2 md:gap-3">
              <i className="bi bi-cpu-fill text-blue-600"></i> Real-time Analytics Dashboard
           </p>
@@ -750,8 +790,11 @@ const Dashboard = () => {
       {/* NOTIFIKASI LAYANAN SDM BANNER */}
       <LayananSDMAlertBanner />
 
-      {/* TROUBLESHOOTING & INTEGRATION PANEL */}
-      {(connectionError || activePegawaiList.length === 0) && !isErrorDismissed && (
+      {/* PUSAT TAUTAN APLIKASI KEPEGAWAIAN (SIMPEG, SERAYA, SIASN, SIAP ADMIN, DOSSIER ADMIN) */}
+      <ExternalAppLinks title="Pusat Portal &amp; Aplikasi Kepegawaian Terpadu" subtitle="Akses langsung ke SIMPEG, SERAYA, SIASN BKN, SIAP Administrator, dan Dossier Digital" />
+
+      {/* TROUBLESHOOTING & INTEGRATION PANEL (Hanya tampil untuk Superadmin / Editor) */}
+      {!isViewerRole && (connectionError || activePegawaiList.length === 0) && !isErrorDismissed && (
         <div id="connection-troubleshooting-card" className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-[2rem] p-6 md:p-8 shadow-sm relative overflow-hidden animate-fadeIn">
           {/* Close Button */}
           <button 

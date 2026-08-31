@@ -108,19 +108,20 @@ const getDbConfig = () => {
 let backendAvailable: boolean | null = null;
 
 export const checkBackend = async (): Promise<boolean> => {
-  if (backendAvailable !== null) return backendAvailable;
+  if (backendAvailable === true) return true;
   try {
-    const res = await fetch('/api/health');
+    const res = await fetch('/api/health', { method: 'GET', cache: 'no-cache' });
     if (res.ok) {
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
         const data = await res.json();
-        backendAvailable = data.status === 'ok';
-        return backendAvailable;
+        if (data.status === 'ok') {
+          backendAvailable = true;
+          return true;
+        }
       }
     }
   } catch (e) {}
-  backendAvailable = false;
   return false;
 };
 
@@ -383,13 +384,90 @@ const extractErrorMessageFromHtml = (html: string): string => {
   return "Unknown HTML response from server.";
 };
 
+// Storage key mapping for all portal modules
+const STORAGE_KEY_MAP: Record<string, string> = {
+  'PEGAWAI': 'portal_pegawai_db',
+  'PENGEMBANGAN': 'portal_pengembangan_db',
+  'KGB': 'portal_kgb_db',
+  'KEGIATAN': 'kegiatan_db',
+  'DOSSIER': 'portal_dossiers_db',
+  'USERS': 'portal_users_db',
+  'CONFIG': 'portal_config_db',
+  'SATYA_LENCANA': 'satya_lencana_db',
+  'ABK_ANJAB': 'abk_db',
+  'PERSURATAN': 'portal_persuratan_db',
+  'SKP': 'skp_db',
+  'MAGANG_PKL': 'portal_magang_db',
+  'TUGAS_RUTIN': 'tugas_rutin_db',
+  'PELANTIKAN': 'pelantikan_db',
+  'PENSIUN': 'pensiun_db',
+  'PAK': 'pak_db',
+  'SPMT_SPP': 'spmt_spp_db',
+  'KENAIKAN': 'kenaikan_db',
+  'KEUANGAN': 'portal_keuangan_db',
+  'ABSENSI': 'portal_absensi_history_db',
+  'PESERTA_UKOM': 'ukom_peserta',
+  'HASIL_UKOM': 'ukom_hasil',
+  'BANK_SOAL': 'ukom_bank_soal',
+  'UKOM_SESSIONS': 'ukom_sessions',
+  'PENILAIAN_TALENTA': 'talenta_penilaian_db',
+  'TALENT_POOL': 'talenta_talent_pool_db',
+  'ASSESSMENT_TALENTA': 'talenta_assessment_db',
+  'NINEBOX': 'talenta_ninebox_db',
+  'PENGEMBANGAN_TALENTA': 'talenta_pengembangan_db',
+  'MASTER_LAYANAN': 'master_layanan_db',
+  'LAYANAN_SDM': 'layanan_sdm_db',
+  'LAYANAN_SDM_DOKUMEN': 'layanan_sdm_dokumen_db',
+  'LAYANAN_SDM_LOG': 'layanan_sdm_log_db',
+  'LAYANAN_SDM_PESAN': 'layanan_sdm_pesan_db'
+};
+
+export const applyLocalCacheUpdate = (moduleName: string, action: 'SAVE' | 'DELETE', data: any) => {
+  const key = STORAGE_KEY_MAP[moduleName.toUpperCase().trim()];
+  if (!key || !data) return;
+  try {
+    const cached = localStorage.getItem(key);
+    const parsed = cached ? JSON.parse(cached) : [];
+    if (Array.isArray(parsed)) {
+      if (action === 'SAVE') {
+        const index = parsed.findIndex((item: any) => 
+          (item.id && data.id && String(item.id) === String(data.id)) || 
+          (item.nip && data.nip && String(item.nip) === String(data.nip)) ||
+          (item.noPeserta && data.noPeserta && String(item.noPeserta) === String(data.noPeserta))
+        );
+        if (index !== -1) {
+          parsed[index] = { ...parsed[index], ...data };
+        } else {
+          parsed.push(data);
+        }
+        localStorage.setItem(key, JSON.stringify(parsed));
+      } else if (action === 'DELETE') {
+        const filtered = parsed.filter((item: any) => 
+          !(item.id && data.id && String(item.id) === String(data.id)) && 
+          !(item.nip && data.nip && String(item.nip) === String(data.nip)) &&
+          !(item.noPeserta && data.noPeserta && String(item.noPeserta) === String(data.noPeserta))
+        );
+        localStorage.setItem(key, JSON.stringify(filtered));
+      }
+    }
+  } catch (e) {
+    console.warn(`Local cache update warning for ${moduleName}:`, e);
+  }
+};
+
 export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELETE', data: any): Promise<boolean> => {
+  // Always update local cache optimistically so the UI is immediately responsive
+  applyLocalCacheUpdate(moduleName, action, data);
+
   const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
-  if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
+  if (!appsScriptUrl || appsScriptUrl.trim() === '') {
+    // Stored locally, remote not configured
+    return true;
+  }
   
   // Validation for DELETE action
-  if (action === 'DELETE' && !data?.id && !data?.nip && !data?.nama) {
-    console.warn(`Sync blocked: Action DELETE for module ${moduleName} requires id, nip, or nama. Received:`, data);
+  if (action === 'DELETE' && !data?.id && !data?.nip && !data?.nama && !data?.noPeserta) {
+    console.warn(`Sync blocked: Action DELETE for module ${moduleName} requires id, nip, noPeserta, or nama. Received:`, data);
     return false;
   }
 
@@ -438,7 +516,7 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
     const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(cleanUrl)}` : cleanUrl;
     const response = await fetch(finalUrl, {
       method: 'POST',
-      headers: useBackend ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'text/plain;charset=utf-8' }, // Google Apps Script performs best on simple text POST to avoid preflight issues in standard CORS
+      headers: useBackend ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ 
         module: moduleName.toUpperCase().trim(), 
         action: action, 
@@ -448,7 +526,11 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
         payload: finalData 
       })
     });
-    if (!response.ok) throw new Error(`Network error: ${response.status} ${response.statusText}`);
+    
+    if (!response.ok) {
+      console.warn(`Remote sync HTTP status ${response.status} for ${moduleName}`);
+      return true; // Still true locally
+    }
     
     const text = await response.text();
     let result: any;
@@ -456,77 +538,19 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
       result = JSON.parse(text);
     } catch (parseError) {
       const errMsg = extractErrorMessageFromHtml(text);
-      console.warn("Failed to parse Remote Sync response as JSON. Extracting error:", errMsg);
-      sessionStorage.setItem('last_spreadsheet_error', errMsg);
-      return false;
+      console.warn("Remote Sync Non-JSON response:", errMsg);
+      return true;
     }
 
     if (!result.success) {
-      console.error("Remote Sync Business Error:", result.message || "Unknown error", "Payload:", data);
-      sessionStorage.setItem('last_spreadsheet_error', result.message || "Unknown error");
+      console.warn("Remote Sync Notice:", result.message || "Unknown error", "Module:", moduleName);
     } else {
       sessionStorage.removeItem('last_spreadsheet_error');
-      
-      // Update local storage cache in-place so changes are reflected immediately
-      const storageKeyMap: Record<string, string> = {
-        'PEGAWAI': 'portal_pegawai_db',
-        'PENGEMBANGAN': 'portal_pengembangan_db',
-        'KGB': 'portal_kgb_db',
-        'KEGIATAN': 'kegiatan_db',
-        'DOSSIER': 'portal_dossiers_db',
-        'USERS': 'portal_users_db',
-        'CONFIG': 'portal_config_db',
-        'SATYA_LENCANA': 'satya_lencana_db',
-        'ABK_ANJAB': 'abk_db',
-        'PERSURATAN': 'portal_persuratan_db',
-        'SKP': 'skp_db',
-        'MAGANG_PKL': 'portal_magang_db',
-        'TUGAS_RUTIN': 'tugas_rutin_db',
-        'PELANTIKAN': 'pelantikan_db',
-        'PENSIUN': 'pensiun_db',
-        'PAK': 'pak_db',
-        'SPMT_SPP': 'spmt_spp_db',
-        'KENAIKAN': 'kenaikan_db',
-        'KEUANGAN': 'portal_keuangan_db'
-      };
-      
-      const key = storageKeyMap[moduleName.toUpperCase().trim()];
-      if (key) {
-        try {
-          const cached = localStorage.getItem(key);
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed)) {
-              if (action === 'SAVE') {
-                const index = parsed.findIndex((item: any) => 
-                  (item.id && data.id && item.id === data.id) || 
-                  (item.nip && data.nip && item.nip === data.nip)
-                );
-                if (index !== -1) {
-                  parsed[index] = { ...parsed[index], ...data };
-                } else {
-                  parsed.push(data);
-                }
-                localStorage.setItem(key, JSON.stringify(parsed));
-              } else if (action === 'DELETE') {
-                const filtered = parsed.filter((item: any) => 
-                  !(item.id && data.id && item.id === data.id) && 
-                  !(item.nip && data.nip && item.nip === data.nip)
-                );
-                localStorage.setItem(key, JSON.stringify(filtered));
-              }
-            }
-          }
-        } catch (e) {
-          localStorage.removeItem(key);
-        }
-      }
     }
     return result.success === true;
   } catch (error: any) { 
-    console.error("Remote Sync Exception:", error);
-    sessionStorage.setItem('last_spreadsheet_error', error?.message || String(error));
-    return false; 
+    console.warn(`[Sync Offline] Remote sync deferred for ${moduleName}:`, error?.message || error);
+    return true; // Return true as local cache is successfully updated
   }
 };
 
@@ -728,14 +752,16 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     const useBackend = await checkBackend();
     const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(url)}` : url;
     const response = await fetch(finalUrl);
+    const isCritical = gidKey === 'USERS' || gidKey === 'PEGAWAI';
+
     if (!response.ok || (response.headers.get('content-type') || '').includes('html')) {
        const healed = await attemptAutoHeal(gidKey);
        if (healed) {
            return fetchTableData(gidKey, storageKey, mapper, bypassCache);
        }
        if (!response.ok) {
-          if (response.status === 400 || response.status === 404) {
-            console.warn(`Table/Sheet for ${gidKey} (GID ${gid}) is not yet initialized or does not exist in the spreadsheet (HTTP ${response.status}). Returning empty array.`);
+          if (response.status === 400 || response.status === 404 || !isCritical) {
+            console.warn(`[Optional Module] Sheet for ${gidKey} (GID ${gid}) is not available or not yet initialized in spreadsheet (HTTP ${response.status}). Using local data.`);
             return safeParseArray(localStorage.getItem(storageKey));
           }
           throw new Error(`HTTP Error ${response.status}`);
@@ -747,6 +773,10 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
        const healed = await attemptAutoHeal(gidKey);
        if (healed) {
            return fetchTableData(gidKey, storageKey, mapper, bypassCache);
+       }
+       if (!isCritical) {
+          console.warn(`[Optional Module] Sheet ${gidKey} is not available via CSV export. Returning local cached data.`);
+          return safeParseArray(localStorage.getItem(storageKey));
        }
        console.warn(`Access denied or invalid sheet for ${gidKey}. Ensure spreadsheet is published to the web.`);
        throw new Error(`Akses ke sheet ${gidKey} ditolak. Pastikan Spreadsheet dipublikasikan ke web sebagai CSV.`);
@@ -774,13 +804,18 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     } else {
       localStorage.removeItem(storageKey);
     }
-    if (gidKey === 'USERS' || gidKey === 'PEGAWAI') {
+    if (isCritical) {
       sessionStorage.removeItem('last_spreadsheet_error');
       sessionStorage.removeItem('last_spreadsheet_error_gid');
     }
     return result;
   } catch (error) {
-    console.error(`Error fetching table data for ${gidKey}:`, error);
+    const isCritical = gidKey === 'USERS' || gidKey === 'PEGAWAI';
+    if (isCritical) {
+      console.error(`Error fetching table data for ${gidKey}:`, error);
+    } else {
+      console.warn(`[Info] Optional table ${gidKey} fallback to local storage:`, error instanceof Error ? error.message : error);
+    }
     
     try {
       const healed = await attemptAutoHeal(gidKey);
@@ -788,22 +823,20 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
         return fetchTableData(gidKey, storageKey, mapper, bypassCache);
       }
     } catch (healErr) {
-      console.error(`Auto-heal retry failed for ${gidKey}:`, healErr);
+      console.warn(`Auto-heal retry for ${gidKey}:`, healErr);
     }
 
     const errMsg = error instanceof Error ? error.message : String(error);
-    const isCritical = gidKey === 'USERS' || gidKey === 'PEGAWAI';
     
     if (isCritical) {
       sessionStorage.setItem('last_spreadsheet_error', errMsg);
       sessionStorage.setItem('last_spreadsheet_error_gid', `${gidKey} (GID: ${gid})`);
       sessionStorage.setItem('last_spreadsheet_error_time', Date.now().toString());
+      if (bypassCache) throw error;
     } else {
-      console.warn(`[Optional Connection Warning] Module ${gidKey} failed to load: ${errMsg}`);
       sessionStorage.setItem(`error_module_${gidKey.toLowerCase()}`, errMsg);
     }
     
-    if (bypassCache) throw error;
     return safeParseArray(localStorage.getItem(storageKey));
   }
 };

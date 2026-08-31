@@ -35,6 +35,7 @@ export const PengajuanLayananPage: React.FC = () => {
   // Form State
   const [selectedKategoriId, setSelectedKategoriId] = useState<string>('');
   const [selectedLayanan, setSelectedLayanan] = useState<MasterLayanan | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [prioritas, setPrioritas] = useState<PrioritasPengajuan>('NORMAL');
   const [keteranganTambahan, setKeteranganTambahan] = useState<string>('');
@@ -114,6 +115,32 @@ export const PengajuanLayananPage: React.FC = () => {
     if (!selectedKategoriId) return [];
     return masterList.filter(l => l.kategori === selectedKategoriId && l.aktif);
   }, [masterList, selectedKategoriId]);
+
+  // Filtered services across all categories by search term
+  const filteredAllServices = useMemo(() => {
+    if (!searchTerm.trim()) return [];
+    const query = searchTerm.toLowerCase();
+    return masterList.filter(l => 
+      l.aktif && (
+        l.namaLayanan.toLowerCase().includes(query) ||
+        (l.deskripsi && l.deskripsi.toLowerCase().includes(query)) ||
+        l.kodeLayanan.toLowerCase().includes(query)
+      )
+    );
+  }, [masterList, searchTerm]);
+
+  // Handler Direct Select Service (Jump to Step 3)
+  const handleSelectServiceDirect = (service: MasterLayanan) => {
+    setSelectedKategoriId(service.kategori);
+    setSelectedLayanan(service);
+    const initialForm: Record<string, any> = {};
+    service.fields.forEach(f => {
+      if (f.defaultValue) initialForm[f.name] = f.defaultValue;
+    });
+    setFormData(initialForm);
+    setUploadedFiles({});
+    setCurrentStep(3);
+  };
 
   // Handler Step 1: Select Category
   const handleSelectCategory = (catId: string) => {
@@ -420,50 +447,152 @@ export const PengajuanLayananPage: React.FC = () => {
       {/* Main Form Content Container */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-6">
         {/* ==================================================== */}
-        {/* STEP 1: PILIH KATEGORI LAYANAN */}
+        {/* STEP 1: PILIH KATEGORI / CARI LAYANAN SDM */}
         {/* ==================================================== */}
         {currentStep === 1 && (
           <div className="space-y-6">
-            <div className="text-center max-w-xl mx-auto mb-6">
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900">Pilih Kategori Layanan</h2>
+            <div className="text-center max-w-xl mx-auto mb-4">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900">Pilih Layanan SDM</h2>
               <p className="text-xs sm:text-sm text-slate-600 mt-1.5">
-                Silakan tentukan rumpun layanan kepegawaian yang sesuai dengan kebutuhan permohonan Anda.
+                Pilih langsung layanan kepegawaian yang Anda butuhkan atau telusuri berdasarkan kategori rumpun layanan.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {LAYANAN_CATEGORIES.map(cat => {
-                const count = masterList.filter(l => l.kategori === cat.id && l.aktif).length;
-                return (
-                  <div
-                    key={cat.id}
-                    onClick={() => handleSelectCategory(cat.id)}
-                    className="cursor-pointer bg-white border border-slate-200/90 hover:border-blue-400 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all group flex flex-col justify-between"
+            {/* Quick Search Bar */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+              <div className="relative">
+                <i className="bi bi-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Ketik nama layanan (contoh: Kenaikan Pangkat, KGB, Pernikahan, Pensiun, Mutasi...)"
+                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                   >
-                    <div>
-                      <div className="flex items-start justify-between mb-3">
-                        <div className={`w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl group-hover:scale-105 transition`}>
-                          <i className={`bi ${cat.icon}`} />
-                        </div>
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-600">
-                          {count} Layanan
-                        </span>
-                      </div>
-                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition">
-                        {cat.nama}
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
-                        {cat.deskripsi}
-                      </p>
-                    </div>
+                    <i className="bi bi-x-circle-fill text-sm" />
+                  </button>
+                )}
+              </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600 group-hover:translate-x-1 transition-transform">
-                      <span>Pilih Kategori</span>
-                      <i className="bi bi-chevron-right text-[11px]" />
-                    </div>
+              {/* Live Search Results */}
+              {searchTerm.trim() !== '' && (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-700">
+                      Hasil Pencarian ({filteredAllServices.length} layanan ditemukan)
+                    </span>
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="text-[11px] text-slate-500 hover:text-blue-600"
+                    >
+                      Tutup Pencarian
+                    </button>
                   </div>
-                );
-              })}
+
+                  {filteredAllServices.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-500">
+                      Tidak ditemukan layanan dengan kata kunci "{searchTerm}". Silakan pilih dari daftar kategori di bawah.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
+                      {filteredAllServices.map(item => (
+                        <div
+                          key={item.id}
+                          onClick={() => handleSelectServiceDirect(item)}
+                          className="cursor-pointer p-3 bg-slate-50 hover:bg-blue-50/70 border border-slate-200 hover:border-blue-300 rounded-xl transition group flex items-start justify-between gap-2"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-blue-600 bg-blue-100/60 px-1.5 py-0.5 rounded">
+                                {item.kodeLayanan}
+                              </span>
+                              <span className="text-[10px] text-emerald-600 font-semibold">
+                                SLA {item.slaHari} Hari
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 mt-1">
+                              {item.namaLayanan}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                              {item.deskripsi}
+                            </p>
+                          </div>
+                          <i className="bi bi-arrow-right text-slate-400 group-hover:text-blue-600 transition text-sm mt-1" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Access Pills for All HR Services */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
+              <div className="flex items-center gap-2 mb-3">
+                <i className="bi bi-lightning-charge-fill text-amber-500 text-sm" />
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Akses Cepat 26 Layanan SDM
+                </h3>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {masterList.filter(l => l.aktif).map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleSelectServiceDirect(item)}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-blue-600 hover:text-white border border-slate-200/80 hover:border-blue-600 transition flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <i className={`bi ${item.icon || 'bi-circle'} text-[10px]`} />
+                    <span>{item.namaLayanan}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Category Navigation */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <i className="bi bi-folder2-open text-blue-600" />
+                <span>Telusuri Berdasarkan Rumpun Kategori</span>
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {LAYANAN_CATEGORIES.map(cat => {
+                  const count = masterList.filter(l => l.kategori === cat.id && l.aktif).length;
+                  return (
+                    <div
+                      key={cat.id}
+                      onClick={() => handleSelectCategory(cat.id)}
+                      className="cursor-pointer bg-white border border-slate-200/90 hover:border-blue-400 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all group flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between mb-2.5">
+                          <div className={`w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg group-hover:scale-105 transition`}>
+                            <i className={`bi ${cat.icon}`} />
+                          </div>
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-100 text-slate-600">
+                            {count}
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition">
+                          {cat.nama}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                          {cat.deskripsi}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-blue-600 group-hover:translate-x-1 transition-transform">
+                        <span>Lihat Layanan</span>
+                        <i className="bi bi-chevron-right text-[10px]" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}

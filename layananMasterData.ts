@@ -11,680 +11,666 @@ export interface LayananCategory {
 
 export const LAYANAN_CATEGORIES: LayananCategory[] = [
   {
-    id: 'DATA_KEPEGAWAIAN',
-    nama: 'Data Kepegawaian',
-    deskripsi: 'Perubahan & perbaikan data pribadi, pendidikan, keluarga, serta kontak',
-    icon: 'bi-person-gear',
-    color: 'text-blue-600',
-    badgeBg: 'bg-blue-50 text-blue-700 border-blue-200'
-  },
-  {
-    id: 'KEPANGKATAN',
-    nama: 'Kepangkatan',
-    deskripsi: 'Usulan kenaikan pangkat, penyesuaian ijazah, dan peninjauan masa kerja',
+    id: 'KEPANGKATAN_KARIR',
+    nama: 'Kepangkatan & Karir',
+    deskripsi: 'Kenaikan Pangkat, Kenaikan Jabatan, Promosi, Pencantuman Gelar, Penyesuaian Ijazah, Ujian Dinas & Penghargaan',
     icon: 'bi-award-fill',
     color: 'text-indigo-600',
     badgeBg: 'bg-indigo-50 text-indigo-700 border-indigo-200'
   },
   {
-    id: 'JABATAN',
-    nama: 'Jabatan',
-    deskripsi: 'Pengangkatan, perpindahan, mutasi, promosi, dan konsultasi jabatan',
-    icon: 'bi-briefcase-fill',
+    id: 'KENAIKAN_GAJI',
+    nama: 'Gaji & Kesejahteraan',
+    deskripsi: 'Kenaikan Gaji Berkala (KGB), Jaminan Sosial, JHT, Kesehatan & Taperum',
+    icon: 'bi-cash-stack',
     color: 'text-emerald-600',
     badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200'
   },
   {
-    id: 'KENAIKAN_GAJI',
-    nama: 'Kenaikan Gaji',
-    deskripsi: 'Kenaikan Gaji Berkala (KGB), penyesuaian gaji, dan konsultasi hak keuangan',
-    icon: 'bi-cash-stack',
-    color: 'text-teal-600',
-    badgeBg: 'bg-teal-50 text-teal-700 border-teal-200'
-  },
-  {
-    id: 'TUGAS_BELAJAR',
-    nama: 'Tugas Belajar & Kompetensi',
-    deskripsi: 'Tugas belajar, izin belajar, diklat, pelatihan, sertifikasi, dan kompetensi',
+    id: 'PENGEMBANGAN_PENDIDIKAN',
+    nama: 'Pengembangan & Pendidikan',
+    deskripsi: 'Tugas Belajar, Izin Belajar, Penelitian, Magang, dan Pelatihan Kompetensi',
     icon: 'bi-mortarboard-fill',
     color: 'text-purple-600',
     badgeBg: 'bg-purple-50 text-purple-700 border-purple-200'
   },
   {
-    id: 'MUTASI',
-    nama: 'Mutasi',
-    deskripsi: 'Mutasi internal, antar-unit kerja, mutasi masuk, keluar, dan permohonan pindah',
+    id: 'MUTASI_JABATAN',
+    nama: 'Mutasi & Penempatan',
+    deskripsi: 'Mutasi Internal DJKI, Mutasi Antar-Instansi/Kanwil, dan Perpindahan Jabatan',
     icon: 'bi-arrow-left-right',
     color: 'text-amber-600',
     badgeBg: 'bg-amber-50 text-amber-700 border-amber-200'
   },
   {
-    id: 'DISIPLIN',
-    nama: 'Disiplin Kepegawaian',
-    deskripsi: 'Konsultasi disiplin, klarifikasi, keberatan, dan administrasi hukuman disiplin',
-    icon: 'bi-shield-shaded',
+    id: 'KELUARGA_STATUS',
+    nama: 'Status & Administrasi Keluarga',
+    deskripsi: 'Pernikahan, Perceraian, Kelahiran Anak, dan Kartu Istri/Suami (KARIS/KARSU)',
+    icon: 'bi-people-fill',
+    color: 'text-blue-600',
+    badgeBg: 'bg-blue-50 text-blue-700 border-blue-200'
+  },
+  {
+    id: 'PENSIUN_PURNA',
+    nama: 'Pensiun & Purna Bakti',
+    deskripsi: 'Usulan Pensiun BUP/APS, Program Pembekalan Purna Bakti, dan Hak Taspen',
+    icon: 'bi-door-open-fill',
     color: 'text-rose-600',
     badgeBg: 'bg-rose-50 text-rose-700 border-rose-200'
   },
   {
-    id: 'PENSIUN',
-    nama: 'Pensiun',
-    deskripsi: 'Usulan pensiun BUP, APS, persiapan berkas dan konsultasi pensiun',
-    icon: 'bi-door-open-fill',
-    color: 'text-orange-600',
-    badgeBg: 'bg-orange-50 text-orange-700 border-orange-200'
+    id: 'HUKUM_DISIPLIN',
+    nama: 'Hukum & Disiplin',
+    deskripsi: 'Perlindungan Hukum ASN, Administrasi Disiplin, dan Klarifikasi Kepatuhan',
+    icon: 'bi-shield-shaded',
+    color: 'text-red-600',
+    badgeBg: 'bg-red-50 text-red-700 border-red-200'
   },
   {
-    id: 'ADMINISTRASI',
-    nama: 'Administrasi Kepegawaian',
-    deskripsi: 'Surat keterangan aktif, surat keterangan masa kerja, dan legalisasi berkas',
-    icon: 'bi-file-earmark-check-fill',
-    color: 'text-sky-600',
-    badgeBg: 'bg-sky-50 text-sky-700 border-sky-200'
-  },
-  {
-    id: 'KONSULTASI_SDM',
-    nama: 'Konsultasi SDM',
-    deskripsi: 'Pusat konsultasi karir, kepangkatan, jabatan, pensiun, dan administrasi',
+    id: 'KONSULTASI_ADMINISTRASI',
+    nama: 'Konsultasi & Layanan Lainnya',
+    deskripsi: 'Konsultasi Kepegawaian, Surat Keterangan Aktif, Legalisasi Berkas, dan Layanan SDM Lainnya',
     icon: 'bi-chat-dots-fill',
     color: 'text-cyan-600',
     badgeBg: 'bg-cyan-50 text-cyan-700 border-cyan-200'
-  },
-  {
-    id: 'LAINNYA',
-    nama: 'Layanan Lainnya',
-    deskripsi: 'Permohonan layanan kepegawaian lainnya yang belum terakomodasi',
-    icon: 'bi-grid-fill',
-    color: 'text-slate-600',
-    badgeBg: 'bg-slate-100 text-slate-700 border-slate-300'
   }
 ];
 
 export const MASTER_LAYANAN_DATA: MasterLayanan[] = [
-  // A. DATA KEPEGAWAIAN
-  {
-    id: 'LYN-DK-01',
-    kodeLayanan: 'PERUBAHAN_DATA_PRIBADI',
-    kategori: 'DATA_KEPEGAWAIAN',
-    namaLayanan: 'Perubahan Data Pribadi',
-    deskripsi: 'Pengajuan perbaikan identitas diri, NIK, tempat/tanggal lahir, atau nama pada database kepegawaian',
-    aktif: true,
-    slaHari: 3,
-    icon: 'bi-person-vcard',
-    fields: [
-      { name: 'jenisPerubahan', label: 'Elemen Data yang Diubah', type: 'select', options: ['Nama Lengkap & Gelar', 'NIK / No. KTP', 'Tempat / Tanggal Lahir', 'Jenis Kelamin', 'Agama', 'Lainnya'], required: true },
-      { name: 'dataLama', label: 'Data Lama (Tercatat Saat Ini)', type: 'textarea', placeholder: 'Tuliskan data yang salah atau data lama...', required: true },
-      { name: 'dataBaru', label: 'Data Baru yang Benar', type: 'textarea', placeholder: 'Tuliskan data baru yang sesuai dokumen resmi...', required: true },
-      { name: 'alasanPerubahan', label: 'Alasan Perubahan', type: 'textarea', placeholder: 'Jelaskan dasar/alasan permohonan perubahan data...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_ktp_kk', label: 'KTP / Kartu Keluarga Terbaru (PDF/JPG)', required: true, description: 'Scan asli KTP atau KK terbaru' },
-      { id: 'doc_akta_lahir', label: 'Akta Kelahiran / Surat Keputusan Pengadilan (jika ada)', required: false, description: 'Bukti otentik data kelahiran' }
-    ]
-  },
-  {
-    id: 'LYN-DK-02',
-    kodeLayanan: 'PERUBAHAN_DATA_KELUARGA',
-    kategori: 'DATA_KEPEGAWAIAN',
-    namaLayanan: 'Perubahan Data Keluarga',
-    deskripsi: 'Penambahan/pemutakhiran data suami/istri/anak untuk administrasi tunjangan dan kepegawaian',
-    aktif: true,
-    slaHari: 3,
-    icon: 'bi-people',
-    fields: [
-      { name: 'jenisPeristiwa', label: 'Jenis Peristiwa Keluarga', type: 'select', options: ['Pernikahan (Tambah Pasangan)', 'Kelahiran Anak (Tambah Anak)', 'Perceraian', 'Kematian Anggota Keluarga'], required: true },
-      { name: 'namaAnggota', label: 'Nama Anggota Keluarga', type: 'text', placeholder: 'Nama lengkap anggota keluarga...', required: true },
-      { name: 'hubunganKeluarga', label: 'Hubungan Keluarga', type: 'select', options: ['Suami', 'Istri', 'Anak Kandung', 'Anak Angkat/Tiri'], required: true },
-      { name: 'tanggalPeristiwa', label: 'Tanggal Peristiwa / Surat', type: 'date', required: true },
-      { name: 'keterangan', label: 'Keterangan Tambahan', type: 'textarea', placeholder: 'Catatan terkait KP4 / tunjangan keluarga...', required: false }
-    ],
-    requiredDocuments: [
-      { id: 'doc_buku_nikah', label: 'Buku Nikah / Akta Cerai / Akta Kematian (PDF)', required: true, description: 'Dokumen bukti hukum peristiwa' },
-      { id: 'doc_akta_anak', label: 'Akta Kelahiran Anak (jika penambahan anak)', required: false, description: 'Scan akta kelahiran anak' },
-      { id: 'doc_kk', label: 'Kartu Keluarga Terbaru (PDF)', required: true, description: 'KK yang sudah tercatat perubahan' }
-    ]
-  },
-  {
-    id: 'LYN-DK-03',
-    kodeLayanan: 'PERUBAHAN_PENDIDIKAN',
-    kategori: 'DATA_KEPEGAWAIAN',
-    namaLayanan: 'Perubahan Data Pendidikan',
-    deskripsi: 'Pemutakhiran riwayat jenjang pendidikan formal, nomor ijazah, dan gelar akademik',
-    aktif: true,
-    slaHari: 3,
-    icon: 'bi-book',
-    fields: [
-      { name: 'jenjangPendidikan', label: 'Jenjang Pendidikan Baru', type: 'select', options: ['SLTA/SMK', 'D-III', 'D-IV', 'S-1', 'S-2', 'S-3', 'Profesi'], required: true },
-      { name: 'institusiPendidikan', label: 'Nama Universitas / Sekolah', type: 'text', placeholder: 'Contoh: Universitas Indonesia', required: true },
-      { name: 'programStudi', label: 'Program Studi / Jurusan', type: 'text', placeholder: 'Contoh: Ilmu Hukum / Teknik Informatika', required: true },
-      { name: 'tahunLulus', label: 'Tahun Kelulusan', type: 'number', placeholder: '2025', required: true },
-      { name: 'nomorIjazah', label: 'Nomor Ijazah', type: 'text', placeholder: 'Nomor seri ijazah...', required: true },
-      { name: 'nomorSkGelar', label: 'Nomor SK Pencantuman Gelar / Izin Belajar (Jika ada)', type: 'text', placeholder: 'Nomor SK...', required: false }
-    ],
-    requiredDocuments: [
-      { id: 'doc_ijazah', label: 'Scan Ijazah Asli / Legalisir (PDF)', required: true, description: 'File ijazah kelulusan' },
-      { id: 'doc_transkrip', label: 'Scan Transkrip Nilai Asli (PDF)', required: true, description: 'Transkrip akademik resmi' },
-      { id: 'doc_sk_gelar', label: 'SK Pencantuman Gelar / Surat Izin Belajar (jika ada)', required: false, description: 'SK persetujuan pencantuman gelar' }
-    ]
-  },
-  {
-    id: 'LYN-DK-04',
-    kodeLayanan: 'PERUBAHAN_ALAMAT_KONTAK',
-    kategori: 'DATA_KEPEGAWAIAN',
-    namaLayanan: 'Perubahan Alamat / Kontak',
-    deskripsi: 'Pembaruan nomor handphone/WhatsApp, email dinas/pribadi, dan alamat domisili',
-    aktif: true,
-    slaHari: 2,
-    icon: 'bi-telephone-forward',
-    fields: [
-      { name: 'noHpBaru', label: 'Nomor Handphone / WhatsApp Baru', type: 'text', placeholder: '081234567890', required: true },
-      { name: 'emailBaru', label: 'Alamat Email Baru', type: 'text', placeholder: 'nama@kemenkumham.go.id atau pribadi', required: true },
-      { name: 'alamatDomisiliBaru', label: 'Alamat Domisili / Rumah Baru', type: 'textarea', placeholder: 'Alamat lengkap beserta RT/RW, Kelurahan, Kecamatan, Kota...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_ktp_domisili', label: 'Bukti Alamat / KTP / Surat Domisili (Opsional)', required: false, description: 'Jika ada perubahan wilayah' }
-    ]
-  },
-  {
-    id: 'LYN-DK-05',
-    kodeLayanan: 'PERBAIKAN_DATA_KEPEGAWAIAN',
-    kategori: 'DATA_KEPEGAWAIAN',
-    namaLayanan: 'Perbaikan Data Kepegawaian',
-    deskripsi: 'Koreksi ketidaksesuaian data SK CPNS/PNS, masa kerja, TMT, atau data profil SIMPEG/SIASN',
-    aktif: true,
-    slaHari: 3,
-    icon: 'bi-tools',
-    fields: [
-      { name: 'bidangData', label: 'Bidang Data yang Memerlukan Perbaikan', type: 'select', options: ['TMT CPNS / PNS', 'Masa Kerja Golongan (MKG)', 'Masa Kerja Total (MKT)', 'Nomor Kartu Pegawai (KARPEG)', 'Nomor BPJS / NPWP / TAPERA', 'Lainnya'], required: true },
-      { name: 'penjelasanKoreksi', label: 'Uraian Detail Kesalahan & Data Seharusnya', type: 'textarea', placeholder: 'Jelaskan data salah yang tertera dan data yang seharusnya sesuai SK...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_sk_pendukung', label: 'Scan SK / Dokumen Acuan yang Benar (PDF)', required: true, description: 'SK CPNS/PNS/Pangkat/PMK yang memuat data sah' }
-    ]
-  },
-  {
-    id: 'LYN-DK-06',
-    kodeLayanan: 'PEMUTAKHIRAN_DATA_KEPEGAWAIAN',
-    kategori: 'DATA_KEPEGAWAIAN',
-    namaLayanan: 'Pemutakhiran Data Kepegawaian',
-    deskripsi: 'Sinkronisasi berkala data MyASN / SIASN BKN dengan Portal SDM DJKI',
-    aktif: true,
-    slaHari: 3,
-    icon: 'bi-arrow-repeat',
-    fields: [
-      { name: 'targetSync', label: 'Fokus Pemutakhiran', type: 'select', options: ['Profil Utama & Status Aktif', 'Riwayat Jabatan & Unor', 'Riwayat SKP & Kinerja', 'Riwayat Diklat & Kursus', 'Seluruh Portofolio ASN'], required: true },
-      { name: 'catatanSinkronisasi', label: 'Catatan Permohonan', type: 'textarea', placeholder: 'Tuliskan catatan khusus terkait pemutakhiran data...', required: false }
-    ],
-    requiredDocuments: [
-      { id: 'doc_bukti_myasn', label: 'Tangkapan Layar MyASN / Dokumen Pendukung (Opsional)', required: false, description: 'Screenshot SIASN bila perlu' }
-    ]
-  },
-
-  // B. KEPANGKATAN
+  // 1. Kenaikan Pangkat
   {
     id: 'LYN-KP-01',
-    kodeLayanan: 'USULAN_KENAIKAN_PANGKAT',
-    kategori: 'KEPANGKATAN',
-    namaLayanan: 'Kenaikan Pangkat (Reguler / Pilihan / Fungsional)',
-    deskripsi: 'Pengusulan kenaikan pangkat periode berjalan (Reguler, Jabatan Fungsional, Struktural, atau Penyesuaian Ijazah)',
+    kodeLayanan: 'KENAIKAN_PANGKAT',
+    kategori: 'KEPANGKATAN_KARIR',
+    namaLayanan: 'Kenaikan Pangkat',
+    deskripsi: 'Pengusulan Kenaikan Pangkat Reguler, Pilihan (Struktural), Jabatan Fungsional (JFT), dan Penyesuaian Ijazah periode 6 kali setahun.',
     aktif: true,
     slaHari: 5,
-    icon: 'bi-graph-up-arrow',
+    icon: 'bi-award',
     fields: [
-      { name: 'jenisKenaikan', label: 'Jenis Kenaikan Pangkat', type: 'select', options: ['Reguler', 'Jabatan Fungsional Tertentu (JFT)', 'Pilihan (Struktural)', 'Penyesuaian Ijazah (PI)'], required: true },
-      { name: 'golonganLama', label: 'Golongan/Pangkat Saat Ini', type: 'text', placeholder: 'Contoh: Penata Muda / III/a', required: true },
-      { name: 'golonganDiusulkan', label: 'Golongan/Pangkat yang Diusulkan', type: 'text', placeholder: 'Contoh: Penata Muda Tingkat I / III/b', required: true },
+      { name: 'jenisKenaikan', label: 'Jenis Kenaikan Pangkat', type: 'select', options: ['Reguler', 'Jabatan Fungsional Tertentu (JFT)', 'Pilihan (Struktural)', 'Penyesuaian Ijazah', 'Kenaikan Pangkat Luar Biasa (KPLB)'], required: true },
+      { name: 'golonganLama', label: 'Pangkat / Golongan Saat Ini', type: 'text', placeholder: 'Contoh: Penata Muda / III/a', required: true },
+      { name: 'golonganDiusulkan', label: 'Pangkat / Golongan yang Diusulkan', type: 'text', placeholder: 'Contoh: Penata Muda Tk.I / III/b', required: true },
       { name: 'periodeKenaikan', label: 'Periode Kenaikan Pangkat', type: 'select', options: ['Februari', 'April', 'Juni', 'Agustus', 'Oktober', 'Desember'], required: true },
-      { name: 'nomorPakTerakhir', label: 'Nomor PAK Konversi / Integrasi (Bagi JFT)', type: 'text', placeholder: 'Wajib diisi jika JFT...', required: false },
-      { name: 'keterangan', label: 'Keterangan Tambahan', type: 'textarea', placeholder: 'Catatan kelengkapan syarat berkas...', required: false }
+      { name: 'nomorPakTerakhir', label: 'Nomor Penetapan Angka Kredit (PAK) Terakhir (Bila JF)', type: 'text', placeholder: 'Nomor PAK Konversi / Integrasi...', required: false },
+      { name: 'keterangan', label: 'Keterangan Tambahan', type: 'textarea', placeholder: 'Catatan tambahan terkait usulan kenaikan pangkat...', required: false }
     ],
     requiredDocuments: [
-      { id: 'doc_sk_terakhir', label: 'Scan SK Pangkat Terakhir (PDF)', required: true, description: 'SK Kenaikan Pangkat sebelumnya' },
-      { id: 'doc_skp_2th', label: 'SKP 2 Tahun Terakhir (PDF)', required: true, description: 'Hasil evaluasi kinerja 2 tahun terakhir dengan predikat minimal Baik' },
-      { id: 'doc_pak', label: 'Penetapan Angka Kredit (PAK) Terakhir (Untuk JF)', required: false, description: 'PAK Konversi/Konvensional' },
-      { id: 'doc_sk_jabatan', label: 'SK Jabatan & SPMT Terakhir', required: false, description: 'Bagi yang menduduki jabatan struktural/fungsional' }
-    ]
-  },
-  {
-    id: 'LYN-KP-02',
-    kodeLayanan: 'PENYESUAIAN_PANGKAT',
-    kategori: 'KEPANGKATAN',
-    namaLayanan: 'Penyesuaian Pangkat',
-    deskripsi: 'Usulan penyesuaian pangkat kelulusan ujian penyesuaian kenaikan pangkat / gelar baru',
-    aktif: true,
-    slaHari: 5,
-    icon: 'bi-sliders',
-    fields: [
-      { name: 'ijazahDasar', label: 'Ijazah yang Digunakan', type: 'select', options: ['S-1 / D-IV (Golongan III/a)', 'S-2 (Golongan III/b)', 'S-3 (Golongan III/c)'], required: true },
-      { name: 'nomorSertifikatUpkp', label: 'Nomor Surat Tanda Lulus UPKP / Ukom', type: 'text', placeholder: 'Nomor sertifikat kelulusan...', required: true },
-      { name: 'uraianTugasBaru', label: 'Kesesuaian dengan Tugas Pokok', type: 'textarea', placeholder: 'Uraikan relevansi ijazah dengan bidang tugas di DJKI...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_stlud', label: 'Surat Tanda Lulus UPKP / Ujian Kenaikan Pangkat (PDF)', required: true, description: 'Bukti kelulusan ujian resmi' },
-      { id: 'doc_ijazah_transkrip', label: 'Ijazah & Transkrip Nilai (PDF)', required: true, description: 'Ijazah yang telah disahkan' },
-      { id: 'doc_sk_pangkat_akhir', label: 'SK Pangkat Terakhir (PDF)', required: true, description: 'SK Pangkat lama' }
-    ]
-  },
-  {
-    id: 'LYN-KP-03',
-    kodeLayanan: 'PENINJAUAN_MASA_KERJA',
-    kategori: 'KEPANGKATAN',
-    namaLayanan: 'Peninjauan Masa Kerja (PMK)',
-    deskripsi: 'Permohonan pengakuan masa kerja sebelum menjadi CPNS untuk penyesuaian gaji dan pangkat',
-    aktif: true,
-    slaHari: 7,
-    icon: 'bi-calendar-check',
-    fields: [
-      { name: 'instansiSebelumnya', label: 'Nama Instansi / Lembaga Pengalaman Sebelumnya', type: 'text', placeholder: 'Contoh: Kementerian / BUMN / Swasta...', required: true },
-      { name: 'masaKerjaDiajukan', label: 'Jumlah Masa Kerja yang Diusulkan', type: 'text', placeholder: 'Contoh: 3 Tahun 6 Bulan', required: true },
-      { name: 'periodeBekerja', label: 'Periode Bekerja (Tahun Mulai s.d Selesai)', type: 'text', placeholder: '2018 - 2022', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_sk_pengalaman', label: 'SK Pengangkatan & Bukti Penggajian Instansi Sebelumnya (PDF)', required: true, description: 'Bukti otentik masa kerja' },
-      { id: 'doc_sk_cpns_pns', label: 'SK CPNS & SK PNS (PDF)', required: true, description: 'SK Pengangkatan di Kemenkumham' }
-    ]
-  },
-  {
-    id: 'LYN-KP-04',
-    kodeLayanan: 'KONSULTASI_KENAIKAN_PANGKAT',
-    kategori: 'KEPANGKATAN',
-    namaLayanan: 'Konsultasi Kenaikan Pangkat & Persyaratan',
-    deskripsi: 'Layanan konsultasi perhitungan angka kredit, periode usulan, dan checklist berkas kenaikan pangkat',
-    aktif: true,
-    slaHari: 2,
-    icon: 'bi-chat-heart',
-    fields: [
-      { name: 'topikKonsultasi', label: 'Topik Konsultasi Kepangkatan', type: 'select', options: ['Perhitungan Angka Kredit (PAK) Minimal', 'Syarat Masa Kerja & TMT', 'Ujian Penyesuaian Kenaikan Pangkat (UPKP)', 'Kenaikan Pangkat Luar Biasa (KPLB)', 'Lainnya'], required: true },
-      { name: 'pertanyaan', label: 'Rincian Pertanyaan / Permasalahan', type: 'textarea', placeholder: 'Tuliskan pertanyaan detail Anda...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_lampiran_kp', label: 'Lampiran Berkas yang Ingin Dikonsultasikan (Opsional)', required: false, description: 'Draft PAK / SK Pangkat' }
+      { id: 'doc_sk_pangkat_terakhir', label: 'Scan SK Pangkat Terakhir (PDF)', required: true, description: 'SK Kenaikan Pangkat terakhir' },
+      { id: 'doc_skp_2tahun', label: 'SKP 2 Tahun Terakhir (Predikat Minimal Baik)', required: true, description: 'Hasil evaluasi kinerja 2 tahun terakhir' },
+      { id: 'doc_pak_terakhir', label: 'PAK Konversi / Integrasi Terakhir (Khusus JF)', required: false, description: 'PAK resmi yang telah disahkan' },
+      { id: 'doc_sk_jabatan', label: 'SK Jabatan & SPMT Terakhir', required: false, description: 'Bagi pejabat struktural / fungsional' }
     ]
   },
 
-  // C. JABATAN
+  // 2. Kenaikan Jabatan
   {
-    id: 'LYN-JB-01',
-    kodeLayanan: 'PENGANGKATAN_JABATAN',
-    kategori: 'JABATAN',
-    namaLayanan: 'Pengangkatan Dalam Jabatan (Pertama / Perpindahan)',
-    deskripsi: 'Proses administrasi pengangkatan pertama ke dalam Jabatan Fungsional atau penyesuaian jabatan',
+    id: 'LYN-KJ-01',
+    kodeLayanan: 'KENAIKAN_JABATAN',
+    kategori: 'KEPANGKATAN_KARIR',
+    namaLayanan: 'Kenaikan Jabatan',
+    deskripsi: 'Permohonan pengangkatan / kenaikan jenjang Jabatan Fungsional (Pertama, Muda, Madya, Utama) atau pengangkatan jabatan struktural.',
     aktif: true,
     slaHari: 5,
-    icon: 'bi-person-badge',
+    icon: 'bi-person-badge-fill',
     fields: [
-      { name: 'jenisPengangkatan', label: 'Jalur Pengangkatan', type: 'select', options: ['Pengangkatan Pertama (CPNS ke JF)', 'Perpindahan dari Jabatan Lain', 'Penyesuaian / Penyetaraan', 'Promosi Jabatan'], required: true },
-      { name: 'namaJabatanTujuan', label: 'Nama Jabatan Fungsional yang Dituju', type: 'text', placeholder: 'Contoh: Pemeriksa Paten Ahli Pertama / Analis KI', required: true },
-      { name: 'unitPenempatan', label: 'Unit Kerja Penempatan', type: 'text', placeholder: 'Direktorat / Bagian terkait...', required: true }
+      { name: 'jenjangLama', label: 'Jenjang Jabatan Saat Ini', type: 'text', placeholder: 'Contoh: Pemeriksa Paten Ahli Pertama', required: true },
+      { name: 'jenjangBaru', label: 'Jenjang Jabatan yang Dituju', type: 'text', placeholder: 'Contoh: Pemeriksa Paten Ahli Muda', required: true },
+      { name: 'nomorSertifikatUkom', label: 'Nomor Sertifikat Lulus Uji Kompetensi (Ukom)', type: 'text', placeholder: 'Nomor sertifikat ukom...', required: true },
+      { name: 'tanggalUkom', label: 'Tanggal Kelulusan Ukom', type: 'date', required: true },
+      { name: 'formasiTersedia', label: 'Ketersediaan Formasi (Anjab/ABK)', type: 'select', options: ['Formasi Tersedia di Unit Kerja', 'Konfirmasi Subbag Kepegawaian'], required: true }
     ],
     requiredDocuments: [
-      { id: 'doc_sk_pns', label: 'SK PNS & SK Pangkat Terakhir (PDF)', required: true, description: 'Bukti status kepegawaian' },
-      { id: 'doc_sertifikat_ukom_jf', label: 'Sertifikat Lulus UKOM / Pelatihan Fungsional (jika ada)', required: false, description: 'Hasil uji kompetensi' }
+      { id: 'doc_sertifikat_ukom', label: 'Sertifikat Kelulusan Uji Kompetensi (PDF)', required: true, description: 'Bukti kelulusan uji kompetensi jenjang jabatan' },
+      { id: 'doc_sk_jf_terakhir', label: 'SK Jabatan Fungsional Terakhir (PDF)', required: true, description: 'SK JF sebelumnya' },
+      { id: 'doc_pak_integrasi', label: 'PAK Integrasi / Konversi Memenuhi Angka Kredit Kumulatif (PDF)', required: true, description: 'Bukti PAK yang mencukupi' }
     ]
-  },
-  {
-    id: 'LYN-JB-02',
-    kodeLayanan: 'PERPINDAHAN_MUTASI_JABATAN',
-    kategori: 'JABATAN',
-    namaLayanan: 'Perpindahan / Mutasi Jabatan',
-    deskripsi: 'Permohonan perpindahan dari jabatan struktural/pelaksana ke fungsional atau antar rumpun fungsional',
-    aktif: true,
-    slaHari: 5,
-    icon: 'bi-shuffle',
-    fields: [
-      { name: 'jabatanAsal', label: 'Jabatan Saat Ini', type: 'text', placeholder: 'Jabatan lama...', required: true },
-      { name: 'jabatanTujuan', label: 'Jabatan Baru yang Diinginkan', type: 'text', placeholder: 'Jabatan baru...', required: true },
-      { name: 'alasanPerpindahan', label: 'Alasan & Pertimbangan Kompetensi', type: 'textarea', placeholder: 'Jelaskan latar belakang kompetensi dan minat karir...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_portofolio_jf', label: 'Portofolio / SK Kinerja Terkait (PDF)', required: true, description: 'Bukti pengalaman di bidang jabatan tujuan' }
-    ]
-  },
-  {
-    id: 'LYN-JB-03',
-    kodeLayanan: 'KONSULTASI_JABATAN',
-    kategori: 'JABATAN',
-    namaLayanan: 'Konsultasi Jenjang Jabatan & Karir',
-    deskripsi: 'Konsultasi peta jabatan, butir kegiatan JF, uji kompetensi, dan formasi kebutuhan DJKI',
-    aktif: true,
-    slaHari: 2,
-    icon: 'bi-question-circle',
-    fields: [
-      { name: 'judulKonsultasi', label: 'Topik Bahasan Jabatan', type: 'text', placeholder: 'Contoh: Prospek Uji Kompetensi Ahli Muda ke Ahli Madya', required: true },
-      { name: 'deskripsiPertanyaan', label: 'Uraian Pertanyaan', type: 'textarea', placeholder: 'Tuliskan hal-hal yang ingin dikonsultasikan...', required: true }
-    ],
-    requiredDocuments: []
   },
 
-  // D. KENAIKAN GAJI
+  // 3. KGB (Kenaikan Gaji Berkala)
   {
     id: 'LYN-KG-01',
-    kodeLayanan: 'KENAIKAN_GAJI_BERKALA',
+    kodeLayanan: 'KGB',
     kategori: 'KENAIKAN_GAJI',
-    namaLayanan: 'Kenaikan Gaji Berkala (KGB)',
-    deskripsi: 'Pengajuan penerbitan Surat Pemberitahuan Kenaikan Gaji Berkala (KGB) yang telah mencapai 2 tahun masa kerja',
+    namaLayanan: 'KGB (Kenaikan Gaji Berkala)',
+    deskripsi: 'Pengajuan penerbitan Surat Pemberitahuan Kenaikan Gaji Berkala (KGB) bagi PNS/PPPK yang telah mencapai 2 tahun masa kerja berkala.',
     aktif: true,
     slaHari: 3,
     icon: 'bi-cash-coin',
     fields: [
       { name: 'tmtKgbTerakhir', label: 'TMT KGB / Pangkat Terakhir', type: 'date', required: true },
-      { name: 'nomorSkKgbTerakhir', label: 'Nomor Surat KGB / SK Terakhir', type: 'text', placeholder: 'Nomor surat KGB lama...', required: true },
-      { name: 'gajiPokokLama', label: 'Gaji Pokok Lama (Rp)', type: 'number', placeholder: 'Sesuai SK terakhir', required: true },
-      { name: 'tmtKgbBaru', label: 'TMT KGB Baru yang Diusulkan', type: 'date', required: true }
+      { name: 'nomorSkKgbTerakhir', label: 'Nomor Surat KGB / SK Pangkat Terakhir', type: 'text', placeholder: 'Nomor surat KGB lama...', required: true },
+      { name: 'gajiPokokLama', label: 'Gaji Pokok Terakhir (Rp)', type: 'number', placeholder: 'Contoh: 3500000', required: true },
+      { name: 'tmtKgbBaru', label: 'TMT KGB Baru yang Diusulkan', type: 'date', required: true },
+      { name: 'masaKerjaGolongan', label: 'Masa Kerja Golongan (Tahun/Bulan)', type: 'text', placeholder: 'Contoh: 08 Tahun 00 Bulan', required: true }
     ],
     requiredDocuments: [
-      { id: 'doc_kgb_lama', label: 'Scan SK KGB Terakhir / SK Pangkat Terakhir (PDF)', required: true, description: 'Dasar penetapan gaji lama' },
-      { id: 'doc_skp_terakhir', label: 'SKP Tahun Terakhir (Minimal Predikat Baik)', required: true, description: 'Syarat penilaian kinerja KGB' }
-    ]
-  },
-  {
-    id: 'LYN-KG-02',
-    kodeLayanan: 'PENYESUAIAN_HAK_KEUANGAN',
-    kategori: 'KENAIKAN_GAJI',
-    namaLayanan: 'Penyesuaian Gaji & Hak Keuangan',
-    deskripsi: 'Klarifikasi dan penyesuaian komponen tunjangan kinerja, uang makan, atau selisih gaji',
-    aktif: true,
-    slaHari: 3,
-    icon: 'bi-wallet2',
-    fields: [
-      { name: 'komponenKeuangan', label: 'Komponen Hak Keuangan', type: 'select', options: ['Gaji Pokok & Tunjangan Keluarga', 'Tunjangan Kinerja (Tukin)', 'Uang Makan', 'Kekurangan Pembayaran (Rapel)', 'Lainnya'], required: true },
-      { name: 'penjelasanKlaim', label: 'Uraian Penjelasan Permasalahan', type: 'textarea', placeholder: 'Jelaskan periode bulan dan selisih yang belum sesuai...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_slip_gaji', label: 'Slip Gaji / Rekening Koran / Bukti Potong (PDF)', required: true, description: 'Bukti penerimaan gaji' }
+      { id: 'doc_sk_kgb_lama', label: 'Scan SK KGB Terakhir / SK Pangkat Terakhir (PDF)', required: true, description: 'Dasar penetapan gaji pokok sebelumnya' },
+      { id: 'doc_skp_terakhir', label: 'SKP Tahun Terakhir (Minimal Baik)', required: true, description: 'Syarat penilaian kinerja KGB' }
     ]
   },
 
-  // E. TUGAS BELAJAR & KOMPETENSI
+  // 4. Pencantuman Gelar
   {
-    id: 'LYN-TB-01',
-    kodeLayanan: 'TUGAS_BELAJAR',
-    kategori: 'TUGAS_BELAJAR',
-    namaLayanan: 'Tugas Belajar (Beasiswa / Mandiri)',
-    deskripsi: 'Pengajuan izin tugas belajar untuk melanjutkan pendidikan formal S1/S2/S3 dengan pembiayaan LPDP, Kemenkumham, atau donor lain',
+    id: 'LYN-PG-01',
+    kodeLayanan: 'PENCANTUMAN_GELAR',
+    kategori: 'KEPANGKATAN_KARIR',
+    namaLayanan: 'Pencantuman Gelar',
+    deskripsi: 'Usulan penerbitan Surat Keputusan Pencantuman Gelar Akademik (S1, S2, S3, atau Spesialis) pada database SIASN BKN dan dokumen kepegawaian.',
     aktif: true,
     slaHari: 5,
     icon: 'bi-mortarboard',
     fields: [
-      { name: 'jenjangPendidikan', label: 'Jenjang Pendidikan', type: 'select', options: ['S-1 / D-IV', 'S-2 (Magister)', 'S-3 (Doktor)', 'Profesi / Spesialis'], required: true },
-      { name: 'namaUniversitas', label: 'Nama Perguruan Tinggi', type: 'text', placeholder: 'Contoh: University of Melbourne / UGM', required: true },
-      { name: 'programStudi', label: 'Program Studi / Fakultas', type: 'text', placeholder: 'Contoh: Intellectual Property Law', required: true },
-      { name: 'negaraKota', label: 'Negara / Kota', type: 'text', placeholder: 'Contoh: Australia / Melbourne atau Jakarta', required: true },
-      { name: 'sumberPembiayaan', label: 'Sumber Pembiayaan', type: 'select', options: ['Beasiswa LPDP', 'Beasiswa Kemenkumham / DJKI', 'Beasiswa Pemerintah Asing (AAS/Chevening/dll)', 'Biaya Mandiri'], required: true },
-      { name: 'durasiStudi', label: 'Lama Studi (Bulan/Tahun)', type: 'text', placeholder: 'Contoh: 24 Bulan (2 Tahun)', required: true },
-      { name: 'tanggalMulai', label: 'Tanggal Mulai Perkuliahan', type: 'date', required: true },
-      { name: 'tanggalSelesai', label: 'Estimasi Tanggal Selesai', type: 'date', required: true }
+      { name: 'gelarAkademik', label: 'Gelar Akademik yang Diajukan', type: 'text', placeholder: 'Contoh: S.H., M.H., M.Sc., Ph.D.', required: true },
+      { name: 'jenjangPendidikan', label: 'Jenjang Pendidikan', type: 'select', options: ['S-1 (Sarjana)', 'S-2 (Magister)', 'S-3 (Doktor)', 'Profesi / Spesialis'], required: true },
+      { name: 'namaUniversitas', label: 'Nama Perguruan Tinggi', type: 'text', placeholder: 'Contoh: Universitas Indonesia', required: true },
+      { name: 'nomorIjazah', label: 'Nomor Ijazah', type: 'text', placeholder: 'Nomor seri ijazah...', required: true },
+      { name: 'nomorSkIzinBelajar', label: 'Nomor SK Tugas Belajar / Izin Belajar', type: 'text', placeholder: 'Nomor SK Izin Belajar...', required: true }
     ],
     requiredDocuments: [
-      { id: 'doc_loa', label: 'Letter of Acceptance (LoA) Resmi dari Kampus (PDF)', required: true, description: 'Surat penerimaan universitas' },
-      { id: 'doc_sponsorship', label: 'Surat Jaminan Pembiayaan / Bukti Beasiswa (PDF)', required: true, description: 'Letter of Guarantee sponsor' },
-      { id: 'doc_rekomendasi_atasan', label: 'Surat Rekomendasi Pimpinan Unit Kerja (PDF)', required: true, description: 'Persetujuan Eselon II terkait' }
-    ]
-  },
-  {
-    id: 'LYN-TB-02',
-    kodeLayanan: 'IZIN_BELAJAR',
-    kategori: 'TUGAS_BELAJAR',
-    namaLayanan: 'Izin Belajar (Di Luar Jam Kerja)',
-    deskripsi: 'Pengajuan surat izin belajar mandiri tanpa meninggalkan tugas kedinasan sehari-hari',
-    aktif: true,
-    slaHari: 4,
-    icon: 'bi-journal-bookmark-fill',
-    fields: [
-      { name: 'jenjangIzin', label: 'Jenjang Pendidikan', type: 'select', options: ['S-1 / D-IV', 'S-2 (Magister)', 'S-3 (Doktor)'], required: true },
-      { name: 'namaKampus', label: 'Nama Perguruan Tinggi & Akreditasi', type: 'text', placeholder: 'Contoh: Universitas Indonesia (Akreditasi Unggul)', required: true },
-      { name: 'jadwalKuliah', label: 'Jadwal Kuliah', type: 'text', placeholder: 'Contoh: Kelas Malam / Akhir Pekan (Sabtu-Minggu)', required: true },
-      { name: 'komitmenTugas', label: 'Pernyataan Tidak Mengganggu Jam Kerja', type: 'textarea', placeholder: 'Pernyataan kesanggupan menjalankan tugas pokok DJKI...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_bukti_diterima', label: 'Bukti Penerimaan / KTM / Jadwal Kuliah (PDF)', required: true, description: 'Jadwal resmi dari kampus' },
-      { id: 'doc_surat_rekomendasi', label: 'Surat Izin / Rekomendasi Atasan Langsung', required: true, description: 'Ditandatangani minimal Pejabat Administrator' }
-    ]
-  },
-  {
-    id: 'LYN-TB-03',
-    kodeLayanan: 'PELATIHAN_SERTIFIKASI',
-    kategori: 'TUGAS_BELAJAR',
-    namaLayanan: 'Pengembangan Kompetensi & Sertifikasi',
-    deskripsi: 'Pendaftaran usulan mengikuti pelatihan teknis, manajerial, sertifikasi profesi KI, atau seminar',
-    aktif: true,
-    slaHari: 3,
-    icon: 'bi-patch-check',
-    fields: [
-      { name: 'namaPelatihan', label: 'Nama Program Pelatihan / Sertifikasi', type: 'text', placeholder: 'Contoh: Certified Intellectual Property Expert', required: true },
-      { name: 'penyelenggara', label: 'Lembaga Penyelenggara', type: 'text', placeholder: 'Contoh: BPSDM Hukum & HAM / WIPO / Lembaga Sertifikasi', required: true },
-      { name: 'metodePelatihan', label: 'Metode Pelaksanaan', type: 'select', options: ['Online (E-Learning)', 'Klasikal / Tatap Muka (Luar Kota)', 'Klasikal / Tatap Muka (Dalam Kota)', 'Blended Learning'], required: true },
-      { name: 'tanggalPelaksanaan', label: 'Tanggal Mulai s.d Selesai', type: 'text', placeholder: 'Contoh: 10 - 15 September 2026', required: true },
-      { name: 'targetJpl', label: 'Estimasi Jam Pelajaran (JP)', type: 'number', placeholder: 'Contoh: 20 JP', required: false }
-    ],
-    requiredDocuments: [
-      { id: 'doc_brosur_undangan', label: 'Surat Undangan / Brosur / Kerangka Acuan Kerja (PDF)', required: true, description: 'Info resmi kegiatan pelatihan' }
+      { id: 'doc_ijazah_asli', label: 'Scan Ijazah Asli & Transkrip Nilai (PDF)', required: true, description: 'Ijazah kelulusan perguruan tinggi' },
+      { id: 'doc_sk_izin_belajar', label: 'SK Izin Belajar / Tugas Belajar Resmi (PDF)', required: true, description: 'SK izin/tugas belajar dari Kemenkumham' },
+      { id: 'doc_akreditasi_kampus', label: 'Bukti Akreditasi Program Studi / Kampus (Minimal B / Baik Sekali)', required: true, description: 'Sertifikat BAN-PT / LAM' }
     ]
   },
 
-  // F. MUTASI
+  // 5. Penyesuaian Ijazah
+  {
+    id: 'LYN-PI-01',
+    kodeLayanan: 'PENYESUAIAN_IJAZAH',
+    kategori: 'KEPANGKATAN_KARIR',
+    namaLayanan: 'Penyesuaian Ijazah',
+    deskripsi: 'Pengajuan usulan kenaikan pangkat / penyesuaian golongan ruang berdasarkan ijazah yang diperoleh melalui ujian penyesuaian kenaikan pangkat (UPKP).',
+    aktif: true,
+    slaHari: 5,
+    icon: 'bi-file-earmark-diff',
+    fields: [
+      { name: 'ijazahPenyesuaian', label: 'Ijazah yang Disesuaikan', type: 'select', options: ['Ijazah S-1 / D-IV (Kenaikan ke Golongan III/a)', 'Ijazah S-2 (Kenaikan ke Golongan III/b)', 'Ijazah S-3 (Kenaikan ke Golongan III/c)'], required: true },
+      { name: 'nomorStlud', label: 'Nomor Surat Tanda Lulus UPKP / Ujian Penyesuaian', type: 'text', placeholder: 'Nomor sertifikat kelulusan ujian penyesuaian...', required: true },
+      { name: 'relevansiTugas', label: 'Uraian Relevansi Ijazah dengan Tupoksi Unit Kerja', type: 'textarea', placeholder: 'Jelaskan keterkaitan kompetensi ijazah baru dengan tugas DJKI...', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_stlud_upkp', label: 'Surat Tanda Lulus UPKP (PDF)', required: true, description: 'Sertifikat kelulusan ujian kenaikan pangkat penyesuaian ijazah' },
+      { id: 'doc_ijazah_transkrip_pi', label: 'Ijazah & Transkrip Nilai Legalisir (PDF)', required: true, description: 'Ijazah baru' },
+      { id: 'doc_uraian_tugas', label: 'Surat Keterangan Uraian Tugas dari Pimpinan Unit Kerja (PDF)', required: true, description: 'Format persetujuan Eselon II' }
+    ]
+  },
+
+  // 6. Ujian Dinas
+  {
+    id: 'LYN-UD-01',
+    kodeLayanan: 'UJIAN_DINAS',
+    kategori: 'KEPANGKATAN_KARIR',
+    namaLayanan: 'Ujian Dinas',
+    deskripsi: 'Pendaftaran dan verifikasi berkas peserta Ujian Dinas Tingkat I (Golongan II/d ke III/a) dan Ujian Dinas Tingkat II (Golongan III/d ke IV/a).',
+    aktif: true,
+    slaHari: 4,
+    icon: 'bi-pencil-square',
+    fields: [
+      { name: 'tingkatUjian', label: 'Tingkat Ujian Dinas', type: 'select', options: ['Ujian Dinas Tingkat I (Pangkat Pengatur Tk.I / II/d ke Penata Muda / III/a)', 'Ujian Dinas Tingkat II (Pangkat Penata Tk.I / III/d ke Pembina / IV/a)'], required: true },
+      { name: 'pangkatSaatIni', label: 'Pangkat / Golongan Saat Ini', type: 'text', placeholder: 'Contoh: Pengatur Tk. I / II/d', required: true },
+      { name: 'tmtPangkat', label: 'TMT Pangkat Terakhir', type: 'date', required: true },
+      { name: 'masaKerjaTahun', label: 'Masa Kerja dalam Pangkat Terakhir (Tahun)', type: 'number', placeholder: 'Minimal 2 tahun...', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_sk_pangkat_terakhir_ud', label: 'SK Pangkat Terakhir (PDF)', required: true, description: 'SK Pangkat II/d atau III/d' },
+      { id: 'doc_skp_terakhir_ud', label: 'SKP 1 Tahun Terakhir (PDF)', required: true, description: 'Nilai SKP minimal Baik' },
+      { id: 'doc_surat_rekomendasi_atasan', label: 'Surat Rekomendasi / Usulan Pimpinan Unit Kerja', required: true, description: 'Persetujuan pimpinan satuan kerja' }
+    ]
+  },
+
+  // 7. Penelitian
+  {
+    id: 'LYN-PL-01',
+    kodeLayanan: 'PENELITIAN',
+    kategori: 'PENGEMBANGAN_PENDIDIKAN',
+    namaLayanan: 'Penelitian',
+    deskripsi: 'Izin pelaksanaan penelitian, riset ilmiah, survei kepegawaian, atau studi kebijakan di lingkungan Direktorat Jenderal Kekayaan Intelektual.',
+    aktif: true,
+    slaHari: 3,
+    icon: 'bi-journal-code',
+    fields: [
+      { name: 'judulPenelitian', label: 'Judul / Topik Penelitian', type: 'text', placeholder: 'Contoh: Analisis Efektivitas Pemeriksaan Paten Sederhana di DJKI', required: true },
+      { name: 'tujuanPenelitian', label: 'Tujuan Penelitian & Manfaat bagi DJKI', type: 'textarea', placeholder: 'Uraikan tujuan, metodologi, dan output riset...', required: true },
+      { name: 'unitTujuanRiset', label: 'Unit Kerja / Direktorat Lokasi Penelitian', type: 'text', placeholder: 'Contoh: Direktorat Paten, DTLST dan RD', required: true },
+      { name: 'jadwalPenelitian', label: 'Rencana Waktu Penelitian (Mulai s.d Selesai)', type: 'text', placeholder: 'Contoh: 1 Mei 2026 s.d 30 Juni 2026', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_proposal_penelitian', label: 'Proposal Penelitian / Kerangka Acuan Riset (PDF)', required: true, description: 'Dokumen proposal lengkap' },
+      { id: 'doc_surat_pengantar_kampus', label: 'Surat Pengantar dari Universitas / Lembaga Riset (PDF)', required: true, description: 'Surat resmi permohonan riset' }
+    ]
+  },
+
+  // 8. Magang
+  {
+    id: 'LYN-MG-01',
+    kodeLayanan: 'MAGANG',
+    kategori: 'PENGEMBANGAN_PENDIDIKAN',
+    namaLayanan: 'Magang',
+    deskripsi: 'Permohonan rekomendasi / fasilitasi program Magang Mahasiswa, PKL, Prakerin, atau Magang Kerja ASN antar-instansi/industri KI.',
+    aktif: true,
+    slaHari: 3,
+    icon: 'bi-briefcase',
+    fields: [
+      { name: 'jenisProgramMagang', label: 'Jenis Program Magang', type: 'select', options: ['Magang Mandiri Mahasiswa / Siswa (PKL)', 'Magang MBKM (Kampus Merdeka)', 'Magang Pertukaran ASN / Instansi Lain', 'Magang Industri KI Eksternal'], required: true },
+      { name: 'institusiAsal', label: 'Nama Universitas / Sekolah / Instansi Asal', type: 'text', placeholder: 'Nama kampus / sekolah...', required: true },
+      { name: 'jurusanProgramStudi', label: 'Jurusan / Program Studi', type: 'text', placeholder: 'Contoh: Ilmu Hukum / Sistem Informasi', required: true },
+      { name: 'durasiMagang', label: 'Durasi Magang (Bulan)', type: 'text', placeholder: 'Contoh: 3 Bulan (Februari - April 2026)', required: true },
+      { name: 'unitPenempatanDiinginkan', label: 'Unit Kerja Penempatan yang Diminati', type: 'text', placeholder: 'Contoh: Bagian Kepegawaian / Dit. Merek', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_surat_kampus_magang', label: 'Surat Permohonan Resmi dari Dekanat / Rektorat / Sekolah (PDF)', required: true, description: 'Surat pengantar permohonan magang' },
+      { id: 'doc_cv_portofolio', label: 'Curriculum Vitae (CV) & Transkrip Nilai Terbaru (PDF)', required: true, description: 'Profil dan nilai akademik pemohon' }
+    ]
+  },
+
+  // 9. Tugas Belajar
+  {
+    id: 'LYN-TB-01',
+    kodeLayanan: 'TUGAS_BELAJAR',
+    kategori: 'PENGEMBANGAN_PENDIDIKAN',
+    namaLayanan: 'Tugas Belajar',
+    deskripsi: 'Pengajuan Tugas Belajar (Beasiswa / Mandiri) dan Izin Belajar bagi pegawai untuk melanjutkan studi formal jenjang S1, S2, S3 dalam dan luar negeri.',
+    aktif: true,
+    slaHari: 5,
+    icon: 'bi-mortarboard-fill',
+    fields: [
+      { name: 'jalurStudi', label: 'Jalur Studi', type: 'select', options: ['Tugas Belajar Beasiswa (LPDP / Instansi / Donor)', 'Tugas Belajar Mandiri', 'Izin Belajar (Di Luar Jam Kerja)'], required: true },
+      { name: 'jenjangPendidikan', label: 'Jenjang Pendidikan', type: 'select', options: ['S-1 / D-IV', 'S-2 (Magister)', 'S-3 (Doktor)', 'Profesi / Spesialis'], required: true },
+      { name: 'namaUniversitas', label: 'Nama Perguruan Tinggi', type: 'text', placeholder: 'Contoh: Universitas Indonesia / WIPO Academy', required: true },
+      { name: 'programStudi', label: 'Program Studi / Jurusan', type: 'text', placeholder: 'Contoh: Master of Intellectual Property Law', required: true },
+      { name: 'sumberPembiayaan', label: 'Sumber Pembiayaan', type: 'select', options: ['Beasiswa LPDP', 'Beasiswa Kemenkumham / DJKI', 'Beasiswa Pemerintah Asing (AAS/Chevening/dll)', 'Biaya Mandiri'], required: true },
+      { name: 'lamaStudi', label: 'Estimasi Durasi Studi', type: 'text', placeholder: 'Contoh: 24 Bulan (2 Tahun)', required: true },
+      { name: 'tanggalMulai', label: 'Tanggal Mulai Perkuliahan', type: 'date', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_loa_unconditional', label: 'Letter of Acceptance (LoA) Resmi dari Perguruan Tinggi (PDF)', required: true, description: 'Surat penerimaan universitas' },
+      { id: 'doc_sponsor_beasiswa', label: 'Surat Jaminan Pembiayaan / Bukti Kelulusan Beasiswa (PDF)', required: true, description: 'Letter of Guarantee sponsor' },
+      { id: 'doc_rekomendasi_pimpinan', label: 'Surat Rekomendasi Pimpinan Unit Kerja Eselon II (PDF)', required: true, description: 'Persetujuan pimpinan unit kerja' }
+    ]
+  },
+
+  // 10. Mutasi
   {
     id: 'LYN-MT-01',
-    kodeLayanan: 'MUTASI_INTERNAL_DJKI',
-    kategori: 'MUTASI',
-    namaLayanan: 'Mutasi Internal Antar-Direktorat / Bagian DJKI',
-    deskripsi: 'Permohonan alih tugas dan penempatan antar-unit kerja di lingkungan Direktorat Jenderal Kekayaan Intelektual',
+    kodeLayanan: 'MUTASI',
+    kategori: 'MUTASI_JABATAN',
+    namaLayanan: 'Mutasi',
+    deskripsi: 'Permohonan mutasi internal antar-Direktorat/Bagian di DJKI, mutasi masuk ke DJKI, atau mutasi keluar ke Kanwil/Kementerian lain.',
     aktif: true,
     slaHari: 7,
     icon: 'bi-arrow-left-right',
     fields: [
-      { name: 'unitSaatIni', label: 'Unit Kerja Saat Ini', type: 'text', placeholder: 'Direktorat / Bagian saat ini...', required: true },
-      { name: 'unitTujuan', label: 'Unit Kerja yang Dituju', type: 'text', placeholder: 'Direktorat / Bagian tujuan...', required: true },
-      { name: 'alasanMutasi', label: 'Alasan Permohonan Mutasi Internal', type: 'textarea', placeholder: 'Jelaskan kebutuhan organisasi, kesesuaian keahlian, atau pertimbangan lainnya...', required: true }
+      { name: 'jenisMutasi', label: 'Jenis Permohonan Mutasi', type: 'select', options: ['Mutasi Internal Antar-Direktorat/Bagian di DJKI', 'Mutasi Keluar ke Kanwil Kemenkumham', 'Mutasi Keluar ke Unit Utama Lain di Kemenkumham', 'Mutasi Antar-Kementerian / Lembaga Pemerintah', 'Mutasi Masuk ke DJKI'], required: true },
+      { name: 'unitAsal', label: 'Unit Kerja Saat Ini', type: 'text', placeholder: 'Unit kerja saat ini...', required: true },
+      { name: 'unitTujuan', label: 'Unit Kerja / Instansi Tujuan', type: 'text', placeholder: 'Unit / Instansi tujuan...', required: true },
+      { name: 'alasanMutasi', label: 'Alasan Permohonan Mutasi', type: 'textarea', placeholder: 'Jelaskan alasan keluarga, kompetensi, domisili, atau pengembangan karir...', required: true }
     ],
     requiredDocuments: [
-      { id: 'doc_surat_permohonan', label: 'Surat Permohonan Pribadi Bermaterai (PDF)', required: true, description: 'Surat permohonan resmi kepada Direktur Jenderal KI' },
-      { id: 'doc_sk_terakhir_mutasi', label: 'SK Penempatan / SK Jabatan Terakhir', required: true, description: 'SK jabatan terakhir' }
-    ]
-  },
-  {
-    id: 'LYN-MT-02',
-    kodeLayanan: 'MUTASI_KELUAR_MASUK',
-    kategori: 'MUTASI',
-    namaLayanan: 'Mutasi Masuk / Keluar DJKI (Antar-Unit Utama / Kanwil)',
-    deskripsi: 'Administrasi usulan mutasi masuk dari Kanwil/Unit Utama lain ke DJKI atau mutasi keluar ke instansi luar',
-    aktif: true,
-    slaHari: 14,
-    icon: 'bi-building-up',
-    fields: [
-      { name: 'arahMutasi', label: 'Jenis Mutasi', type: 'select', options: ['Mutasi Masuk ke DJKI', 'Mutasi Keluar ke Unit Utama Lain (Kemenkumham)', 'Mutasi Keluar ke Kanwil Kemenkumham', 'Mutasi Antar-Kementerian / Instansi Pusat'], required: true },
-      { name: 'instansiAsalTujuan', label: 'Instansi / Satuan Kerja Asal / Tujuan', type: 'text', placeholder: 'Nama instansi / Kanwil...', required: true },
-      { name: 'keteranganKeluarga', label: 'Alasan / Kondisi Khusus', type: 'textarea', placeholder: 'Tuliskan alasan pengajuan mutasi...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_surat_rekomendasi_instansi', label: 'Surat Permohonan & Rekomendasi Pejabat Pembina Kepegawaian (PDF)', required: true, description: 'Surat persetujuan resmi' },
-      { id: 'doc_dossier_lengkap', label: 'Curriculum Vitae & Rekap Kinerja 2 Tahun Terakhir', required: true, description: 'CV dan SKP' }
+      { id: 'doc_surat_permohonan_mutasi', label: 'Surat Permohonan Pribadi Bermaterai Rp 10.000 (PDF)', required: true, description: 'Surat permohonan ditujukan kepada Direktur Jenderal KI' },
+      { id: 'doc_rekomendasi_eselon2', label: 'Surat Rekomendasi / Keterangan Tidak Keberatan dari Pimpinan Unit Asal (PDF)', required: true, description: 'Persetujuan atasan langsung' },
+      { id: 'doc_dossier_skp', label: 'SK Pangkat & SKP 2 Tahun Terakhir (PDF)', required: true, description: 'Portofolio kinerja' }
     ]
   },
 
-  // G. DISIPLIN KEPEGAWAIAN
+  // 11. Promosi
   {
-    id: 'LYN-DS-01',
-    kodeLayanan: 'KONSULTASI_DISIPLIN',
-    kategori: 'DISIPLIN',
-    namaLayanan: 'Konsultasi & Pendampingan Disiplin Pegawai',
-    deskripsi: 'Layanan konsultasi terkait kepatuhan jam kerja, izin perkawinan/perceraian, LHKPN/LHKASN, dan kode etik ASN',
+    id: 'LYN-PR-01',
+    kodeLayanan: 'PROMOSI',
+    kategori: 'KEPANGKATAN_KARIR',
+    namaLayanan: 'Promosi',
+    deskripsi: 'Pengusulan talent pool, verifikasi kualifikasi, dan pendaftaran seleksi terbuka / talent scouting promosi jabatan manajerial dan fungsional ahli.',
     aktif: true,
-    slaHari: 2,
-    icon: 'bi-shield-exclamation',
+    slaHari: 7,
+    icon: 'bi-star-fill',
     fields: [
-      { name: 'topikDisiplin', label: 'Topik Disiplin / Kepatuhan', type: 'select', options: ['Kepatuhan Jam Kerja & Rekap Absensi', 'Prosedur Izin Perkawinan & Perceraian ASN', 'Kewajiban Pelaporan LHKPN / LHKASN', 'Kode Etik & Perilaku Pegawai DJKI', 'Lainnya'], required: true },
-      { name: 'detailKonsultasi', label: 'Uraian Situasi / Pertanyaan', type: 'textarea', placeholder: 'Sampaikan pertanyaan atau hal yang memerlukan klarifikasi ketentuan perundang-undangan...', required: true }
+      { name: 'jenisPromosi', label: 'Kategori Promosi Jabatan', type: 'select', options: ['Promosi Jabatan Pengawas (Eselon IV / Ketua Tim Kerja)', 'Promosi Jabatan Administrator (Eselon III)', 'Promosi Jabatan Fungsional Ahli Madya / Utama', 'Pendaftaran Manajemen Talenta (Nine Box)'], required: true },
+      { name: 'jabatanTarget', label: 'Jabatan / Bidang Tugas yang Ditargetkan', type: 'text', placeholder: 'Contoh: Kepala Subbagian / Pemeriksa Ahli Madya', required: true },
+      { name: 'nilaiKinerjaSkp', label: 'Predikat Kinerja SKP 2 Tahun Terakhir', type: 'select', options: ['Sangat Baik', 'Baik'], required: true },
+      { name: 'ringkasanPrestasi', label: 'Ringkasan Inovasi / Prestasi Kerja Signifikan', type: 'textarea', placeholder: 'Uraikan inovasi, karya tulis, sistem yang dikembangkan, atau prestasi luar biasa...', required: true }
     ],
     requiredDocuments: [
-      { id: 'doc_lampiran_disiplin', label: 'Dokumen Pendukung Terkait (Jika ada)', required: false, description: 'Surat / bukti terkait' }
+      { id: 'doc_rekap_talenta', label: 'Portofolio Riwayat Hidup / CV Eksekutif Lengkap (PDF)', required: true, description: 'Profil kompetensi dan pengalaman kerja' },
+      { id: 'doc_sertifikat_uji_potensi', label: 'Hasil Uji Kompetensi / Assessment Center (jika ada)', required: false, description: 'Laporan hasil assessment' },
+      { id: 'doc_piagam_penghargaan', label: 'Bukti Inovasi / Piagam Penghargaan (PDF)', required: false, description: 'Sertifikat apresiasi kerja' }
     ]
   },
+
+  // 12. Pernikahan
   {
-    id: 'LYN-DS-02',
-    kodeLayanan: 'KLARIFIKASI_KEBERATAN_DISIPLIN',
-    kategori: 'DISIPLIN',
-    namaLayanan: 'Klarifikasi & Tanggapan Disiplin',
-    deskripsi: 'Penyampaian klarifikasi, bukti pendukung kehadiran, atau permohonan peninjauan catatan disiplin',
+    id: 'LYN-PN-01',
+    kodeLayanan: 'PERNIKAHAN',
+    kategori: 'KELUARGA_STATUS',
+    namaLayanan: 'Pernikahan',
+    deskripsi: 'Pemberitahuan resmi pernikahan pertama PNS / PPPK dan permohonan pendaftaran pasangan pada tunjangan keluarga (KP4) dan BPJS.',
     aktif: true,
     slaHari: 3,
-    icon: 'bi-chat-left-text',
+    icon: 'bi-heart-fill',
     fields: [
-      { name: 'perihalKlarifikasi', label: 'Perihal Surat / Catatan Klarifikasi', type: 'text', placeholder: 'Contoh: Klarifikasi Ketidakhadiran Tanggal...', required: true },
-      { name: 'alasanKlarifikasi', label: 'Uraian Pembelaan Diri / Penjelasan Kondisi', type: 'textarea', placeholder: 'Uraikan secara kronologis kejadian dan alasan yang dapat dipertanggungjawabkan...', required: true }
+      { name: 'namaPasangan', label: 'Nama Lengkap Suami / Istri', type: 'text', placeholder: 'Nama lengkap pasangan...', required: true },
+      { name: 'nikPasangan', label: 'NIK (No. KTP) Pasangan', type: 'text', placeholder: '16 digit NIK...', required: true },
+      { name: 'pekerjaanPasangan', label: 'Pekerjaan Pasangan', type: 'select', options: ['PNS / PPPK / TNI / POLRI', 'Karyawan Swasta / BUMN', 'Wiraswasta', 'Ibu Rumah Tangga / Tidak Bekerja'], required: true },
+      { name: 'nipPasanganAsn', label: 'NIP Pasangan (Bila Pasangan adalah ASN)', type: 'text', placeholder: 'Isi jika pasangan PNS/PPPK...', required: false },
+      { name: 'tanggalPernikahan', label: 'Tanggal Akad Nikah / Pernikahan', type: 'date', required: true },
+      { name: 'nomorBukuNikah', label: 'Nomor Akta / Buku Nikah', type: 'text', placeholder: 'Nomor register KUA / Catatan Sipil...', required: true }
     ],
     requiredDocuments: [
-      { id: 'doc_surat_tugas_sakit', label: 'Surat Tugas / Surat Keterangan Dokter / Bukti Force Majeure (PDF)', required: true, description: 'Bukti sah yang melandasi ketidakhadiran' }
+      { id: 'doc_buku_nikah_lengkap', label: 'Scan Buku Nikah / Akta Perkawinan Lengkap (PDF)', required: true, description: 'Halaman identitas dan legalisasi KUA/Disdukcapil' },
+      { id: 'doc_ktp_kk_pasangan', label: 'KTP Pasangan & Kartu Keluarga Terbaru (PDF)', required: true, description: 'KK yang sudah tercantum nama pasangan' },
+      { id: 'doc_surat_laporan_pernikahan', label: 'Surat Laporan Perkawinan Pertama (Formulir Model I/II)', required: true, description: 'Formulir laporan pernikahan resmi ASN' }
     ]
   },
 
-  // H. PENSIUN
+  // 13. Perceraian
+  {
+    id: 'LYN-PC-01',
+    kodeLayanan: 'PERCERAIAN',
+    kategori: 'KELUARGA_STATUS',
+    namaLayanan: 'Perceraian',
+    deskripsi: 'Permohonan Izin Perceraian / Surat Keterangan Perceraian bagi PNS sesuai ketentuan PP No. 10 Tahun 1983 jo PP No. 45 Tahun 1990.',
+    aktif: true,
+    slaHari: 7,
+    icon: 'bi-heartbreak-fill',
+    fields: [
+      { name: 'kedudukanPihak', label: 'Kedudukan Hukum Pemohon', type: 'select', options: ['Penggugat (Mengajukan Permohonan Izin Perceraian)', 'Tergugat (Mengajukan Surat Keterangan Perceraian)'], required: true },
+      { name: 'namaPasanganCerai', label: 'Nama Lengkap Suami / Istri', type: 'text', placeholder: 'Nama pasangan...', required: true },
+      { name: 'alasanPerceraian', label: 'Alasan / Pokok Masalah Perceraian', type: 'textarea', placeholder: 'Uraikan secara kronologis permasalahan dan upaya mediasi yang telah ditempuh...', required: true },
+      { name: 'jumlahAnak', label: 'Jumlah Anak dari Pernikahan', type: 'number', placeholder: '0 jika belum ada anak', required: true },
+      { name: 'statusMediasi', label: 'Status Mediasi / Konseling Atasan', type: 'select', options: ['Sudah Dimediasi oleh Atasan Langsung', 'Belum Dilakukan Mediasi'], required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_surat_permohonan_cerai', label: 'Surat Permohonan Izin Cerai Ditujukan ke Menkumham / Sekjen (PDF)', required: true, description: 'Surat resmi permohonan izin perceraian' },
+      { id: 'doc_bap_mediasi', label: 'Berita Acara Pemeriksaan (BAP) / Mediasi Atasan Langsung (PDF)', required: true, description: 'Hasil konseling mediasi unit kerja' },
+      { id: 'doc_buku_nikah_cerai', label: 'Salinan Buku Nikah / KTP / KK (PDF)', required: true, description: 'Dokumen pernikahan awal' }
+    ]
+  },
+
+  // 14. Kelahiran Anak
+  {
+    id: 'LYN-KA-01',
+    kodeLayanan: 'KELAHIRAN_ANAK',
+    kategori: 'KELUARGA_STATUS',
+    namaLayanan: 'Kelahiran Anak',
+    deskripsi: 'Pemberitahuan kelahiran anak, pembaruan data anggota keluarga, dan pendaftaran hak tunjangan anak (KP4) serta BPJS Kesehatan.',
+    aktif: true,
+    slaHari: 3,
+    icon: 'bi-person-hearts',
+    fields: [
+      { name: 'namaAnak', label: 'Nama Lengkap Anak', type: 'text', placeholder: 'Nama lengkap bayi/anak...', required: true },
+      { name: 'nikAnak', label: 'NIK Anak (tertera di KK / Akta)', type: 'text', placeholder: '16 digit NIK...', required: true },
+      { name: 'jenisKelaminAnak', label: 'Jenis Kelamin Anak', type: 'select', options: ['Laki-laki', 'Perempuan'], required: true },
+      { name: 'tempatLahirAnak', label: 'Tempat Lahir', type: 'text', placeholder: 'Kota / Kabupaten...', required: true },
+      { name: 'tanggalLahirAnak', label: 'Tanggal Lahir', type: 'date', required: true },
+      { name: 'anakKe', label: 'Anak Ke-', type: 'number', placeholder: 'Contoh: 1', required: true },
+      { name: 'hakTunjangan', label: 'Pengajuan Hak Tunjangan Anak (KP4)', type: 'select', options: ['Ya (Maksimal 2 Anak yang Ditunjang)', 'Tidak (Hanya Pemutakhiran Data)'], required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_akta_kelahiran_anak', label: 'Scan Akta Kelahiran Anak Resmi Disdukcapil (PDF)', required: true, description: 'Akta kelahiran anak' },
+      { id: 'doc_kk_terbaru_anak', label: 'Kartu Keluarga (KK) Terbaru yang Memuat Nama Anak (PDF)', required: true, description: 'KK terbaru' },
+      { id: 'doc_surat_ket_lahir', label: 'Surat Keterangan Kelahiran dari Rumah Sakit / Bidan (Opsional)', required: false, description: 'Dokumen pendukung medis' }
+    ]
+  },
+
+  // 15. Kartu Istri/Suami (KARIS/KARSU)
+  {
+    id: 'LYN-KS-02',
+    kodeLayanan: 'KARTU_ISTRI_SUAMI',
+    kategori: 'KELUARGA_STATUS',
+    namaLayanan: 'Kartu Istri / Suami (KARIS / KARSU)',
+    deskripsi: 'Permohonan penerbitan Kartu Istri (KARIS) atau Kartu Suami (KARSU) BKN sebagai identitas resmi pasangan PNS.',
+    aktif: true,
+    slaHari: 5,
+    icon: 'bi-person-vcard',
+    fields: [
+      { name: 'jenisKartu', label: 'Jenis Kartu yang Diajukan', type: 'select', options: ['Kartu Istri (KARIS)', 'Kartu Suami (KARSU)', 'Penggantian KARIS/KARSU Hilang/Rusak'], required: true },
+      { name: 'namaPasanganKaris', label: 'Nama Lengkap Pasangan', type: 'text', placeholder: 'Nama pasangan...', required: true },
+      { name: 'tanggalLahirPasangan', label: 'Tanggal Lahir Pasangan', type: 'date', required: true },
+      { name: 'nomorBukuNikahKaris', label: 'Nomor Buku Nikah / Akta Perkawinan', type: 'text', placeholder: 'Nomor buku nikah...', required: true },
+      { name: 'tanggalPernikahanKaris', label: 'Tanggal Pernikahan', type: 'date', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_laporan_perkawinan_karis', label: 'Laporan Perkawinan Pertama (Formulir LPP BKN)', required: true, description: 'Formulir resmi BKN yang ditandatangani' },
+      { id: 'doc_buku_nikah_karis', label: 'Salinan Buku Nikah / Akta Nikah Legalisir (PDF)', required: true, description: 'Buku nikah yang telah dilegalisir KUA' },
+      { id: 'doc_sk_cpns_pns_karis', label: 'SK CPNS & SK PNS Pegawai (PDF)', required: true, description: 'SK Pengangkatan' },
+      { id: 'doc_foto_pasangan', label: 'Pas Foto Pasangan Ukuran 2x3 atau 3x4 Latar Merah (2 Lembar / JPG)', required: true, description: 'Foto formal pasangan' }
+    ]
+  },
+
+  // 16. Jaminan Sosial
+  {
+    id: 'LYN-JS-01',
+    kodeLayanan: 'JAMINAN_SOSIAL',
+    kategori: 'KENAIKAN_GAJI',
+    namaLayanan: 'Jaminan Sosial (JKK / JKM)',
+    deskripsi: 'Pengurusan hak dan klaim Jaminan Kecelakaan Kerja (JKK), Jaminan Kematian (JKM), serta jaminan sosial perlindungan ketenagakerjaan ASN/Non-ASN.',
+    aktif: true,
+    slaHari: 3,
+    icon: 'bi-shield-check',
+    fields: [
+      { name: 'jenisJaminan', label: 'Jenis Layanan Jaminan Sosial', type: 'select', options: ['Klaim Jaminan Kecelakaan Kerja (JKK - Rawat/Santunan)', 'Klaim Jaminan Kematian (JKM - Uang Duka Wafat)', 'Pendaftaran / Pemutakhiran Nomor Peserta Jamsostek', 'Konsultasi Manfaat Jaminan Sosial'], required: true },
+      { name: 'tanggalKejadian', label: 'Tanggal Kejadian / Peristiwa', type: 'date', required: true },
+      { name: 'kronologiSingkat', label: 'Kronologi Singkat Kejadian / Keterangan Klaim', type: 'textarea', placeholder: 'Jelaskan lokasi kejadian dalam jam dinas / kecelakaan tugas...', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_laporan_kecelakaan', label: 'Surat Keterangan Kronologi Kecelakaan dari Pimpinan Unit Kerja (PDF)', required: true, description: 'Surat keterangan resmi tugas' },
+      { id: 'doc_resume_medis', label: 'Kwitansi & Resume Medis Rumah Sakit / Surat Kematian (PDF)', required: true, description: 'Bukti medis/kematian' },
+      { id: 'doc_ktp_kartu_peserta', label: 'Kartu Peserta BPJS / Taspen & KTP Pegawai', required: true, description: 'Kartu identitas jaminan' }
+    ]
+  },
+
+  // 17. JHT (Jaminan Hari Tua)
+  {
+    id: 'LYN-JHT-01',
+    kodeLayanan: 'JHT',
+    kategori: 'KENAIKAN_GAJI',
+    namaLayanan: 'JHT (Jaminan Hari Tua Taspen)',
+    deskripsi: 'Pengurusan klaim dan verifikasi berkas Tabungan Hari Tua (THT) PT TASPEN bagi pegawai yang memasuki usia pensiun, mutasi, atau klaim asuransi.',
+    aktif: true,
+    slaHari: 4,
+    icon: 'bi-wallet-fill',
+    fields: [
+      { name: 'alasanKlaimJht', label: 'Dasar Permohonan JHT/THT', type: 'select', options: ['Pensiun Batas Usia Pensiun (BUP)', 'Pensiun Dini / Mengundurkan Diri', 'Klaim Asuransi Dwiguna / Kematian', 'Koreksi Data Rekening Pembayaran'], required: true },
+      { name: 'nomorTaspen', label: 'Nomor Kartu Taspen (NOTAS)', type: 'text', placeholder: 'Nomor NOTAS...', required: true },
+      { name: 'namaBankJht', label: 'Bank / Kantor Pos Pembayaran yang Dipilih', type: 'text', placeholder: 'Contoh: Bank Mandiri Taspen (Mantap) / BRI', required: true },
+      { name: 'nomorRekeningJht', label: 'Nomor Rekening Penerima', type: 'text', placeholder: 'Nomor rekening buku tabungan...', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_sk_pensiun_jht', label: 'SK Pensiun / Keterangan Berhenti Bekerja (PDF)', required: true, description: 'SK resmi pensiun' },
+      { id: 'doc_buku_tabungan_jht', label: 'Scan Buku Tabungan / Nomor Rekening (PDF)', required: true, description: 'Buku tabungan atas nama pemohon' },
+      { id: 'doc_ktp_npwp_jht', label: 'KTP, NPWP & Kartu Taspen Asli (PDF)', required: true, description: 'Identitas lengkap' }
+    ]
+  },
+
+  // 18. Kesehatan
+  {
+    id: 'LYN-KS-03',
+    kodeLayanan: 'KESEHATAN',
+    kategori: 'KENAIKAN_GAJI',
+    namaLayanan: 'Kesehatan (BPJS & Medical Check-Up)',
+    deskripsi: 'Layanan administrasi pendaftaran BPJS Kesehatan pegawai & keluarga, pengajuan bantuan pembiayaan kesehatan dinas, dan koordinasi Medical Check-Up (MCU).',
+    aktif: true,
+    slaHari: 2,
+    icon: 'bi-heart-pulse-fill',
+    fields: [
+      { name: 'jenisLayananKesehatan', label: 'Kategori Layanan Kesehatan', type: 'select', options: ['Pendaftaran / Pemutakhiran Anggota Keluarga BPJS Kesehatan', 'Perubahan Fasilitas Kesehatan Tingkat Pertama (FKTP)', 'Pendaftaran Pemeriksaan Berkala / Medical Check Up (MCU)', 'Permohonan Bantuan Keringanan Biaya Kesehatan Khusus'], required: true },
+      { name: 'nomorBpjsPegawai', label: 'Nomor Kartu BPJS Kesehatan', type: 'text', placeholder: '13 digit nomor BPJS...', required: true },
+      { name: 'keteranganKesehatan', label: 'Keterangan Tambahan / Keluhan', type: 'textarea', placeholder: 'Jelaskan data anggota keluarga yang ingin didaftarkan...', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_kk_bpjs', label: 'Kartu Keluarga (KK) & KTP Anggota Keluarga (PDF)', required: true, description: 'KK pemohon' },
+      { id: 'doc_slip_gaji_bpjs', label: 'Slip Gaji / Bukti Potong Iuran BPJS Terakhir (Opsional)', required: false, description: 'Bukti pembayaran iuran' }
+    ]
+  },
+
+  // 19. Taperum / Tapera
+  {
+    id: 'LYN-TP-01',
+    kodeLayanan: 'TAPERUM',
+    kategori: 'KENAIKAN_GAJI',
+    namaLayanan: 'Taperum (Tabungan Perumahan / BP Tapera)',
+    deskripsi: 'Pengurusan pengembalian dana Tabungan Perumahan (Bapertarum/Tapera) bagi PNS pensiun serta pemanfaatan fasilitas pembiayaan perumahan ASN.',
+    aktif: true,
+    slaHari: 4,
+    icon: 'bi-house-heart-fill',
+    fields: [
+      { name: 'jenisLayananTapera', label: 'Jenis Layanan Perumahan', type: 'select', options: ['Pengembalian Tabungan Perumahan (Bagi Pensiun / Ahli Waris)', 'Pemanfaatan Pembiayaan Rumah Pertama KPR Tapera', 'Pemutakhiran Data Kepesertaan Portal SITARA'], required: true },
+      { name: 'nomorIndukTapera', label: 'Nomor Identitas Tapera / NIK', type: 'text', placeholder: 'NIK / Nomor Akun Tapera...', required: true },
+      { name: 'rekeningPencairan', label: 'Nomor Rekening Bank Pencairan', type: 'text', placeholder: 'Bank dan Nomor Rekening...', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_sk_pensiun_tapera', label: 'SK Pensiun / SK CPNS & PNS (PDF)', required: true, description: 'Bukti masa kerja dan status pensiun' },
+      { id: 'doc_buku_rekening_tapera', label: 'Buku Tabungan Rekening Pencairan & KTP (PDF)', required: true, description: 'Rekening aktif pemohon' }
+    ]
+  },
+
+  // 20. Pensiun
   {
     id: 'LYN-PS-01',
-    kodeLayanan: 'USULAN_PENSIUN_BUP',
-    kategori: 'PENSIUN',
-    namaLayanan: 'Pensiun Batas Usia Pensiun (BUP)',
-    deskripsi: 'Pemberkasan dan pengusulan SK Pensiun bagi PNS yang mencapai Batas Usia Pensiun (58 / 60 / 65 Tahun)',
+    kodeLayanan: 'PENSIUN',
+    kategori: 'PENSIUN_PURNA',
+    namaLayanan: 'Pensiun',
+    deskripsi: 'Pemberkasan dan pengusulan SK Pensiun Batas Usia Pensiun (BUP), Pensiun Atas Permintaan Sendiri (APS/Dini), atau Pensiun Janda/Duda.',
     aktif: true,
     slaHari: 10,
     icon: 'bi-person-walking',
     fields: [
-      { name: 'usiaBup', label: 'Batas Usia Pensiun (BUP)', type: 'select', options: ['58 Tahun (Pejabat Pelaksana / Administrasi)', '60 Tahun (Pejabat Fungsional Ahli Madya)', '65 Tahun (Pejabat Fungsional Ahli Utama)'], required: true },
-      { name: 'tmtPensiunEstimasi', label: 'TMT Pensiun', type: 'date', required: true },
-      { name: 'alamatSetelahPensiun', label: 'Alamat Tempat Tinggal Pasca Pensiun', type: 'textarea', placeholder: 'Alamat lengkap domisili penerimaan pembayaran pensiun PT TASPEN...', required: true },
-      { name: 'kantorBayarTaspen', label: 'Kantor Cabang / Bank Pembayaran TASPEN', type: 'text', placeholder: 'Contoh: Bank Mandiri Taspen / Kantor Pos...', required: true }
+      { name: 'jenisPensiun', label: 'Jenis Usulan Pensiun', type: 'select', options: ['Pensiun Batas Usia Pensiun (BUP - 58/60/65 Thn)', 'Pensiun Atas Permintaan Sendiri (APS / Pensiun Dini)', 'Pensiun Janda / Duda / Yatim Piatu', 'Pensiun Karena Cacat Jasmani / Rohani'], required: true },
+      { name: 'tmtPensiun', label: 'Estimasi TMT Pensiun', type: 'date', required: true },
+      { name: 'alamatPensiun', label: 'Alamat Domisili Pasca Pensiun', type: 'textarea', placeholder: 'Alamat lengkap tempat tinggal setelah purna tugas...', required: true },
+      { name: 'kantorBayarTaspen', label: 'Kantor Bayar TASPEN / Mitra Bank yang Dipilih', type: 'text', placeholder: 'Contoh: Bank Mantap KC Rawamangun...', required: true }
     ],
     requiredDocuments: [
-      { id: 'doc_sk_cpns_akhir', label: 'SK CPNS s.d SK Pangkat Terakhir (PDF Digabung)', required: true, description: 'Kumpulan seluruh SK Pangkat' },
-      { id: 'doc_sk_jabatan_akhir', label: 'SK Jabatan Terakhir & SPMT (PDF)', required: true, description: 'SK jabatan terakhir' },
-      { id: 'doc_data_keluarga', label: 'KK, KTP, Buku Nikah, Akta Anak (PDF)', required: true, description: 'Dokumen penetapan hak janda/duda/anak' },
-      { id: 'doc_foto_pensiun', label: 'Pas Foto 3x4 Latar Belakang Merah (JPG)', required: true, description: 'Foto formal terbaru' }
-    ]
-  },
-  {
-    id: 'LYN-PS-02',
-    kodeLayanan: 'PENSIUN_APS_DINI',
-    kategori: 'PENSIUN',
-    namaLayanan: 'Pensiun Atas Permintaan Sendiri (APS / Dini)',
-    deskripsi: 'Permohonan pensiun dini atas permintaan sendiri bagi PNS yang telah memenuhi syarat masa kerja minimal 20 tahun dan usia minimal 50 tahun',
-    aktif: true,
-    slaHari: 14,
-    icon: 'bi-door-open',
-    fields: [
-      { name: 'usiaSaatIni', label: 'Usia Saat Ini', type: 'number', placeholder: 'Minimal 50 tahun...', required: true },
-      { name: 'totalMasaKerja', label: 'Total Masa Kerja (Tahun)', type: 'number', placeholder: 'Minimal 20 tahun...', required: true },
-      { name: 'tmtPensiunDiusulkan', label: 'TMT Pensiun yang Diinginkan', type: 'date', required: true },
-      { name: 'alasanPensiunDini', label: 'Alasan Mengajukan Pensiun Atas Permintaan Sendiri', type: 'textarea', placeholder: 'Jelaskan alasan pengunduran diri / pensiun dini...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_surat_permohonan_aps', label: 'Surat Permohonan Pensiun APS Bermaterai Rp 10.000 (PDF)', required: true, description: 'Surat resmi permohonan pribadi' },
-      { id: 'doc_sk_cpns_pns_lengkap', label: 'Buku Riwayat Layanan / SK Pangkat Lengkap (PDF)', required: true, description: 'Bukti pemenuhan syarat masa kerja' }
-    ]
-  },
-  {
-    id: 'LYN-PS-03',
-    kodeLayanan: 'KONSULTASI_PENSIUN',
-    kategori: 'PENSIUN',
-    namaLayanan: 'Konsultasi Masa Persiapan Pensiun (MPP)',
-    deskripsi: 'Konsultasi perhitungan sisa masa kerja, hak TASPEN, tabungan perumahan (TAPERA), dan Masa Persiapan Pensiun',
-    aktif: true,
-    slaHari: 2,
-    icon: 'bi-calendar-event',
-    fields: [
-      { name: 'topikPensiun', label: 'Topik Bahasan Pensiun', type: 'select', options: ['Perhitungan Estimasi TMT Pensiun BUP', 'Pengambilan Hak Masa Persiapan Pensiun (MPP 1 Tahun)', 'Klaim Hak TASPEN & Pembayaran Tabungan Hari Tua', 'Pemberkasan Digital SIASN Pensiun'], required: true },
-      { name: 'uraianPertanyaan', label: 'Pertanyaan', type: 'textarea', placeholder: 'Tuliskan hal yang ingin dikonsultasikan...', required: true }
-    ],
-    requiredDocuments: []
-  },
-
-  // I. ADMINISTRASI KEPEGAWAIAN
-  {
-    id: 'LYN-AD-01',
-    kodeLayanan: 'SURAT_KET_AKTIF',
-    kategori: 'ADMINISTRASI',
-    namaLayanan: 'Surat Keterangan Aktif Bekerja',
-    deskripsi: 'Penerbitan Surat Keterangan bahwa pegawai yang bersangkutan berstatus aktif bekerja di lingkungan DJKI',
-    aktif: true,
-    slaHari: 2,
-    icon: 'bi-file-earmark-person',
-    fields: [
-      { name: 'keperluanSurat', label: 'Tujuan / Keperluan Pengajuan Surat', type: 'select', options: ['Pengajuan Pinjaman Bank / KPR', 'Kelengkapan Beasiswa / Studi Mandiri', 'Pendaftaran Sekolah / Universitas Anak', 'Pembuatan Visa / Perjalanan Luar Negeri', 'Lainnya'], required: true },
-      { name: 'instansiTujuan', label: 'Nama Instansi / Lembaga yang Dituju', type: 'text', placeholder: 'Contoh: Bank BTN Kantor Cabang Cibinong / Kedubes...', required: true },
-      { name: 'catatanKhusus', label: 'Keterangan Tambahan pada Surat', type: 'textarea', placeholder: 'Sebutkan jika membutuhkan pencantuman besaran penghasilan / NIP atasan...', required: false }
-    ],
-    requiredDocuments: [
-      { id: 'doc_pengantar_atasan', label: 'Bukti Pendukung / Formulir Bank (Opsional)', required: false, description: 'Format khusus dari bank bila ada' }
-    ]
-  },
-  {
-    id: 'LYN-AD-02',
-    kodeLayanan: 'SURAT_KET_MASA_KERJA',
-    kategori: 'ADMINISTRASI',
-    namaLayanan: 'Surat Keterangan Masa Kerja & Bebas Hukuman',
-    deskripsi: 'Penerbitan surat keterangan rekam jejak pengabdian dan keterangan tidak sedang menjalani hukuman disiplin',
-    aktif: true,
-    slaHari: 2,
-    icon: 'bi-patch-question',
-    fields: [
-      { name: 'jenisKeterangan', label: 'Jenis Surat yang Dibutuhkan', type: 'select', options: ['Surat Keterangan Masa Kerja', 'Surat Keterangan Tidak Sedang Menjalani Hukuman Disiplin', 'Surat Keterangan Bebas Temuan BPK/Itjen'], required: true },
-      { name: 'keperluan', label: 'Keperluan', type: 'text', placeholder: 'Contoh: Persyaratan Seleksi Terbuka / Beasiswa...', required: true }
-    ],
-    requiredDocuments: []
-  },
-  {
-    id: 'LYN-AD-03',
-    kodeLayanan: 'LEGALISASI_DOKUMEN',
-    kategori: 'ADMINISTRASI',
-    namaLayanan: 'Legalisasi Dokumen Kepegawaian',
-    deskripsi: 'Permohonan legalisasi salinan SK CPNS, SK PNS, SK Pangkat, SK Jabatan, dan sertifikat resmi',
-    aktif: true,
-    slaHari: 2,
-    icon: 'bi-stamp',
-    fields: [
-      { name: 'jenisDokumenLegalisir', label: 'Dokumen yang Dilegalisir', type: 'select', options: ['SK CPNS / SK PNS', 'SK Kenaikan Pangkat Terakhir', 'SK Jabatan & SPMT', 'SK Kenaikan Gaji Berkala (KGB)', 'Seluruh Salinan Arsip Kepegawaian'], required: true },
-      { name: 'jumlahRangkap', label: 'Jumlah Lembar / Rangkap yang Dibutuhkan', type: 'number', placeholder: 'Contoh: 3 rangkap', required: true },
-      { name: 'keperluanLegalisir', label: 'Keperluan Legalisasi', type: 'text', placeholder: 'Tuliskan instansi peminta...', required: true }
-    ],
-    requiredDocuments: [
-      { id: 'doc_berkas_asli', label: 'Scan Dokumen Asli yang Akan Dilegalisir (PDF)', required: true, description: 'File master berkualitas jelas' }
+      { id: 'doc_sk_lengkap_pensiun', label: 'Bundel SK CPNS s.d SK Pangkat Terakhir (PDF Digabung)', required: true, description: 'Semua riwayat SK Pangkat' },
+      { id: 'doc_sk_jabatan_spmt', label: 'SK Jabatan Terakhir & SPMT (PDF)', required: true, description: 'SK Jabatan' },
+      { id: 'doc_data_keluarga_pensiun', label: 'Buku Nikah, KK, KTP, dan Akta Anak (PDF)', required: true, description: 'Penetapan hak janda/duda/anak' },
+      { id: 'doc_foto_pensiun_resmi', label: 'Pas Foto 3x4 Berlatar Belakang Merah (JPG)', required: true, description: 'Foto resmi pensiun' }
     ]
   },
 
-  // J. KONSULTASI SDM
+  // 21. Purna Bakti
   {
-    id: 'LYN-KS-01',
-    kodeLayanan: 'KONSULTASI_UMUM_SDM',
-    kategori: 'KONSULTASI_SDM',
-    namaLayanan: 'Konsultasi Karir & Kepegawaian Terpadu',
-    deskripsi: 'Layanan konsultasi tatap muka / online seputar pengembangan karir, perpindahan jabatan, dan regulasi ASN',
+    id: 'LYN-PB-01',
+    kodeLayanan: 'PURNA_BAKTI',
+    kategori: 'PENSIUN_PURNA',
+    namaLayanan: 'Purna Bakti',
+    deskripsi: 'Pendaftaran Program Pembekalan Masa Persiapan Pensiun (MPP), Pelatihan Kewirausahaan Purna Tugas, dan Penyerahan Piagam Pengabdian DJKI.',
     aktif: true,
-    slaHari: 2,
-    icon: 'bi-headset',
+    slaHari: 5,
+    icon: 'bi-flag-fill',
     fields: [
-      { name: 'bidangKonsultasi', label: 'Bidang Konsultasi', type: 'select', options: ['Perencanaan Karir ASN', 'Manajemen Talenta & Penilaian Potensi', 'Regulasi Baru Manajemen ASN (UU No 20/2023)', 'Pengelolaan SKP & Ekspektasi Kinerja', 'Kesejahteraan & Asuransi Pegawai', 'Lainnya'], required: true },
-      { name: 'ringkasanMasalah', label: 'Ringkasan Topik / Pokok Pertanyaan', type: 'textarea', placeholder: 'Uraikan permasalahan atau pertanyaan yang ingin dikonsultasikan secara jelas...', required: true },
-      { name: 'preferensiMetode', label: 'Preferensi Konsultasi', type: 'select', options: ['Tanggapan Tertulis di Sistem Tiket', 'Konsultasi Tatap Muka di Bagian Kepegawaian', 'Telepon / WhatsApp Call'], required: true }
+      { name: 'programPurnaBakti', label: 'Program Purna Bakti yang Diikuti', type: 'select', options: ['Pembekalan & Pelatihan Kewirausahaan Calon Pensiun', 'Pengambilan Hak Masa Persiapan Pensiun (Bebas Tugas 1 Tahun)', 'Upacara Pelepasan & Penyerahan Tanda Pengabdian'], required: true },
+      { name: 'sisaMasaKerjaBulan', label: 'Sisa Waktu Menuju BUP (Bulan)', type: 'number', placeholder: 'Contoh: 12 Bulan', required: true },
+      { name: 'bidangMinatUsaha', label: 'Minat Bidang Usaha / Keterampilan yang Diinginkan', type: 'text', placeholder: 'Contoh: Agribisnis, Kuliner, Properti, Keuangan...', required: false }
     ],
-    requiredDocuments: []
+    requiredDocuments: [
+      { id: 'doc_rekomendasi_mpp', label: 'Surat Permohonan / Usulan Bebas Tugas MPP dari Atasan (PDF)', required: true, description: 'Persetujuan unit kerja' },
+      { id: 'doc_sk_pangkat_akhir_pb', label: 'SK Pangkat Terakhir (PDF)', required: true, description: 'SK Pangkat' }
+    ]
   },
 
-  // K. LAINNYA
+  // 22. Penghargaan
   {
-    id: 'LYN-LN-01',
-    kodeLayanan: 'LAYANAN_LAINNYA',
-    kategori: 'LAINNYA',
-    namaLayanan: 'Permohonan Layanan SDM Lainnya',
-    deskripsi: 'Pengajuan permohonan layanan khusus kepegawaian yang belum terdaftar pada menu kategori di atas',
+    id: 'LYN-PH-01',
+    kodeLayanan: 'PENGHARGAAN',
+    kategori: 'KEPANGKATAN_KARIR',
+    namaLayanan: 'Penghargaan (Satyalancana & Prestasi)',
+    deskripsi: 'Pengusulan Tanda Kehormatan Satyalancana Karya Satya (X, XX, XXX Tahun), Penghargaan Pegawai Teladan, dan Anugerah Inovasi DJKI.',
+    aktif: true,
+    slaHari: 5,
+    icon: 'bi-gem',
+    fields: [
+      { name: 'jenisPenghargaan', label: 'Jenis Tanda Penghargaan', type: 'select', options: ['Satyalancana Karya Satya 10 Tahun (Perunggu)', 'Satyalancana Karya Satya 20 Tahun (Perak)', 'Satyalancana Karya Satya 30 Tahun (Emas)', 'Pegawai Teladan / Berprestasi DJKI', 'Penghargaan Inovasi Layanan Kekayaan Intelektual'], required: true },
+      { name: 'totalMasaKerjaTahun', label: 'Total Masa Kerja Sah (Tahun)', type: 'number', placeholder: 'Contoh: 10', required: true },
+      { name: 'statusHukdis', label: 'Pernyataan Bebas Hukuman Disiplin', type: 'select', options: ['Tidak Pernah Dijatuhi Hukuman Disiplin Tingkat Sedang/Berat', 'Pernah dan Telah Selesai Menjalani'], required: true },
+      { name: 'ringkasanKarya', label: 'Uraian Singkat Prestasi / Kontribusi', type: 'textarea', placeholder: 'Sampaikan rangkuman dedikasi dan kontribusi kerja di DJKI...', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_sk_cpns_penghargaan', label: 'SK CPNS & SK Pangkat Terakhir (PDF)', required: true, description: 'Bukti perhitungan masa kerja pengabdian' },
+      { id: 'doc_surat_ket_bebas_hukdis', label: 'Surat Keterangan Tidak Pernah Dijatuhi Hukuman Disiplin (PDF)', required: true, description: 'Keterangan bebas hukdis' },
+      { id: 'doc_drh_penghargaan', label: 'Daftar Riwayat Hidup Lengkap (PDF)', required: true, description: 'DRH format BKN' }
+    ]
+  },
+
+  // 23. Konsultasi Kepegawaian
+  {
+    id: 'LYN-KK-01',
+    kodeLayanan: 'KONSULTASI_KEPEGAWAIAN',
+    kategori: 'KONSULTASI_ADMINISTRASI',
+    namaLayanan: 'Konsultasi Kepegawaian',
+    deskripsi: 'Layanan konsultasi tatap muka langsung maupun virtual seputar perencanaan karir, kenaikan pangkat, angka kredit, hak cuti, dan problem kepegawaian.',
+    aktif: true,
+    slaHari: 2,
+    icon: 'bi-chat-dots-fill',
+    fields: [
+      { name: 'topikKonsultasi', label: 'Topik Bahasan Konsultasi', type: 'select', options: ['Perencanaan Karir & Uji Kompetensi Jabatan', 'Perhitungan Angka Kredit JF & Konversi Predikat Kinerja', 'Peluang Beasiswa & Tugas Belajar', 'Hak Cuti (Cuti Sakit, Cuti Alasan Penting, Cuti Melahirkan)', 'Kompensasi, Tukin & Penggajian', 'Lainnya'], required: true },
+      { name: 'uraianMasalah', label: 'Rincian Pertanyaan / Permasalahan yang Dikonsultasikan', type: 'textarea', placeholder: 'Tuliskan secara jelas pokok persoalan atau pertanyaan yang ingin didiskusikan dengan analis SDM...', required: true },
+      { name: 'metodeKonsultasi', label: 'Metode Konsultasi yang Diinginkan', type: 'select', options: ['Tanggapan Tertulis di Sistem Tiket SDM', 'Konsultasi Tatap Muka di Ruang Layanan Kepegawaian Lantai 4', 'Panggilan WhatsApp / Zoom Meeting'], required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_lampiran_konsultasi', label: 'Dokumen / Bukti Terkait Pokok Bahasan (Opsional)', required: false, description: 'Draft dokumen atau SK terkait' }
+    ]
+  },
+
+  // 24. Perlindungan Hukum
+  {
+    id: 'LYN-LH-01',
+    kodeLayanan: 'PERLINDUNGAN_HUKUM',
+    kategori: 'HUKUM_DISIPLIN',
+    namaLayanan: 'Perlindungan Hukum',
+    deskripsi: 'Permohonan advokasi dan bantuan perlindungan hukum bagi pegawai ASN DJKI dalam menghadapi sengketa pelaksanaan tugas kedinasan.',
     aktif: true,
     slaHari: 3,
-    icon: 'bi-grid-3x3-gap',
+    icon: 'bi-shield-lock-fill',
     fields: [
-      { name: 'judulPermohonan', label: 'Judul Permohonan', type: 'text', placeholder: 'Tuliskan judul singkat permohonan Anda...', required: true },
-      { name: 'deskripsiPermohonan', label: 'Deskripsi Permohonan', type: 'textarea', placeholder: 'Jelaskan secara lengkap dan rinci latar belakang serta permohonan Anda...', required: true },
-      { name: 'urgensi', label: 'Tingkat Urgensi', type: 'select', options: ['Biasa (Sesuai SLA)', 'Penting / Segera', 'Mendesak'], required: true }
+      { name: 'perihalSengketa', label: 'Perihal Permasalahan Hukum', type: 'text', placeholder: 'Contoh: Gugatan PTUN / Sengketa Administrasi Terkait Tugas Pemeriksaan Paten', required: true },
+      { name: 'sumberPermasalahan', label: 'Keterkaitan dengan Tugas Kedinasan', type: 'select', options: ['Sengketa Tata Usaha Negara (TUN) Terkait Produk Hukum DJKI', 'Panggilan Saksi / Klarifikasi Aparat Penegak Hukum (APH)', 'Pemberian Keterangan Ahli Kedinasan', 'Sengketa Perdata / Pidana Terkait Pelaksanaan Tugas'], required: true },
+      { name: 'kronologiKasus', label: 'Kronologi Singkat Peristiwa Kedinasan', type: 'textarea', placeholder: 'Uraikan dasar surat tugas, kronologi kejadian, dan bentuk pendampingan hukum yang dibutuhkan...', required: true }
     ],
     requiredDocuments: [
-      { id: 'doc_pendukung_lain', label: 'Dokumen Pendukung (Opsional)', required: false, description: 'File referensi atau surat pengantar' }
+      { id: 'doc_surat_panggilan_aph', label: 'Surat Panggilan / Dokumen Gugatan / Berkas Perkara (PDF)', required: true, description: 'Surat resmi dari instansi penegak hukum / pengadilan' },
+      { id: 'doc_surat_tugas_kedinasan', label: 'Surat Tugas / SK yang Mendasari Pelaksanaan Pekerjaan (PDF)', required: true, description: 'Bukti pelaksanaan tugas resmi DJKI' }
+    ]
+  },
+
+  // 25. Administrasi Disiplin
+  {
+    id: 'LYN-AD-04',
+    kodeLayanan: 'ADMINISTRASI_DISIPLIN',
+    kategori: 'HUKUM_DISIPLIN',
+    namaLayanan: 'Administrasi Disiplin',
+    deskripsi: 'Layanan penatausahaan klarifikasi kehadiran, penanganan laporan pengaduan, surat panggilan pemeriksaan disiplin, dan tindak lanjut kepatuhan kode etik.',
+    aktif: true,
+    slaHari: 3,
+    icon: 'bi-shield-exclamation',
+    fields: [
+      { name: 'jenisLayananDisiplin', label: 'Jenis Layanan Disiplin', type: 'select', options: ['Klarifikasi & Pembuktian Alasan Ketidakhadiran / Absensi', 'Permohonan Izin / Rekomendasi Khusus Kepatuhan', 'Penyampaian Tanggapan Surat Panggilan Pemeriksaan', 'Pengajuan Keberatan atas Rekomendasi Disiplin'], required: true },
+      { name: 'nomorSuratPanggilan', label: 'Nomor Surat Panggilan / Berkas Terkait (Jika Ada)', type: 'text', placeholder: 'Nomor surat...', required: false },
+      { name: 'penjelasanKlarifikasi', label: 'Uraian Penjelasan / Keterangan Pembelaan Diri', type: 'textarea', placeholder: 'Sampaikan penjelasan kronologis disertai alasan yang sah dan dapat dipertanggungjawabkan...', required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_surat_sakit_tugas', label: 'Surat Dokter Resmi / Surat Tugas / Bukti Kondisi Darurat (PDF)', required: true, description: 'Bukti otentik penyebab ketidakhadiran' },
+      { id: 'doc_tanggapan_tertulis', label: 'Surat Pernyataan / Tanggapan Tertulis Bermaterai (PDF)', required: false, description: 'Pernyataan resmi pemohon' }
+    ]
+  },
+
+  // 26. Layanan SDM Lainnya
+  {
+    id: 'LYN-LN-01',
+    kodeLayanan: 'LAYANAN_SDM_LAINNYA',
+    kategori: 'KONSULTASI_ADMINISTRASI',
+    namaLayanan: 'Layanan SDM Lainnya',
+    deskripsi: 'Pengajuan permohonan administrasi kepegawaian lainnya seperti Surat Keterangan Aktif, Legalisasi Berkas, Cuti Khusus, dan permohonan khusus lainnya.',
+    aktif: true,
+    slaHari: 3,
+    icon: 'bi-grid-3x3-gap-fill',
+    fields: [
+      { name: 'jenisLayananSpesifik', label: 'Jenis Layanan yang Dibutuhkan', type: 'select', options: ['Surat Keterangan Aktif Bekerja (Untuk Bank/Visa/Sekolah)', 'Surat Keterangan Masa Kerja & Bebas Hukuman Disiplin', 'Legalisasi Salinan SK & Dokumen Kepegawaian', 'Permohonan Cuti Besar / Cuti di Luar Tanggungan Negara (CLTN)', 'Rekomendasi Pembuatan Paspor Dinas', 'Layanan Lainnya yang Belum Tercantum'], required: true },
+      { name: 'judulPermohonan', label: 'Judul / Keperluan Permohonan', type: 'text', placeholder: 'Contoh: Surat Keterangan Aktif untuk Pengajuan KPR BTN', required: true },
+      { name: 'rincianKeperluan', label: 'Rincian Penjelasan & Data yang Diperlukan', type: 'textarea', placeholder: 'Jelaskan secara rinci tujuan pembuatan surat, instansi tujuan, atau format khusus yang diminta...', required: true },
+      { name: 'urgensi', label: 'Tingkat Urgensi', type: 'select', options: ['Normal (Sesuai SLA 3 Hari)', 'Segera / Urgent (Kebutuhan Mendesak)'], required: true }
+    ],
+    requiredDocuments: [
+      { id: 'doc_berkas_pendukung_lain', label: 'Dokumen Acuan / Formulir dari Instansi Peminta / Scan Asli (PDF)', required: true, description: 'Formulir bank / scan SK yang ingin dilegalisir' }
     ]
   }
 ];

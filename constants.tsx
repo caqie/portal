@@ -645,5 +645,10 @@ export const APP_ROUTES = [
   { path: '/quizdjki', label: 'QuizDJKI (Game)', icon: 'bi-controller' },
   { path: '/layanan-sdm', label: 'Layanan SDM KI (Helpdesk)', icon: 'bi-headset' },
   { path: '/layanan-sdm/pengajuan-saya', label: 'Pengajuan Saya (SDM)', icon: 'bi-inboxes-fill' },
-  { path: '/admin/layanan-sdm', label: 'Admin Layanan SDM', icon: 'bi-shield-check' }
+  { path: '/admin/layanan-sdm', label: 'Admin Layanan SDM', icon: 'bi-shield-check' },
+  { path: '/presensi', label: 'Presensi Online (Smart)', icon: 'bi-camera-video-fill' },
+  { path: '/face-registration', label: 'Registrasi Wajah Pegawai', icon: 'bi-person-bounding-box' },
+  { path: '/admin/attendance', label: 'Monitoring Presensi', icon: 'bi-bar-chart-fill' },
+  { path: '/admin/attendance/locations', label: 'Master Lokasi Geofence', icon: 'bi-geo-alt-fill' },
+  { path: '/admin/attendance/settings', label: 'Pengaturan Presensi', icon: 'bi-sliders' }
 ];

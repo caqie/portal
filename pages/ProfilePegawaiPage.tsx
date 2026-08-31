@@ -612,6 +612,14 @@ const ProfilePegawaiPage = () => {
           </div>
         </div>
         <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+          <button 
+            onClick={() => navigate('/layanan-sdm/pengajuan')}
+            className="flex-1 lg:flex-none px-5 md:px-6 py-3 md:py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 active:scale-95 transition-all"
+            title="Ajukan Layanan Kepegawaian untuk Pegawai ini"
+          >
+            <i className="bi bi-send-plus-fill"></i>
+            Ajukan Layanan SDM
+          </button>
           <button onClick={handleCetakDRH} disabled={syncing} className="flex-1 lg:flex-none px-6 md:px-8 py-3 md:py-4 bg-gray-900 text-white rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-all">
             {syncing ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>}
             Cetak DRH

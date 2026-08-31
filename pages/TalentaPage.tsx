@@ -596,13 +596,66 @@ export default function TalentaPage() {
     }
   };
 
+  const isRegularUser = !canEdit;
+
+  // Find logged-in user profile from pegawai list
+  const currentUserPegawai = useMemo(() => {
+    if (!user) return null;
+    return pegawaiList.find(p => 
+      (user.nip && (p.nip === user.nip || p.id === user.nip)) ||
+      (user.name && p.nama && (p.nama.toLowerCase().trim() === user.name.toLowerCase().trim() || p.nama.toLowerCase().includes(user.name.toLowerCase())))
+    ) || null;
+  }, [pegawaiList, user]);
+
+  const targetUserNip = currentUserPegawai?.nip || currentUserPegawai?.id || user?.nip || '';
+
+  const myPenilaian = useMemo(() => {
+    if (!targetUserNip && !currentUserPegawai) return null;
+    return penilaianList.find(p => 
+      (targetUserNip && p.pegawai_id === targetUserNip) ||
+      (currentUserPegawai && (p.pegawai_id === currentUserPegawai.id || p.pegawai_id === currentUserPegawai.nip))
+    ) || null;
+  }, [penilaianList, targetUserNip, currentUserPegawai]);
+
+  const myTalentPool = useMemo(() => {
+    if (!targetUserNip && !currentUserPegawai) return null;
+    return talentPoolList.find(t => 
+      (targetUserNip && t.pegawai_id === targetUserNip) ||
+      (currentUserPegawai && (t.pegawai_id === currentUserPegawai.id || t.pegawai_id === currentUserPegawai.nip))
+    ) || null;
+  }, [talentPoolList, targetUserNip, currentUserPegawai]);
+
+  const myPengembanganList = useMemo(() => {
+    if (!targetUserNip && !currentUserPegawai) return [];
+    return pengembanganList.filter(p => 
+      (targetUserNip && p.pegawai_id === targetUserNip) ||
+      (currentUserPegawai && (p.pegawai_id === currentUserPegawai.id || p.pegawai_id === currentUserPegawai.nip))
+    );
+  }, [pengembanganList, targetUserNip, currentUserPegawai]);
+
+  // Auto-select logged-in user when in regular user mode
+  useEffect(() => {
+    if (isRegularUser && currentUserPegawai && !selectedPegawaiId) {
+      setSelectedPegawaiId(currentUserPegawai.id || currentUserPegawai.nip);
+    }
+  }, [isRegularUser, currentUserPegawai, selectedPegawaiId]);
+
+  // Fallback tab for regular users if on restricted tabs
+  useEffect(() => {
+    if (isRegularUser && (activeTab === 'TALENT_POOL' || activeTab === 'IMPORT_EXPORT')) {
+      setActiveTab('DASHBOARD');
+    }
+  }, [isRegularUser, activeTab]);
+
   // Filter pegawai list based on roles
   const filteredPegawaiList = useMemo(() => {
-    if ((user?.role as string) === 'Pegawai' && user?.nip) {
-      return pegawaiList.filter(p => p.nip === user.nip);
+    if (isRegularUser) {
+      if (currentUserPegawai) return [currentUserPegawai];
+      if (user?.nip) return pegawaiList.filter(p => p.nip === user.nip);
+      return [];
     }
     return pegawaiList;
-  }, [pegawaiList, user]);
+  }, [pegawaiList, isRegularUser, currentUserPegawai, user]);
 
   const selectOptions = useMemo(() => {
     return filteredPegawaiList.map(p => ({
@@ -620,9 +673,16 @@ export default function TalentaPage() {
 
   // Filtered Evaluation and Talent Pool list for View Tab
   const processedTalentPool = useMemo(() => {
-    let list = penilaianList.map((pen, i) => {
-      const peg = findPegawai(pen.pegawai_id);
-      const pool = talentPoolList.find(t => t.pegawai_id === pen.pegawai_id);
+    let sourcePenilaian = isRegularUser 
+      ? (myPenilaian ? [myPenilaian] : []) 
+      : penilaianList;
+    let sourceTalentPool = isRegularUser 
+      ? (myTalentPool ? [myTalentPool] : []) 
+      : talentPoolList;
+
+    let list = sourcePenilaian.map((pen, i) => {
+      const peg = findPegawai(pen.pegawai_id) || (isRegularUser ? currentUserPegawai : null);
+      const pool = sourceTalentPool.find(t => t.pegawai_id === pen.pegawai_id);
       return {
         ...pen,
         nama: peg ? formatPegawaiName(peg.nama) : 'Karyawan',
@@ -632,7 +692,7 @@ export default function TalentaPage() {
         masa_kerja: parseInt(peg?.masaKerja || '0') || 0,
         status_talenta: pool?.status_talenta || 'Kader Potensial',
         readiness_level: pool?.readiness_level || 'Medium',
-        rekomendasi_jabatan: pool?.rekomendasi_jabatan || peg?.jabatan || 'Jabatan Terget'
+        rekomendasi_jabatan: pool?.rekomendasi_jabatan || peg?.jabatan || 'Jabatan Target'
       };
     });
 
@@ -663,16 +723,57 @@ export default function TalentaPage() {
       ...item,
       live_ranking: index + 1
     }));
-  }, [penilaianList, talentPoolList, pegawaiList, filterUnitKerja, filterJabatan, filterKategori, searchQuery]);
+  }, [penilaianList, talentPoolList, pegawaiList, filterUnitKerja, filterJabatan, filterKategori, searchQuery, isRegularUser, myPenilaian, myTalentPool, currentUserPegawai]);
 
   // Special promotion readiness filter (Rekomendasi Promosi)
-  // Kebutuhan: nilai > 85, masa kerja > 5 tahun, leadership tinggi
+  // Kebutuhan: nilai > 85, masa kerja >= 5 tahun, leadership tinggi (>= 80)
   const promotionCandidates = useMemo(() => {
     return processedTalentPool.filter(p => p.total_nilai > 85 && p.masa_kerja >= 5 && p.leadership >= 80);
   }, [processedTalentPool]);
 
+  // Radar data for personal assessment
+  const myRadarData = useMemo(() => {
+    const p = myPenilaian;
+    if (!p) {
+      return [
+        { subject: 'SKP (Kinerja)', value: 0, fullMark: 100 },
+        { subject: 'Kompetensi', value: 0, fullMark: 100 },
+        { subject: 'Kepemimpinan', value: 0, fullMark: 100 },
+        { subject: 'Integritas', value: 0, fullMark: 100 },
+        { subject: 'Disiplin', value: 0, fullMark: 100 },
+        { subject: 'Kerjasama Tim', value: 0, fullMark: 100 },
+        { subject: 'Inovasi', value: 0, fullMark: 100 },
+        { subject: 'Komunikasi', value: 0, fullMark: 100 }
+      ];
+    }
+    return [
+      { subject: 'SKP (Kinerja)', value: p.nilai_skp || 80, fullMark: 100 },
+      { subject: 'Kompetensi', value: p.kompetensi || 80, fullMark: 100 },
+      { subject: 'Kepemimpinan', value: p.leadership || 80, fullMark: 100 },
+      { subject: 'Integritas', value: p.integritas || 100, fullMark: 100 },
+      { subject: 'Disiplin', value: p.disiplin || 80, fullMark: 100 },
+      { subject: 'Kerjasama Tim', value: p.teamwork || 80, fullMark: 100 },
+      { subject: 'Inovasi', value: p.inovasi || 80, fullMark: 100 },
+      { subject: 'Komunikasi', value: p.komunikasi || 80, fullMark: 100 }
+    ];
+  }, [myPenilaian]);
+
   // Aggregate stats for charts
   const competencyChartData = useMemo(() => {
+    if (isRegularUser) {
+      if (!myPenilaian) return [];
+      return [
+        { name: 'SKP', value: myPenilaian.nilai_skp || 0 },
+        { name: 'Kompetensi', value: myPenilaian.kompetensi || 0 },
+        { name: 'Leadership', value: myPenilaian.leadership || 0 },
+        { name: 'Integritas', value: myPenilaian.integritas || 0 },
+        { name: 'Disiplin', value: myPenilaian.disiplin || 0 },
+        { name: 'Teamwork', value: myPenilaian.teamwork || 0 },
+        { name: 'Inovasi', value: myPenilaian.inovasi || 0 },
+        { name: 'Komunikasi', value: myPenilaian.komunikasi || 0 }
+      ];
+    }
+
     if (penilaianList.length === 0) return [];
     
     // average competencies across assessed workers
@@ -699,7 +800,7 @@ export default function TalentaPage() {
       { name: 'Inovasi', value: Math.round(innoSum / total) },
       { name: 'Komunikasi', value: Math.round(commSum / total) }
     ];
-  }, [penilaianList]);
+  }, [penilaianList, isRegularUser, myPenilaian]);
 
   const pendidikanChartData = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -929,13 +1030,22 @@ export default function TalentaPage() {
       </div>
 
       {/* SYSTEM ROLE SCOPE ALERT INFO */}
-      {(user?.role as string) === 'Pegawai' && (
-        <div className="p-4 bg-blue-600/10 border border-blue-500/20 rounded-2xl flex items-center gap-4 text-blue-800 no-print">
-          <i className="bi bi-info-circle-fill text-xl"></i>
-          <div>
-            <p className="text-xs font-bold">Scope Terbatas</p>
-            <p className="text-[10px] font-medium text-blue-600/80">Anda masuk sebagai Pegawai. Anda hanya dapat melihat penilaian personal dan profil suksesi karir Anda sendiri sesuai peraturan perundang-undangan.</p>
+      {isRegularUser && (
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl flex items-center justify-between gap-4 text-blue-900 no-print shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md shrink-0">
+              <i className="bi bi-shield-lock-fill"></i>
+            </div>
+            <div>
+              <p className="text-xs font-black text-blue-950 uppercase tracking-wider">Akses Mandiri Pegawai (Private & Confidential)</p>
+              <p className="text-[11px] font-medium text-blue-700/90 mt-0.5">
+                Anda login sebagai <span className="font-bold text-blue-950">{user?.name || 'Pegawai'}</span> (NIP. {targetUserNip || '-'}). Sistem hanya menampilkan hasil penilaian kompetensi, evaluasi BKN Kepka 411/2025, dan rencana pengembangan karir personal Anda.
+              </p>
+            </div>
           </div>
+          <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-lg text-[9px] font-black uppercase tracking-wider shrink-0 hidden sm:inline-block">
+            Self-Service
+          </span>
         </div>
       )}
 
@@ -952,53 +1062,89 @@ export default function TalentaPage() {
 
       {/* TAB NAVIGATION PANEL */}
       <div className="flex overflow-x-auto gap-1 border-b border-gray-100 no-print">
-        {(user?.role as string) !== 'Pegawai' && (
-          <button 
-            onClick={() => setActiveTab('DASHBOARD')} 
-            className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'DASHBOARD' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
-          >
-            Dashboard Talenta
-          </button>
-        )}
-        {canEdit && (
-          <button 
-            onClick={() => { setActiveTab('PENILAIAN'); setSelectedPegawaiId(''); }} 
-            className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'PENILAIAN' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
-          >
-            Form Penilaian
-          </button>
-        )}
-        <button 
-          onClick={() => setActiveTab('TALENT_POOL')} 
-          className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'TALENT_POOL' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
-        >
-          Talent Pool Rankings
-        </button>
-        <button 
-          onClick={() => setActiveTab('NINEBOX')} 
-          className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'NINEBOX' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
-        >
-          9-Box Matrix
-        </button>
-        <button 
-          onClick={() => setActiveTab('PROMOSI')} 
-          className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'PROMOSI' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
-        >
-          Rekomendasi Promosi
-        </button>
-        <button 
-          onClick={() => setActiveTab('PENGEMBANGAN')} 
-          className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'PENGEMBANGAN' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
-        >
-          Pengembangan ASN
-        </button>
-        {canEdit && (
-          <button 
-            onClick={() => setActiveTab('IMPORT_EXPORT')} 
-            className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'IMPORT_EXPORT' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
-          >
-            Import / Export
-          </button>
+        {isRegularUser ? (
+          <>
+            <button 
+              onClick={() => setActiveTab('DASHBOARD')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 flex items-center gap-2 ${activeTab === 'DASHBOARD' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              <i className="bi bi-person-badge text-xs"></i>
+              Profil Talenta Saya
+            </button>
+            <button 
+              onClick={() => setActiveTab('NINEBOX')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 flex items-center gap-2 ${activeTab === 'NINEBOX' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              <i className="bi bi-grid-3x3-gap-fill text-xs"></i>
+              9-Box Matrix Saya
+            </button>
+            <button 
+              onClick={() => setActiveTab('PROMOSI')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 flex items-center gap-2 ${activeTab === 'PROMOSI' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              <i className="bi bi-award-fill text-xs"></i>
+              Status Kesiapan Karir
+            </button>
+            <button 
+              onClick={() => setActiveTab('PENGEMBANGAN')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 flex items-center gap-2 ${activeTab === 'PENGEMBANGAN' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              <i className="bi bi-journal-bookmark-fill text-xs"></i>
+              Program Pengembangan Saya
+            </button>
+            <button 
+              onClick={() => setActiveTab('PENILAIAN')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 flex items-center gap-2 ${activeTab === 'PENILAIAN' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              <i className="bi bi-card-checklist text-xs"></i>
+              Rincian Evaluasi BKN
+            </button>
+          </>
+        ) : (
+          <>
+            <button 
+              onClick={() => setActiveTab('DASHBOARD')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'DASHBOARD' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              Dashboard Talenta
+            </button>
+            <button 
+              onClick={() => { setActiveTab('PENILAIAN'); setSelectedPegawaiId(''); }} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'PENILAIAN' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              Form Penilaian
+            </button>
+            <button 
+              onClick={() => setActiveTab('TALENT_POOL')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'TALENT_POOL' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              Talent Pool Rankings
+            </button>
+            <button 
+              onClick={() => setActiveTab('NINEBOX')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'NINEBOX' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              9-Box Matrix
+            </button>
+            <button 
+              onClick={() => setActiveTab('PROMOSI')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'PROMOSI' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              Rekomendasi Promosi
+            </button>
+            <button 
+              onClick={() => setActiveTab('PENGEMBANGAN')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'PENGEMBANGAN' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              Pengembangan ASN
+            </button>
+            <button 
+              onClick={() => setActiveTab('IMPORT_EXPORT')} 
+              className={`px-5 py-4 font-black text-[10px] tracking-widest uppercase transition-all shrink-0 border-b-2 ${activeTab === 'IMPORT_EXPORT' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-900'}`}
+            >
+              Import / Export
+            </button>
+          </>
         )}
       </div>
 
@@ -1012,213 +1158,420 @@ export default function TalentaPage() {
         <div className="space-y-8">
           
           {/* TAB 1: DASHBOARD TALENTA */}
-          {activeTab === 'DASHBOARD' && (user?.role as string) !== 'Pegawai' && (
-            <div className="space-y-8">
-              {/* STAT CARDS ROW */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                  <span className="text-[7px] md:text-[8px] font-black text-slate-400 tracking-wider block uppercase mb-1">Database Pegawai</span>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl md:text-3xl font-black text-gray-950 tracking-tighter">{totalPegawaiCount}</span>
-                    <span className="text-[9px] font-bold text-gray-400">Pegawai</span>
-                  </div>
-                  <p className="text-[9px] text-gray-400 font-bold mt-2">DJKI Kemenkumham RI</p>
-                </div>
-
-                <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                  <span className="text-[7px] md:text-[8px] font-black text-blue-500 tracking-wider block uppercase mb-1">Evaluated Talent Pool</span>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl md:text-3xl font-black text-blue-600 tracking-tighter">{evaluatedCount}</span>
-                    <span className="text-[9px] font-bold text-blue-400">Pegawai Evaluasi</span>
-                  </div>
-                  <p className="text-[9px] text-emerald-500 font-bold mt-2">
-                    {totalPegawaiCount ? Math.round((evaluatedCount / totalPegawaiCount) * 100) : 0}% terisi
-                  </p>
-                </div>
-
-                <div className="p-6 bg-slate-900 text-white rounded-3xl shadow-sm">
-                  <span className="text-[7px] md:text-[8px] font-black text-blue-400 tracking-wider block uppercase mb-1">Future Leader Level 9</span>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl md:text-3xl font-black text-blue-400 tracking-tighter">{futureLeaderCount}</span>
-                    <span className="text-[9px] font-bold text-slate-400">Superstars</span>
-                  </div>
-                  <p className="text-[9px] text-slate-400 font-bold mt-2">Nilai total ≥ 90</p>
-                </div>
-
-                <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                  <span className="text-[7px] md:text-[8px] font-black text-purple-500 tracking-wider block uppercase mb-1">High Potential Level 8</span>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl md:text-3xl font-black text-purple-600 tracking-tighter">{highPotentialCount}</span>
-                    <span className="text-[9px] font-bold text-purple-400">Pegawai</span>
-                  </div>
-                  <p className="text-[9px] text-gray-400 font-bold mt-2">Nilai total 80 - 90</p>
-                </div>
-              </div>
-
-              {/* CHARTS CONTAINER - 2 COLUMN */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* 1. KOMPETENSI AGGREGATE SUMMARY */}
-                <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Kompetensi Average Global</h4>
-                    <p className="text-[9px] text-gray-400 font-bold mb-6">Distribusi Nilai Rata-rata dari Seluruh Evaluasi Talenta</p>
-                  </div>
-                  <div className="h-64">
-                    {competencyChartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={competencyChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                          <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 'bold', fill: '#94a3b8' }} />
-                          <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                          <ChartTooltip />
-                          <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} label={{ position: 'top', fontSize: 9, fontWeight: 'bold' }}>
-                            {competencyChartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#3b82f6' : '#6366f1'} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-gray-400 text-xs font-bold">Belum ada data evaluasi.</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. PENDIDIKAN DIAGRAM & UNIT STATS */}
-                <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Distribusi Pendidikan & Unit Kerja</h4>
-                    <p className="text-[9px] text-gray-400 font-bold mb-6">Persentasi latar belakang pilar pendidikan talent pool</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="h-48 relative">
-                      {pendidikanChartData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={pendidikanChartData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={35}
-                              outerRadius={60}
-                              paddingAngle={3}
-                              dataKey="value"
-                            >
-                              {pendidikanChartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={['#3b82f6', '#6366f1', '#a855f7', '#14b8a6', '#f59e0b'][index % 5]} />
-                              ))}
-                            </Pie>
-                            <ChartTooltip />
-                          </PieChart>
-                        </ResponsiveContainer>
+          {activeTab === 'DASHBOARD' && (
+            isRegularUser ? (
+              /* DEDICATED PERSONAL TALENT DASHBOARD FOR REGULAR USER */
+              <div className="space-y-8 animate-fadeIn">
+                {/* 1. EMPLOYEE HERO IDENTITY CARD */}
+                <div className="p-6 md:p-8 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div className="flex items-center gap-5">
+                    <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-black text-2xl flex items-center justify-center shadow-lg overflow-hidden border-2 border-white shrink-0">
+                      {currentUserPegawai?.foto ? (
+                        <img src={currentUserPegawai.foto} alt={currentUserPegawai.nama} className="h-full w-full object-cover" />
                       ) : (
-                        <div className="h-full flex items-center justify-center text-gray-400 text-xs font-bold">Nihil.</div>
+                        currentUserPegawai?.nama?.charAt(0) || user?.name?.charAt(0) || 'P'
                       )}
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-[14px] font-black text-gray-800">{evaluatedCount}</span>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase">Evaluasi</span>
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="text-lg md:text-xl font-black text-gray-950">
+                          {currentUserPegawai ? formatPegawaiName(currentUserPegawai.nama) : (user?.name || 'Pegawai DJKI')}
+                        </h3>
+                        <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                          ASN DJKI
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold text-gray-600 font-mono">NIP. {targetUserNip || '-'}</p>
+                      <p className="text-xs text-gray-500 font-medium mt-1">
+                        {currentUserPegawai?.jabatan || 'Jabatan Fungsional'} • {currentUserPegawai?.unitKerja || 'Direktorat Jenderal Kekayaan Intelektual'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap md:flex-col items-start md:items-end gap-2 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full md:w-auto shrink-0">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Masa Kerja & Pendidikan</span>
+                    <p className="text-xs font-bold text-slate-800">
+                      {currentUserPegawai?.masaKerja || '0'} Tahun Pengabdian • {currentUserPegawai?.pendidikan || 'S1'}
+                    </p>
+                    <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 mt-1">
+                      Status: {currentUserPegawai?.status || 'Aktif'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. FOUR PERSONAL METRIC CARDS */}
+                {myPenilaian ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                      {/* POSISI 9-BOX */}
+                      {(() => {
+                        const nb = calculateNineBoxPos(myPenilaian.nilai_skp || 0, myPenilaian.kompetensi || 0);
+                        const isTop = nb.box.includes('Box 9') || nb.box.includes('Box 8') || nb.box.includes('Box 7');
+                        return (
+                          <div className={`p-6 rounded-3xl border shadow-sm ${isTop ? 'bg-gradient-to-br from-blue-900 to-indigo-950 text-white border-blue-800' : 'bg-white text-gray-900 border-gray-100'}`}>
+                            <span className={`text-[8px] font-black tracking-wider block uppercase mb-1 ${isTop ? 'text-blue-300' : 'text-slate-400'}`}>
+                              Posisi 9-Box Matrix
+                            </span>
+                            <div className="flex items-baseline gap-2">
+                              <span className={`text-xl font-black tracking-tight ${isTop ? 'text-white' : 'text-blue-600'}`}>
+                                {nb.box}
+                              </span>
+                            </div>
+                            <p className={`text-[9px] font-bold mt-2 ${isTop ? 'text-blue-200' : 'text-slate-500'}`}>
+                              {nb.rec}
+                            </p>
+                          </div>
+                        );
+                      })()}
+
+                      {/* TOTAL SKOR TALENTA */}
+                      <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                        <span className="text-[8px] font-black text-slate-400 tracking-wider block uppercase mb-1">Total Nilai Talenta</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-3xl font-black text-gray-950 tracking-tighter">{myPenilaian.total_nilai}</span>
+                          <span className="text-xs font-bold text-gray-400">/ 100</span>
+                        </div>
+                        <div className="mt-2">
+                          <span className={`px-2.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider inline-block ${
+                            myPenilaian.kategori_talenta === 'Future Leader' ? 'bg-indigo-100 text-indigo-700' :
+                            myPenilaian.kategori_talenta === 'High Potential' ? 'bg-blue-100 text-blue-700' :
+                            myPenilaian.kategori_talenta === 'Talent Ready' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                          }`}>
+                            Kategori: {myPenilaian.kategori_talenta}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* SUMBU KINERJA (Y) */}
+                      <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                        <span className="text-[8px] font-black text-indigo-500 tracking-wider block uppercase mb-1">Sumbu Kinerja (Y)</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-3xl font-black text-indigo-600 tracking-tighter">{myPenilaian.nilai_skp}</span>
+                          <span className="text-xs font-bold text-indigo-400">/ 100</span>
+                        </div>
+                        <p className="text-[9px] text-slate-500 font-bold mt-2">
+                          SKP Utama, Penghargaan, Tim Kerja & Umpan Balik
+                        </p>
+                      </div>
+
+                      {/* SUMBU POTENSI (X) */}
+                      <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                        <span className="text-[8px] font-black text-emerald-500 tracking-wider block uppercase mb-1">Sumbu Potensi & Asesmen (X)</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-3xl font-black text-emerald-600 tracking-tighter">{myPenilaian.kompetensi}</span>
+                          <span className="text-xs font-bold text-emerald-400">/ 100</span>
+                        </div>
+                        <p className="text-[9px] text-slate-500 font-bold mt-2">
+                          Asesmen BKN, Pendidikan, Pengalaman & Disiplin
+                        </p>
                       </div>
                     </div>
 
-                    <div className="space-y-3 flex flex-col justify-center">
-                      <p className="text-[9px] font-black text-slate-600 block uppercase border-b pb-1">Statistik Pendidikan</p>
-                      {pendidikanChartData.map((p, idx) => (
-                        <div key={p.name} className="flex justify-between items-center text-[9px] font-bold text-gray-600">
-                          <span className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ['#3b82f6', '#6366f1', '#a855f7', '#14b8a6', '#f59e0b'][idx % 5] }}></span>
-                            {p.name}
-                          </span>
-                          <span>{p.value} Orang</span>
+                    {/* 3. CHARTS & ANALYTICAL BREAKDOWN */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      {/* RADAR CHART KOMPETENSI PRIBADI */}
+                      <div className="p-6 md:p-8 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase">Radar Kompetensi Pribadi</h4>
+                            <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">Skala 0 - 100</span>
+                          </div>
+                          <p className="text-[9px] text-gray-400 font-bold mb-6">Pemetaan 8 pilar kompetensi & perilaku ASN berdasarkan Kepka BKN 411/2025</p>
                         </div>
-                      ))}
+
+                        <div className="h-72 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RadarChart data={myRadarData} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
+                              <PolarGrid stroke="#e2e8f0" />
+                              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9, fontWeight: 'bold', fill: '#475569' }} />
+                              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 8, fill: '#94a3b8' }} />
+                              <Radar name="Skor Anda" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.45} />
+                              <ChartTooltip />
+                            </RadarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      {/* RINCIAN 8 PILAR & PROMOSI READINESS */}
+                      <div className="p-6 md:p-8 bg-white rounded-3xl border border-gray-100 shadow-sm space-y-6 flex flex-col justify-between">
+                        <div>
+                          <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Rincian Skor Indikator Penilaian</h4>
+                          <p className="text-[9px] text-gray-400 font-bold mb-4">Nilai individual per dimensi evaluasi</p>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                              <span className="text-[8px] font-black text-slate-400 uppercase block">SKP Kinerja</span>
+                              <span className="text-lg font-black text-slate-800">{myPenilaian.nilai_skp}</span>
+                            </div>
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                              <span className="text-[8px] font-black text-slate-400 uppercase block">Kompetensi</span>
+                              <span className="text-lg font-black text-slate-800">{myPenilaian.kompetensi}</span>
+                            </div>
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                              <span className="text-[8px] font-black text-slate-400 uppercase block">Leadership</span>
+                              <span className="text-lg font-black text-slate-800">{myPenilaian.leadership}</span>
+                            </div>
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                              <span className="text-[8px] font-black text-slate-400 uppercase block">Integritas</span>
+                              <span className="text-lg font-black text-slate-800">{myPenilaian.integritas}</span>
+                            </div>
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                              <span className="text-[8px] font-black text-slate-400 uppercase block">Disiplin</span>
+                              <span className="text-lg font-black text-slate-800">{myPenilaian.disiplin}</span>
+                            </div>
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                              <span className="text-[8px] font-black text-slate-400 uppercase block">Kerjasama</span>
+                              <span className="text-lg font-black text-slate-800">{myPenilaian.teamwork}</span>
+                            </div>
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                              <span className="text-[8px] font-black text-slate-400 uppercase block">Inovasi</span>
+                              <span className="text-lg font-black text-slate-800">{myPenilaian.inovasi}</span>
+                            </div>
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                              <span className="text-[8px] font-black text-slate-400 uppercase block">Komunikasi</span>
+                              <span className="text-lg font-black text-slate-800">{myPenilaian.komunikasi}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* STATUS KELAYAKAN SUKSESI */}
+                        <div className="p-4 bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-2xl space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Rekomendasi Suksesi & Karir</span>
+                            <span className="text-[9px] font-black text-blue-400">{myTalentPool?.status_talenta || 'Kader Potensial'}</span>
+                          </div>
+                          <p className="text-xs font-bold text-slate-200">
+                            Target Jenjang: <span className="text-white font-extrabold">{myTalentPool?.rekomendasi_jabatan || currentUserPegawai?.jabatan || 'Jabatan Terget'}</span>
+                          </p>
+                          <p className="text-[10px] text-slate-400 leading-relaxed font-normal">
+                            Berdasarkan hasil pemetaan talenta, Anda disarankan untuk terus meningkatkan Jam Pelajaran (JP) pelatihan teknis dan kepemimpinan tahunan.
+                          </p>
+                        </div>
+                      </div>
                     </div>
+                  </>
+                ) : (
+                  /* NO DATA NOTIFICATION */
+                  <div className="p-12 bg-white rounded-3xl border border-gray-100 shadow-sm text-center space-y-4">
+                    <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto text-2xl">
+                      <i className="bi bi-clock-history"></i>
+                    </div>
+                    <h4 className="text-base font-black text-gray-900">Data Penilaian Talenta Anda Sedang Dimutakhirkan</h4>
+                    <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+                      Hasil evaluasi kompetensi dan pemetaan 9-box matrix berdasarkan standar Kepka BKN Nomor 411 Tahun 2025 untuk NIP <span className="font-mono font-bold text-gray-800">{targetUserNip || '-'}</span> sedang dalam proses verifikasi oleh Tim Kepegawaian & SDM DJKI.
+                    </p>
                   </div>
-                </div>
+                )}
               </div>
-
-              {/* STATISTIK UNIT KERJA & TOP 5 RANKING TALENTA */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* UNIT WORK CHART */}
-                <div className="lg:col-span-1 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Populasi per Unit Kerja</h4>
-                    <p className="text-[9px] text-gray-400 font-bold mb-6">Jumlah pegawai terevaluasi di setiap unit direktorat</p>
+            ) : (
+              /* ENTERPRISE GLOBAL TALENT DASHBOARD FOR ADMIN / SUPERADMIN */
+              <div className="space-y-8">
+                {/* STAT CARDS ROW */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                  <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                    <span className="text-[7px] md:text-[8px] font-black text-slate-400 tracking-wider block uppercase mb-1">Database Pegawai</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl md:text-3xl font-black text-gray-950 tracking-tighter">{totalPegawaiCount}</span>
+                      <span className="text-[9px] font-bold text-gray-400">Pegawai</span>
+                    </div>
+                    <p className="text-[9px] text-gray-400 font-bold mt-2">DJKI Kemenkumham RI</p>
                   </div>
-                  <div className="h-56">
-                    {unitsChartData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart layout="vertical" data={unitsChartData} margin={{ left: -15, right: 10 }}>
-                          <XAxis type="number" tick={{ fontSize: 9 }} />
-                          <YAxis type="category" dataKey="name" tick={{ fontSize: 8, fontWeight: 'bold' }} width={80} />
-                          <ChartTooltip />
-                          <Bar dataKey="value" fill="#14b8a6" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-slate-400 text-xs font-bold">Nihil.</div>
-                    )}
+
+                  <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                    <span className="text-[7px] md:text-[8px] font-black text-blue-500 tracking-wider block uppercase mb-1">Evaluated Talent Pool</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl md:text-3xl font-black text-blue-600 tracking-tighter">{evaluatedCount}</span>
+                      <span className="text-[9px] font-bold text-blue-400">Pegawai Evaluasi</span>
+                    </div>
+                    <p className="text-[9px] text-emerald-500 font-bold mt-2">
+                      {totalPegawaiCount ? Math.round((evaluatedCount / totalPegawaiCount) * 100) : 0}% terisi
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-slate-900 text-white rounded-3xl shadow-sm">
+                    <span className="text-[7px] md:text-[8px] font-black text-blue-400 tracking-wider block uppercase mb-1">Future Leader Level 9</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl md:text-3xl font-black text-blue-400 tracking-tighter">{futureLeaderCount}</span>
+                      <span className="text-[9px] font-bold text-slate-400">Superstars</span>
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-bold mt-2">Nilai total ≥ 90</p>
+                  </div>
+
+                  <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                    <span className="text-[7px] md:text-[8px] font-black text-purple-500 tracking-wider block uppercase mb-1">High Potential Level 8</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl md:text-3xl font-black text-purple-600 tracking-tighter">{highPotentialCount}</span>
+                      <span className="text-[9px] font-bold text-purple-400">Pegawai</span>
+                    </div>
+                    <p className="text-[9px] text-gray-400 font-bold mt-2">Nilai total 80 - 90</p>
                   </div>
                 </div>
 
-                {/* TOP 5 TALENT RANKS TABLE */}
-                <div className="lg:col-span-2 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                  <div className="flex justify-between items-center mb-6">
+                {/* CHARTS CONTAINER - 2 COLUMN */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* 1. KOMPETENSI AGGREGATE SUMMARY */}
+                  <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
                     <div>
-                      <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Top 5 Berdasarkan Perangkingan</h4>
-                      <p className="text-[9px] text-gray-400 font-bold">Kader terbaik dengan nilai akumulasi suksesi tertinggi</p>
+                      <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Kompetensi Average Global</h4>
+                      <p className="text-[9px] text-gray-400 font-bold mb-6">Distribusi Nilai Rata-rata dari Seluruh Evaluasi Talenta</p>
                     </div>
-                    <button onClick={() => setActiveTab('TALENT_POOL')} className="text-[9px] font-bold text-blue-600 hover:text-blue-700 tracking-wider flex items-center gap-1">
-                      Selengkapnya <i className="bi bi-chevron-right"></i>
-                    </button>
+                    <div className="h-64">
+                      {competencyChartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={competencyChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                            <XAxis dataKey="name" tick={{ fontSize: 9, fontWeight: 'bold', fill: '#94a3b8' }} />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#94a3b8' }} />
+                            <ChartTooltip />
+                            <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} label={{ position: 'top', fontSize: 9, fontWeight: 'bold' }}>
+                              {competencyChartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#3b82f6' : '#6366f1'} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-gray-400 text-xs font-bold">Belum ada data evaluasi.</div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px]">
-                      <thead>
-                        <tr className="border-b border-gray-100 text-[9px] font-black text-slate-400 uppercase">
-                          <th className="pb-3 text-center w-12">Rank</th>
-                          <th className="pb-3">Pegawai NIP</th>
-                          <th className="pb-3">Jabatan & Golongan</th>
-                          <th className="pb-3 text-right">Skor Total</th>
-                          <th className="pb-3 text-center">Kategori</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50 font-medium text-slate-700">
-                        {processedTalentPool.slice(0, 5).map((p, idx) => (
-                          <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="py-3 text-center font-black text-blue-600">
-                              #{idx + 1}
-                            </td>
-                            <td className="py-3">
-                              <span className="font-extrabold text-[#1e293b] block">{p.nama}</span>
-                              <span className="text-[9px] text-slate-400 block font-mono">NIP. {p.pegawai_id}</span>
-                            </td>
-                            <td className="py-3">
-                              <span className="block truncate max-w-[200px]">{p.jabatan}</span>
-                              <span className="text-[9px] text-slate-400 block uppercase">{p.unit_kerja}</span>
-                            </td>
-                            <td className="py-3 text-right font-black text-[#1e293b]">{p.total_nilai}</td>
-                            <td className="py-3 text-center">
-                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                                p.kategori_talenta === 'Future Leader' ? 'bg-indigo-100 text-indigo-700' :
-                                p.kategori_talenta === 'High Potential' ? 'bg-blue-100 text-blue-700' :
-                                p.kategori_talenta === 'Talent Ready' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                              }`}>
-                                {p.kategori_talenta}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                        {processedTalentPool.length === 0 && (
-                          <tr>
-                            <td colSpan={5} className="py-6 text-center text-gray-400 font-bold">Belum ada pegawai yang dinilai.</td>
-                          </tr>
+                  {/* 2. PENDIDIKAN DIAGRAM & UNIT STATS */}
+                  <div className="p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Distribusi Pendidikan & Unit Kerja</h4>
+                      <p className="text-[9px] text-gray-400 font-bold mb-6">Persentasi latar belakang pilar pendidikan talent pool</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="h-48 relative">
+                        {pendidikanChartData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={pendidikanChartData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={35}
+                                outerRadius={60}
+                                paddingAngle={3}
+                                dataKey="value"
+                              >
+                                {pendidikanChartData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={['#3b82f6', '#6366f1', '#a855f7', '#14b8a6', '#f59e0b'][index % 5]} />
+                                ))}
+                              </Pie>
+                              <ChartTooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="h-full flex items-center justify-center text-gray-400 text-xs font-bold">Nihil.</div>
                         )}
-                      </tbody>
-                    </table>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className="text-[14px] font-black text-gray-800">{evaluatedCount}</span>
+                          <span className="text-[8px] font-bold text-slate-400 uppercase">Evaluasi</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 flex flex-col justify-center">
+                        <p className="text-[9px] font-black text-slate-600 block uppercase border-b pb-1">Statistik Pendidikan</p>
+                        {pendidikanChartData.map((p, idx) => (
+                          <div key={p.name} className="flex justify-between items-center text-[9px] font-bold text-gray-600">
+                            <span className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ['#3b82f6', '#6366f1', '#a855f7', '#14b8a6', '#f59e0b'][idx % 5] }}></span>
+                              {p.name}
+                            </span>
+                            <span>{p.value} Orang</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* STATISTIK UNIT KERJA & TOP 5 RANKING TALENTA */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* UNIT WORK CHART */}
+                  <div className="lg:col-span-1 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Populasi per Unit Kerja</h4>
+                      <p className="text-[9px] text-gray-400 font-bold mb-6">Jumlah pegawai terevaluasi di setiap unit direktorat</p>
+                    </div>
+                    <div className="h-56">
+                      {unitsChartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart layout="vertical" data={unitsChartData} margin={{ left: -15, right: 10 }}>
+                            <XAxis type="number" tick={{ fontSize: 9 }} />
+                            <YAxis type="category" dataKey="name" tick={{ fontSize: 8, fontWeight: 'bold' }} width={80} />
+                            <ChartTooltip />
+                            <Bar dataKey="value" fill="#14b8a6" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-slate-400 text-xs font-bold">Nihil.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* TOP 5 TALENT RANKS TABLE */}
+                  <div className="lg:col-span-2 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                    <div className="flex justify-between items-center mb-6">
+                      <div>
+                        <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Top 5 Berdasarkan Perangkingan</h4>
+                        <p className="text-[9px] text-gray-400 font-bold">Kader terbaik dengan nilai akumulasi suksesi tertinggi</p>
+                      </div>
+                      <button onClick={() => setActiveTab('TALENT_POOL')} className="text-[9px] font-bold text-blue-600 hover:text-blue-700 tracking-wider flex items-center gap-1">
+                        Selengkapnya <i className="bi bi-chevron-right"></i>
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-[11px]">
+                        <thead>
+                          <tr className="border-b border-gray-100 text-[9px] font-black text-slate-400 uppercase">
+                            <th className="pb-3 text-center w-12">Rank</th>
+                            <th className="pb-3">Pegawai NIP</th>
+                            <th className="pb-3">Jabatan & Golongan</th>
+                            <th className="pb-3 text-right">Skor Total</th>
+                            <th className="pb-3 text-center">Kategori</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 font-medium text-slate-700">
+                          {processedTalentPool.slice(0, 5).map((p, idx) => (
+                            <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="py-3 text-center font-black text-blue-600">
+                                #{idx + 1}
+                              </td>
+                              <td className="py-3">
+                                <span className="font-extrabold text-[#1e293b] block">{p.nama}</span>
+                                <span className="text-[9px] text-slate-400 block font-mono">NIP. {p.pegawai_id}</span>
+                              </td>
+                              <td className="py-3">
+                                <span className="block truncate max-w-[200px]">{p.jabatan}</span>
+                                <span className="text-[9px] text-slate-400 block uppercase">{p.unit_kerja}</span>
+                              </td>
+                              <td className="py-3 text-right font-black text-[#1e293b]">{p.total_nilai}</td>
+                              <td className="py-3 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                                  p.kategori_talenta === 'Future Leader' ? 'bg-indigo-100 text-indigo-700' :
+                                  p.kategori_talenta === 'High Potential' ? 'bg-blue-100 text-blue-700' :
+                                  p.kategori_talenta === 'Talent Ready' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                                }`}>
+                                  {p.kategori_talenta}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {processedTalentPool.length === 0 && (
+                            <tr>
+                              <td colSpan={5} className="py-6 text-center text-gray-400 font-bold">Belum ada pegawai yang dinilai.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )
           )}
 
           {/* TAB 2: FORM INPUT EVALUASI / PENILAIAN */}
@@ -1731,6 +2084,73 @@ export default function TalentaPage() {
                   DJKI ASN TALENT CALCULATOR Standard
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* TAB 2 (READ ONLY): PERSONAL EVALUATION DETAILS FOR REGULAR USER */}
+          {activeTab === 'PENILAIAN' && !canEdit && (
+            <div className="p-6 md:p-8 bg-white rounded-3xl border border-gray-100 shadow-sm space-y-8 animate-fadeIn">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-6">
+                <div>
+                  <h4 className="text-[14px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Rincian Evaluasi Kompetensi BKN 411/2025</h4>
+                  <p className="text-[10px] text-gray-400 font-bold">Transparansi Penilaian Talenta Personal Anda</p>
+                </div>
+                <span className="px-3.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl text-[10px] font-black uppercase tracking-wider">
+                  Kepka BKN No. 411/2025
+                </span>
+              </div>
+
+              {myPenilaian ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* SUMBU Y */}
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                      <span className="text-xs font-black text-indigo-700 uppercase tracking-wider">Sumbu Kinerja (Y)</span>
+                      <span className="text-sm font-black text-indigo-600 font-mono">{myPenilaian.nilai_skp} / 100</span>
+                    </div>
+                    <div className="space-y-2 text-xs text-slate-700">
+                      <div className="flex justify-between p-2.5 bg-white rounded-xl">
+                        <span className="font-semibold text-slate-500">Kinerja Utama / SKP</span>
+                        <span className="font-bold font-mono">{myPenilaian.nilai_skp}</span>
+                      </div>
+                      <div className="flex justify-between p-2.5 bg-white rounded-xl">
+                        <span className="font-semibold text-slate-500">Integritas & Disiplin</span>
+                        <span className="font-bold font-mono">{myPenilaian.integritas || 100}</span>
+                      </div>
+                      <div className="flex justify-between p-2.5 bg-white rounded-xl">
+                        <span className="font-semibold text-slate-500">Kerjasama / Teamwork</span>
+                        <span className="font-bold font-mono">{myPenilaian.teamwork || 80}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SUMBU X */}
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                      <span className="text-xs font-black text-teal-700 uppercase tracking-wider">Sumbu Potensi & Asesmen (X)</span>
+                      <span className="text-sm font-black text-teal-600 font-mono">{myPenilaian.kompetensi} / 100</span>
+                    </div>
+                    <div className="space-y-2 text-xs text-slate-700">
+                      <div className="flex justify-between p-2.5 bg-white rounded-xl">
+                        <span className="font-semibold text-slate-500">Asesmen Kompetensi Teknis</span>
+                        <span className="font-bold font-mono">{myPenilaian.kompetensi}</span>
+                      </div>
+                      <div className="flex justify-between p-2.5 bg-white rounded-xl">
+                        <span className="font-semibold text-slate-500">Kepemimpinan / Leadership</span>
+                        <span className="font-bold font-mono">{myPenilaian.leadership}</span>
+                      </div>
+                      <div className="flex justify-between p-2.5 bg-white rounded-xl">
+                        <span className="font-semibold text-slate-500">Inovasi & Komunikasi</span>
+                        <span className="font-bold font-mono">{myPenilaian.inovasi || 80}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-12 text-center text-slate-400 text-xs font-bold">
+                  Data rincian evaluasi talenta belum tersedia untuk akun Anda.
+                </div>
+              )}
             </div>
           )}
 
@@ -2334,10 +2754,14 @@ export default function TalentaPage() {
               )}
 
               {/* LIST TRAINING PROGRAMS TABLE */}
-              <div className="lg:col-span-2 p-6 bg-white rounded-3xl border border-gray-100 shadow-sm space-y-6">
+              <div className={`${canEdit ? 'lg:col-span-2' : 'col-span-1 lg:col-span-3'} p-6 bg-white rounded-3xl border border-gray-100 shadow-sm space-y-6`}>
                 <div>
-                  <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">Daftar Program Pengembangan Aktif</h4>
-                  <p className="text-[9px] text-gray-400 font-bold">Pemantauan kegiatan pelatihan, mentoring, coaching, dan rotasi yang terdaftar</p>
+                  <h4 className="text-[12px] font-black tracking-widest text-[#1e293b] uppercase mb-1">
+                    {isRegularUser ? 'Daftar Program Pengembangan Saya' : 'Daftar Program Pengembangan Aktif'}
+                  </h4>
+                  <p className="text-[9px] text-gray-400 font-bold">
+                    {isRegularUser ? 'Pemantauan kegiatan pelatihan, mentoring, coaching, dan rotasi Anda' : 'Pemantauan kegiatan pelatihan, mentoring, coaching, dan rotasi yang terdaftar'}
+                  </p>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -2352,7 +2776,7 @@ export default function TalentaPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 font-semibold text-slate-700">
-                      {pengembanganList.map((p) => {
+                      {(isRegularUser ? myPengembanganList : pengembanganList).map((p) => {
                         const peg = findPegawai(p.pegawai_id);
                         return (
                           <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
@@ -2383,7 +2807,7 @@ export default function TalentaPage() {
                           </tr>
                         );
                       })}
-                      {pengembanganList.length === 0 && (
+                      {(isRegularUser ? myPengembanganList : pengembanganList).length === 0 && (
                         <tr>
                           <td colSpan={5} className="py-8 text-center text-gray-400 font-bold">Saat ini belum ada bimbingan pengembangan karir yang didaftarkan.</td>
                         </tr>

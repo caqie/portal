@@ -43,6 +43,11 @@ import DetailPengajuanPage from './pages/LayananSDM/DetailPengajuanPage';
 import AdminLayananSDMPage from './pages/Admin/AdminLayananSDMPage';
 import AdminDetailPengajuanPage from './pages/Admin/AdminDetailPengajuanPage';
 import NotificationBellSDM from './components/LayananSDM/NotificationBellSDM';
+import SmartPresensiPage from './pages/SmartPresensiPage';
+import FaceRegistrationPage from './pages/FaceRegistrationPage';
+import MasterLokasiPresensiPage from './pages/Admin/MasterLokasiPresensiPage';
+import AdminAttendanceDashboardPage from './pages/Admin/AdminAttendanceDashboardPage';
+import AttendanceSettingsPage from './pages/Admin/AttendanceSettingsPage';
 import { DEFAULT_LOGO, APP_ROUTES } from './constants';
 import { syncGidMap, fetchSystemConfig, loadSharedConfigFromServer } from './spreadsheetService';
 import { SystemConfig, PengajuanSDM } from './types';
@@ -320,25 +325,98 @@ const AppContent = () => {
 
   const hasAccess = (path: string) => {
     if (isSuperadmin) return true;
+    
+    // Admin Uang Makan specific permissions
     if (user?.role === 'Admin Uang Makan') {
       return (
         path === '/uang-makan' ||
+        path === '/' ||
         path === '/pegawai' ||
         path.startsWith('/pegawai/') ||
         path === '/quizdjki' ||
-        path.startsWith('/quiz')
+        path.startsWith('/quiz') ||
+        path.startsWith('/layanan-sdm') ||
+        path === '/rekap-absensi'
       );
     }
+
+    // Dashboard root is always accessible to all authenticated users
+    if (path === '/') return true;
+
+    // Strict Superadmin-only pages
+    if (['/settings', '/logs'].includes(path)) return isSuperadmin;
+
+    // Strict Admin/Editor-only pages
+    if (['/admin/layanan-sdm', '/ukom/admin', '/ukom/supervisor'].includes(path)) {
+      return canEdit || isSuperadmin;
+    }
+
+    if (['/persuratan', '/tugas-rutin', '/kegiatan', '/laporan', '/keuangan', '/dossiers'].includes(path)) {
+      if (canEdit || isSuperadmin) return true;
+    }
+
+    if (['/uang-makan'].includes(path)) {
+      return isSuperadmin || (user?.role as string) === 'Admin Uang Makan';
+    }
+
+    // Standard Self-Service Employee / Viewer Pages (always open to authenticated staff)
+    const employeeSelfServicePaths = [
+      '/',
+      '/pegawai',
+      '/layanan',
+      '/talenta',
+      '/layanan-sdm',
+      '/layanan-sdm/pengajuan-saya',
+      '/rekap-absensi',
+      '/absensi-online',
+      '/quizdjki',
+      '/ukom/login',
+      '/ukom/dashboard',
+      '/ukom/exam',
+      '/skp',
+      '/pak',
+      '/anjab-abk',
+      '/pelantikan-gen',
+      '/spmt-spp',
+      '/kgb-gen',
+      '/pensiun',
+      '/kenaikan-pangkat',
+      '/satya-lencana',
+      '/magang-pkl',
+      '/pengembangan'
+    ];
+
+    if (employeeSelfServicePaths.includes(path) || path.startsWith('/pegawai/')) {
+      // Check custom overrides in systemConfig.pageAccess if any
+      const access = (systemConfig.pageAccess || []).find(a => a.route === path);
+      if (!access || !access.roles || access.roles.length === 0) {
+        return true;
+      }
+      const userRole = (user?.role || '').trim().toLowerCase();
+      const isViewerOrUser = ['viewer', 'user', 'pegawai', 'staff', 'staf'].includes(userRole);
+      
+      const roleMatch = access.roles.some(r => {
+        const tr = r.trim().toLowerCase();
+        if (tr === userRole) return true;
+        if (isViewerOrUser && ['viewer', 'user', 'pegawai', 'staff', 'staf', 'semua'].includes(tr)) return true;
+        if (userRole === 'editor' && ['editor', 'admin', 'superadmin'].includes(tr)) return true;
+        return false;
+      });
+
+      const userNip = (user?.nip || '').trim();
+      const nipMatch = (access.nips || []).some(n => n.trim() === userNip);
+
+      return roleMatch || nipMatch || isViewerOrUser;
+    }
+
     const access = (systemConfig.pageAccess || []).find(a => a.route === path);
     if (!access) {
-      // Default access rules if not configured
-      if (['/settings', '/logs'].includes(path)) return isSuperadmin;
-      if (['/persuratan', '/tugas-rutin', '/kegiatan', '/laporan', '/keuangan', '/dossiers'].includes(path)) return canEdit || isSuperadmin;
-      return true;
+      return canEdit || isSuperadmin;
     }
     
-    const roleMatch = (access.roles || []).includes(user?.role || '');
-    const nipMatch = (access.nips || []).includes(user?.nip || '');
+    const userRole = (user?.role || '').trim().toLowerCase();
+    const roleMatch = (access.roles || []).some(r => r.trim().toLowerCase() === userRole);
+    const nipMatch = (access.nips || []).some(n => n.trim() === (user?.nip || '').trim());
     
     return roleMatch || nipMatch;
   };
@@ -489,9 +567,33 @@ const AppContent = () => {
             )}
 
             {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Kehadiran &amp; Uang Makan</div>}
-            {/* Hanya tampilkan menu absensi di Mobile View */}
+            {hasAccess('/presensi') && (
+              <SidebarItem to="/presensi" icon="bi-camera-video-fill" label="Smart Presensi" active={location.pathname === '/presensi'} collapsed={isCollapsed} />
+            )}
+            {hasAccess('/face-registration') && (
+              <SidebarItem to="/face-registration" icon="bi-person-bounding-box" label="Registrasi Wajah" active={location.pathname.startsWith('/face-registration')} collapsed={isCollapsed} />
+            )}
+            {(isSuperadmin || canEdit || user?.role?.includes('Admin')) && (
+              <>
+                <SidebarItem 
+                  to="/admin/attendance" 
+                  icon="bi-bar-chart-fill" 
+                  label="Monitoring Presensi" 
+                  active={location.pathname === '/admin/attendance'} 
+                  collapsed={isCollapsed} 
+                />
+                <SidebarItem 
+                  to="/admin/attendance/locations" 
+                  icon="bi-geo-alt-fill" 
+                  label="Lokasi Geofence" 
+                  active={location.pathname === '/admin/attendance/locations'} 
+                  collapsed={isCollapsed} 
+                />
+              </>
+            )}
+            {/* Hanya tampilkan menu absensi lama di Mobile View jika diperlukan */}
             {isMobileView && hasAccess('/absensi-online') && (
-              <SidebarItem to="/absensi-online" icon="bi-camera-fill" label="Absensi Wajah" active={location.pathname === '/absensi-online'} collapsed={isCollapsed} />
+              <SidebarItem to="/absensi-online" icon="bi-camera-fill" label="Absensi Wajah (Lama)" active={location.pathname === '/absensi-online'} collapsed={isCollapsed} />
             )}
             {hasAccess('/rekap-absensi') && <SidebarItem to="/rekap-absensi" icon="bi-clipboard-data-fill" label="Rekapitulasi Absensi" active={location.pathname === '/rekap-absensi'} collapsed={isCollapsed} />}
             {hasAccess('/uang-makan') && <SidebarItem to="/uang-makan" icon="bi-cash-coin" label="Admin Uang Makan" active={location.pathname === '/uang-makan'} collapsed={isCollapsed} />}
@@ -618,6 +720,12 @@ const AppContent = () => {
                   <Route path="/layanan-sdm/pengajuan/:id" element={<DetailPengajuanPage />} />
                   <Route path="/admin/layanan-sdm" element={<AdminLayananSDMPage />} />
                   <Route path="/admin/layanan-sdm/pengajuan/:id" element={<AdminDetailPengajuanPage />} />
+                  <Route path="/presensi" element={<SmartPresensiPage />} />
+                  <Route path="/face-registration" element={<FaceRegistrationPage />} />
+                  <Route path="/pegawai/:nip/face-registration" element={<FaceRegistrationPage />} />
+                  <Route path="/admin/attendance" element={<AdminAttendanceDashboardPage />} />
+                  <Route path="/admin/attendance/locations" element={<MasterLokasiPresensiPage />} />
+                  <Route path="/admin/attendance/settings" element={<AttendanceSettingsPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </div>
