@@ -90,11 +90,45 @@ export const normalizeUnitName = (rawUnit: string): string => {
 export const getJabatanClassification = (p: { eselon?: string; jabatan?: string; klasifikasiJabatan?: string; jenisJabatan?: string }): 'JPT' | 'STRUKTURAL' | 'FUNGSIONAL' | 'PELAKSANA' => {
   const es = (p.eselon || '').trim().toUpperCase();
   const j = (p.jabatan || '').trim().toUpperCase();
-  const kl = (p.klasifikasiJabatan || p.jenisJabatan || '').trim().toUpperCase();
+  const rawKl = (p.klasifikasiJabatan || '').trim().toUpperCase();
+  const rawJj = (p.jenisJabatan || '').trim().toUpperCase();
 
-  // 1. JPT (Jabatan Pimpinan Tinggi - Eselon I & II: Direktur Jenderal, Staf Ahli, Sesditjen, Direktur, Kepala Biro/Pusat)
+  // 1. DIRECT AUTHORITY: Column AN (JENIS JABATAN) & Column N & Direct Classification Codes
   if (
-    kl.includes('PIMPINAN TINGGI') || kl.includes('JPT') || kl === 'JPT MADYA' || kl === 'JPT PRATAMA' ||
+    rawKl === 'PIMPINAN TINGGI' || rawKl.includes('PIMPINAN TINGGI') || 
+    rawJj === 'PIMPINAN TINGGI' || rawJj.includes('PIMPINAN TINGGI') ||
+    rawKl === 'JPT' || rawJj === 'JPT' || 
+    rawKl.startsWith('JPT') || rawJj.startsWith('JPT')
+  ) {
+    return 'JPT';
+  }
+
+  if (
+    rawKl === 'ADMINISTRATOR' || rawJj === 'ADMINISTRATOR' || 
+    rawKl === 'PENGAWAS' || rawJj === 'PENGAWAS'
+  ) {
+    return 'STRUKTURAL';
+  }
+
+  if (
+    rawKl === 'FUNGSIONAL' || rawJj === 'FUNGSIONAL' || 
+    rawKl === 'JFT' || rawJj === 'JFT' ||
+    rawJj.startsWith('FUNGSIONAL') ||
+    rawKl === 'KEAHLIAN' || rawKl === 'KETERAMPILAN'
+  ) {
+    return 'FUNGSIONAL';
+  }
+
+  if (
+    rawKl === 'PELAKSANA' || rawJj === 'PELAKSANA' || 
+    rawKl === 'JFU' || rawJj === 'JFU' ||
+    rawJj.startsWith('PELAKSANA')
+  ) {
+    return 'PELAKSANA';
+  }
+
+  // 2. High-level JPT Fallbacks (Eselon I & II: Direktur Jenderal, Staf Ahli, Sesditjen, Direktur, Kepala Biro/Pusat)
+  if (
     j.includes('DIREKTUR JENDERAL') || j.includes('DIRJEN') ||
     j.includes('SEKRETARIS DIREKTORAT JENDERAL') || j.includes('SESDITJEN') ||
     j.includes('SEKRETARIS UTAMA') || j.includes('SESTAMA') || j.includes('SEKRETARIS JENDERAL') ||
@@ -106,88 +140,56 @@ export const getJabatanClassification = (p: { eselon?: string; jabatan?: string;
     return 'JPT';
   }
 
-  // 2. STRUKTURAL (Jabatan Manajerial: Administrator / Eselon III & Pengawas / Eselon IV)
-  // Must be verified by actual structural leadership position title (Kabag, Kasubbag, Kasubdit, Kasi, Kabid, Kepala Balai)
+  // 3. STRUKTURAL (Jabatan Manajerial: Administrator / Eselon III & Pengawas / Eselon IV)
   const isStructuralLeadershipTitle = 
-    j.includes('KEPALA BAGIAN') || j.includes('KABAG') || 
-    j.includes('KEPALA SUBDIREKTORAT') || j.includes('KASUBDIT') || 
-    j.includes('KEPALA BIDANG') || j.includes('KABID') ||
-    j.includes('KEPALA SUBBAGIAN') || j.includes('KASUBBAG') || 
-    j.includes('KEPALA SEKSI') || j.includes('KASI') || 
-    j.includes('KEPALA BALAI') || j.includes('KEPALA KANTOR') || j.includes('KEPALA SATUAN KERJA') ||
+    j.includes('KEPALA BAGIAN') || /\bKABAG\b/.test(j) || 
+    j.includes('KEPALA SUBDIREKTORAT') || /\bKASUBDIT\b/.test(j) || 
+    j.includes('KEPALA BIDANG') || /\bKABID\b/.test(j) ||
+    j.includes('KEPALA SUBBAGIAN') || /\bKASUBBAG\b/.test(j) || 
+    j.includes('KEPALA SEKSI') || /\bKASI\b/.test(j) || 
+    j.includes('KEPALA BALAI') || /\bKABALAI\b/.test(j) ||
+    j.includes('KEPALA KANTOR') || j.includes('KEPALA SATUAN KERJA') ||
     (j.startsWith('KEPALA ') && !j.includes('REGU') && !j.includes('KELUARGA') && !j.includes('TIM') && !j.includes('POKJA'));
 
-  const isExplicitStructuralClass = 
-    (kl.includes('STRUKTURAL') || kl === 'ADMINISTRATOR' || kl === 'PENGAWAS') && 
-    !kl.includes('FUNGSIONAL') && !kl.includes('PELAKSANA');
-
-  if (isStructuralLeadershipTitle || (isExplicitStructuralClass && !j.includes('ANALIS') && !j.includes('PRANATA') && !j.includes('PEMERIKSA') && !j.includes('ARSIPARIS') && !j.includes('PENGADMINISTRASI') && !j.includes('PENGOLAH') && !j.includes('PENGELOLA'))) {
+  if (isStructuralLeadershipTitle || (rawKl === 'MANAJERIAL' && !j.includes('DIREKTUR'))) {
     return 'STRUKTURAL';
-  }
-
-  // 3. EXPLICIT PELAKSANA (Jabatan Pelaksana / Fungsional Umum / JFU / Dukungan Administrasi)
-  // Check for distinct operational, administrative, and support roles (PermenPAN-RB No. 45/2022)
-  const isExplicitPelaksanaTitle =
-    j.includes('PENGADMINISTRASI') ||
-    j.includes('PENGOLAH DATA') ||
-    (j.includes('PENGELOLA') && !j.includes('PENGADAAN') && !j.includes('PPBJ') && !j.includes('AHLI') && !j.includes('TERAMPIL') && !j.includes('MAHIR') && !j.includes('PENYELIA')) ||
-    (j.includes('PENYUSUN') && !j.includes('PERANCANG') && !j.includes('PERENCANA')) ||
-    j.includes('PETUGAS') ||
-    j.includes('OPERATOR') ||
-    (j.includes('TEKNISI') && !j.includes('AHLI') && !j.includes('TERAMPIL') && !j.includes('MAHIR') && !j.includes('PENYELIA')) ||
-    j.includes('BENDAHARA') ||
-    j.includes('VERIFIKATOR') ||
-    j.includes('NOTULIS') || j.includes('AJUDAN') || j.includes('PRAMUBAKTI') || j.includes('PENGEMUDI') || j.includes('SOPIR') || j.includes('CARAKA') || j.includes('SATPAM') || j.includes('SECURITY') || j.includes('RESEPSIONIS') || j.includes('CUSTOMER SERVICE') ||
-    j.includes('SEKRETARIS PIMPINAN') || j.includes('STAF SEKRETARIAT') ||
-    j.includes('FUNGSIONAL UMUM') || j.includes('JFU') || j.includes('STAF PELAKSANA') || j === 'STAF' || j === 'PELAKSANA' ||
-    (j.startsWith('PELAKSANA ') && !j.includes('PELAKSANA LANJUTAN')) ||
-    kl.includes('PELAKSANA') || kl.includes('FUNGSIONAL UMUM') || kl.includes('JFU') || kl === 'PELAKSANA/STAF';
-
-  // Check if position has unambiguous JFT level indicators
-  const hasJFTDesignation = 
-    j.includes('AHLI UTAMA') || j.includes('AHLI MADYA') || j.includes('AHLI MUDA') || j.includes('AHLI PERTAMA') ||
-    j.includes('PEMERIKSA PATEN') || j.includes('PEMERIKSA MEREK') || j.includes('PEMERIKSA DESAIN') || j.includes('PEMERIKSA DTLST') ||
-    j.includes('PRANATA KOMPUTER') || j.includes('ARSIPARIS') || j.includes('PRANATA HUMAS') ||
-    j.includes('ANALIS SDM') || j.includes('ANALIS KEPEGAWAIAN') || j.includes('ANALIS HUKUM') || j.includes('PENYULUH HUKUM') || j.includes('PERANCANG') ||
-    j.includes('PENGELOLA PENGADAAN') || j.includes('PPBJ') || j.includes('PRANATA KEUANGAN APBN') ||
-    j.includes('AUDITOR') || j.includes('WIDYAISWARA') || j.includes('STATISTISI') || j.includes('PERENCANA') || j.includes('ASESOR');
-
-  if (isExplicitPelaksanaTitle && !hasJFTDesignation) {
-    return 'PELAKSANA';
   }
 
   // 4. FUNGSIONAL / JFT (Jabatan Fungsional Tertentu - Keahlian & Keterampilan)
   const isExplicitFungsionalTitle = 
     // Core DJKI Functional Positions
     j.includes('PEMERIKSA PATEN') || j.includes('PEMERIKSA MEREK') || j.includes('PEMERIKSA DESAIN') || 
-    j.includes('PEMERIKSA DTLST') || j.includes('PEMERIKSA KEKAYAAN INTELEKTUAL') ||
+    j.includes('PEMERIKSA DTLST') || j.includes('PEMERIKSA RAHASIA DAGANG') || j.includes('PEMERIKSA KIK') ||
     j.includes('ANALIS KI') || j.includes('ANALIS KEKAYAAN INTELEKTUAL') ||
     // Common Civil Service Functional Positions (JFT)
-    j.includes('PRANATA KOMPUTER') || j.includes('PRAKOM') ||
+    j.includes('PRANATA KOMPUTER') || /\bPRAKOM\b/.test(j) ||
     j.includes('ARSIPARIS') ||
     j.includes('PRANATA HUMAS') || j.includes('PRANATA HUBUNGAN MASYARAKAT') ||
     j.includes('ANALIS SDM') || j.includes('ANALIS KEPEGAWAIAN') ||
     j.includes('ANALIS HUKUM') || j.includes('ANALIS KEBIJAKAN') || j.includes('PENYULUH HUKUM') ||
-    j.includes('PERANCANG PERATURAN') || j.includes('PERANCANG') ||
-    j.includes('PENGELOLA PENGADAAN') || j.includes('PPBJ') ||
+    j.includes('PERANCANG PERATURAN') || (j.startsWith('PERANCANG') && !j.includes('GRAFIS')) ||
+    j.includes('PENGELOLA PENGADAAN') || /\bPPBJ\b/.test(j) ||
     j.includes('PRANATA KEUANGAN') || j.includes('ANALIS PENGELOLAAN KEUANGAN') || j.includes('ANALIS ANGGARAN') ||
     j.includes('AUDITOR') || j.includes('WIDYAISWARA') || j.includes('STATISTISI') || j.includes('PERENCANA') ||
+    j.includes('PENERJEMAH') ||
     j.includes('ASESOR') || j.includes('ASSESSOR') || j.includes('PENILAI') ||
     j.includes('PUSTAKAWAN') || j.includes('KONSELOR') ||
     j.includes('DOKTER') || j.includes('PERAWAT') || j.includes('BIDAN') || j.includes('APOTEKER') ||
+    j.includes('PRANATA LABORATORIUM') ||
     // Functional Levels (Jenjang Keahlian & Keterampilan)
     j.includes('AHLI UTAMA') || j.includes('AHLI MADYA') || j.includes('AHLI MUDA') || j.includes('AHLI PERTAMA') ||
     j.includes('AHLI ') || j.endsWith(' AHLI') ||
+    j.includes('UTAMA') || j.includes('MADYA') || j.includes('MUDA') || j.includes('PERTAMA') ||
     j.includes('PENYELIA') || j.includes('MAHIR') || j.includes('TERAMPIL') || j.includes('PEMULA') ||
     j.includes('PELAKSANA LANJUTAN') ||
     // Subkoordinator / Koordinator
     j.includes('SUBKOORDINATOR') || j.includes('KOORDINATOR');
 
   const isFungsionalKlasifikasi = 
-    (kl.includes('FUNGSIONAL') && !kl.includes('UMUM')) || 
-    kl.includes('JFT') || 
-    kl.includes('KEAHLIAN') || 
-    kl.includes('KETERAMPILAN');
+    (rawKl.includes('FUNGSIONAL') && !rawKl.includes('UMUM')) || 
+    (rawJj.includes('FUNGSIONAL') && !rawJj.includes('UMUM')) || 
+    rawKl.includes('JFT') || rawJj.includes('JFT') ||
+    rawKl.includes('KEAHLIAN') || rawKl.includes('KETERAMPILAN');
 
   if (isExplicitFungsionalTitle || isFungsionalKlasifikasi) {
     return 'FUNGSIONAL';

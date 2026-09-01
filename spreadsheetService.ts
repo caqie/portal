@@ -658,6 +658,16 @@ const attemptAutoHeal = async (gidKey: keyof typeof DEFAULT_GIDS): Promise<boole
 export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, storageKey: string, mapper: (cols: string[], headers: string[]) => T | null, bypassCache = false): Promise<T[]> => {
   const { spreadsheetId, appsScriptUrl, driveFolderId } = getDbConfig();
 
+  // Auto-invalidate stale cache if schema version changed
+  const CURRENT_CACHE_VERSION = '2026_09_01_col_an_sync_v2';
+  try {
+    const storedVersion = localStorage.getItem('portal_cache_schema_version');
+    if (storedVersion !== CURRENT_CACHE_VERSION) {
+      localStorage.removeItem('portal_pegawai_db');
+      localStorage.setItem('portal_cache_schema_version', CURRENT_CACHE_VERSION);
+    }
+  } catch (e) {}
+
   if (!bypassCache) {
     const cached = localStorage.getItem(storageKey);
     if (cached) {
@@ -847,6 +857,10 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
       return (i !== -1 && cols[i]) ? cols[i] : ''; 
     };
+    const getLast = (k: string) => { 
+      const i = headers.lastIndexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
+      return (i !== -1 && cols[i]) ? cols[i] : ''; 
+    };
     const getJson = (k: string) => { try { const v = get(k); return v ? JSON.parse(v) : []; } catch(e) { return []; } };
     
     // Identity fields with fallbacks
@@ -868,6 +882,10 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       console.warn("Filtering suspected corrupted row:", { nama, nip, id: sid });
       return null;
     }
+
+    // Column AN (JENIS JABATAN) vs Column N (JENIS_JABATAN) vs Column O (KLASIFIKASI_JABATAN)
+    const rawJenisJabatanAN = (cols[39] ? cols[39].trim() : '') || getLast('JENISJABATAN');
+    const rawJenisJabatanN = (cols[13] ? cols[13].trim() : '') || get('JENISJABATAN') || get('JENIS_JABATAN');
     
     const p = {
       id: sid || `PEG-${nip || Date.now()}-${Math.random().toString(36).substr(2, 5)}`, 
@@ -875,8 +893,8 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       nama: nama || '(NAMA KOSONG)', 
       statusPerkawinan: get('STATUSPERKAWINAN') || get('STATUSKAWIN') || get('MARITALSTATUS') || get('STATUS_KAWIN'),
       jabatan: get('JABATAN') || get('NAMAJABATAN') || get('JAB'), 
-      jenisJabatan: get('JENISJABATAN') || get('JENIS JABATAN') || get('TIPEJABATAN') || get('KATEGORIJABATAN') || (cols[13] ? cols[13].trim() : ''),
-      klasifikasiJabatan: get('KLASIFIKASIJABATAN') || get('KLASIFIKASI JABATAN') || get('KLASIFIKASI') || get('KATEGORI') || (cols[14] ? cols[14].trim() : ''),
+      jenisJabatan: rawJenisJabatanAN || rawJenisJabatanN || get('TIPEJABATAN') || get('KATEGORIJABATAN'),
+      klasifikasiJabatan: rawJenisJabatanAN || get('KLASIFIKASIJABATAN') || (cols[14] ? cols[14].trim() : ''),
       subBagian: get('SUBBAGIAN') || get('SUB_BAGIAN'), 
       bagian: get('BAGIAN'),
       unitKerja: get('UNITKERJA') || get('UNIT_KERJA') || 'DJKI', 

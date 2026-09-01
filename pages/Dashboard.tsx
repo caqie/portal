@@ -885,8 +885,18 @@ const Dashboard = () => {
             </button>
          </div>
          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 relative z-10">
-            <div className="bg-blue-50/50 p-4 md:p-6 rounded-2xl border border-blue-100 flex flex-col">
-               <span className="text-[7px] md:text-[8px] font-black text-blue-600 tracking-widest uppercase mb-1">JPT (Pratama)</span>
+            <div 
+               onClick={() => {
+                 setSearchJabatan('JPT');
+                 document.getElementById('matriks-jabatan-section')?.scrollIntoView({ behavior: 'smooth' });
+               }}
+               className="bg-blue-50/50 p-4 md:p-6 rounded-2xl border border-blue-100 flex flex-col cursor-pointer hover:bg-blue-100/50 hover:shadow-md transition-all active:scale-[0.98] group/card"
+               title="Klik untuk filter data JPT"
+            >
+               <div className="flex items-center justify-between mb-1">
+                 <span className="text-[7px] md:text-[8px] font-black text-blue-600 tracking-widest uppercase">JPT (Pratama)</span>
+                 <i className="bi bi-arrow-right-short text-blue-400 group-hover/card:translate-x-0.5 transition-transform text-sm"></i>
+               </div>
                <div className="flex items-baseline justify-between gap-2">
                   <div className="flex items-baseline gap-2">
                     <h5 className="text-xl md:text-3xl font-black text-gray-950">{classificationStats.jpt}</h5>
@@ -898,8 +908,18 @@ const Dashboard = () => {
                   </div>
                </div>
             </div>
-            <div className="bg-indigo-50/50 p-4 md:p-6 rounded-2xl border border-indigo-100 flex flex-col">
-               <span className="text-[7px] md:text-[8px] font-black text-indigo-600 tracking-widest uppercase mb-1">Struktural (Adm/Pengawas)</span>
+            <div 
+               onClick={() => {
+                 setSearchJabatan('STRUKTURAL');
+                 document.getElementById('matriks-jabatan-section')?.scrollIntoView({ behavior: 'smooth' });
+               }}
+               className="bg-indigo-50/50 p-4 md:p-6 rounded-2xl border border-indigo-100 flex flex-col cursor-pointer hover:bg-indigo-100/50 hover:shadow-md transition-all active:scale-[0.98] group/card"
+               title="Klik untuk filter data Struktural"
+            >
+               <div className="flex items-center justify-between mb-1">
+                 <span className="text-[7px] md:text-[8px] font-black text-indigo-600 tracking-widest uppercase">Struktural (Adm/Pengawas)</span>
+                 <i className="bi bi-arrow-right-short text-indigo-400 group-hover/card:translate-x-0.5 transition-transform text-sm"></i>
+               </div>
                <div className="flex items-baseline justify-between gap-2">
                   <div className="flex items-baseline gap-2">
                     <h5 className="text-xl md:text-3xl font-black text-gray-950">{classificationStats.struktural}</h5>
@@ -911,8 +931,18 @@ const Dashboard = () => {
                   </div>
                </div>
             </div>
-            <div className="bg-cyan-50/50 p-4 md:p-6 rounded-2xl border border-cyan-100 flex flex-col">
-               <span className="text-[7px] md:text-[8px] font-black text-cyan-600 tracking-widest uppercase mb-1">Fungsional (JFT)</span>
+            <div 
+               onClick={() => {
+                 setSearchJabatan('FUNGSIONAL');
+                 document.getElementById('matriks-jabatan-section')?.scrollIntoView({ behavior: 'smooth' });
+               }}
+               className="bg-cyan-50/50 p-4 md:p-6 rounded-2xl border border-cyan-100 flex flex-col cursor-pointer hover:bg-cyan-100/50 hover:shadow-md transition-all active:scale-[0.98] group/card"
+               title="Klik untuk filter data Fungsional"
+            >
+               <div className="flex items-center justify-between mb-1">
+                 <span className="text-[7px] md:text-[8px] font-black text-cyan-600 tracking-widest uppercase">Fungsional (JFT)</span>
+                 <i className="bi bi-arrow-right-short text-cyan-400 group-hover/card:translate-x-0.5 transition-transform text-sm"></i>
+               </div>
                <div className="flex items-baseline justify-between gap-2">
                   <div className="flex items-baseline gap-2">
                     <h5 className="text-xl md:text-3xl font-black text-gray-950">{classificationStats.fungsional}</h5>
@@ -924,8 +954,18 @@ const Dashboard = () => {
                   </div>
                </div>
             </div>
-            <div className="bg-rose-50/50 p-4 md:p-6 rounded-2xl border border-rose-100 flex flex-col">
-               <span className="text-[7px] md:text-[8px] font-black text-rose-600 tracking-widest uppercase mb-1">Pelaksana / Fungsional Umum</span>
+            <div 
+               onClick={() => {
+                 setSearchJabatan('PELAKSANA');
+                 document.getElementById('matriks-jabatan-section')?.scrollIntoView({ behavior: 'smooth' });
+               }}
+               className="bg-rose-50/50 p-4 md:p-6 rounded-2xl border border-rose-100 flex flex-col cursor-pointer hover:bg-rose-100/50 hover:shadow-md transition-all active:scale-[0.98] group/card"
+               title="Klik untuk filter data Pelaksana"
+            >
+               <div className="flex items-center justify-between mb-1">
+                 <span className="text-[7px] md:text-[8px] font-black text-rose-600 tracking-widest uppercase mb-1">Pelaksana / Fungsional Umum</span>
+                 <i className="bi bi-arrow-right-short text-rose-400 group-hover/card:translate-x-0.5 transition-transform text-sm"></i>
+               </div>
                <div className="flex items-baseline justify-between gap-2">
                   <div className="flex items-baseline gap-2">
                     <h5 className="text-xl md:text-3xl font-black text-gray-950">{classificationStats.pelaksana}</h5>
@@ -952,11 +992,17 @@ const Dashboard = () => {
                   </tr>
                </thead>
                <tbody className="divide-y divide-gray-50">
-                  <tr className="group hover:bg-blue-50/30 transition-colors">
+                  <tr 
+                     onClick={() => {
+                       setSearchJabatan('JPT');
+                       document.getElementById('matriks-jabatan-section')?.scrollIntoView({ behavior: 'smooth' });
+                     }}
+                     className="group hover:bg-blue-50/30 transition-colors cursor-pointer"
+                  >
                      <td className="py-4 pl-4">
                         <div className="flex items-center gap-3">
                            <div className="h-6 w-6 rounded-lg bg-blue-600 flex items-center justify-center text-white"><i className="bi bi-person-workspace text-[10px]"></i></div>
-                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase">Jabatan Pimpinan Tinggi (JPT)</span>
+                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase group-hover:text-blue-600 transition-colors">Jabatan Pimpinan Tinggi (JPT)</span>
                         </div>
                      </td>
                      <td className="py-4 text-center font-bold text-[9px] text-gray-400 uppercase">Eselon I & II / High Level Leadership</td>
@@ -966,11 +1012,17 @@ const Dashboard = () => {
                         {classificationStats.total > 0 ? ((classificationStats.jpt / classificationStats.total) * 100).toFixed(1) : 0}%
                      </td>
                   </tr>
-                  <tr className="group hover:bg-indigo-50/30 transition-colors">
+                  <tr 
+                     onClick={() => {
+                       setSearchJabatan('STRUKTURAL');
+                       document.getElementById('matriks-jabatan-section')?.scrollIntoView({ behavior: 'smooth' });
+                     }}
+                     className="group hover:bg-indigo-50/30 transition-colors cursor-pointer"
+                  >
                      <td className="py-4 pl-4">
                         <div className="flex items-center gap-3">
                            <div className="h-6 w-6 rounded-lg bg-indigo-600 flex items-center justify-center text-white"><i className="bi bi-diagram-2 text-[10px]"></i></div>
-                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase">Jabatan Struktural (Manajerial)</span>
+                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase group-hover:text-indigo-600 transition-colors">Jabatan Struktural (Manajerial)</span>
                         </div>
                      </td>
                      <td className="py-4 text-center font-bold text-[9px] text-gray-400 uppercase">Administrator & Pengawas / Middle Mgmt</td>
@@ -980,11 +1032,17 @@ const Dashboard = () => {
                         {classificationStats.total > 0 ? ((classificationStats.struktural / classificationStats.total) * 100).toFixed(1) : 0}%
                      </td>
                   </tr>
-                  <tr className="group hover:bg-cyan-50/30 transition-colors">
+                  <tr 
+                     onClick={() => {
+                       setSearchJabatan('FUNGSIONAL');
+                       document.getElementById('matriks-jabatan-section')?.scrollIntoView({ behavior: 'smooth' });
+                     }}
+                     className="group hover:bg-cyan-50/30 transition-colors cursor-pointer"
+                  >
                      <td className="py-4 pl-4">
                         <div className="flex items-center gap-3">
                            <div className="h-6 w-6 rounded-lg bg-cyan-600 flex items-center justify-center text-white"><i className="bi bi-gear-wide-connected text-[10px]"></i></div>
-                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase">Jabatan Fungsional (JFT)</span>
+                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase group-hover:text-cyan-600 transition-colors">Jabatan Fungsional (JFT)</span>
                         </div>
                      </td>
                      <td className="py-4 text-center font-bold text-[9px] text-gray-400 uppercase">Tenaga Ahli & Keterampilan Spesifik</td>
@@ -994,11 +1052,17 @@ const Dashboard = () => {
                         {classificationStats.total > 0 ? ((classificationStats.fungsional / classificationStats.total) * 100).toFixed(1) : 0}%
                      </td>
                   </tr>
-                  <tr className="group hover:bg-rose-50/30 transition-colors">
+                  <tr 
+                     onClick={() => {
+                       setSearchJabatan('PELAKSANA');
+                       document.getElementById('matriks-jabatan-section')?.scrollIntoView({ behavior: 'smooth' });
+                     }}
+                     className="group hover:bg-rose-50/30 transition-colors cursor-pointer"
+                  >
                      <td className="py-4 pl-4">
                         <div className="flex items-center gap-3">
                            <div className="h-6 w-6 rounded-lg bg-rose-600 flex items-center justify-center text-white"><i className="bi bi-briefcase text-[10px]"></i></div>
-                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase">Pelaksana / Fungsional Umum</span>
+                           <span className="text-[10px] md:text-[11px] font-black text-gray-950 uppercase group-hover:text-rose-600 transition-colors">Pelaksana / Fungsional Umum</span>
                         </div>
                      </td>
                      <td className="py-4 text-center font-bold text-[9px] text-gray-400 uppercase">Administrasi & Dukungan Operasional</td>
@@ -1132,7 +1196,7 @@ const Dashboard = () => {
         </div>
 
         {/* MATRIKS JABATAN */}
-        <div className="bg-white p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-full">
+        <div id="matriks-jabatan-section" className="bg-white p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-gray-100 shadow-sm flex flex-col h-full scroll-mt-6">
            <div className="flex flex-col mb-6 md:mb-10 gap-4 md:gap-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                  <div>
