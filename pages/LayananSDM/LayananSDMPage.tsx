@@ -86,28 +86,44 @@ export const LayananSDMPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50/60 pb-16">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white pt-8 pb-14 px-4 sm:px-6 lg:px-8 border-b border-indigo-950/40 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white pt-8 pb-8 px-4 sm:px-6 lg:px-8 border-b border-indigo-950/40 relative overflow-hidden">
         {/* Decorative background glow */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-10 left-10 w-72 h-72 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 text-xs font-semibold uppercase tracking-wider mb-3">
-                <i className="bi bi-patch-check-fill text-blue-400" />
-                Sistem Layanan & Helpdesk Kepegawaian
+            <div className="flex items-start gap-4">
+              <button
+                onClick={() => navigate(-1)}
+                className="h-11 w-11 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white flex items-center justify-center transition-all shadow-md shrink-0 active:scale-95 mt-1"
+                title="Kembali"
+              >
+                <i className="bi bi-arrow-left text-xl" />
+              </button>
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 text-xs font-semibold uppercase tracking-wider mb-3">
+                  <i className="bi bi-patch-check-fill text-blue-400" />
+                  Sistem Layanan & Helpdesk Kepegawaian
+                </div>
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+                  Pusat Layanan SDM KI
+                </h1>
+                <p className="text-slate-300 text-sm sm:text-base mt-2 max-w-2xl leading-relaxed">
+                  Layanan permohonan administrasi, kepangkatan, jabatan, tugas belajar, dan konsultasi kepegawaian resmi Direktorat Jenderal Kekayaan Intelektual.
+                </p>
               </div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
-                Pusat Layanan SDM KI
-              </h1>
-              <p className="text-slate-300 text-sm sm:text-base mt-2 max-w-2xl leading-relaxed">
-                Layanan permohonan administrasi, kepangkatan, jabatan, tugas belajar, dan konsultasi kepegawaian resmi Direktorat Jenderal Kekayaan Intelektual.
-              </p>
             </div>
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => navigate('/tupoksi-sdm')}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium border border-white/20 backdrop-blur-sm transition-all shadow-sm"
+              >
+                <i className="bi bi-diagram-3-fill text-blue-300" />
+                <span>Tupoksi SDM</span>
+              </button>
               <Link
                 to="/layanan-sdm/pengajuan-saya"
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-medium border border-white/20 backdrop-blur-sm transition-all shadow-sm"
@@ -134,7 +150,7 @@ export const LayananSDMPage: React.FC = () => {
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-6">
             <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-4 transition hover:bg-white/15">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-blue-200 font-medium">Total Diajukan</span>
@@ -175,7 +191,7 @@ export const LayananSDMPage: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         {/* Recent Submissions Warning / Quick Access */}
         {stats.perluPerbaikan > 0 && (
           <div className="mb-6 bg-rose-50 border border-rose-200 rounded-2xl p-4 shadow-sm flex items-start gap-3.5">

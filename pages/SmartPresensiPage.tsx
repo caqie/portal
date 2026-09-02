@@ -23,6 +23,7 @@ import {
   evaluateChallengeSuccess,
   LivenessFrameAnalysis
 } from '../services/smartPresensi/LivenessService';
+import { PresensiNavigationHeader } from '../components/PresensiNavigationHeader';
 
 export const SmartPresensiPage: React.FC = () => {
   const { user, logActivity } = useAuth();
@@ -329,34 +330,23 @@ export const SmartPresensiPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-20 animate-fadeIn">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="w-10 h-10 rounded-2xl bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-600 transition-colors"
-          >
-            <i className="bi bi-arrow-left"></i>
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-              <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">
-                Modul Presensi Cerdas • Biometrik Live &amp; Geofence Polygon
-              </span>
-            </div>
-            <h1 className="text-xl font-black text-gray-950 tracking-tight mt-0.5">
-              Presensi Online Pegawai
-            </h1>
-          </div>
-        </div>
+      {/* Universal Presensi Hub Header */}
+      <PresensiNavigationHeader 
+        title="Presensi Online Pegawai"
+        subtitle="Sistem Presensi Biometrik Liveness Cerdas & Geofence Area DJKI"
+      />
 
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-2xl">
+      {/* Internal Tab Selector */}
+      <div className="flex items-center justify-between bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="text-xs font-black text-gray-800 uppercase tracking-wider">Mode Aktif</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl">
           <button
             onClick={() => setActiveTab('presensi')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
-              activeTab === 'presensi' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+            className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${
+              activeTab === 'presensi' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
             }`}
           >
             <i className="bi bi-camera-video mr-1.5"></i>
@@ -364,8 +354,8 @@ export const SmartPresensiPage: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveTab('riwayat')}
-            className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
-              activeTab === 'riwayat' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+            className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${
+              activeTab === 'riwayat' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
             }`}
           >
             <i className="bi bi-clock-history mr-1.5"></i>

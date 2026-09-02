@@ -60,6 +60,9 @@ const PegawaiPage = () => {
   const [filterKlasifikasi, setFilterKlasifikasi] = useState(sessionStorage.getItem('pegawai_filterKlasifikasi') || 'Semua Klasifikasi');
   const [filterAgama, setFilterAgama] = useState(sessionStorage.getItem('pegawai_filterAgama') || 'Semua Agama');
   const [jurusanSearch, setJurusanSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    return (sessionStorage.getItem('pegawai_viewMode') as 'grid' | 'list') || 'grid';
+  });
 
   // Persist filters and scroll to sessionStorage
   useEffect(() => {
@@ -75,7 +78,8 @@ const PegawaiPage = () => {
     sessionStorage.setItem('pegawai_filterJurusan', filterJurusan);
     sessionStorage.setItem('pegawai_filterKlasifikasi', filterKlasifikasi);
     sessionStorage.setItem('pegawai_filterAgama', filterAgama);
-  }, [searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama]);
+    sessionStorage.setItem('pegawai_viewMode', viewMode);
+  }, [searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama, viewMode]);
 
   // Restore scroll position
   useEffect(() => {
@@ -1560,14 +1564,47 @@ const PegawaiPage = () => {
         </div>
       </div>
 
-      {/* Selection Bulk Controls */}
+      {/* Selection Bulk Controls & View Switcher */}
       <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse"></div>
-          <p className="text-[10px] md:text-xs font-black uppercase text-gray-700 tracking-wider">
-            Terpilih: <span className="text-blue-600 font-extrabold text-xs md:text-sm">{selectedNipsForBulk.length}</span> Pegawai
-          </p>
+        <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
+          <div className="flex items-center gap-3">
+            <div className="h-2 w-2 rounded-full bg-blue-600 animate-pulse"></div>
+            <p className="text-[10px] md:text-xs font-black uppercase text-gray-700 tracking-wider">
+              Terpilih: <span className="text-blue-600 font-extrabold text-xs md:text-sm">{selectedNipsForBulk.length}</span> Pegawai
+            </p>
+          </div>
+
+          {/* View Mode Toggle Switch */}
+          <div className="flex items-center bg-gray-100/90 p-1 rounded-xl border border-gray-200/70 shadow-inner">
+            <button 
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] md:text-[9px] font-black uppercase transition-all cursor-pointer ${
+                viewMode === 'grid' 
+                  ? 'bg-white text-blue-600 shadow-sm' 
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+              title="Tampilan Grid / Kartu"
+            >
+              <i className="bi bi-grid-fill text-xs"></i>
+              <span>Grid</span>
+            </button>
+            <button 
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] md:text-[9px] font-black uppercase transition-all cursor-pointer ${
+                viewMode === 'list' 
+                  ? 'bg-white text-blue-600 shadow-sm' 
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+              title="Tampilan List / Tabel"
+            >
+              <i className="bi bi-list-ul text-xs"></i>
+              <span>List</span>
+            </button>
+          </div>
         </div>
+
         <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
           <button 
             type="button"
@@ -1613,64 +1650,282 @@ const PegawaiPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
-        {loading ? Array(6).fill(0).map((_,i) => <div key={i} className="h-32 md:h-44 bg-white rounded-2xl md:rounded-[3rem] animate-pulse"></div>) : 
-         (filteredPegawai || []).map((p, i) => {
-           const pNip = (p.nip || '').replace(/\D/g, '');
-           const isDup = duplicateNips.includes(pNip);
-           const isInv = invalidItems.some(inv => inv.id === p.id || (inv.nip && inv.nip === p.nip));
-           
-           return (
-             <div key={`${p.nip}-${i}`} onClick={() => navigate(`/pegawai/${p.nip}`)} className={`bg-white p-3 md:p-7 rounded-xl md:rounded-[3rem] border shadow-sm group hover:shadow-2xl transition-all cursor-pointer relative overflow-hidden ${isDup || isInv ? 'border-rose-200 bg-rose-50/10' : 'border-gray-100'}`}>
-                <div className="flex items-center gap-3 md:gap-6">
-                   <div className="flex items-center shrink-0">
-                     <input 
-                       type="checkbox" 
-                       checked={selectedNipsForBulk.includes(p.nip)}
-                       onChange={(e) => {
-                         e.stopPropagation();
-                         const nip = p.nip;
-                         setSelectedNipsForBulk(prev => 
-                           prev.includes(nip) ? prev.filter(n => n !== nip) : [...prev, nip]
-                         );
-                       }}
-                       onClick={(e) => e.stopPropagation()}
-                       className="w-4 h-4 md:w-5 md:h-5 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer shrink-0 transition-all"
-                     />
-                   </div>
-                   <div className={`h-12 w-12 md:h-20 md:w-20 rounded-lg md:rounded-[1.8rem] overflow-hidden border-2 md:border-4 border-white shadow-xl group-hover:scale-105 transition-transform shrink-0 ${isDup || isInv ? 'bg-rose-100' : 'bg-blue-50'}`}>
-                      {p.foto ? <img src={getPhotoUrl(p.foto)} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className={`h-full w-full flex items-center justify-center font-black text-lg md:text-3xl ${isDup || isInv ? 'text-rose-600' : 'text-blue-600'}`}>{p.nama ? p.nama.charAt(0) : '?'}</div>}
-                   </div>
-                   <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className={`text-[10px] md:text-[13px] font-black truncate leading-tight ${isDup || isInv ? 'text-rose-700' : 'text-gray-950'}`}>{formatPegawaiName(p.nama || '(Nama Kosong)')}</h4>
-                        {(isDup || isInv) && <i className="bi bi-exclamation-triangle-fill text-rose-500 text-[10px]" title={isInv ? "Data Tidak Valid" : "NIP Duplikat"}></i>}
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6 animate-fadeIn">
+          {loading ? Array(6).fill(0).map((_,i) => <div key={i} className="h-32 md:h-44 bg-white rounded-2xl md:rounded-[3rem] animate-pulse"></div>) : 
+           (filteredPegawai || []).map((p, i) => {
+             const pNip = (p.nip || '').replace(/\D/g, '');
+             const isDup = duplicateNips.includes(pNip);
+             const isInv = invalidItems.some(inv => inv.id === p.id || (inv.nip && inv.nip === p.nip));
+             
+             return (
+               <div key={`${p.nip}-${i}`} onClick={() => navigate(`/pegawai/${p.nip}`)} className={`bg-white p-3 md:p-7 rounded-xl md:rounded-[3rem] border shadow-sm group hover:shadow-2xl transition-all cursor-pointer relative overflow-hidden ${isDup || isInv ? 'border-rose-200 bg-rose-50/10' : 'border-gray-100'}`}>
+                  <div className="flex items-center gap-3 md:gap-6">
+                     <div className="flex items-center shrink-0">
+                       <input 
+                         type="checkbox" 
+                         checked={selectedNipsForBulk.includes(p.nip)}
+                         onChange={(e) => {
+                           e.stopPropagation();
+                           const nip = p.nip;
+                           setSelectedNipsForBulk(prev => 
+                             prev.includes(nip) ? prev.filter(n => n !== nip) : [...prev, nip]
+                           );
+                         }}
+                         onClick={(e) => e.stopPropagation()}
+                         className="w-4 h-4 md:w-5 md:h-5 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer shrink-0 transition-all"
+                       />
+                     </div>
+                     <div className={`h-12 w-12 md:h-20 md:w-20 rounded-lg md:rounded-[1.8rem] overflow-hidden border-2 md:border-4 border-white shadow-xl group-hover:scale-105 transition-transform shrink-0 ${isDup || isInv ? 'bg-rose-100' : 'bg-blue-50'}`}>
+                        {p.foto ? <img src={getPhotoUrl(p.foto)} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className={`h-full w-full flex items-center justify-center font-black text-lg md:text-3xl ${isDup || isInv ? 'text-rose-600' : 'text-blue-600'}`}>{p.nama ? p.nama.charAt(0) : '?'}</div>}
+                     </div>
+                     <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className={`text-[10px] md:text-[13px] font-black truncate leading-tight ${isDup || isInv ? 'text-rose-700' : 'text-gray-950'}`}>{formatPegawaiName(p.nama || '(Nama Kosong)')}</h4>
+                          {(isDup || isInv) && <i className="bi bi-exclamation-triangle-fill text-rose-500 text-[10px]" title={isInv ? "Data Tidak Valid" : "NIP Duplikat"}></i>}
+                        </div>
+                        <p className="text-[7px] md:text-[9px] font-mono text-gray-400 mt-1 uppercase tracking-tighter md:tracking-normal">NIP. {p.nip || 'TIDAK TERDETEKSI'}</p>
+                        {canEdit && (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setPegawaiToDelete(p); 
+                              setIsConfirmOpen(true); 
+                            }}
+                            className={`${isDup || isInv ? 'bg-rose-100 text-rose-600' : 'bg-rose-50 text-rose-500'} absolute top-2 right-2 md:top-4 md:right-4 h-6 w-6 md:h-10 md:w-10 rounded-lg md:rounded-xl flex items-center justify-center opacity-100 md:opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-600 hover:text-white shadow-sm shrink-0 z-10`}
+                          >
+                            <i className="bi bi-trash3-fill text-[10px] md:text-sm"></i>
+                          </button>
+                        )}
+                        <div className="flex flex-wrap items-center gap-1 md:gap-2 mt-1.5 md:mt-2">
+                           <span className={`px-1 md:px-2 py-0.5 text-[5px] md:text-[7px] font-black rounded border uppercase ${isDup || isInv ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{p.golRuang || '-'}</span>
+                           <span className="px-1 md:px-2 py-0.5 bg-gray-50 text-gray-500 text-[5px] md:text-[7px] font-black rounded border border-gray-200 uppercase truncate max-w-[60px] md:max-w-none">{p.jenisPegawai || '-'}</span>
+                        </div>
+                     </div>
+                  </div>
+                  {isInv && <div className="absolute top-0 right-0 px-2 py-0.5 bg-rose-600 text-white text-[6px] font-black uppercase tracking-tighter">DATA BERMASALAH</div>}
+                  {isDup && !isInv && <div className="absolute top-0 right-0 px-2 py-0.5 bg-rose-500 text-white text-[6px] font-black uppercase tracking-tighter">DUPLIKAT</div>}
+               </div>
+             );
+           })}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl md:rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden animate-fadeIn">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[950px]">
+              <thead>
+                <tr className="bg-gray-50/90 border-b border-gray-150 text-[8px] md:text-[9px] font-black text-gray-500 uppercase tracking-widest">
+                  <th className="py-4 px-4 w-12 text-center">
+                    <input 
+                      type="checkbox"
+                      checked={filteredPegawai.length > 0 && filteredPegawai.every(p => selectedNipsForBulk.includes(p.nip))}
+                      onChange={(e) => {
+                        const visibleNips = (filteredPegawai || []).map(p => p.nip).filter(Boolean);
+                        if (e.target.checked) {
+                          setSelectedNipsForBulk(prev => Array.from(new Set([...prev, ...visibleNips])));
+                        } else {
+                          setSelectedNipsForBulk(prev => prev.filter(n => !visibleNips.includes(n)));
+                        }
+                      }}
+                      className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer transition-all"
+                      title="Pilih / Bersihkan Semua Yang Tampil"
+                    />
+                  </th>
+                  <th className="py-4 px-2 w-12 text-center font-bold">No</th>
+                  <th className="py-4 px-4">Pegawai / NIP</th>
+                  <th className="py-4 px-4">Jabatan & Unit Kerja</th>
+                  <th className="py-4 px-4">Pangkat & Golongan</th>
+                  <th className="py-4 px-4">Status & Jenis</th>
+                  <th className="py-4 px-4">Pendidikan & Jurusan</th>
+                  <th className="py-4 px-4 text-center w-28">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-[10px] md:text-xs">
+                {loading ? (
+                  Array(6).fill(0).map((_, idx) => (
+                    <tr key={idx} className="animate-pulse">
+                      <td colSpan={8} className="py-5 px-6">
+                        <div className="h-6 bg-gray-100 rounded-xl w-full"></div>
+                      </td>
+                    </tr>
+                  ))
+                ) : filteredPegawai.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-16 text-center text-gray-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <i className="bi bi-person-x text-4xl text-gray-300"></i>
+                        <p className="font-black text-xs md:text-sm text-gray-600 uppercase tracking-tight">Tidak Ada Pegawai Yang Sesuai</p>
+                        <p className="text-[10px] text-gray-400 font-bold">Silakan sesuaikan kata kunci pencarian atau bersihkan filter.</p>
                       </div>
-                      <p className="text-[7px] md:text-[9px] font-mono text-gray-400 mt-1 uppercase tracking-tighter md:tracking-normal">NIP. {p.nip || 'TIDAK TERDETEKSI'}</p>
-                      {canEdit && (
-                        <button 
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            setPegawaiToDelete(p); 
-                            setIsConfirmOpen(true); 
-                          }}
-                          className={`${isDup || isInv ? 'bg-rose-100 text-rose-600' : 'bg-rose-50 text-rose-500'} absolute top-2 right-2 md:top-4 md:right-4 h-6 w-6 md:h-10 md:w-10 rounded-lg md:rounded-xl flex items-center justify-center opacity-100 md:opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-600 hover:text-white shadow-sm shrink-0 z-10`}
-                        >
-                          <i className="bi bi-trash3-fill text-[10px] md:text-sm"></i>
-                        </button>
-                      )}
-                      <div className="flex flex-wrap items-center gap-1 md:gap-2 mt-1.5 md:mt-2">
-                         <span className={`px-1 md:px-2 py-0.5 text-[5px] md:text-[7px] font-black rounded border uppercase ${isDup || isInv ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{p.golRuang || '-'}</span>
-                         <span className="px-1 md:px-2 py-0.5 bg-gray-50 text-gray-500 text-[5px] md:text-[7px] font-black rounded border border-gray-200 uppercase truncate max-w-[60px] md:max-w-none">{p.jenisPegawai || '-'}</span>
-                      </div>
-                   </div>
-                </div>
-                {isInv && <div className="absolute top-0 right-0 px-2 py-0.5 bg-rose-600 text-white text-[6px] font-black uppercase tracking-tighter">DATA BERMASALAH</div>}
-                {isDup && !isInv && <div className="absolute top-0 right-0 px-2 py-0.5 bg-rose-500 text-white text-[6px] font-black uppercase tracking-tighter">DUPLIKAT</div>}
-             </div>
-           );
-         })}
-      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredPegawai.map((p, i) => {
+                    const pNip = (p.nip || '').replace(/\D/g, '');
+                    const isDup = duplicateNips.includes(pNip);
+                    const isInv = invalidItems.some(inv => inv.id === p.id || (inv.nip && inv.nip === p.nip));
+                    const isSelected = selectedNipsForBulk.includes(p.nip);
+
+                    return (
+                      <tr 
+                        key={`${p.nip}-${i}`}
+                        onClick={() => navigate(`/pegawai/${p.nip}`)}
+                        className={`transition-colors cursor-pointer group ${
+                          isSelected ? 'bg-blue-50/60 hover:bg-blue-50/90' : isDup || isInv ? 'bg-rose-50/30 hover:bg-rose-50/50' : 'hover:bg-slate-50/80'
+                        }`}
+                      >
+                        {/* Checkbox */}
+                        <td className="py-3.5 px-4 text-center" onClick={e => e.stopPropagation()}>
+                          <input 
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              const nip = p.nip;
+                              setSelectedNipsForBulk(prev => 
+                                prev.includes(nip) ? prev.filter(n => n !== nip) : [...prev, nip]
+                              );
+                            }}
+                            className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer transition-all"
+                          />
+                        </td>
+
+                        {/* No */}
+                        <td className="py-3.5 px-2 text-center font-mono text-[9px] md:text-[10px] text-gray-400 font-bold">
+                          {i + 1}
+                        </td>
+
+                        {/* Pegawai / NIP */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`h-11 w-11 rounded-2xl overflow-hidden border-2 border-white shadow-md group-hover:scale-105 transition-transform shrink-0 flex items-center justify-center font-black ${isDup || isInv ? 'bg-rose-100 text-rose-600' : 'bg-blue-50 text-blue-600'}`}>
+                              {p.foto ? (
+                                <img src={getPhotoUrl(p.foto)} className="h-full w-full object-cover" referrerPolicy="no-referrer" alt="" />
+                              ) : (
+                                <span className="text-sm font-black">{p.nama ? p.nama.charAt(0) : '?'}</span>
+                              )}
+                            </div>
+                            <div className="min-w-0 max-w-[240px]">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`font-black text-[11px] md:text-[12px] truncate ${isDup || isInv ? 'text-rose-700' : 'text-gray-950 group-hover:text-blue-600'} transition-colors`}>
+                                  {formatPegawaiName(p.nama || '(Nama Kosong)')}
+                                </span>
+                                {p.gender && (
+                                  <span className={`px-1.5 py-0.2 rounded text-[7px] font-black uppercase ${p.gender === 'L' ? 'bg-sky-50 text-sky-600 border border-sky-100' : 'bg-pink-50 text-pink-600 border border-pink-100'}`}>
+                                    {p.gender === 'L' ? 'L' : 'P'}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5 font-mono text-[8px] md:text-[9px] text-gray-400">
+                                <span>NIP. {p.nip || '-'}</span>
+                              </div>
+                              {(isDup || isInv) && (
+                                <div className="mt-1">
+                                  <span className="px-1.5 py-0.5 bg-rose-600 text-white rounded text-[7px] font-black uppercase tracking-tighter inline-flex items-center gap-1">
+                                    <i className="bi bi-exclamation-triangle-fill"></i>
+                                    {isInv ? 'DATA BERMASALAH' : 'DUPLIKAT'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Jabatan & Unit Kerja */}
+                        <td className="py-3.5 px-4 max-w-[260px]">
+                          <div className="font-bold text-gray-900 text-[10px] md:text-[11px] leading-snug">
+                            {p.jabatan || '-'}
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span className="text-[8px] md:text-[9px] text-gray-500 font-bold truncate max-w-[190px]">
+                              {p.unitKerja || '-'}
+                            </span>
+                            {p.klasifikasiJabatan && p.klasifikasiJabatan !== '-' && (
+                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 text-[6px] md:text-[7px] font-black rounded uppercase">
+                                {p.klasifikasiJabatan}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Pangkat & Golongan */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-2 py-0.5 text-[8px] md:text-[9px] font-black rounded-lg border uppercase ${
+                              isDup || isInv ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-600 border-blue-100'
+                            }`}>
+                              {p.golRuang || '-'}
+                            </span>
+                          </div>
+                          {p.pangkat && (
+                            <div className="text-[8px] md:text-[9px] text-gray-500 font-semibold mt-1 truncate max-w-[150px]">
+                              {p.pangkat}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Status & Jenis */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className={`px-2 py-0.5 text-[7px] md:text-[8px] font-black rounded-lg uppercase ${
+                              (p.status || 'Aktif') === 'Aktif' 
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' 
+                                : (p.status || '') === 'Tugas Belajar'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                                : 'bg-gray-100 text-gray-600 border border-gray-200'
+                            }`}>
+                              {p.status || 'Aktif'}
+                            </span>
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[7px] md:text-[8px] font-black rounded-lg uppercase">
+                              {p.jenisPegawai || 'PNS'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Pendidikan & Jurusan */}
+                        <td className="py-3.5 px-4 max-w-[200px]">
+                          <div className="font-black text-gray-900 text-[9px] md:text-[10px] uppercase">
+                            {p.pendidikan || '-'}
+                          </div>
+                          <div className="text-[8px] md:text-[9px] text-gray-500 font-semibold truncate mt-0.5 uppercase" title={p.jurusan || ''}>
+                            {p.jurusan || '-'}
+                          </div>
+                        </td>
+
+                        {/* Aksi */}
+                        <td className="py-3.5 px-4 text-center" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/pegawai/${p.nip}`)}
+                              className="h-8 w-8 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-xs cursor-pointer"
+                              title="Lihat Profil Lengkap"
+                            >
+                              <i className="bi bi-person-lines-fill text-xs"></i>
+                            </button>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPegawaiToDelete(p);
+                                  setIsConfirmOpen(true);
+                                }}
+                                className="h-8 w-8 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white transition-all flex items-center justify-center shadow-xs cursor-pointer"
+                                title="Hapus Pegawai"
+                              >
+                                <i className="bi bi-trash3-fill text-xs"></i>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {isAddDossierOpen && selectedPegawai && (
         <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">

@@ -605,13 +605,35 @@ const SettingsPage = () => {
     finally { setSyncing(false); setCleanupProgress({ current: 0, total: 0, active: false }); }
   };
 
+  const ALL_SYSTEM_ROLES = [
+    { id: 'Superadmin', label: 'Superadmin', desc: 'Akses penuh ke seluruh sistem & konfigurasi cloud', color: 'bg-slate-900 text-white border-slate-900' },
+    { id: 'Admin Perencanaan & Layanan', label: 'Admin Perencanaan & Layanan', desc: 'Roadmap SDM, ABK/ANJAB, SPMT, Presensi, SAKIP/RB, Anggaran', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    { id: 'Admin Pengembangan Kompetensi', label: 'Admin Pengembangan Kompetensi', desc: 'TNA, Bimtek/Diklat, Ujian Dinas, Tugas Belajar, Magang, CAT Ukom, Talenta 9-Box', color: 'bg-amber-50 text-amber-800 border-amber-200' },
+    { id: 'Admin Pengelolaan Karier', label: 'Admin Pengelolaan Karier', desc: 'Disiplin PP 94, Kode Etik, LHKASN, SKP, PAK, Pangkat, KGB, Pensiun, Satyalancana', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+    { id: 'Admin Uang Makan', label: 'Admin Uang Makan', desc: 'Perhitungan & Rekapitulasi Uang Makan Pegawai', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    { id: 'Editor', label: 'Editor', desc: 'Akses pengeditan data operasional umum', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    { id: 'Viewer', label: 'Viewer', desc: 'Hanya melihat data (Pegawai/Staf)', color: 'bg-gray-50 text-gray-600 border-gray-200' },
+  ];
+
   const handleUserAction = async (action: 'SAVE' | 'DELETE', userData?: AdminUser) => {
     setLoading(true);
-    const targetUser = userData || (userFormData as AdminUser);
-    if (action === 'SAVE' && !targetUser.id) targetUser.id = `USR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const targetUser = { ...(userData || (userFormData as AdminUser)) };
+    if (action === 'SAVE') {
+      if (!targetUser.id) targetUser.id = `USR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      if (!targetUser.roles || targetUser.roles.length === 0) {
+        targetUser.roles = targetUser.role ? [targetUser.role] : ['Viewer'];
+      }
+      if (!targetUser.role) {
+        targetUser.role = targetUser.roles[0];
+      }
+    }
     const payload = action === 'DELETE' 
       ? { ...targetUser, nama: targetUser.name } 
-      : targetUser;
+      : {
+          ...targetUser,
+          roles: JSON.stringify(targetUser.roles || [targetUser.role || 'Viewer']),
+          ROLES: JSON.stringify(targetUser.roles || [targetUser.role || 'Viewer'])
+        };
     const success = await syncTableRemote('USERS', action === 'SAVE' ? 'SAVE' : 'DELETE', payload);
     if (success) {
       setTimeout(async () => {
@@ -1099,19 +1121,20 @@ const SettingsPage = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div>
                                 <label className={labelClass}>Role yang Diizinkan</label>
-                                <div className="flex flex-wrap gap-3 mt-2">
-                                  {['Superadmin', 'Editor', 'Viewer', 'Admin Uang Makan'].map(role => {
-                                    const isChecked = access?.roles.includes(role);
+                                <div className="flex flex-wrap gap-2.5 mt-2">
+                                  {ALL_SYSTEM_ROLES.map(r => {
+                                    const role = r.id;
+                                    const isChecked = (access?.roles || []).includes(role);
                                     return (
-                                      <label key={role} className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${isChecked ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-500 hover:border-blue-200'}`}>
+                                      <label key={role} className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${isChecked ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-600 hover:border-blue-200'}`}>
                                         <input 
                                           type="checkbox" 
                                           className="hidden"
                                           checked={isChecked}
                                           onChange={() => toggleRoleAccess(route.path, role)}
                                         />
-                                        <i className={`bi ${isChecked ? 'bi-check-square-fill' : 'bi-square'} text-sm`}></i>
-                                        <span className="text-[10px] font-black uppercase tracking-wider">{role}</span>
+                                        <i className={`bi ${isChecked ? 'bi-check-square-fill' : 'bi-square'} text-xs`}></i>
+                                        <span className="text-[9px] font-black uppercase tracking-wider">{role}</span>
                                       </label>
                                     );
                                   })}
@@ -1146,39 +1169,82 @@ const SettingsPage = () => {
               <div className="flex flex-col md:flex-row justify-between items-end border-b pb-6 gap-4">
                 <div>
                   <h4 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Manajemen User Cloud</h4>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Kelola akun administrator sistem</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2">Kelola otorisasi dan multi-role administrator sistem</p>
                 </div>
-                <button onClick={() => { setUserFormData({ role: 'Viewer' }); setShowPassword(false); setIsUserModalOpen(true); }} className="px-8 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg tracking-widest">+ Admin Baru</button>
+                <button 
+                  onClick={() => { 
+                    setUserFormData({ role: 'Viewer', roles: ['Viewer'] }); 
+                    setShowPassword(false); 
+                    setIsUserModalOpen(true); 
+                  }} 
+                  className="px-8 py-3 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg tracking-widest hover:bg-blue-500 transition-all"
+                >
+                  + Admin Baru
+                </button>
               </div>
               <div className="bg-white border border-gray-100 rounded-[2.5rem] overflow-x-auto custom-scrollbar shadow-sm">
                 <table className="w-full text-left">
                   <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-[0.2em]">
-                    <tr><th className="px-10 py-5">Identitas & NIP</th><th className="px-4 py-5 text-center">Role</th><th className="px-4 py-5 text-center">Status</th><th className="px-10 py-5 text-right">Opsi</th></tr>
+                    <tr><th className="px-8 py-5">Identitas & NIP</th><th className="px-4 py-5 text-center">Role / Otorisasi</th><th className="px-4 py-5 text-center">Status</th><th className="px-8 py-5 text-right">Opsi</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {users.map((u, i) => (
-                      <tr key={`${u.id}-${u.nip}-${i}`} className="group hover:bg-blue-50/10 transition-colors">
-                        <td className="px-10 py-5"><p className="text-[11px] font-black text-gray-950 uppercase">{u.name}</p><p className="text-[9px] font-mono text-gray-400">NIP. {u.nip}</p></td>
-                        <td className="px-4 py-5 text-center"><span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[8px] font-black uppercase border border-blue-100">{u.role}</span></td>
-                        <td className="px-4 py-5 text-center">
-                          <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${
-                            u.status === 'Nonaktif' 
-                            ? 'bg-rose-50 text-rose-600 border-rose-100' 
-                            : 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                          }`}>
-                            {u.status || 'Aktif'}
-                          </span>
-                        </td>
-                        <td className="px-10 py-5 text-right">
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                            <button onClick={() => { setUserFormData(u); setShowPassword(false); setIsUserModalOpen(true); }} className="h-9 w-9 bg-white border border-gray-100 rounded-xl text-amber-500 hover:bg-amber-500 hover:text-white shadow-sm flex items-center justify-center transition-all"><i className="bi bi-pencil-square"></i></button>
-                            {isSuperadmin && u.nip !== currentUser?.nip && (
-                              <button onClick={() => { if(window.confirm('Hapus user ini?')) handleUserAction('DELETE', u) }} className="h-9 w-9 bg-white border border-gray-100 text-rose-500 hover:bg-rose-500 hover:text-white shadow-sm flex items-center justify-center transition-all"><i className="bi bi-trash-fill"></i></button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {users.map((u, i) => {
+                      const userRolesList = Array.isArray(u.roles) && u.roles.length > 0
+                        ? u.roles
+                        : (u.role ? [u.role] : ['Viewer']);
+
+                      return (
+                        <tr key={`${u.id}-${u.nip}-${i}`} className="group hover:bg-blue-50/10 transition-colors">
+                          <td className="px-8 py-5">
+                            <p className="text-[11px] font-black text-gray-950 uppercase">{u.name}</p>
+                            <p className="text-[9px] font-mono text-gray-400">NIP. {u.nip}</p>
+                          </td>
+                          <td className="px-4 py-5 text-center">
+                            <div className="flex flex-wrap gap-1.5 justify-center max-w-sm mx-auto">
+                              {userRolesList.map((r, ri) => (
+                                <span key={ri} className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-[8px] font-black uppercase border border-blue-100 whitespace-nowrap shadow-2xs">
+                                  {r}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-4 py-5 text-center">
+                            <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${
+                              u.status === 'Nonaktif' 
+                              ? 'bg-rose-50 text-rose-600 border-rose-100' 
+                              : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                            }`}>
+                              {u.status || 'Aktif'}
+                            </span>
+                          </td>
+                          <td className="px-8 py-5 text-right">
+                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                              <button 
+                                onClick={() => { 
+                                  const rolesArr = Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : (u.role ? [u.role] : ['Viewer']);
+                                  setUserFormData({ ...u, roles: rolesArr, role: u.role || rolesArr[0] }); 
+                                  setShowPassword(false); 
+                                  setIsUserModalOpen(true); 
+                                }} 
+                                className="h-9 w-9 bg-white border border-gray-100 rounded-xl text-amber-500 hover:bg-amber-500 hover:text-white shadow-sm flex items-center justify-center transition-all"
+                                title="Edit User"
+                              >
+                                <i className="bi bi-pencil-square"></i>
+                              </button>
+                              {isSuperadmin && u.nip !== currentUser?.nip && (
+                                <button 
+                                  onClick={() => { if(window.confirm('Hapus user ini?')) handleUserAction('DELETE', u) }} 
+                                  className="h-9 w-9 bg-white border border-gray-100 text-rose-500 hover:bg-rose-500 hover:text-white shadow-sm flex items-center justify-center transition-all"
+                                  title="Hapus User"
+                                >
+                                  <i className="bi bi-trash-fill"></i>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1308,7 +1374,63 @@ const SettingsPage = () => {
                      </button>
                    </div>
                  </div>
-                 <div className="space-y-1.5"><label className="text-[9px] font-black text-gray-400 uppercase ml-2">Role Akses</label><select className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-black outline-none" value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})}><option value="Superadmin">Superadmin</option><option value="Editor">Editor</option><option value="Viewer">Viewer</option><option value="Admin Uang Makan">Admin Uang Makan</option></select></div>
+                 <div className="space-y-2">
+                   <div className="flex items-center justify-between">
+                     <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Pilih Role Akses (Dapat Memilih Lebih Dari Satu)</label>
+                     <span className="text-[8px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                       {(Array.isArray(userFormData.roles) && userFormData.roles.length > 0 ? userFormData.roles : [userFormData.role || 'Viewer']).length} Role Terpilih
+                     </span>
+                   </div>
+                   <div className="grid grid-cols-1 gap-2 p-3 bg-gray-50/80 rounded-2xl border border-gray-100 max-h-64 overflow-y-auto custom-scrollbar">
+                     {ALL_SYSTEM_ROLES.map(roleItem => {
+                       const assignedRoles = Array.isArray(userFormData.roles) && userFormData.roles.length > 0 
+                         ? userFormData.roles 
+                         : (userFormData.role ? [userFormData.role] : ['Viewer']);
+                       const isSelected = assignedRoles.includes(roleItem.id);
+
+                       return (
+                         <div
+                           key={roleItem.id}
+                           onClick={() => {
+                             const exists = assignedRoles.includes(roleItem.id);
+                             let nextRoles: string[];
+                             if (exists) {
+                               nextRoles = assignedRoles.filter(r => r !== roleItem.id);
+                               if (nextRoles.length === 0) nextRoles = ['Viewer'];
+                             } else {
+                               nextRoles = [...assignedRoles, roleItem.id];
+                             }
+                             setUserFormData({
+                               ...userFormData,
+                               roles: nextRoles,
+                               role: nextRoles[0]
+                             });
+                           }}
+                           className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 select-none ${
+                             isSelected 
+                               ? 'bg-white border-blue-600 shadow-xs' 
+                               : 'bg-white/60 border-transparent hover:border-gray-200'
+                           }`}
+                         >
+                           <div className={`mt-0.5 h-5 w-5 rounded-lg flex items-center justify-center text-xs transition-colors shrink-0 ${
+                             isSelected ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white text-transparent'
+                           }`}>
+                             <i className="bi bi-check-lg font-black"></i>
+                           </div>
+                           <div className="flex-1 min-w-0">
+                             <div className="flex items-center gap-2">
+                               <p className="text-[11px] font-black uppercase text-gray-900">{roleItem.label}</p>
+                               {userFormData.role === roleItem.id && (
+                                 <span className="text-[7px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Utama</span>
+                               )}
+                             </div>
+                             <p className="text-[9px] text-gray-400 font-medium line-clamp-2 mt-0.5">{roleItem.desc}</p>
+                           </div>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
                  <div className="space-y-1.5">
                    <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Status Akun</label>
                    <div className="flex gap-2">

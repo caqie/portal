@@ -183,22 +183,39 @@ export const AdminLayananSDMPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50/70 pb-20">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white pt-8 pb-14 px-4 sm:px-6 lg:px-8 border-b border-slate-800 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white pt-8 pb-8 px-4 sm:px-6 lg:px-8 border-b border-slate-800 relative overflow-hidden">
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-xs font-semibold uppercase tracking-wider mb-3">
-                <i className="bi bi-shield-lock-fill" /> Panel Administrator SDM KI
+            <div className="flex items-start gap-4">
+              <button
+                onClick={() => navigate('/tupoksi-sdm')}
+                className="h-11 w-11 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white flex items-center justify-center transition-all shadow-md shrink-0 active:scale-95 mt-1"
+                title="Kembali ke Tupoksi SDM"
+              >
+                <i className="bi bi-arrow-left text-xl" />
+              </button>
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-xs font-semibold uppercase tracking-wider mb-3">
+                  <i className="bi bi-shield-lock-fill" /> Panel Administrator SDM KI
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  Dashboard Manajemen & Verifikasi Layanan SDM
+                </h1>
+                <p className="text-slate-300 text-xs sm:text-sm mt-1.5 max-w-2xl leading-relaxed">
+                  Kelola permohonan kepegawaian, verifikasi kelengkapan berkas, tetapkan disposisi petugas, dan terbitkan dokumen hasil layanan DJKI.
+                </p>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                Dashboard Manajemen & Verifikasi Layanan SDM
-              </h1>
-              <p className="text-slate-300 text-xs sm:text-sm mt-1.5 max-w-2xl leading-relaxed">
-                Kelola permohonan kepegawaian, verifikasi kelengkapan berkas, tetapkan disposisi petugas, dan terbitkan dokumen hasil layanan DJKI.
-              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => navigate('/tupoksi-sdm')}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 transition backdrop-blur-sm"
+                title="Kembali ke Modul Tupoksi SDM"
+              >
+                <i className="bi bi-arrow-left" />
+                <span>Tupoksi SDM</span>
+              </button>
               <Link
                 to="/layanan-sdm"
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 transition backdrop-blur-sm"
@@ -217,7 +234,7 @@ export const AdminLayananSDMPage: React.FC = () => {
           </div>
 
           {/* Quick Metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6">
             <div
               onClick={() => setSelectedStatus('ALL')}
               className={`cursor-pointer bg-white/10 backdrop-blur-md border rounded-2xl p-3.5 transition hover:bg-white/15 ${selectedStatus === 'ALL' ? 'border-amber-400 ring-2 ring-amber-400/30' : 'border-white/15'}`}
@@ -270,7 +287,7 @@ export const AdminLayananSDMPage: React.FC = () => {
       </div>
 
       {/* Main Container */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         {/* Navigation Tabs (Permohonan / Master Katalog / Analytics) */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 w-full md:w-auto">

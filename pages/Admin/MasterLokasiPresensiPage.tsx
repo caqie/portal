@@ -12,6 +12,7 @@ import {
   deleteAttendanceLocation
 } from '../../services/smartPresensi/SmartAttendanceService';
 import { isPointInPolygon, isPointInCircle } from '../../services/smartPresensi/GeofenceService';
+import { PresensiNavigationHeader } from '../../components/PresensiNavigationHeader';
 
 export const MasterLokasiPresensiPage: React.FC = () => {
   const { user, isSuperadmin, logActivity } = useAuth();
@@ -194,31 +195,22 @@ export const MasterLokasiPresensiPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20 animate-fadeIn">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/admin/attendance')}
-            className="w-10 h-10 rounded-2xl bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-600 transition-colors"
-          >
-            <i className="bi bi-arrow-left"></i>
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                Konfigurasi Geofencing • Master Lokasi Kantor
-              </span>
-            </div>
-            <h1 className="text-xl font-black text-gray-950 tracking-tight mt-0.5">
-              Master Lokasi Presensi
-            </h1>
-          </div>
+      {/* Universal Presensi Hub Header */}
+      <PresensiNavigationHeader 
+        title="Master Lokasi Presensi & Geofence"
+        subtitle="Konfigurasi Geofencing • Titik Koordinat Radius & Polygon Master Kantor DJKI"
+      />
+
+      {/* Action Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse"></span>
+          <span className="text-xs font-black text-gray-900 tracking-tight">Daftar Titik Geofence ({locations.length} Lokasi)</span>
         </div>
 
         <button
           onClick={handleStartCreate}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-100 flex items-center gap-2"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md shadow-blue-100 flex items-center gap-2"
         >
           <i className="bi bi-plus-lg"></i>
           <span>Tambah Lokasi Kantor</span>

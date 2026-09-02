@@ -383,9 +383,12 @@ const TugasRutinPage = () => {
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h3 className="text-2xl md:text-3xl font-black text-gray-950 tracking-tighter">Administrasi Rutin</h3>
-          <p className="text-[10px] text-gray-400 font-bold tracking-widest mt-2 flex items-center gap-2">
-            <i className="bi bi-clipboard-check-fill text-blue-600"></i> Integrasi Laporan Bulanan Subbagian Mutasi & Gaji
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-blue-700 text-[10px] font-black uppercase tracking-wider mb-2">
+            <i className="bi bi-diagram-3-fill"></i> Sub Tim 1: Perencanaan & Layanan SDM
+          </div>
+          <h3 className="text-2xl md:text-3xl font-black text-gray-950 tracking-tighter">Administrasi Rutin & Log Tugas</h3>
+          <p className="text-[11px] text-gray-500 font-bold tracking-wide mt-1 flex items-center gap-2">
+            <i className="bi bi-clipboard-check-fill text-blue-600"></i> Integrasi Laporan Bulanan, Administrasi Rutin, Apel, Pelantikan & Catatan Kinerja Sub Tim 1
           </p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">

@@ -9,6 +9,7 @@ import {
   getAttendanceLocations,
   getFaceRegistrations
 } from '../../services/smartPresensi/SmartAttendanceService';
+import { PresensiNavigationHeader } from '../../components/PresensiNavigationHeader';
 
 export const AdminAttendanceDashboardPage: React.FC = () => {
   const { user, isSuperadmin, logActivity } = useAuth();
@@ -158,32 +159,23 @@ export const AdminAttendanceDashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20 animate-fadeIn">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="w-10 h-10 rounded-2xl bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-600 transition-colors"
-          >
-            <i className="bi bi-arrow-left"></i>
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                Admin Center • Monitoring Presensi Cerdas
-              </span>
-            </div>
-            <h1 className="text-xl font-black text-gray-950 tracking-tight mt-0.5">
-              Monitoring Kehadiran &amp; Biometrik
-            </h1>
-          </div>
+      {/* Universal Presensi Hub Header */}
+      <PresensiNavigationHeader 
+        title="Monitoring Kehadiran & Biometrik"
+        subtitle="Admin Center • Pemantauan Presensi Real-Time, Liveness Score, GPS & Geofence"
+      />
+
+      {/* Action Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse"></span>
+          <span className="text-xs font-black text-gray-900 tracking-tight">Log Aktivitas Kehadiran Realtime</span>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/admin/attendance/locations')}
-            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all"
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all"
           >
             <i className="bi bi-geo-alt-fill text-blue-600"></i>
             <span>Master Lokasi Geofence</span>
@@ -191,7 +183,7 @@ export const AdminAttendanceDashboardPage: React.FC = () => {
 
           <button
             onClick={handleExportCSV}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md shadow-emerald-100 transition-all"
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md shadow-emerald-100 transition-all"
           >
             <i className="bi bi-file-earmark-spreadsheet-fill"></i>
             <span>Ekspor Data (CSV)</span>

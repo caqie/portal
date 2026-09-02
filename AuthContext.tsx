@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AdminUser, AuditLog } from './types';
+import { AdminUser, AuditLog, SDMRole } from './types';
 
 interface AuthContextType {
   user: AdminUser | null;
@@ -11,6 +11,14 @@ interface AuthContextType {
   isSuperadmin: boolean;
   canEdit: boolean;
   isAdminUangMakan: boolean;
+  isAdminPerencanaan: boolean;
+  isAdminBangkom: boolean;
+  isAdminKarier: boolean;
+  userRoles: string[];
+  activeRole: string;
+  setActiveRole: (role: string) => void;
+  hasRole: (roleName: string) => boolean;
+  isMultiRole: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,7 +31,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedUser = localStorage.getItem('auth_user');
     if (savedUser) {
       try {
-        setUser(JSON.parse(savedUser));
+        const parsed: AdminUser = JSON.parse(savedUser);
+        // Normalize roles array if only single role is present
+        if (!parsed.roles || parsed.roles.length === 0) {
+          parsed.roles = parsed.role ? [parsed.role] : ['Viewer'];
+        }
+        if (!parsed.activeRole) {
+          parsed.activeRole = parsed.roles[0] || parsed.role || 'Viewer';
+        }
+        setUser(parsed);
       } catch (e) {
         console.error("Auth initialization error:", e);
         localStorage.removeItem('auth_user');
@@ -33,14 +49,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = (userData: AdminUser) => {
-    setUser(userData);
-    localStorage.setItem('auth_user', JSON.stringify(userData));
-    logActivity('LOGIN', 'Auth', `User ${userData.name} berhasil login ke sistem.`, userData);
+    // Ensure roles array is populated
+    const rolesList = Array.isArray(userData.roles) && userData.roles.length > 0 
+      ? Array.from(new Set([userData.role, ...userData.roles])).filter(Boolean) as (SDMRole | string)[]
+      : [userData.role || 'Viewer'];
+
+    const normalizedUser: AdminUser = {
+      ...userData,
+      roles: rolesList,
+      activeRole: userData.activeRole || rolesList[0] || userData.role || 'Viewer'
+    };
+
+    setUser(normalizedUser);
+    localStorage.setItem('auth_user', JSON.stringify(normalizedUser));
+    logActivity('LOGIN', 'Auth', `User ${normalizedUser.name} (${rolesList.join(', ')}) berhasil login ke sistem.`, normalizedUser);
   };
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem('auth_user');
+  };
+
+  const setActiveRole = (role: string) => {
+    if (!user) return;
+    const updated = { ...user, activeRole: role };
+    setUser(updated);
+    localStorage.setItem('auth_user', JSON.stringify(updated));
+    logActivity('UPDATE', 'Auth', `User ${user.name} beralih peran aktif ke ${role}.`, updated);
   };
 
   const logActivity = (action: AuditLog['action'], module: string, description: string, overrideUser?: AdminUser) => {
@@ -69,10 +104,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('portal_audit_logs', JSON.stringify([newLog, ...existingLogs].slice(0, 1000)));
   };
 
+  // Roles calculation
+  const rawRoles: string[] = user ? [
+    ...(Array.isArray(user.roles) ? user.roles : []),
+    user.role,
+    user.activeRole
+  ].filter(Boolean) as string[] : [];
+  
+  const userRoles = Array.from(new Set(rawRoles));
+
+  const hasRole = (roleName: string): boolean => {
+    if (!user) return false;
+    if (user.role === 'Superadmin' || userRoles.includes('Superadmin')) return true;
+    const search = roleName.toLowerCase().trim();
+    return userRoles.some(r => {
+      const lower = r.toLowerCase().trim();
+      return lower === search || lower.includes(search) || search.includes(lower);
+    });
+  };
+
   const isAuthenticated = !!user;
-  const isSuperadmin = user?.role === 'Superadmin';
-  const isAdminUangMakan = user?.role === 'Admin Uang Makan';
-  const canEdit = user?.role === 'Superadmin' || user?.role === 'Editor';
+  const isSuperadmin = hasRole('Superadmin');
+  const isAdminUangMakan = hasRole('Admin Uang Makan');
+  const isAdminPerencanaan = hasRole('Admin Perencanaan & Layanan') || hasRole('Admin Perencanaan') || isSuperadmin;
+  const isAdminBangkom = hasRole('Admin Pengembangan Kompetensi') || hasRole('Admin Bangkom') || isSuperadmin;
+  const isAdminKarier = hasRole('Admin Pengelolaan Karier') || hasRole('Admin Manajemen Karier') || isSuperadmin;
+  
+  const canEdit = isSuperadmin || userRoles.some(r => [
+    'Editor', 
+    'Admin Perencanaan & Layanan', 
+    'Admin Pengembangan Kompetensi', 
+    'Admin Pengelolaan Karier', 
+    'Admin Uang Makan'
+  ].includes(r));
+
+  const activeRole = user?.activeRole || user?.role || 'Viewer';
+  const isMultiRole = userRoles.length > 1;
 
   if (loading) {
     return (
@@ -83,7 +150,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, logActivity, isAuthenticated, isSuperadmin, canEdit, isAdminUangMakan }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      logout, 
+      logActivity, 
+      isAuthenticated, 
+      isSuperadmin, 
+      canEdit, 
+      isAdminUangMakan,
+      isAdminPerencanaan,
+      isAdminBangkom,
+      isAdminKarier,
+      userRoles,
+      activeRole,
+      setActiveRole,
+      hasRole,
+      isMultiRole
+    }}>
       {children}
     </AuthContext.Provider>
   );

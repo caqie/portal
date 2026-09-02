@@ -1,6 +1,7 @@
 
-import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom, PenilaianTalenta, TalentPool, AssessmentTalenta, NineBoxTalenta, PengembanganTalenta, PengajuanSDM, DokumenPengajuan, LogPengajuan, PesanPengajuan, MasterLayanan, MasterPetugasSDM } from './types';
+import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom, PenilaianTalenta, TalentPool, AssessmentTalenta, NineBoxTalenta, PengembanganTalenta, PengajuanSDM, DokumenPengajuan, LogPengajuan, PesanPengajuan, MasterLayanan, MasterPetugasSDM, TupoksiSDMItem } from './types';
 import { MASTER_LAYANAN_DATA } from './layananMasterData';
+import { INITIAL_TUPOKSI_SDM } from './tupoksiConstants';
 import { getJabatanClassification } from './constants';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
@@ -43,11 +44,13 @@ export const DEFAULT_GIDS = {
   LAYANAN_SDM_DOKUMEN: '718203',
   LAYANAN_SDM_LOG: '718204',
   LAYANAN_SDM_PESAN: '718205',
-  MASTER_PETUGAS_SDM: '718206'
+  MASTER_PETUGAS_SDM: '718206',
+  TUPOKSI_SDM: '718301'
 };
 
 export const EXPECTED_COLUMNS_SCHEMA = {
-  USERS: ['ID', 'NIP', 'NAME', 'PASSWORD', 'ROLE', 'STATUS'],
+  USERS: ['ID', 'NIP', 'NAME', 'PASSWORD', 'ROLE', 'ROLES', 'STATUS'],
+  TUPOKSI_SDM: ['ID', 'KODETUPOKSI', 'SUBTEAM', 'ROLENAME', 'JUDUL', 'DESKRIPSI', 'PERIODE', 'TARGETOUTPUT', 'STATUS', 'PROGRES', 'PENANGGUNGJAWAB', 'NIPPJ', 'DOKUMENDUKUNGURL', 'DOKUMENDUKUNGNAMA', 'APPMODULELINK', 'CATATAN', 'UPDATEDAT'],
   PEGAWAI: [
     'ID', 'NIP', 'NAMA', 'JABATAN', 'UNIT KERJA', 'GOL RUANG', 'JENIS PEGAWAI', 'STATUS',
     'GENDER', 'TEMPAT LAHIR', 'TANGGAL LAHIR', 'AGAMA', 'ALAMAT', 'JENIS JABATAN', 'KLASIFIKASI JABATAN',
@@ -419,7 +422,8 @@ const STORAGE_KEY_MAP: Record<string, string> = {
   'LAYANAN_SDM': 'layanan_sdm_db',
   'LAYANAN_SDM_DOKUMEN': 'layanan_sdm_dokumen_db',
   'LAYANAN_SDM_LOG': 'layanan_sdm_log_db',
-  'LAYANAN_SDM_PESAN': 'layanan_sdm_pesan_db'
+  'LAYANAN_SDM_PESAN': 'layanan_sdm_pesan_db',
+  'TUPOKSI_SDM': 'tupoksi_sdm_db'
 };
 
 export const applyLocalCacheUpdate = (moduleName: string, action: 'SAVE' | 'DELETE', data: any) => {
@@ -1138,16 +1142,84 @@ export const fetchDossiersFromSheets = (bypassCache = false) => fetchTableData<D
 
 export const fetchUsersFromSheets = (bypassCache = false) => fetchTableData<AdminUser>('USERS', 'portal_users_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    const rawRole = (get('ROLE') as any) || 'Viewer';
+    const rawRoles = get('ROLES');
+    let parsedRoles: string[] = [];
+    if (rawRoles) {
+      try {
+        const p = JSON.parse(rawRoles);
+        if (Array.isArray(p)) parsedRoles = p;
+        else parsedRoles = [rawRoles];
+      } catch (e) {
+        parsedRoles = rawRoles.split(/[,;|]/).map(r => r.trim()).filter(Boolean);
+      }
+    }
+    if (parsedRoles.length === 0) {
+      parsedRoles = [rawRole];
+    }
+    const rolesList = Array.from(new Set([rawRole, ...parsedRoles]));
     return { 
       id: get('ID'), 
       nip: (get('NIP') || '').replace(/\D/g, ''), 
       name: get('NAME'), 
       password: get('PASSWORD'), 
-      role: (get('ROLE') as any) || 'Viewer', 
+      role: rawRole,
+      roles: rolesList,
       foto: get('FOTO'),
       status: (get('STATUS') as any) || 'Aktif'
     };
 }, bypassCache);
+
+export const fetchTupoksiSDMFromSheets = async (bypassCache = false): Promise<TupoksiSDMItem[]> => {
+  const data = await fetchTableData<TupoksiSDMItem>('TUPOKSI_SDM', 'tupoksi_sdm_db', (cols, headers) => {
+    const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
+    const id = get('ID') || get('KODETUPOKSI');
+    if (!id && !get('JUDUL')) return null;
+    return {
+      id: id || `TUP-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      kodeTupoksi: get('KODETUPOKSI') || get('ID') || 'TUP-SDM',
+      subTeam: (get('SUBTEAM') || 'PERENCANAAN_LAYANAN') as any,
+      roleName: get('ROLENAME') || 'Admin Perencanaan & Layanan',
+      judul: get('JUDUL'),
+      deskripsi: get('DESKRIPSI'),
+      periode: get('PERIODE') || 'Tahunan',
+      targetOutput: get('TARGETOUTPUT') || get('OUTPUT'),
+      status: (get('STATUS') || 'DALAM_PROSES') as any,
+      progres: parseFloat(get('PROGRES')) || 0,
+      penanggungJawab: get('PENANGGUNGJAWAB') || get('PJ'),
+      nipPj: get('NIPPJ'),
+      dokumenDukungUrl: get('DOKUMENDUKUNGURL'),
+      dokumenDukungNama: get('DOKUMENDUKUNGNAMA'),
+      appModuleLink: get('APPMODULELINK'),
+      catatan: get('CATATAN'),
+      updatedAt: get('UPDATEDAT') || new Date().toISOString()
+    };
+  }, bypassCache);
+
+  if (data && data.length > 0) {
+    return data;
+  }
+
+  // Fallback to rich default initial tupoksi items
+  const cached = localStorage.getItem('tupoksi_sdm_db');
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch(e) {}
+  }
+  
+  localStorage.setItem('tupoksi_sdm_db', JSON.stringify(INITIAL_TUPOKSI_SDM));
+  return INITIAL_TUPOKSI_SDM;
+};
+
+export const saveTupoksiSDM = async (item: TupoksiSDMItem): Promise<boolean> => {
+  return syncTableRemote('TUPOKSI_SDM', 'SAVE', item);
+};
+
+export const deleteTupoksiSDM = async (id: string): Promise<boolean> => {
+  return syncTableRemote('TUPOKSI_SDM', 'DELETE', { id });
+};
 
 export const fetchPelantikanFromSheets = (bypassCache = false) => fetchTableData<any>('PELANTIKAN', 'pelantikan_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };

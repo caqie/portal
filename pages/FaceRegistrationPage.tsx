@@ -12,6 +12,7 @@ import {
   getFaceRegistrationByNip,
   saveFaceRegistration
 } from '../services/smartPresensi/SmartAttendanceService';
+import { PresensiNavigationHeader } from '../components/PresensiNavigationHeader';
 
 export const FaceRegistrationPage: React.FC = () => {
   const { id, nip } = useParams<{ id?: string; nip?: string }>();
@@ -183,38 +184,11 @@ export const FaceRegistrationPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-16 animate-fadeIn">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-2xl bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-600 transition-colors"
-          >
-            <i className="bi bi-arrow-left"></i>
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                Biometric Enrollment • Mode Upload Foto
-              </span>
-            </div>
-            <h1 className="text-xl font-black text-gray-950 tracking-tight mt-0.5">
-              Registrasi Wajah Pegawai
-            </h1>
-          </div>
-        </div>
-
-        {existingReg && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-emerald-50 border border-emerald-200">
-            <i className="bi bi-shield-fill-check text-emerald-600 text-sm"></i>
-            <div>
-              <p className="text-[9px] font-black text-emerald-800 uppercase tracking-wider">Status: TERDAFTAR (v{existingReg.version})</p>
-              <p className="text-[8px] text-emerald-600 font-semibold">Skor Kualitas: {existingReg.quality_score}%</p>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Universal Presensi Hub Header */}
+      <PresensiNavigationHeader 
+        title="Registrasi Wajah Pegawai"
+        subtitle="Biometric Enrollment Master • Pendaftaran Foto Master Presensi"
+      />
 
       {/* Identity Card */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-6 md:p-8 rounded-3xl shadow-xl relative overflow-hidden">

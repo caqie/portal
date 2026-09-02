@@ -19,6 +19,7 @@ import {
   formatMonthFolderLabel, 
   StoredPdfRecord 
 } from '../pdfStorageUtils';
+import { PresensiNavigationHeader } from '../components/PresensiNavigationHeader';
 
 const RekapAbsensiPage = () => {
   const { user, logActivity } = useAuth();
@@ -677,23 +678,32 @@ const RekapAbsensiPage = () => {
   const totalPages = Math.ceil(filteredResults.length / resultsPerPage);
 
   return (
-    <div className="space-y-8 animate-fadeIn pb-24 text-black">
+    <div className="space-y-6 animate-fadeIn pb-24 text-black">
+      {/* Universal Presensi Hub Header */}
+      <PresensiNavigationHeader 
+        title="Manajemen & Rekapitulasi Absensi"
+        subtitle="Monitoring Kehadiran Biometrik, Pengolahan PDF Bulk & Matriks Absensi Bulanan"
+      />
+
       {/* HEADER WITH TAB TOGGLES */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 border-b border-gray-100 pb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 md:p-5 rounded-2xl border border-gray-100 shadow-sm">
         <div>
-          <h3 className="text-2xl md:text-4xl font-black text-gray-950 uppercase tracking-tighter leading-none">Manajemen & Rekap Absensi</h3>
-          <p className="text-[10px] md:text-[11px] text-gray-400 font-bold uppercase tracking-[0.3em] mt-3">Monitoring Kehadiran Biometrik & Kalkulasi Laporan PDF Bulk</p>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
+            <span className="text-xs font-black text-gray-900 tracking-tight">Opsi Tampilan & Pengolahan Data Presensi</span>
+          </div>
+          <p className="text-[10px] text-gray-400 font-bold mt-0.5">Pilih mode riwayat presensi biometrik atau pengolahan dokumen PDF bulk</p>
         </div>
-        <div className="flex bg-gray-100 p-1.5 rounded-2xl self-start lg:self-auto shadow-inner">
+        <div className="flex bg-gray-100 p-1 rounded-xl self-start lg:self-auto shadow-inner">
           <button 
             onClick={() => setActiveTab('log')}
-            className={`px-5 py-3 rounded-xl font-extrabold text-[11px] uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'log' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500 hover:text-gray-900'}`}
+            className={`px-4 py-2 rounded-lg font-extrabold text-[11px] uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'log' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500 hover:text-gray-900'}`}
           >
             <i className="bi bi-clock-history text-sm"></i> Riwayat Biometrik
           </button>
           <button 
             onClick={() => setActiveTab('rekap_pdf')}
-            className={`px-5 py-3 rounded-xl font-extrabold text-[11px] uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'rekap_pdf' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500 hover:text-gray-900'}`}
+            className={`px-4 py-2 rounded-lg font-extrabold text-[11px] uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'rekap_pdf' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500 hover:text-gray-900'}`}
           >
             <i className="bi bi-file-earmark-pdf-fill text-sm"></i> Rekap PDF Bulk (&gt;500 File)
           </button>

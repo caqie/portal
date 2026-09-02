@@ -31,7 +31,7 @@ const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: str
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, logActivity, isSuperadmin } = useAuth();
+  const { user, logActivity, isSuperadmin, canEdit, isAdminPerencanaan, isAdminBangkom, isAdminKarier, isAdminUangMakan } = useAuth();
   const [pegawai, setPegawai] = useState<Pegawai[]>(() => {
     const cached = localStorage.getItem('portal_pegawai_db');
     if (cached) {
@@ -704,7 +704,7 @@ const Dashboard = () => {
     logActivity('DOWNLOAD', 'Dashboard', 'Download Matriks Jabatan Lengkap (Excel Export)');
   };
 
-  const isViewerRole = !isSuperadmin && user?.role !== 'Editor' && user?.role !== 'Admin Uang Makan';
+  const isViewerRole = !canEdit;
   const [viewMode, setViewMode] = useState<'user' | 'admin'>(() => isViewerRole ? 'user' : 'admin');
 
   useEffect(() => {
@@ -717,7 +717,7 @@ const Dashboard = () => {
   if (viewMode === 'user') {
     return (
       <UserSelfServiceDashboard 
-        canViewAdminSwitch={isSuperadmin || user?.role === 'Editor'} 
+        canViewAdminSwitch={canEdit} 
         onSwitchToAdminView={() => setViewMode('admin')} 
       />
     );
@@ -726,11 +726,11 @@ const Dashboard = () => {
   return (
     <div className="space-y-8 md:space-y-12 animate-fadeIn pb-24">
       {/* Top Banner for Admin with option to preview User Dashboard */}
-      {(isSuperadmin || user?.role === 'Editor') && (
+      {canEdit && (
         <div className="flex items-center justify-between bg-white px-5 py-3 rounded-2xl border border-gray-200/80 shadow-sm">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-blue-600"></span>
-            <span className="text-xs font-bold text-gray-700">Mode Tampilan: <strong>Admin Intelligence Hub SDM DJKI</strong></span>
+            <span className="text-xs font-bold text-gray-700">Mode Tampilan: <strong>Pusat Kendali Admin SDM ({user?.activeRole || user?.role})</strong></span>
           </div>
           <button
             onClick={() => setViewMode('user')}
@@ -792,6 +792,202 @@ const Dashboard = () => {
 
       {/* PUSAT TAUTAN APLIKASI KEPEGAWAIAN (SIMPEG, SERAYA, SIASN, SIAP ADMIN, DOSSIER ADMIN) */}
       <ExternalAppLinks title="Pusat Portal &amp; Aplikasi Kepegawaian Terpadu" subtitle="Akses langsung ke SIMPEG, SERAYA, SIASN BKN, SIAP Administrator, dan Dossier Digital" />
+
+      {/* PUSAT OPERASIONAL ADMIN BERDASARKAN SUB-TIM SDM */}
+      {canEdit && (
+        <div className="bg-white rounded-[2.5rem] p-6 md:p-8 border border-gray-100 shadow-sm space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse"></span>
+                <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">Workbench Admin SDM</span>
+              </div>
+              <h4 className="text-lg md:text-xl font-black text-gray-950 tracking-tight mt-1">
+                Pusat Akses Cepat Operasional Sub-Tim Kerja SDM
+              </h4>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">
+                Akses langsung ke modul tugas dan wewenang sesuai pembagian peran administrasi dan regulasi Tupoksi Anda.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button 
+                onClick={() => navigate('/tupoksi-sdm')} 
+                className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition-all flex items-center gap-1.5"
+              >
+                <i className="bi bi-kanban-fill"></i>
+                <span>Matriks Tupoksi (28 Butir Tugas)</span>
+              </button>
+              <button 
+                onClick={() => navigate('/layanan')} 
+                className="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-bold rounded-xl border border-gray-200/80 transition-all flex items-center gap-1.5"
+              >
+                <i className="bi bi-grid"></i>
+                <span>Katalog Modul</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* SUB-TIM 1 */}
+            <div className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
+              isAdminPerencanaan || isSuperadmin ? 'bg-cyan-50/40 border-cyan-200 shadow-sm' : 'bg-gray-50/50 border-gray-100 opacity-80'
+            }`}>
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-xl bg-cyan-600 text-white flex items-center justify-center text-sm shadow-md">
+                      <i className="bi bi-diagram-3-fill"></i>
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-black text-gray-900 leading-none">Sub-Tim 1: Perencanaan &amp; Layanan</h5>
+                      <p className="text-[9px] text-cyan-700 font-bold mt-0.5">ANJAB, ABK, SPMT, Layanan &amp; SAKIP</p>
+                    </div>
+                  </div>
+                  {(isAdminPerencanaan || isSuperadmin) && (
+                    <span className="px-2 py-0.5 bg-cyan-600 text-white text-[8px] font-black rounded uppercase">Kelola</span>
+                  )}
+                </div>
+                <div className="space-y-1.5 mt-3">
+                  <button onClick={() => navigate('/anjab-abk')} className="w-full text-left px-3 py-2 bg-white hover:bg-cyan-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-cyan-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-calculator text-cyan-600"></i> ANJAB &amp; ABK Formasi</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <button onClick={() => navigate('/spmt-spp')} className="w-full text-left px-3 py-2 bg-white hover:bg-cyan-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-cyan-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-file-earmark-text text-cyan-600"></i> SPMT &amp; SPP Pelantikan</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <button onClick={() => navigate('/pelantikan-gen')} className="w-full text-left px-3 py-2 bg-white hover:bg-cyan-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-cyan-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-patch-check text-cyan-600"></i> Berita Acara Pelantikan &amp; Sumpah</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <button onClick={() => navigate('/admin/layanan-sdm')} className="w-full text-left px-3 py-2 bg-white hover:bg-cyan-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-cyan-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-shield-check text-cyan-600"></i> Admin Layanan SDM (Tiket)</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <button onClick={() => navigate('/anggaran-dipa')} className="w-full text-left px-3 py-2 bg-white hover:bg-cyan-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-cyan-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-wallet2 text-cyan-600"></i> Anggaran &amp; DIPA SDM (POK)</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <button onClick={() => navigate('/sakip-rb')} className="w-full text-left px-3 py-2 bg-white hover:bg-cyan-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-cyan-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-ui-checks text-cyan-600"></i> SAKIP, LKE RB &amp; Indeks SDM</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button onClick={() => navigate('/laporan')} className="text-left px-2.5 py-2 bg-white hover:bg-cyan-100/50 rounded-xl text-[11px] font-bold text-gray-800 flex items-center justify-between border border-cyan-100 shadow-2xs transition-all">
+                      <span className="flex items-center gap-1.5 truncate"><i className="bi bi-file-earmark-bar-graph text-cyan-600"></i> Laporan Pegawai</span>
+                      <i className="bi bi-chevron-right text-[8px] text-gray-400"></i>
+                    </button>
+                    <button onClick={() => navigate('/keuangan')} className="text-left px-2.5 py-2 bg-white hover:bg-cyan-100/50 rounded-xl text-[11px] font-bold text-gray-800 flex items-center justify-between border border-cyan-100 shadow-2xs transition-all">
+                      <span className="flex items-center gap-1.5 truncate"><i className="bi bi-cash-stack text-cyan-600"></i> SPJ Keuangan</span>
+                      <i className="bi bi-chevron-right text-[8px] text-gray-400"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SUB-TIM 2 */}
+            <div className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
+              isAdminBangkom || isSuperadmin ? 'bg-indigo-50/40 border-indigo-200 shadow-sm' : 'bg-gray-50/50 border-gray-100 opacity-80'
+            }`}>
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm shadow-md">
+                      <i className="bi bi-mortarboard-fill"></i>
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-black text-gray-900 leading-none">Sub-Tim 2: Bangkom (Kompetensi)</h5>
+                      <p className="text-[9px] text-indigo-700 font-bold mt-0.5">TNA, 20 JP, Magang, UKOM &amp; 9-Box</p>
+                    </div>
+                  </div>
+                  {(isAdminBangkom || isSuperadmin) && (
+                    <span className="px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black rounded uppercase">Kelola</span>
+                  )}
+                </div>
+                <div className="space-y-1.5 mt-3">
+                  <button onClick={() => navigate('/pengembangan')} className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-indigo-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-mortarboard text-indigo-600"></i> Bangkom &amp; 20 JP ASN</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <button onClick={() => navigate('/magang-pkl')} className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-indigo-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-person-workspace text-indigo-600"></i> Magang / PKL &amp; Tubel/Ibel</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <button onClick={() => navigate('/ukom/admin')} className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-indigo-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-pc-display-horizontal text-indigo-600"></i> Admin CAT Ujian Kompetensi</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <button onClick={() => navigate('/talenta')} className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-indigo-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-star-half text-indigo-600"></i> 9-Box Talenta &amp; SKJ</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <button onClick={() => navigate('/quizdjki')} className="w-full text-left px-3 py-2 bg-white hover:bg-indigo-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-indigo-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-controller text-indigo-600"></i> QuizDJKI (Game Kompetensi)</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* SUB-TIM 3 */}
+            <div className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
+              isAdminKarier || isSuperadmin ? 'bg-blue-50/50 border-blue-200 shadow-sm' : 'bg-gray-50/50 border-gray-100 opacity-80'
+            }`}>
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-xl bg-blue-800 text-white flex items-center justify-center text-sm shadow-md">
+                      <i className="bi bi-briefcase-fill"></i>
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-black text-gray-900 leading-none">Sub-Tim 3: Karier &amp; Disiplin</h5>
+                      <p className="text-[9px] text-blue-800 font-bold mt-0.5">KP, KGB, SKP, PAK, Disiplin &amp; Pensiun</p>
+                    </div>
+                  </div>
+                  {(isAdminKarier || isSuperadmin) && (
+                    <span className="px-2 py-0.5 bg-blue-800 text-white text-[8px] font-black rounded uppercase">Kelola</span>
+                  )}
+                </div>
+                <div className="space-y-1.5 mt-3">
+                  <button onClick={() => navigate('/kenaikan-pangkat')} className="w-full text-left px-3 py-2 bg-white hover:bg-blue-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-blue-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-award text-blue-800"></i> Kenaikan Pangkat (6 Periode)</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <button onClick={() => navigate('/kgb-gen')} className="w-full text-left px-3 py-2 bg-white hover:bg-blue-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-blue-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-cash-stack text-blue-800"></i> Generator SK KGB Otomatis</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button onClick={() => navigate('/skp')} className="text-left px-2.5 py-2 bg-white hover:bg-blue-100/50 rounded-xl text-[11px] font-bold text-gray-800 flex items-center justify-between border border-blue-100 shadow-2xs transition-all">
+                      <span className="flex items-center gap-1.5 truncate"><i className="bi bi-graph-up-arrow text-blue-800"></i> E-Kinerja &amp; SKP</span>
+                      <i className="bi bi-chevron-right text-[8px] text-gray-400"></i>
+                    </button>
+                    <button onClick={() => navigate('/pak')} className="text-left px-2.5 py-2 bg-white hover:bg-blue-100/50 rounded-xl text-[11px] font-bold text-gray-800 flex items-center justify-between border border-blue-100 shadow-2xs transition-all">
+                      <span className="flex items-center gap-1.5 truncate"><i className="bi bi-patch-check text-blue-800"></i> Angka Kredit (PAK)</span>
+                      <i className="bi bi-chevron-right text-[8px] text-gray-400"></i>
+                    </button>
+                  </div>
+                  <button onClick={() => navigate('/disiplin-lhkpn')} className="w-full text-left px-3 py-2 bg-white hover:bg-blue-100/50 rounded-xl text-xs font-bold text-gray-800 flex items-center justify-between border border-blue-100 shadow-2xs transition-all">
+                    <span className="flex items-center gap-2"><i className="bi bi-shield-slash text-blue-800"></i> Disiplin PP 94 &amp; LHKPN/LHKASN</span>
+                    <i className="bi bi-chevron-right text-[10px] text-gray-400"></i>
+                  </button>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button onClick={() => navigate('/satya-lencana')} className="text-left px-2.5 py-2 bg-white hover:bg-blue-100/50 rounded-xl text-[11px] font-bold text-gray-800 flex items-center justify-between border border-blue-100 shadow-2xs transition-all">
+                      <span className="flex items-center gap-1.5 truncate"><i className="bi bi-star-fill text-amber-600"></i> Satyalancana</span>
+                      <i className="bi bi-chevron-right text-[8px] text-gray-400"></i>
+                    </button>
+                    <button onClick={() => navigate('/pensiun')} className="text-left px-2.5 py-2 bg-white hover:bg-blue-100/50 rounded-xl text-[11px] font-bold text-gray-800 flex items-center justify-between border border-blue-100 shadow-2xs transition-all">
+                      <span className="flex items-center gap-1.5 truncate"><i className="bi bi-door-open text-rose-600"></i> Pensiun &amp; DPCP</span>
+                      <i className="bi bi-chevron-right text-[8px] text-gray-400"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TROUBLESHOOTING & INTEGRATION PANEL (Hanya tampil untuk Superadmin / Editor) */}
       {!isViewerRole && (connectionError || activePegawaiList.length === 0) && !isErrorDismissed && (

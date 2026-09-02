@@ -35,6 +35,7 @@ import {
   formatMonthFolderLabel, 
   StoredPdfRecord 
 } from '../pdfStorageUtils';
+import { PresensiNavigationHeader } from '../components/PresensiNavigationHeader';
 import { uploadFileToDrive } from '../spreadsheetService';
 
 // Tariff Configuration Interface per Golongan (PMK Standard)
@@ -1089,7 +1090,13 @@ const UangMakanPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn pb-16">
+    <div className="space-y-6 animate-fadeIn pb-16">
+      {/* Universal Presensi Hub Header */}
+      <PresensiNavigationHeader 
+        title="Pengolahan & Rekapitulasi Uang Makan Pegawai"
+        subtitle="Sistem Rekapitulasi Otomatis Berbasis Tarif PMK, Kalender Libur Nasional & Presensi Bulanan"
+      />
+
       {/* HEADER SECTION */}
       <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 p-8 md:p-12 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 skew-x-12 pointer-events-none"></div>

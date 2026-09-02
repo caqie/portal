@@ -339,7 +339,46 @@ export interface KGB {
 export interface Dossier { id: string; nip: string; namaPegawai: string; tanggal: string; keterangan: string; fileName: string; fileUrl?: string; }
 export interface TugasRutin { id: string; timestamp: string; bulan: string; tahun: number; jenis: TaskType; detail: string; data?: any; }
 export interface AuditLog { id: string; timestamp: string; userNip: string; userName: string; action: 'CREATE' | 'UPDATE' | 'DELETE' | 'DOWNLOAD' | 'LOGIN' | 'EXPORT' | 'PRESENSI'; module: string; description: string; }
-export interface AdminUser { id: string; nip: string; name: string; password?: string; role: 'Superadmin' | 'Editor' | 'Viewer' | 'Admin Uang Makan'; foto?: string; status?: 'Aktif' | 'Nonaktif'; }
+export type SDMRole = 
+  | 'Superadmin' 
+  | 'Admin Perencanaan & Layanan' 
+  | 'Admin Pengembangan Kompetensi' 
+  | 'Admin Pengelolaan Karier' 
+  | 'Admin Uang Makan' 
+  | 'Editor' 
+  | 'Viewer';
+
+export interface AdminUser { 
+  id: string; 
+  nip: string; 
+  name: string; 
+  password?: string; 
+  role: SDMRole | string; 
+  roles?: (SDMRole | string)[]; 
+  activeRole?: SDMRole | string;
+  foto?: string; 
+  status?: 'Aktif' | 'Nonaktif'; 
+}
+
+export interface TupoksiSDMItem {
+  id: string;
+  subTeam: 'PERENCANAAN_LAYANAN' | 'BANGKOM' | 'KARIER';
+  roleName: string;
+  kodeTupoksi: string;
+  judul: string;
+  deskripsi: string;
+  periode: string;
+  targetOutput: string;
+  status: 'BELUM_DIMULAI' | 'DALAM_PROSES' | 'SELESAI' | 'TERUS_BERJALAN';
+  progres: number; // 0 to 100
+  penanggungJawab?: string;
+  nipPj?: string;
+  dokumenDukungUrl?: string;
+  dokumenDukungNama?: string;
+  appModuleLink?: string;
+  catatan?: string;
+  updatedAt?: string;
+}
 export interface CloudConfig { driveFolderId: string; appsScriptUrl: string; logoUrl?: string; }
 export interface SpmtSppRecord { 
   id: string; 
