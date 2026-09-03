@@ -237,11 +237,7 @@ export const SAMPLE_ABK_PETA_KEBUTUHAN = [
 
 export const initializeAllSDMData = (forceReload = false) => {
   try {
-    // 1. Initialize Pegawai Master
-    const existingPegawai = localStorage.getItem('portal_pegawai_db');
-    if (!existingPegawai || forceReload) {
-      localStorage.setItem('portal_pegawai_db', JSON.stringify(SAMPLE_PEGAWAI_SDM));
-    }
+    // 1. Pegawai Master is handled live from Google Sheets/Database. Do not overwrite with mock data.
 
     // 2. Initialize Layanan SDM Pengajuan DB
     const existingPengajuan = localStorage.getItem('layanan_sdm_pengajuan_db');

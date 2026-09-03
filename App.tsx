@@ -312,13 +312,15 @@ const AppContent = () => {
 
   if (!isAuthenticated && !location.pathname.startsWith('/ukom') && !location.pathname.startsWith('/quizdjki') && location.pathname !== '/login') return <Navigate to="/login" replace />;
   if (location.pathname === '/login' && isAuthenticated) {
-    if (user?.role === 'Admin Uang Makan') {
+    const onlyUangMakan = hasRole('Admin Uang Makan') && !hasRole('Superadmin') && !hasRole('Editor') && !hasRole('Admin Perencanaan & Layanan') && !hasRole('Admin Pengembangan Kompetensi') && !hasRole('Admin Pengelolaan Karier');
+    if (onlyUangMakan) {
       return <Navigate to="/uang-makan" replace />;
     }
     return <Navigate to="/" replace />;
   }
   if (location.pathname === '/login') return <LoginPage />;
-  if (location.pathname === '/' && user?.role === 'Admin Uang Makan') {
+  const onlyUangMakanRole = hasRole('Admin Uang Makan') && !hasRole('Superadmin') && !hasRole('Editor') && !hasRole('Admin Perencanaan & Layanan') && !hasRole('Admin Pengembangan Kompetensi') && !hasRole('Admin Pengelolaan Karier');
+  if (location.pathname === '/' && onlyUangMakanRole) {
     return <Navigate to="/uang-makan" replace />;
   }
   

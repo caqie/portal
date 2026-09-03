@@ -1,11 +1,12 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AdminUser, AuditLog, SDMRole } from './types';
+import { AdminUser, AuditLog, SDMRole, normalizeRolesList } from './types';
 
 interface AuthContextType {
   user: AdminUser | null;
   login: (user: AdminUser) => void;
   logout: () => void;
+  updateUser: (updatedUser: Partial<AdminUser>) => void;
   logActivity: (action: AuditLog['action'], module: string, description: string) => void;
   isAuthenticated: boolean;
   isSuperadmin: boolean;
@@ -17,7 +18,7 @@ interface AuthContextType {
   userRoles: string[];
   activeRole: string;
   setActiveRole: (role: string) => void;
-  hasRole: (roleName: string) => boolean;
+  hasRole: (roleName?: string) => boolean;
   isMultiRole: boolean;
 }
 
@@ -32,14 +33,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (savedUser) {
       try {
         const parsed: AdminUser = JSON.parse(savedUser);
-        // Normalize roles array if only single role is present
-        if (!parsed.roles || parsed.roles.length === 0) {
-          parsed.roles = parsed.role ? [parsed.role] : ['Viewer'];
-        }
-        if (!parsed.activeRole) {
-          parsed.activeRole = parsed.roles[0] || parsed.role || 'Viewer';
-        }
-        setUser(parsed);
+        const rolesList = normalizeRolesList(parsed.roles, parsed.role);
+        const primaryRole = parsed.role || rolesList[0] || 'Viewer';
+        const activeRole = parsed.activeRole && rolesList.includes(parsed.activeRole as any)
+          ? parsed.activeRole
+          : primaryRole;
+
+        const normalized: AdminUser = {
+          ...parsed,
+          role: primaryRole,
+          roles: rolesList,
+          activeRole: activeRole
+        };
+        setUser(normalized);
       } catch (e) {
         console.error("Auth initialization error:", e);
         localStorage.removeItem('auth_user');
@@ -49,20 +55,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = (userData: AdminUser) => {
-    // Ensure roles array is populated
-    const rolesList = Array.isArray(userData.roles) && userData.roles.length > 0 
-      ? Array.from(new Set([userData.role, ...userData.roles])).filter(Boolean) as (SDMRole | string)[]
-      : [userData.role || 'Viewer'];
+    const rolesList = normalizeRolesList(userData.roles, userData.role);
+    const primaryRole = userData.role || rolesList[0] || 'Viewer';
+    const activeRole = userData.activeRole && rolesList.includes(userData.activeRole as any)
+      ? userData.activeRole
+      : (rolesList[0] || primaryRole);
 
     const normalizedUser: AdminUser = {
       ...userData,
+      role: primaryRole,
       roles: rolesList,
-      activeRole: userData.activeRole || rolesList[0] || userData.role || 'Viewer'
+      activeRole: activeRole
     };
 
     setUser(normalizedUser);
     localStorage.setItem('auth_user', JSON.stringify(normalizedUser));
     logActivity('LOGIN', 'Auth', `User ${normalizedUser.name} (${rolesList.join(', ')}) berhasil login ke sistem.`, normalizedUser);
+  };
+
+  const updateUser = (updatedData: Partial<AdminUser>) => {
+    setUser(prev => {
+      if (!prev) return null;
+      const rolesList = normalizeRolesList(updatedData.roles ?? prev.roles, updatedData.role ?? prev.role);
+      const primaryRole = updatedData.role || (rolesList.includes(prev.role as any) ? prev.role : rolesList[0]) || 'Viewer';
+      const activeRole = updatedData.activeRole && rolesList.includes(updatedData.activeRole as any)
+        ? updatedData.activeRole
+        : (prev.activeRole && rolesList.includes(prev.activeRole as any) ? prev.activeRole : primaryRole);
+
+      const updated: AdminUser = {
+        ...prev,
+        ...updatedData,
+        role: primaryRole,
+        roles: rolesList,
+        activeRole: activeRole
+      };
+      localStorage.setItem('auth_user', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const logout = () => {
@@ -105,19 +134,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Roles calculation
-  const rawRoles: string[] = user ? [
-    ...(Array.isArray(user.roles) ? user.roles : []),
-    user.role,
-    user.activeRole
-  ].filter(Boolean) as string[] : [];
+  const rawRoles: string[] = [];
+  if (user) {
+    if (Array.isArray(user.roles)) {
+      user.roles.forEach(r => { if (r && typeof r === 'string') rawRoles.push(r.trim()); });
+    }
+    if (user.role && typeof user.role === 'string') rawRoles.push(user.role.trim());
+    if (user.activeRole && typeof user.activeRole === 'string') rawRoles.push(user.activeRole.trim());
+  }
   
-  const userRoles = Array.from(new Set(rawRoles));
+  const userRoles = Array.from(new Set(rawRoles.filter(Boolean)));
 
-  const hasRole = (roleName: string): boolean => {
-    if (!user) return false;
+  const hasRole = (roleName?: string): boolean => {
+    if (!user || !roleName || typeof roleName !== 'string') return false;
     if (user.role === 'Superadmin' || userRoles.includes('Superadmin')) return true;
     const search = roleName.toLowerCase().trim();
+    if (!search) return false;
     return userRoles.some(r => {
+      if (!r || typeof r !== 'string') return false;
       const lower = r.toLowerCase().trim();
       return lower === search || lower.includes(search) || search.includes(lower);
     });
@@ -154,6 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user, 
       login, 
       logout, 
+      updateUser,
       logActivity, 
       isAuthenticated, 
       isSuperadmin, 

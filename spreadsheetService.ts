@@ -1,8 +1,8 @@
 
-import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom, PenilaianTalenta, TalentPool, AssessmentTalenta, NineBoxTalenta, PengembanganTalenta, PengajuanSDM, DokumenPengajuan, LogPengajuan, PesanPengajuan, MasterLayanan, MasterPetugasSDM, TupoksiSDMItem } from './types';
+import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom, PenilaianTalenta, TalentPool, AssessmentTalenta, NineBoxTalenta, PengembanganTalenta, PengajuanSDM, DokumenPengajuan, LogPengajuan, PesanPengajuan, MasterLayanan, MasterPetugasSDM, TupoksiSDMItem, normalizeRolesList } from './types';
 import { MASTER_LAYANAN_DATA } from './layananMasterData';
 import { INITIAL_TUPOKSI_SDM } from './tupoksiConstants';
-import { getJabatanClassification } from './constants';
+import { getJabatanClassification, resolveUserPendidikan, getPangkatFromGol } from './constants';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8dTUPkAb1f8EeH3DxXjTd9IZ-yAMUWxSfci9ZBLkMf3gxH3as4GlALPtER6JM-BWD/exec';
@@ -434,15 +434,21 @@ export const applyLocalCacheUpdate = (moduleName: string, action: 'SAVE' | 'DELE
     const parsed = cached ? JSON.parse(cached) : [];
     if (Array.isArray(parsed)) {
       if (action === 'SAVE') {
+        let itemToSave = { ...data };
+        if (moduleName.toUpperCase().trim() === 'USERS') {
+          const rolesList = normalizeRolesList(itemToSave.roles, itemToSave.role);
+          itemToSave.roles = rolesList;
+          itemToSave.role = itemToSave.role || rolesList[0] || 'Viewer';
+        }
         const index = parsed.findIndex((item: any) => 
-          (item.id && data.id && String(item.id) === String(data.id)) || 
-          (item.nip && data.nip && String(item.nip) === String(data.nip)) ||
-          (item.noPeserta && data.noPeserta && String(item.noPeserta) === String(data.noPeserta))
+          (item.id && itemToSave.id && String(item.id) === String(itemToSave.id)) || 
+          (item.nip && itemToSave.nip && String(item.nip) === String(itemToSave.nip)) ||
+          (item.noPeserta && itemToSave.noPeserta && String(item.noPeserta) === String(itemToSave.noPeserta))
         );
         if (index !== -1) {
-          parsed[index] = { ...parsed[index], ...data };
+          parsed[index] = { ...parsed[index], ...itemToSave };
         } else {
-          parsed.push(data);
+          parsed.push(itemToSave);
         }
         localStorage.setItem(key, JSON.stringify(parsed));
       } else if (action === 'DELETE') {
@@ -512,6 +518,14 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
         finalData[key] = normalizePendidikan(finalData[key]);
       }
     });
+  }
+
+  // Normalize ROLES field for USERS module
+  if (moduleName.toUpperCase().trim() === 'USERS' && action === 'SAVE' && data) {
+    finalData = { ...data };
+    const rolesList = normalizeRolesList(finalData.roles, finalData.role);
+    finalData.roles = JSON.stringify(rolesList);
+    finalData.role = finalData.role || rolesList[0] || 'Viewer';
   }
 
   const cleanUrl = appsScriptUrl.trim();
@@ -663,7 +677,7 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
   const { spreadsheetId, appsScriptUrl, driveFolderId } = getDbConfig();
 
   // Auto-invalidate stale cache if schema version changed
-  const CURRENT_CACHE_VERSION = '2026_09_01_col_an_sync_v2';
+  const CURRENT_CACHE_VERSION = '2026_09_02_database_sync_v3';
   try {
     const storedVersion = localStorage.getItem('portal_cache_schema_version');
     if (storedVersion !== CURRENT_CACHE_VERSION) {
@@ -907,7 +921,13 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
         if (g === 'P' || g.startsWith('PEREMPUAN') || g === 'WANITA' || g === 'W') return 'P';
         return 'L';
       })() as 'L' | 'P',
-      golRuang: get('GOLRUANG') || get('GOLONGAN') || get('PANGKATGOL'), 
+      golRuang: (() => {
+        const raw = (get('GOLRUANG') || get('GOLONGAN') || get('PANGKATGOL') || '').trim();
+        if (!raw || raw === '-') return '';
+        const match = raw.match(/^([I|V|X]+)\s*\/\s*([a-eA-E])$/i);
+        if (match) return `${match[1].toUpperCase()}/${match[2].toLowerCase()}`;
+        return raw.toUpperCase();
+      })(), 
       jenisPegawai: get('JENISPEGAWAI') || get('KATEGORIPEG') || get('TYPE'), 
       status: (() => {
         const rawStatus = (get('STATUS') || get('STATUSPEGAWAI') || '').trim();
@@ -919,13 +939,28 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
         if (lower === 'tugas belajar' || lower === 'tubel' || lower.startsWith('tugas')) return 'Tugas Belajar';
         return rawStatus.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
       })(),
-      pangkat: get('PANGKAT'), 
+      pangkat: (() => {
+        const rawP = (get('PANGKAT') || '').trim();
+        if (rawP && rawP !== '-') return rawP;
+        const gol = (get('GOLRUANG') || get('GOLONGAN') || get('PANGKATGOL') || '').trim();
+        return getPangkatFromGol(gol) || '';
+      })(), 
       foto: get('FOTO') || get('FOTOURL') || get('PHOTO'),
       tmtPangkat: get('TMTPANGKAT') || get('TMT_PANGKAT'), 
       tmtJabatan: get('TMTJABATAN') || get('TMT_JABATAN'), 
       tmtCpns: get('TMTSTATUS') || get('TMTCPNS') || get('TMT_ASN'),
-      pendidikan: get('PENDIDIKAN') || get('PEND'), 
-      jurusan: get('JURUSAN'), 
+      pendidikan: (() => {
+        const rawEdu = (get('PENDIDIKAN') || get('PEND') || '').trim();
+        if (rawEdu && rawEdu !== '-' && rawEdu.toUpperCase() !== 'LAINNYA') return rawEdu;
+        const resolved = resolveUserPendidikan(nama);
+        return resolved?.pendidikan || rawEdu || '';
+      })(), 
+      jurusan: (() => {
+        const rawJur = (get('JURUSAN') || '').trim();
+        if (rawJur && rawJur !== '-') return rawJur;
+        const resolved = resolveUserPendidikan(nama);
+        return resolved?.jurusan || rawJur || '';
+      })(), 
       nik: (get('NIK') || get('NO_NIK')).replace(/\D/g, ''),
       masaKerja: get('MASAKERJA') || get('MK_TOTAL'), 
       tempatLahir: get('TEMPATLAHIR') || get('TMP_LAHIR'), 
@@ -1140,24 +1175,12 @@ export const fetchDossiersFromSheets = (bypassCache = false) => fetchTableData<D
     } as Dossier;
 }, bypassCache);
 
-export const fetchUsersFromSheets = (bypassCache = false) => fetchTableData<AdminUser>('USERS', 'portal_users_db', (cols, headers) => {
+export const fetchUsersFromSheets = async (bypassCache = false): Promise<AdminUser[]> => {
+  const users = await fetchTableData<AdminUser>('USERS', 'portal_users_db', (cols, headers) => {
     const get = (k: string) => { const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); return (i !== -1 && cols[i]) ? cols[i] : ''; };
     const rawRole = (get('ROLE') as any) || 'Viewer';
     const rawRoles = get('ROLES');
-    let parsedRoles: string[] = [];
-    if (rawRoles) {
-      try {
-        const p = JSON.parse(rawRoles);
-        if (Array.isArray(p)) parsedRoles = p;
-        else parsedRoles = [rawRoles];
-      } catch (e) {
-        parsedRoles = rawRoles.split(/[,;|]/).map(r => r.trim()).filter(Boolean);
-      }
-    }
-    if (parsedRoles.length === 0) {
-      parsedRoles = [rawRole];
-    }
-    const rolesList = Array.from(new Set([rawRole, ...parsedRoles]));
+    const rolesList = normalizeRolesList(rawRoles, rawRole);
     return { 
       id: get('ID'), 
       nip: (get('NIP') || '').replace(/\D/g, ''), 
@@ -1168,7 +1191,17 @@ export const fetchUsersFromSheets = (bypassCache = false) => fetchTableData<Admi
       foto: get('FOTO'),
       status: (get('STATUS') as any) || 'Aktif'
     };
-}, bypassCache);
+  }, bypassCache);
+
+  return (users || []).map(u => {
+    const normalizedRoles = normalizeRolesList(u.roles, u.role);
+    return {
+      ...u,
+      roles: normalizedRoles,
+      role: u.role || normalizedRoles[0] || 'Viewer'
+    };
+  });
+};
 
 export const fetchTupoksiSDMFromSheets = async (bypassCache = false): Promise<TupoksiSDMItem[]> => {
   const data = await fetchTableData<TupoksiSDMItem>('TUPOKSI_SDM', 'tupoksi_sdm_db', (cols, headers) => {

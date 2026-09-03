@@ -348,6 +348,45 @@ export type SDMRole =
   | 'Editor' 
   | 'Viewer';
 
+export const normalizeRolesList = (rolesRaw: any, singleRoleRaw?: any): string[] => {
+  let list: string[] = [];
+
+  if (Array.isArray(rolesRaw)) {
+    list = rolesRaw.map(r => String(r).trim()).filter(Boolean);
+  } else if (typeof rolesRaw === 'string' && rolesRaw.trim()) {
+    const trimmed = rolesRaw.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          list = parsed.map(r => String(r).trim()).filter(Boolean);
+        }
+      } catch (e) {
+        list = trimmed
+          .slice(1, -1)
+          .split(',')
+          .map(s => s.replace(/["'\\]/g, '').trim())
+          .filter(Boolean);
+      }
+    } else {
+      list = trimmed.split(/[,;|]/).map(r => r.trim()).filter(Boolean);
+    }
+  }
+
+  if (singleRoleRaw && typeof singleRoleRaw === 'string' && singleRoleRaw.trim()) {
+    const cleanSingle = singleRoleRaw.trim();
+    if (!list.includes(cleanSingle)) {
+      list.unshift(cleanSingle);
+    }
+  }
+
+  if (list.length === 0) {
+    list = ['Viewer'];
+  }
+
+  return Array.from(new Set(list));
+};
+
 export interface AdminUser { 
   id: string; 
   nip: string; 

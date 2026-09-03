@@ -1,14 +1,24 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai, SystemConfig, PageAccess } from '../types';
+import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai, SystemConfig, PageAccess, normalizeRolesList } from '../types';
 import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig, auditSpreadsheet, deleteSheetRemote, EXPECTED_COLUMNS_SCHEMA, saveSharedConfigToServer, parseDateToYYYYMMDD, cleanupEmptyRowsRemote } from '../spreadsheetService';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO, APP_ROUTES, UNIT_KERJA, PANGKAT_MAP } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 
+export const ALL_SYSTEM_ROLES = [
+  { id: 'Superadmin', label: 'Superadmin', desc: 'Akses penuh ke seluruh sistem & konfigurasi cloud', color: 'bg-slate-900 text-white border-slate-900' },
+  { id: 'Admin Perencanaan & Layanan', label: 'Admin Perencanaan & Layanan', desc: 'Roadmap SDM, ABK/ANJAB, SPMT, Presensi, SAKIP/RB, Anggaran', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  { id: 'Admin Pengembangan Kompetensi', label: 'Admin Pengembangan Kompetensi', desc: 'TNA, Bimtek/Diklat, Ujian Dinas, Tugas Belajar, Magang, CAT Ukom, Talenta 9-Box', color: 'bg-amber-50 text-amber-800 border-amber-200' },
+  { id: 'Admin Pengelolaan Karier', label: 'Admin Pengelolaan Karier', desc: 'Disiplin PP 94, Kode Etik, LHKASN, SKP, PAK, Pangkat, KGB, Pensiun, Satyalancana', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  { id: 'Admin Uang Makan', label: 'Admin Uang Makan', desc: 'Perhitungan & Rekapitulasi Uang Makan Pegawai', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  { id: 'Editor', label: 'Editor', desc: 'Akses pengeditan data operasional umum', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  { id: 'Viewer', label: 'Viewer', desc: 'Hanya melihat data (Pegawai/Staf)', color: 'bg-gray-50 text-gray-600 border-gray-200' },
+];
+
 const SettingsPage = () => {
-  const { isSuperadmin, logActivity, user: currentUser, canEdit } = useAuth();
+  const { isSuperadmin, logActivity, user: currentUser, canEdit, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -142,7 +152,7 @@ const SettingsPage = () => {
     setSystemConfig(prev => {
       const pageAccess = prev?.pageAccess || [];
       const existing = pageAccess.find(a => a.route === path);
-      const allRoles = ['Superadmin', 'Editor', 'Viewer', 'Admin Uang Makan'];
+      const allRoles = ALL_SYSTEM_ROLES.map(r => r.id);
       let newAccess: PageAccess[];
       
       if (existing) {
@@ -605,45 +615,37 @@ const SettingsPage = () => {
     finally { setSyncing(false); setCleanupProgress({ current: 0, total: 0, active: false }); }
   };
 
-  const ALL_SYSTEM_ROLES = [
-    { id: 'Superadmin', label: 'Superadmin', desc: 'Akses penuh ke seluruh sistem & konfigurasi cloud', color: 'bg-slate-900 text-white border-slate-900' },
-    { id: 'Admin Perencanaan & Layanan', label: 'Admin Perencanaan & Layanan', desc: 'Roadmap SDM, ABK/ANJAB, SPMT, Presensi, SAKIP/RB, Anggaran', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    { id: 'Admin Pengembangan Kompetensi', label: 'Admin Pengembangan Kompetensi', desc: 'TNA, Bimtek/Diklat, Ujian Dinas, Tugas Belajar, Magang, CAT Ukom, Talenta 9-Box', color: 'bg-amber-50 text-amber-800 border-amber-200' },
-    { id: 'Admin Pengelolaan Karier', label: 'Admin Pengelolaan Karier', desc: 'Disiplin PP 94, Kode Etik, LHKASN, SKP, PAK, Pangkat, KGB, Pensiun, Satyalancana', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-    { id: 'Admin Uang Makan', label: 'Admin Uang Makan', desc: 'Perhitungan & Rekapitulasi Uang Makan Pegawai', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-    { id: 'Editor', label: 'Editor', desc: 'Akses pengeditan data operasional umum', color: 'bg-purple-50 text-purple-700 border-purple-200' },
-    { id: 'Viewer', label: 'Viewer', desc: 'Hanya melihat data (Pegawai/Staf)', color: 'bg-gray-50 text-gray-600 border-gray-200' },
-  ];
-
   const handleUserAction = async (action: 'SAVE' | 'DELETE', userData?: AdminUser) => {
     setLoading(true);
     const targetUser = { ...(userData || (userFormData as AdminUser)) };
     if (action === 'SAVE') {
       if (!targetUser.id) targetUser.id = `USR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      if (!targetUser.roles || targetUser.roles.length === 0) {
-        targetUser.roles = targetUser.role ? [targetUser.role] : ['Viewer'];
+      const normalizedRoles = normalizeRolesList(targetUser.roles, targetUser.role);
+      targetUser.roles = normalizedRoles;
+      if (!targetUser.role || !normalizedRoles.includes(targetUser.role as any)) {
+        targetUser.role = normalizedRoles[0] || 'Viewer';
       }
-      if (!targetUser.role) {
-        targetUser.role = targetUser.roles[0];
-      }
+      targetUser.status = targetUser.status || 'Aktif';
     }
     const payload = action === 'DELETE' 
       ? { ...targetUser, nama: targetUser.name } 
       : {
           ...targetUser,
-          roles: JSON.stringify(targetUser.roles || [targetUser.role || 'Viewer']),
-          ROLES: JSON.stringify(targetUser.roles || [targetUser.role || 'Viewer'])
+          roles: targetUser.roles
         };
     const success = await syncTableRemote('USERS', action === 'SAVE' ? 'SAVE' : 'DELETE', payload);
     if (success) {
+      if (action === 'SAVE' && currentUser && (targetUser.nip === currentUser.nip || targetUser.id === currentUser.id)) {
+        updateUser(targetUser);
+      }
       setTimeout(async () => {
-        const u = await fetchUsersFromSheets();
+        const u = await fetchUsersFromSheets(true);
         setUsers(u);
         setIsUserModalOpen(false);
         setSuccessMsg(`Data User ${targetUser.name} berhasil diproses.`);
         setShowSuccess(true);
         setLoading(false);
-      }, 1000);
+      }, 800);
     } else { 
         alert("Gagal sinkronisasi ke cloud."); 
         setLoading(false); 
@@ -1147,7 +1149,7 @@ const SettingsPage = () => {
                                   type="text" 
                                   className={`${inputClass} font-mono`}
                                   placeholder="Contoh: 19800101..., 19900202..."
-                                  value={access?.nips.join(', ') || ''}
+                                  value={access?.nips?.join(', ') || ''}
                                   onChange={e => updatePageAccess(route.path, 'nips', e.target.value)}
                                 />
                                 <p className="text-[8px] text-gray-400 font-bold uppercase mt-2 ml-2">* Pisahkan dengan koma</p>
@@ -1173,7 +1175,7 @@ const SettingsPage = () => {
                 </div>
                 <button 
                   onClick={() => { 
-                    setUserFormData({ role: 'Viewer', roles: ['Viewer'] }); 
+                    setUserFormData({ role: 'Viewer', roles: ['Viewer'], status: 'Aktif' }); 
                     setShowPassword(false); 
                     setIsUserModalOpen(true); 
                   }} 
@@ -1189,9 +1191,7 @@ const SettingsPage = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {users.map((u, i) => {
-                      const userRolesList = Array.isArray(u.roles) && u.roles.length > 0
-                        ? u.roles
-                        : (u.role ? [u.role] : ['Viewer']);
+                      const userRolesList = normalizeRolesList(u.roles, u.role);
 
                       return (
                         <tr key={`${u.id}-${u.nip}-${i}`} className="group hover:bg-blue-50/10 transition-colors">
@@ -1221,8 +1221,8 @@ const SettingsPage = () => {
                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
                               <button 
                                 onClick={() => { 
-                                  const rolesArr = Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : (u.role ? [u.role] : ['Viewer']);
-                                  setUserFormData({ ...u, roles: rolesArr, role: u.role || rolesArr[0] }); 
+                                  const rolesArr = normalizeRolesList(u.roles, u.role);
+                                  setUserFormData({ ...u, roles: rolesArr, role: u.role || rolesArr[0] || 'Viewer' }); 
                                   setShowPassword(false); 
                                   setIsUserModalOpen(true); 
                                 }} 
@@ -1378,15 +1378,14 @@ const SettingsPage = () => {
                    <div className="flex items-center justify-between">
                      <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Pilih Role Akses (Dapat Memilih Lebih Dari Satu)</label>
                      <span className="text-[8px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
-                       {(Array.isArray(userFormData.roles) && userFormData.roles.length > 0 ? userFormData.roles : [userFormData.role || 'Viewer']).length} Role Terpilih
+                       {normalizeRolesList(userFormData.roles, userFormData.role).length} Role Terpilih
                      </span>
                    </div>
                    <div className="grid grid-cols-1 gap-2 p-3 bg-gray-50/80 rounded-2xl border border-gray-100 max-h-64 overflow-y-auto custom-scrollbar">
                      {ALL_SYSTEM_ROLES.map(roleItem => {
-                       const assignedRoles = Array.isArray(userFormData.roles) && userFormData.roles.length > 0 
-                         ? userFormData.roles 
-                         : (userFormData.role ? [userFormData.role] : ['Viewer']);
+                       const assignedRoles = normalizeRolesList(userFormData.roles, userFormData.role);
                        const isSelected = assignedRoles.includes(roleItem.id);
+                       const isPrimary = (userFormData.role || assignedRoles[0]) === roleItem.id;
 
                        return (
                          <div
@@ -1400,10 +1399,13 @@ const SettingsPage = () => {
                              } else {
                                nextRoles = [...assignedRoles, roleItem.id];
                              }
+                             const nextPrimary = nextRoles.includes(userFormData.role as string)
+                               ? userFormData.role
+                               : nextRoles[0];
                              setUserFormData({
                                ...userFormData,
                                roles: nextRoles,
-                               role: nextRoles[0]
+                               role: nextPrimary
                              });
                            }}
                            className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3 select-none ${
@@ -1418,10 +1420,28 @@ const SettingsPage = () => {
                              <i className="bi bi-check-lg font-black"></i>
                            </div>
                            <div className="flex-1 min-w-0">
-                             <div className="flex items-center gap-2">
-                               <p className="text-[11px] font-black uppercase text-gray-900">{roleItem.label}</p>
-                               {userFormData.role === roleItem.id && (
-                                 <span className="text-[7px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Utama</span>
+                             <div className="flex items-center justify-between">
+                               <div className="flex items-center gap-2">
+                                 <p className="text-[11px] font-black uppercase text-gray-900">{roleItem.label}</p>
+                                 {isPrimary && (
+                                   <span className="text-[7px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Utama</span>
+                                 )}
+                               </div>
+                               {isSelected && !isPrimary && (
+                                 <button
+                                   type="button"
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     setUserFormData({
+                                       ...userFormData,
+                                       roles: assignedRoles,
+                                       role: roleItem.id
+                                     });
+                                   }}
+                                   className="text-[8px] font-bold text-blue-600 hover:text-blue-800 underline uppercase"
+                                 >
+                                   Jadikan Utama
+                                 </button>
                                )}
                              </div>
                              <p className="text-[9px] text-gray-400 font-medium line-clamp-2 mt-0.5">{roleItem.desc}</p>

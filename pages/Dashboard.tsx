@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets, fetchKGBFromSheets, fetchKegiatanFromSheets, fetchAbsensiHistoryFromSheets } from '../spreadsheetService';
 import { Pegawai, Pengembangan, KGB, Kegiatan, AbsensiRecord } from '../types';
 import { useAuth } from '../AuthContext';
-import { UNIT_KERJA, normalizeUnitName, formatPegawaiName, getJabatanClassification } from '../constants';
+import { UNIT_KERJA, normalizeUnitName, formatPegawaiName, getJabatanClassification, resolveUserPendidikan } from '../constants';
 import * as XLSX from 'xlsx';
 import CalendarView from '../components/CalendarView';
 import LayananSDMAlertBanner from '../components/LayananSDM/LayananSDMAlertBanner';
@@ -152,7 +152,7 @@ const Dashboard = () => {
     }
     try {
       const [pegData, bangkomData, kgbData, kegiatanData, absensiData] = await Promise.all([
-        fetchPegawaiFromSheets(),
+        fetchPegawaiFromSheets(true),
         fetchPengembanganFromSheets(),
         fetchKGBFromSheets(),
         fetchKegiatanFromSheets(),
@@ -353,10 +353,21 @@ const Dashboard = () => {
       // Improved Classification Logic
       const klas = getJabatanClassification(p);
       
-      const key = `${jab}|${jen}|${klas}|${unit}|${unitBagian}`;
+      // When viewing 'Semua Unit', group purely by (jabatan, jenis, klasifikasi) so totals are centralized and no duplicate rows appear
+      const key = filterUnit === 'Semua Unit' 
+        ? `${jab}|${jen}|${klas}` 
+        : `${jab}|${jen}|${klas}|${unit}|${unitBagian}`;
 
       if (!groups[key]) {
-        groups[key] = { total: 0, klasifikasi: klas, jabatan: jab, jenis: jen, unitKerja: unit, bagian: unitBagian, kelasJabatan: kelas };
+        groups[key] = { 
+          total: 0, 
+          klasifikasi: klas, 
+          jabatan: jab, 
+          jenis: jen, 
+          unitKerja: filterUnit === 'Semua Unit' ? 'SEMUA UNIT' : unit, 
+          bagian: filterUnit === 'Semua Unit' ? '-' : unitBagian, 
+          kelasJabatan: kelas 
+        };
       }
       groups[key].total += 1;
     });
@@ -427,14 +438,25 @@ const Dashboard = () => {
     const eduMap: Record<string, number> = {};
     filteredList.forEach(p => {
       let edu = 'LAINNYA';
-      const pStr = (p.pendidikan || '').toUpperCase().trim();
-      if (pStr.includes('S3') || pStr.includes('DOKTOR')) edu = 'S3 (DOKTOR)';
-      else if (pStr.includes('S2') || pStr.includes('MAGISTER')) edu = 'S2 (MAGISTER)';
-      else if (pStr.includes('S1') || pStr.includes('SARJANA')) edu = 'S1 (SARJANA)';
-      else if (pStr.includes('DIV') || pStr.includes('D-IV')) edu = 'D-IV / SARJANA TERAPAN';
-      else if (pStr.includes('DIII') || pStr.includes('D3') || pStr.includes('D-III')) edu = 'D-III';
-      else if (pStr.includes('SMA') || pStr.includes('SMK') || pStr.includes('SLTA')) edu = 'SMA / SEDERAJAT';
-      else if (pStr.includes('SMP') || pStr.includes('SLTP')) edu = 'SMP / SEDERAJAT';
+      let pStr = (p.pendidikan || '').toUpperCase().trim();
+
+      // If missing or uninformative, deduce from academic title in employee name
+      if (!pStr || pStr === '-' || pStr === 'LAINNYA') {
+        const resolved = resolveUserPendidikan(p.nama);
+        if (resolved && resolved.pendidikan) {
+          pStr = resolved.pendidikan.toUpperCase().trim();
+        }
+      }
+
+      const cleanP = pStr.replace(/[^A-Z0-9]/g, '');
+      if (cleanP.includes('S3') || cleanP.includes('DOKTOR') || pStr.includes('S-3')) edu = 'S3 (DOKTOR)';
+      else if (cleanP.includes('S2') || cleanP.includes('MAGISTER') || pStr.includes('S-2')) edu = 'S2 (MAGISTER)';
+      else if (cleanP.includes('S1') || cleanP.includes('SARJANA') || pStr.includes('S-1')) edu = 'S1 (SARJANA)';
+      else if (cleanP.includes('DIV') || cleanP.includes('D4') || pStr.includes('D-IV')) edu = 'D-IV / SARJANA TERAPAN';
+      else if (cleanP.includes('DIII') || cleanP.includes('D3') || pStr.includes('D-III')) edu = 'D-III';
+      else if (cleanP.includes('SMA') || cleanP.includes('SMK') || cleanP.includes('SLTA')) edu = 'SMA / SEDERAJAT';
+      else if (cleanP.includes('SMP') || cleanP.includes('SLTP')) edu = 'SMP / SEDERAJAT';
+      else if (cleanP.includes('SD')) edu = 'SD / SEDERAJAT';
       else if (pStr !== '') edu = pStr;
       eduMap[edu] = (eduMap[edu] || 0) + 1;
     });
@@ -455,10 +477,28 @@ const Dashboard = () => {
     });
     const gradeMap: Record<string, number> = {};
     filteredList.forEach(p => {
-      const g = (p.golRuang || 'LAINNYA').trim().toUpperCase();
+      let g = (p.golRuang || '').trim().toUpperCase();
+      if (!g || g === '-') g = 'LAINNYA';
       gradeMap[g] = (gradeMap[g] || 0) + 1;
     });
-    return Object.entries(gradeMap).map(([label, count]) => ({ label, count })).sort((a, b) => b.label.localeCompare(a.label));
+
+    const GRADE_WEIGHT: Record<string, number> = {
+      'IV/E': 100, 'IV/D': 99, 'IV/C': 98, 'IV/B': 97, 'IV/A': 96,
+      'III/D': 80, 'III/C': 79, 'III/B': 78, 'III/A': 77,
+      'II/D': 60, 'II/C': 59, 'II/B': 58, 'II/A': 57,
+      'I/D': 40, 'I/C': 39, 'I/B': 38, 'I/A': 37, 'I': 36,
+      'XVII': 25, 'XVI': 24, 'XV': 23, 'XIV': 22, 'XIII': 21,
+      'XII': 20, 'XI': 19, 'X': 18, 'IX': 17, 'VIII': 16,
+      'VII': 15, 'VI': 14, 'V': 13, 'IV': 12, 'III': 11, 'II': 10,
+      'LAINNYA': 0
+    };
+
+    return Object.entries(gradeMap).map(([label, count]) => ({ label, count })).sort((a, b) => {
+      const wA = GRADE_WEIGHT[a.label] || 1;
+      const wB = GRADE_WEIGHT[b.label] || 1;
+      if (wA !== wB) return wB - wA;
+      return b.count - a.count;
+    });
   }, [activePegawaiList, filterJenisGrade]);
 
   const reminders = useMemo(() => {
@@ -1479,7 +1519,7 @@ const Dashboard = () => {
                               row.klasifikasi === 'FUNGSIONAL' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                               row.klasifikasi === 'PELAKSANA' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
                               row.klasifikasi === 'JPT' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                              row.klasifikasi === 'ADMINISTRATOR' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                              row.klasifikasi === 'STRUKTURAL' || row.klasifikasi === 'ADMINISTRATOR' ? 'bg-orange-50 text-orange-600 border-orange-100' :
                               row.klasifikasi === 'PENGAWAS' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                               row.klasifikasi === 'JPT / ADM' ? 'bg-amber-50 text-amber-600 border-amber-100' :
                               row.klasifikasi === 'ADM' ? 'bg-orange-50 text-orange-600 border-orange-100' :
