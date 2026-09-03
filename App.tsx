@@ -53,6 +53,7 @@ import AdminAttendanceDashboardPage from './pages/Admin/AdminAttendanceDashboard
 import AttendanceSettingsPage from './pages/Admin/AttendanceSettingsPage';
 import TupoksiSDMPage from './pages/TupoksiSDMPage';
 import TubelIbelPage from './pages/TubelIbelPage';
+import ErrorBoundary from './components/ErrorBoundary';
 import { initializeAllSDMData } from './sampleDataSDM';
 import { DEFAULT_LOGO, APP_ROUTES } from './constants';
 import { syncGidMap, fetchSystemConfig, loadSharedConfigFromServer } from './spreadsheetService';
@@ -707,55 +708,57 @@ const AppContent = () => {
               <AccessDeniedView />
             ) : (
               <div className="max-w-[1600px] mx-auto w-full">
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/pegawai" element={<PegawaiPage />} />
-                  <Route path="/pegawai/:nip" element={<ProfilePegawaiPage />} />
-                  <Route path="/layanan" element={<LayananKepegawaianPage />} />
-                  <Route path="/tugas-rutin" element={<TugasRutinPage />} />
-                  <Route path="/tupoksi-sdm" element={<TupoksiSDMPage />} />
-                  <Route path="/kegiatan" element={<KegiatanPage />} />
-                  <Route path="/laporan" element={<LaporanPage />} />
-                  <Route path="/anggaran-dipa" element={<AnggaranDipaPage />} />
-                  <Route path="/sakip-rb" element={<SakipRbPage />} />
-                  <Route path="/disiplin-lhkpn" element={<DisiplinLhkpnPage />} />
-                  <Route path="/keuangan" element={<KeuanganPage />} />
-                  <Route path="/dossiers" element={<DossiersPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="/logs" element={<ActivityLogPage />} />
-                  <Route path="/absensi-online" element={<AbsensiOnlinePage />} />
-                  <Route path="/rekap-absensi" element={<RekapAbsensiPage />} />
-                  <Route path="/uang-makan" element={<UangMakanPage />} />
-                  <Route path="/skp" element={<SKPPage />} />
-                  <Route path="/pak" element={<PAKPage />} />
-                  <Route path="/anjab-abk" element={<ABKAnjabPage />} />
-                  <Route path="/pelantikan-gen" element={<PelantikanGeneratorPage />} />
-                  <Route path="/spmt-spp" element={<SpmtSppPage />} />
-                  <Route path="/kgb-gen" element={<KGBGeneratorPage />} />
-                  <Route path="/pensiun" element={<PensiunPage />} />
-                  <Route path="/kenaikan-pangkat" element={<KenaikanPangkatPage />} />
-                  <Route path="/satya-lencana" element={<SatyaLencanaPage />} />
-                  <Route path="/magang-pkl" element={<MagangPKLPage />} />
-                  <Route path="/tubel-ibel" element={<TubelIbelPage />} />
-                  <Route path="/persuratan" element={<PersuratanPage />} />
-                  <Route path="/pengembangan" element={< PengembanganPage />} />
-                  <Route path="/talenta" element={<TalentaPage />} />
-                  <Route path="/ukom/admin" element={<UkomAdminPage />} />
-                  <Route path="/quizdjki" element={<QuizDJKIPage />} />
-                  <Route path="/layanan-sdm" element={<LayananSDMPage />} />
-                  <Route path="/layanan-sdm/pengajuan" element={<PengajuanLayananPage />} />
-                  <Route path="/layanan-sdm/pengajuan-saya" element={<PengajuanSayaPage />} />
-                  <Route path="/layanan-sdm/pengajuan/:id" element={<DetailPengajuanPage />} />
-                  <Route path="/admin/layanan-sdm" element={<AdminLayananSDMPage />} />
-                  <Route path="/admin/layanan-sdm/pengajuan/:id" element={<AdminDetailPengajuanPage />} />
-                  <Route path="/presensi" element={<SmartPresensiPage />} />
-                  <Route path="/face-registration" element={<FaceRegistrationPage />} />
-                  <Route path="/pegawai/:nip/face-registration" element={<FaceRegistrationPage />} />
-                  <Route path="/admin/attendance" element={<AdminAttendanceDashboardPage />} />
-                  <Route path="/admin/attendance/locations" element={<MasterLokasiPresensiPage />} />
-                  <Route path="/admin/attendance/settings" element={<AttendanceSettingsPage />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
+                <ErrorBoundary>
+                  <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/pegawai" element={<PegawaiPage />} />
+                    <Route path="/pegawai/:nip" element={<ProfilePegawaiPage />} />
+                    <Route path="/layanan" element={<LayananKepegawaianPage />} />
+                    <Route path="/tugas-rutin" element={<TugasRutinPage />} />
+                    <Route path="/tupoksi-sdm" element={<TupoksiSDMPage />} />
+                    <Route path="/kegiatan" element={<KegiatanPage />} />
+                    <Route path="/laporan" element={<LaporanPage />} />
+                    <Route path="/anggaran-dipa" element={<AnggaranDipaPage />} />
+                    <Route path="/sakip-rb" element={<SakipRbPage />} />
+                    <Route path="/disiplin-lhkpn" element={<DisiplinLhkpnPage />} />
+                    <Route path="/keuangan" element={<KeuanganPage />} />
+                    <Route path="/dossiers" element={<DossiersPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/logs" element={<ActivityLogPage />} />
+                    <Route path="/absensi-online" element={<AbsensiOnlinePage />} />
+                    <Route path="/rekap-absensi" element={<RekapAbsensiPage />} />
+                    <Route path="/uang-makan" element={<UangMakanPage />} />
+                    <Route path="/skp" element={<SKPPage />} />
+                    <Route path="/pak" element={<PAKPage />} />
+                    <Route path="/anjab-abk" element={<ABKAnjabPage />} />
+                    <Route path="/pelantikan-gen" element={<PelantikanGeneratorPage />} />
+                    <Route path="/spmt-spp" element={<SpmtSppPage />} />
+                    <Route path="/kgb-gen" element={<KGBGeneratorPage />} />
+                    <Route path="/pensiun" element={<PensiunPage />} />
+                    <Route path="/kenaikan-pangkat" element={<KenaikanPangkatPage />} />
+                    <Route path="/satya-lencana" element={<SatyaLencanaPage />} />
+                    <Route path="/magang-pkl" element={<MagangPKLPage />} />
+                    <Route path="/tubel-ibel" element={<TubelIbelPage />} />
+                    <Route path="/persuratan" element={<PersuratanPage />} />
+                    <Route path="/pengembangan" element={< PengembanganPage />} />
+                    <Route path="/talenta" element={<TalentaPage />} />
+                    <Route path="/ukom/admin" element={<UkomAdminPage />} />
+                    <Route path="/quizdjki" element={<QuizDJKIPage />} />
+                    <Route path="/layanan-sdm" element={<LayananSDMPage />} />
+                    <Route path="/layanan-sdm/pengajuan" element={<PengajuanLayananPage />} />
+                    <Route path="/layanan-sdm/pengajuan-saya" element={<PengajuanSayaPage />} />
+                    <Route path="/layanan-sdm/pengajuan/:id" element={<DetailPengajuanPage />} />
+                    <Route path="/admin/layanan-sdm" element={<AdminLayananSDMPage />} />
+                    <Route path="/admin/layanan-sdm/pengajuan/:id" element={<AdminDetailPengajuanPage />} />
+                    <Route path="/presensi" element={<SmartPresensiPage />} />
+                    <Route path="/face-registration" element={<FaceRegistrationPage />} />
+                    <Route path="/pegawai/:nip/face-registration" element={<FaceRegistrationPage />} />
+                    <Route path="/admin/attendance" element={<AdminAttendanceDashboardPage />} />
+                    <Route path="/admin/attendance/locations" element={<MasterLokasiPresensiPage />} />
+                    <Route path="/admin/attendance/settings" element={<AttendanceSettingsPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </ErrorBoundary>
               </div>
             )}
           </div>

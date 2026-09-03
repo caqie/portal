@@ -10,6 +10,8 @@ import { DEFAULT_HOLIDAYS, parseSinglePdf, ensurePdfJsLoaded, Holiday, ParsedAtt
 import { 
   savePdfToStore, 
   getAllStoredPdfs, 
+  getStoredPdfById,
+  getStoredPdfUrl,
   deletePdfFromStore, 
   deleteStoredPdfsByMonth,
   clearAllStoredPdfs, 
@@ -17,6 +19,7 @@ import {
   formatBytes, 
   deriveMonthFolder, 
   formatMonthFolderLabel, 
+  formatDateTimeSafe,
   StoredPdfRecord 
 } from '../pdfStorageUtils';
 import { PresensiNavigationHeader } from '../components/PresensiNavigationHeader';
@@ -91,6 +94,19 @@ const RekapAbsensiPage = () => {
     failed: 0,
     currentFileName: ''
   });
+  
+  const [parseErrors, setParseErrors] = useState<any[]>(() => {
+    const saved = localStorage.getItem('absen_pdf_parse_errors');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { return []; }
+    }
+    return [];
+  });
+  const [showErrorDetails, setShowErrorDetails] = useState<boolean>(false);
+
+  useEffect(() => {
+    localStorage.setItem('absen_pdf_parse_errors', JSON.stringify(parseErrors));
+  }, [parseErrors]);
   
   // Duplication Filtering & Accumulation States
   const [skippedDuplicatesCount, setSkippedDuplicatesCount] = useState(0);
@@ -351,7 +367,9 @@ const RekapAbsensiPage = () => {
     });
 
     const parsedResults: ParsedAttendance[] = [];
-    const batchSize = 4; // Process in parallel batches
+    const currentBatchErrors: any[] = [];
+    // Adapt batch size based on file count to prevent CPU/memory saturation on 1000+ files
+    const batchSize = selectedFiles.length > 200 ? 3 : 4;
 
     for (let i = 0; i < selectedFiles.length; i += batchSize) {
       const batch = selectedFiles.slice(i, i + batchSize);
@@ -359,15 +377,19 @@ const RekapAbsensiPage = () => {
         try {
           setParseProgress(prev => ({ ...prev, currentFileName: file.name }));
           
-          // Convert file to base64 for drive/IndexedDB persistence and preview
-          const base64Str = await fileToBase64(file);
+          // Parse PDF using memory-isolated PDF.js (auto cleans pages & destroys document after each file)
           const resObj = await parseSinglePdf(file, holidays);
+
+          if (!resObj || !resObj.days || resObj.days.length === 0) {
+            throw new Error('Tidak ditemukan data/tabel presensi yang valid di dalam berkas PDF ini.');
+          }
+
           parsedResults.push(resObj);
 
           // Derive month folder e.g. "2026-07"
           const monthFolder = deriveMonthFolder(resObj.periode);
 
-          // Save PDF Record to IndexedDB storage
+          // Store native binary Blob to IndexedDB - uses ZERO Base64 memory and 33% less disk space
           const pdfRecord: StoredPdfRecord = {
             id: `pdf_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
             fileName: file.name,
@@ -377,27 +399,47 @@ const RekapAbsensiPage = () => {
             nip: resObj.nip || '-',
             nama: resObj.nama || '-',
             periode: resObj.periode || '-',
-            base64: base64Str
+            blob: file
           };
 
-          await savePdfToStore(pdfRecord);
-
-          // Attempt Drive cloud upload in background
-          uploadFileToDrive(file.name, 'application/pdf', base64Str).catch(err => {
-            console.warn('Proses upload Drive cloud:', err);
-          });
+          // Safe storage - local cache failure (e.g. browser quota limit) will never halt or fail attendance processing
+          try {
+            await savePdfToStore(pdfRecord);
+          } catch (storageErr) {
+            console.warn('Penyimpanan cache berkas PDF lokal dilewati karena kuota penuh:', storageErr);
+          }
 
           setParseProgress(prev => ({ ...prev, current: prev.current + 1, success: prev.success + 1 }));
-        } catch (err) {
+        } catch (err: any) {
           console.error(`Error parsing file ${file.name}:`, err);
+          const errMsg = err?.message || 'Format berkas tidak sesuai standar atau teks PDF tidak terbaca.';
+          currentBatchErrors.push({
+            id: `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            fileName: file.name,
+            fileSize: file.size,
+            errorMessage: errMsg,
+            timestamp: new Date().toISOString()
+          });
           setParseProgress(prev => ({ ...prev, current: prev.current + 1, failed: prev.failed + 1 }));
         }
       }));
+
+      // Yield control to browser event loop between batches for garbage collection & smooth UI updates
+      await new Promise(resolve => setTimeout(resolve, 15));
+    }
+
+    if (currentBatchErrors.length > 0) {
+      setParseErrors(prev => [...currentBatchErrors, ...prev]);
+      setShowErrorDetails(true);
+      setNotification({
+        message: `Terdeteksi ${currentBatchErrors.length} berkas PDF gagal di-parse. Tombol "Ekspor Log Error (Excel)" siap digunakan.`,
+        type: 'error'
+      });
     }
 
     setIsParsing(false);
     
-    // Reload stored PDFs from IndexedDB
+    // Reload stored PDFs from IndexedDB (lightweight metadata)
     await reloadStoredPdfs();
 
     if (accumulateMode) {
@@ -424,6 +466,52 @@ const RekapAbsensiPage = () => {
     setDuplicateSkippedNames([]);
     
     logActivity('CREATE', 'Absensi', `Memproses parsing ${parsedResults.length} file PDF absensi bulanan dan menyimpan ke arsip drive.`);
+  };
+
+  // Safe On-Demand Preview and Download handlers for 1000+ files
+  const handleOpenPdfPreview = async (pdf: StoredPdfRecord) => {
+    try {
+      let activePdf = pdf;
+      if (!pdf.blob && (!pdf.base64 || pdf.base64.trim() === '')) {
+        const fullRecord = await getStoredPdfById(pdf.id);
+        if (fullRecord) activePdf = fullRecord;
+      }
+      const url = getStoredPdfUrl(activePdf);
+      setPdfPreviewModal({ ...activePdf, fileUrl: url, base64: url });
+    } catch (e) {
+      setNotification({ message: 'Gagal membuka pratinjau berkas PDF.', type: 'error' });
+    }
+  };
+
+  const handleDownloadStoredPdf = async (pdf: StoredPdfRecord) => {
+    try {
+      let activePdf = pdf;
+      if (!pdf.blob && (!pdf.base64 || pdf.base64.trim() === '')) {
+        const fullRecord = await getStoredPdfById(pdf.id);
+        if (fullRecord) activePdf = fullRecord;
+      }
+      const url = getStoredPdfUrl(activePdf);
+      if (url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = pdf.fileName || 'presensi.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        if (url.startsWith('blob:')) {
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+      }
+    } catch (e) {
+      setNotification({ message: 'Gagal mengunduh berkas PDF.', type: 'error' });
+    }
+  };
+
+  const handleClosePdfPreview = () => {
+    if (pdfPreviewModal?.fileUrl && pdfPreviewModal.fileUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfPreviewModal.fileUrl);
+    }
+    setPdfPreviewModal(null);
   };
 
   // Delete single PDF from Drive Storage
@@ -642,8 +730,82 @@ const RekapAbsensiPage = () => {
     XLSX.utils.book_append_sheet(wb, wsRekapUangMakan, "Rekapitulasi Uang Makan");
     XLSX.utils.book_append_sheet(wb, wsDetailUangMakan, "Detail Uang Makan");
     
+    // Optional Sheet 4: Catatan Berkas Error (jika ada)
+    if (parseErrors.length > 0) {
+      const errorRows = parseErrors.map((err, idx) => ({
+        'No': idx + 1,
+        'Nama Berkas PDF': err.fileName,
+        'Ukuran Berkas': err.fileSize ? formatBytes(err.fileSize) : '-',
+        'Waktu Error': new Date(err.timestamp).toLocaleString('id-ID'),
+        'Status': 'GAGAL DIPROSES',
+        'Pesan Kendala / Error': err.errorMessage,
+        'Rekomendasi Solusi': 'Pastikan berkas PDF presensi memiliki layer teks asli (bukan foto/scan gambar) dan tidak diproteksi kata sandi.'
+      }));
+      const wsErr = XLSX.utils.json_to_sheet(errorRows);
+      wsErr['!cols'] = [
+        { wch: 6 },
+        { wch: 38 },
+        { wch: 16 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 45 },
+        { wch: 60 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsErr, "Catatan Berkas Error");
+    }
+
     XLSX.writeFile(wb, `Rekap_Absensi_dan_Uang_Makan_${new Date().getTime()}.xlsx`);
-    logActivity('DOWNLOAD', 'Absensi', `Mengekspor rekap spreadsheet bulk 3 sheet (${results.length} pegawai) ke Excel.`);
+    logActivity('DOWNLOAD', 'Absensi', `Mengekspor rekap spreadsheet bulk (${results.length} pegawai${parseErrors.length > 0 ? ', ' + parseErrors.length + ' berkas error' : ''}) ke Excel.`);
+  };
+
+  // Dedicated Export for Parsing Errors
+  const handleExportErrorExcel = () => {
+    if (parseErrors.length === 0) {
+      setNotification({ message: 'Tidak ada catatan berkas error untuk diekspor.', type: 'info' });
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Berkas Gagal / Parsing Error
+    const errorRows = parseErrors.map((err, idx) => ({
+      'No': idx + 1,
+      'Nama Berkas PDF': err.fileName,
+      'Ukuran Berkas': err.fileSize ? formatBytes(err.fileSize) : '-',
+      'Waktu Kejadian': new Date(err.timestamp).toLocaleString('id-ID'),
+      'Status Parsing': 'GAGAL (ERROR)',
+      'Keterangan / Pesan Kendala': err.errorMessage,
+      'Rekomendasi Solusi': '1. Unggah ulang berkas PDF asli dari portal presensi (harus teks digital, bukan scan/foto).\n2. Pastikan file tidak terenkripsi atau diproteksi kata sandi.\n3. Periksa apakah tabel tanggal dan jam presensi tercetak lengkap.'
+    }));
+
+    const ws1 = XLSX.utils.json_to_sheet(errorRows);
+    ws1['!cols'] = [
+      { wch: 6 },
+      { wch: 40 },
+      { wch: 16 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 50 },
+      { wch: 65 }
+    ];
+    XLSX.utils.book_append_sheet(wb, ws1, 'Daftar Berkas Gagal (Error)');
+
+    // Sheet 2: Ringkasan Audit
+    const summaryRows = [
+      { 'Parameter': 'Total Berkas Mengalami Error', 'Nilai': parseErrors.length },
+      { 'Parameter': 'Total Berkas Berhasil Diproses', 'Nilai': results.length },
+      { 'Parameter': 'Waktu Ekspor Laporan', 'Nilai': new Date().toLocaleString('id-ID') },
+      { 'Parameter': 'Modul Sistem', 'Nilai': 'Rekapitulasi Presensi & Uang Makan Pegawai' },
+      { 'Parameter': 'Status Tindak Lanjut', 'Nilai': 'Perlu perbaikan berkas fisik PDF yang dilaporkan gagal' }
+    ];
+    const ws2 = XLSX.utils.json_to_sheet(summaryRows);
+    ws2['!cols'] = [{ wch: 35 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Ringkasan Audit');
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Laporan_Error_Parsing_Absensi_${dateStr}.xlsx`);
+    logActivity('DOWNLOAD', 'Absensi', `Mengekspor laporan ${parseErrors.length} berkas error parsing PDF ke Excel.`);
+    setNotification({ message: `Berhasil mengekspor ${parseErrors.length} berkas error ke Excel.`, type: 'success' });
   };
 
   // Add / Delete custom holiday
@@ -1046,18 +1208,109 @@ const RekapAbsensiPage = () => {
                 <div className="space-y-3 bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
                   <div className="flex justify-between text-[10px] font-black text-blue-700 uppercase">
                     <span>Progres Menganalisis Berkas PDF</span>
-                    <span>{parseProgress.current} / {parseProgress.total} ({Math.round((parseProgress.current / parseProgress.total) * 100)}%)</span>
+                    <span>{parseProgress.current} / {parseProgress.total} ({parseProgress.total > 0 ? Math.round((parseProgress.current / parseProgress.total) * 100) : 0}%)</span>
                   </div>
                   <div className="h-2.5 w-full bg-gray-200/60 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-blue-600 rounded-full transition-all duration-300" 
-                      style={{ width: `${(parseProgress.current / parseProgress.total) * 100}%` }}
+                      style={{ width: `${parseProgress.total > 0 ? (parseProgress.current / parseProgress.total) * 100 : 0}%` }}
                     ></div>
                   </div>
                   <div className="flex justify-between items-center text-[9px] text-gray-400 font-bold uppercase">
-                    <span className="truncate max-w-[70%]">Sedang diproses: <b className="text-gray-600">{parseProgress.currentFileName}</b></span>
+                    <span className="truncate max-w-[70%]">Sedang diproses: <b className="text-gray-600">{parseProgress.currentFileName || '-'}</b></span>
                     <span>Error: <b className="text-red-500">{parseProgress.failed}</b> • Sukses: <b className="text-emerald-600">{parseProgress.success}</b></span>
                   </div>
+                </div>
+              )}
+
+              {/* PARSING ERROR & DIAGNOSTIC PANEL WITH EXCEL EXPORT */}
+              {parseErrors.length > 0 && (
+                <div className="bg-rose-50/90 border-2 border-rose-200 rounded-2xl p-5 space-y-4 animate-slideUp">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2.5 bg-rose-600 text-white rounded-xl shadow-md shadow-rose-600/20 shrink-0">
+                        <i className="bi bi-exclamation-triangle-fill text-lg"></i>
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-rose-950 uppercase tracking-tight flex items-center gap-2">
+                          Terdeteksi {parseErrors.length} Berkas PDF Gagal Diproses (Parsing Error)
+                        </h4>
+                        <p className="text-[11px] text-rose-700 font-medium mt-0.5">
+                          Terdapat berkas yang tidak dapat diekstrak (format tabel tidak dikenali atau file rusak). Anda dapat mengunduh log error ini ke file Excel.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+                      <button
+                        onClick={handleExportErrorExcel}
+                        className="flex-1 md:flex-initial px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 shrink-0"
+                        title="Unduh laporan berkas error ke format Excel (.xlsx)"
+                      >
+                        <i className="bi bi-file-earmark-excel-fill text-sm"></i> Ekspor Log Error (Excel)
+                      </button>
+                      <button
+                        onClick={() => setShowErrorDetails(prev => !prev)}
+                        className="px-3 py-2.5 bg-white hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <i className={`bi bi-chevron-${showErrorDetails ? 'up' : 'down'}`}></i>
+                        {showErrorDetails ? 'Tutup Rincian' : 'Lihat Rincian'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setParseErrors([]);
+                          localStorage.removeItem('absen_pdf_parse_errors');
+                          setNotification({ message: 'Log error parsing berhasil dibersihkan.', type: 'info' });
+                        }}
+                        className="p-2.5 text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded-xl transition-all"
+                        title="Bersihkan Log Error"
+                      >
+                        <i className="bi bi-trash3 text-sm"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  {showErrorDetails && (
+                    <div className="overflow-x-auto border border-rose-200 rounded-xl bg-white shadow-inner">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-rose-100/60 text-[9px] font-black uppercase text-rose-800 border-b border-rose-200 tracking-wider">
+                            <th className="px-3.5 py-2.5 text-center w-10">No</th>
+                            <th className="px-3.5 py-2.5">Nama Berkas PDF</th>
+                            <th className="px-3.5 py-2.5 text-center">Ukuran</th>
+                            <th className="px-3.5 py-2.5">Waktu Kejadian</th>
+                            <th className="px-3.5 py-2.5">Pesan Kendala / Error</th>
+                            <th className="px-3.5 py-2.5">Rekomendasi Tindakan</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-rose-100 text-xs font-bold text-gray-800">
+                          {parseErrors.map((err, idx) => (
+                            <tr key={err.id || idx} className="hover:bg-rose-50/40 transition-colors">
+                              <td className="px-3.5 py-2.5 text-center font-mono text-[10px] text-gray-400">{idx + 1}</td>
+                              <td className="px-3.5 py-2.5">
+                                <div className="flex items-center gap-2">
+                                  <i className="bi bi-file-earmark-x-fill text-rose-500 text-sm"></i>
+                                  <span className="font-extrabold text-gray-900 truncate max-w-[200px]" title={err.fileName}>{err.fileName}</span>
+                                </div>
+                              </td>
+                              <td className="px-3.5 py-2.5 text-center font-mono text-[10px] text-gray-500">
+                                {err.fileSize ? formatBytes(err.fileSize) : '-'}
+                              </td>
+                              <td className="px-3.5 py-2.5 text-[10px] font-mono text-gray-500">
+                                {new Date(err.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                              </td>
+                              <td className="px-3.5 py-2.5 text-rose-600 font-semibold text-[11px]">
+                                {err.errorMessage}
+                              </td>
+                              <td className="px-3.5 py-2.5 text-[10px] text-gray-500 font-normal">
+                                Pastikan berkas PDF asli dengan teks terbaca, bukan scan foto murni atau terkunci sandi.
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1187,25 +1440,24 @@ const RekapAbsensiPage = () => {
                           {formatBytes(pdf.fileSize)}
                         </td>
                         <td className="px-4 py-3.5 text-center font-mono text-[10px] text-gray-500">
-                          {new Date(pdf.uploadedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {formatDateTimeSafe(pdf.uploadedAt)}
                         </td>
                         <td className="px-5 py-3.5 text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
-                              onClick={() => setPdfPreviewModal(pdf)}
+                              onClick={() => handleOpenPdfPreview(pdf)}
                               className="p-2 bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white rounded-xl transition-all shadow-sm"
                               title="Lihat Pratinjau PDF"
                             >
                               <i className="bi bi-eye-fill text-sm"></i>
                             </button>
-                            <a
-                              href={pdf.base64}
-                              download={pdf.fileName}
+                            <button
+                              onClick={() => handleDownloadStoredPdf(pdf)}
                               className="p-2 bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white rounded-xl transition-all shadow-sm inline-flex items-center justify-center"
                               title="Unduh Berkas PDF Original"
                             >
                               <i className="bi bi-download text-sm"></i>
-                            </a>
+                            </button>
                             <button
                               onClick={() => handleDeleteStoredPdf(pdf)}
                               className="p-2 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-xl transition-all shadow-sm"
@@ -1246,6 +1498,15 @@ const RekapAbsensiPage = () => {
                     >
                       <i className="bi bi-trash-fill text-sm"></i> Bersihkan
                     </button>
+                    {parseErrors.length > 0 && (
+                      <button 
+                        onClick={handleExportErrorExcel}
+                        className="h-12 px-5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-rose-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
+                        title="Unduh catatan berkas PDF yang gagal di-parse ke Excel"
+                      >
+                        <i className="bi bi-file-earmark-excel-fill text-lg"></i> Ekspor Log Error ({parseErrors.length})
+                      </button>
+                    )}
                     <button 
                       onClick={handleExportResultsExcel}
                       className="h-12 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-2.5 w-full sm:w-auto"
@@ -1678,14 +1939,14 @@ const RekapAbsensiPage = () => {
 
               <div className="flex items-center gap-2 shrink-0">
                 <a
-                  href={pdfPreviewModal.base64}
+                  href={pdfPreviewModal.fileUrl || pdfPreviewModal.base64}
                   download={pdfPreviewModal.fileName}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase rounded-xl transition-all flex items-center gap-1.5"
                 >
                   <i className="bi bi-download"></i> Unduh PDF
                 </a>
                 <button
-                  onClick={() => setPdfPreviewModal(null)}
+                  onClick={handleClosePdfPreview}
                   className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
                 >
                   <i className="bi bi-x-lg"></i>
@@ -1695,7 +1956,7 @@ const RekapAbsensiPage = () => {
 
             <div className="p-4 md:p-6 bg-gray-100 flex-1 overflow-hidden">
               <iframe
-                src={pdfPreviewModal.base64}
+                src={pdfPreviewModal.fileUrl || pdfPreviewModal.base64}
                 title={pdfPreviewModal.fileName}
                 className="w-full h-[70vh] rounded-2xl border border-gray-200 bg-white shadow-inner"
               />

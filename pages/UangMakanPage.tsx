@@ -26,6 +26,8 @@ import {
 import { 
   savePdfToStore, 
   getAllStoredPdfs, 
+  getStoredPdfById,
+  getStoredPdfUrl,
   deletePdfFromStore, 
   deleteStoredPdfsByMonth,
   clearAllStoredPdfs, 
@@ -33,6 +35,10 @@ import {
   formatBytes, 
   deriveMonthFolder, 
   formatMonthFolderLabel, 
+  base64ToBlob,
+  saveParsedResultsToIndexedDb,
+  getAllParsedResultsFromIndexedDb,
+  clearParsedResultsFromIndexedDb,
   StoredPdfRecord 
 } from '../pdfStorageUtils';
 import { PresensiNavigationHeader } from '../components/PresensiNavigationHeader';
@@ -46,6 +52,14 @@ export interface TariffConfig {
   gol3Tax: number;   // PPh 5%
   gol4Rate: number;  // Golongan IV: Rp 41.000
   gol4Tax: number;   // PPh 15%
+}
+
+export interface ParseErrorRecord {
+  id: string;
+  fileName: string;
+  fileSize?: number;
+  errorMessage: string;
+  timestamp: string;
 }
 
 export const DEFAULT_TARIFF_CONFIG: TariffConfig = {
@@ -90,15 +104,51 @@ export const enrichWithMasterPegawai = (record: ParsedAttendance): ParsedAttenda
   return record;
 };
 
+// Helper to sanitize tariff configuration
+export const sanitizeTariffConfig = (cfg: any): TariffConfig => {
+  return {
+    gol12Rate: typeof cfg?.gol12Rate === 'number' && !isNaN(cfg.gol12Rate) ? cfg.gol12Rate : DEFAULT_TARIFF_CONFIG.gol12Rate,
+    gol12Tax: typeof cfg?.gol12Tax === 'number' && !isNaN(cfg.gol12Tax) ? cfg.gol12Tax : DEFAULT_TARIFF_CONFIG.gol12Tax,
+    gol3Rate: typeof cfg?.gol3Rate === 'number' && !isNaN(cfg.gol3Rate) ? cfg.gol3Rate : DEFAULT_TARIFF_CONFIG.gol3Rate,
+    gol3Tax: typeof cfg?.gol3Tax === 'number' && !isNaN(cfg.gol3Tax) ? cfg.gol3Tax : DEFAULT_TARIFF_CONFIG.gol3Tax,
+    gol4Rate: typeof cfg?.gol4Rate === 'number' && !isNaN(cfg.gol4Rate) ? cfg.gol4Rate : DEFAULT_TARIFF_CONFIG.gol4Rate,
+    gol4Tax: typeof cfg?.gol4Tax === 'number' && !isNaN(cfg.gol4Tax) ? cfg.gol4Tax : DEFAULT_TARIFF_CONFIG.gol4Tax,
+  };
+};
+
+// Safe date formatting helpers
+export const formatDateTimeSafe = (dateVal?: string | number | null): string => {
+  if (!dateVal) return '-';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return '-';
+  }
+};
+
+export const formatTimeOnlySafe = (dateVal?: string | number | null): string => {
+  if (!dateVal) return '-';
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch (e) {
+    return '-';
+  }
+};
+
 // Helper to calculate Uang Makan based on Golongan PMK Standards
 export const calculateUangMakanByGolongan = (
   golonganRaw: string, 
   daysCount: number, 
   config: TariffConfig
 ) => {
+  const safeConfig = sanitizeTariffConfig(config);
   const gol = (golonganRaw || '').toUpperCase().trim();
-  let rate = config.gol3Rate;
-  let taxPercent = config.gol3Tax;
+  let rate = safeConfig.gol3Rate;
+  let taxPercent = safeConfig.gol3Tax;
   let categoryName = 'Golongan III';
 
   // Check Roman numerals (IV, III, II, I) or Arabic numbers (4, 3, 2, 1) or text representations
@@ -108,24 +158,24 @@ export const calculateUangMakanByGolongan = (
   const isGol1 = /(^|[^\w])(I|1)([\.\/a-e\s_-]|$)/i.test(gol) || gol.includes('GOLONGAN I') || gol.includes('GOL I') || gol.includes('GOLONGAN 1') || gol.includes('GOL 1') || gol.includes('JURU');
 
   if (isGol4) {
-    rate = config.gol4Rate;
-    taxPercent = config.gol4Tax;
+    rate = safeConfig.gol4Rate;
+    taxPercent = safeConfig.gol4Tax;
     categoryName = 'Golongan IV';
   } else if (isGol3) {
-    rate = config.gol3Rate;
-    taxPercent = config.gol3Tax;
+    rate = safeConfig.gol3Rate;
+    taxPercent = safeConfig.gol3Tax;
     categoryName = 'Golongan III';
   } else if (isGol2) {
-    rate = config.gol12Rate;
-    taxPercent = config.gol12Tax;
+    rate = safeConfig.gol12Rate;
+    taxPercent = safeConfig.gol12Tax;
     categoryName = 'Golongan II';
   } else if (isGol1) {
-    rate = config.gol12Rate;
-    taxPercent = config.gol12Tax;
+    rate = safeConfig.gol12Rate;
+    taxPercent = safeConfig.gol12Tax;
     categoryName = 'Golongan I';
   } else {
-    rate = config.gol3Rate;
-    taxPercent = config.gol3Tax;
+    rate = safeConfig.gol3Rate;
+    taxPercent = safeConfig.gol3Tax;
     categoryName = 'Golongan III';
   }
 
@@ -149,11 +199,15 @@ const UangMakanPage: React.FC = () => {
   // Active View Tab: Dashboard | Rekap Pegawai | Detail Absensi | Kalender Libur
   const [activeTab, setActiveTab] = useState<'dashboard' | 'rekap_pegawai' | 'detail_absensi' | 'kalender_libur'>('dashboard');
 
-  // Tariff Config State
+  // Tariff Config State with defensive sanitization
   const [tariffConfig, setTariffConfig] = useState<TariffConfig>(() => {
     const saved = localStorage.getItem('um_tariff_config');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { return DEFAULT_TARIFF_CONFIG; }
+      try { 
+        return sanitizeTariffConfig(JSON.parse(saved)); 
+      } catch (e) { 
+        return DEFAULT_TARIFF_CONFIG; 
+      }
     }
     return DEFAULT_TARIFF_CONFIG;
   });
@@ -165,7 +219,13 @@ const UangMakanPage: React.FC = () => {
   // Holiday Calendar States
   const [holidays, setHolidays] = useState<Holiday[]>(() => {
     const saved = localStorage.getItem('absen_holidays');
-    return saved ? JSON.parse(saved) : DEFAULT_HOLIDAYS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) { }
+    }
+    return DEFAULT_HOLIDAYS;
   });
 
   useEffect(() => {
@@ -176,18 +236,64 @@ const UangMakanPage: React.FC = () => {
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
   const [newHolidayName, setNewHolidayName] = useState<string>('');
 
-  // Persistent Parsed Results State
+  // Persistent Parsed Results State with defensive validation & IndexedDB storage
   const [results, setResults] = useState<ParsedAttendance[]>(() => {
     const saved = localStorage.getItem('absen_pdf_parsed_results');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { return []; }
+      try { 
+        const parsed = JSON.parse(saved); 
+        if (Array.isArray(parsed)) {
+          return parsed.filter(item => item && typeof item === 'object' && Array.isArray(item.days));
+        }
+      } catch (e) { return []; }
     }
     return [];
   });
 
+  // Auto-restore cached results from IndexedDB on initial mount if memory/localStorage is empty
   useEffect(() => {
-    localStorage.setItem('absen_pdf_parsed_results', JSON.stringify(results));
+    let isMounted = true;
+    const restoreFromIndexedDb = async () => {
+      try {
+        const cachedResults = await getAllParsedResultsFromIndexedDb();
+        if (isMounted && cachedResults && cachedResults.length > 0) {
+          setResults(prev => {
+            if (prev.length === 0) return cachedResults;
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.warn('Gagal memulihkan data hasil dari IndexedDB:', err);
+      }
+    };
+    restoreFromIndexedDb();
+    return () => { isMounted = false; };
+  }, []);
+
+  useEffect(() => {
+    // 1. Always persist to IndexedDB (virtually unlimited quota for 1000+ files)
+    if (results.length > 0) {
+      saveParsedResultsToIndexedDb(results);
+    } else {
+      clearParsedResultsFromIndexedDb();
+    }
+
+    // 2. Safe local storage fallback (ignore QuotaExceededError)
+    try {
+      localStorage.setItem('absen_pdf_parsed_results', JSON.stringify(results));
+    } catch (e) {
+      // LocalStorage is capped at 5MB, IndexedDB will handle the real persistence
+      console.warn('LocalStorage kuota penuh untuk hasil olah presensi. IndexedDB aktif mengamankan data.');
+    }
   }, [results]);
+
+  // Archive Processing States (Proses dari Arsip Tersimpan)
+  const [isProcessingArchive, setIsProcessingArchive] = useState<boolean>(false);
+  const [archiveProgress, setArchiveProgress] = useState<{ current: number; total: number; fileName: string }>({
+    current: 0,
+    total: 0,
+    fileName: ''
+  });
 
   // Bulk Upload States
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -200,6 +306,22 @@ const UangMakanPage: React.FC = () => {
     success: 0,
     failed: 0
   });
+
+  const [parseErrors, setParseErrors] = useState<ParseErrorRecord[]>(() => {
+    const saved = localStorage.getItem('absen_pdf_parse_errors');
+    if (saved) {
+      try { 
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) { return []; }
+    }
+    return [];
+  });
+  const [showErrorDetails, setShowErrorDetails] = useState<boolean>(false);
+
+  useEffect(() => {
+    localStorage.setItem('absen_pdf_parse_errors', JSON.stringify(parseErrors));
+  }, [parseErrors]);
 
   const [skippedDuplicatesCount, setSkippedDuplicatesCount] = useState<number>(0);
   const [duplicateSkippedNames, setDuplicateSkippedNames] = useState<string[]>([]);
@@ -215,7 +337,9 @@ const UangMakanPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterGolongan, setFilterGolongan] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [detailCurrentPage, setDetailCurrentPage] = useState<number>(1);
   const itemsPerPage = 15;
+  const detailItemsPerPage = 25;
 
   // New interactive states
   const [selectedEmployeeDetail, setSelectedEmployeeDetail] = useState<ParsedAttendance | null>(null);
@@ -245,14 +369,23 @@ const UangMakanPage: React.FC = () => {
     }
   }, [notification]);
 
-  // Load stored PDF files from IndexedDB
+  // Load stored PDF files from IndexedDB safely
   const reloadStoredPdfs = async () => {
     try {
       const list = await getAllStoredPdfs();
-      list.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
-      setStoredPdfs(list);
+      if (Array.isArray(list)) {
+        list.sort((a, b) => {
+          const tA = a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0;
+          const tB = b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0;
+          return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+        });
+        setStoredPdfs(list);
+      } else {
+        setStoredPdfs([]);
+      }
     } catch (err) {
       console.error('Gagal memuat arsip PDF tersimpan:', err);
+      setStoredPdfs([]);
     }
   };
 
@@ -525,23 +658,44 @@ const UangMakanPage: React.FC = () => {
       await ensurePdfJsLoaded();
     } catch (e: any) {
       console.warn('PDF.js init check:', e);
+      const errMsg = e?.message || 'Gagal memuat sistem pembaca PDF.js. Periksa koneksi internet Anda.';
+      const initErr: ParseErrorRecord = {
+        id: `err_init_${Date.now()}`,
+        fileName: 'Sistem Pembaca PDF (PDF.js Engine)',
+        errorMessage: errMsg,
+        timestamp: new Date().toISOString()
+      };
+      setParseErrors(prev => [initErr, ...prev]);
+      setShowErrorDetails(true);
+      setNotification({ message: 'Gagal menginisialisasi pustaka PDF: ' + errMsg, type: 'error' });
+      setIsParsing(false);
+      return;
     }
 
     const parsedResults: ParsedAttendance[] = [];
-    const batchSize = 4;
+    const currentBatchErrors: ParseErrorRecord[] = [];
+    // Adapt batch size based on file count to prevent CPU/memory saturation on 1000+ files
+    const batchSize = selectedFiles.length > 200 ? 3 : 4;
 
     for (let i = 0; i < selectedFiles.length; i += batchSize) {
       const batch = selectedFiles.slice(i, i + batchSize);
       await Promise.all(batch.map(async file => {
         try {
           setParseProgress(prev => ({ ...prev, currentFileName: file.name }));
-          const base64Str = await fileToBase64(file);
+          
+          // Parse PDF using memory-isolated PDF.js (auto cleans pages & destroys document after each file)
           const rawResObj = await parseSinglePdf(file, holidays);
+          
+          if (!rawResObj || !rawResObj.days || rawResObj.days.length === 0) {
+            throw new Error('Tidak ditemukan data/tabel presensi yang valid di dalam berkas PDF ini.');
+          }
+
           const resObj = enrichWithMasterPegawai(rawResObj);
           parsedResults.push(resObj);
 
           const monthFolder = deriveMonthFolder(resObj.periode);
 
+          // Store native binary Blob to IndexedDB - uses ZERO Base64 memory and 33% less disk space
           const pdfRecord: StoredPdfRecord = {
             id: `pdf_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
             fileName: file.name,
@@ -551,21 +705,43 @@ const UangMakanPage: React.FC = () => {
             nip: resObj.nip || '-',
             nama: resObj.nama || '-',
             periode: resObj.periode || '-',
-            base64: base64Str
+            blob: file,
+            parsedResult: resObj
           };
 
-          await savePdfToStore(pdfRecord);
-
-          uploadFileToDrive(file.name, 'application/pdf', base64Str).catch(err => {
-            console.warn('Proses upload Drive cloud:', err);
-          });
+          // Safe storage - local cache failure (e.g. browser quota limit) will never halt or fail attendance processing
+          try {
+            await savePdfToStore(pdfRecord);
+          } catch (storageErr) {
+            console.warn('Penyimpanan cache berkas PDF lokal dilewati karena kuota penuh:', storageErr);
+          }
 
           setParseProgress(prev => ({ ...prev, current: prev.current + 1, success: prev.success + 1 }));
-        } catch (err) {
+        } catch (err: any) {
           console.error(`Error parsing file ${file.name}:`, err);
+          const errMsg = err?.message || 'Format berkas tidak sesuai standar atau teks PDF tidak dapat diekstrak.';
+          currentBatchErrors.push({
+            id: `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            fileName: file.name,
+            fileSize: file.size,
+            errorMessage: errMsg,
+            timestamp: new Date().toISOString()
+          });
           setParseProgress(prev => ({ ...prev, current: prev.current + 1, failed: prev.failed + 1 }));
         }
       }));
+
+      // Yield control to browser event loop between batches for garbage collection & smooth UI updates
+      await new Promise(resolve => setTimeout(resolve, 15));
+    }
+
+    if (currentBatchErrors.length > 0) {
+      setParseErrors(prev => [...currentBatchErrors, ...prev]);
+      setShowErrorDetails(true);
+      setNotification({
+        message: `Terdeteksi ${currentBatchErrors.length} berkas PDF mengalami kendala saat parsing. Tombol "Ekspor Log Error (Excel)" siap digunakan.`,
+        type: 'error'
+      });
     }
 
     setIsParsing(false);
@@ -592,7 +768,165 @@ const UangMakanPage: React.FC = () => {
     setSkippedDuplicatesCount(0);
     setDuplicateSkippedNames([]);
 
-    logActivity('CREATE', 'Uang Makan', `Memproses parsing ${parsedResults.length} berkas PDF Uang Makan dan menyimpan ke arsip drive.`);
+    logActivity('CREATE', 'Uang Makan', `Memproses parsing ${parsedResults.length} berkas PDF Uang Makan (${currentBatchErrors.length} gagal) dan menyimpan ke arsip drive.`);
+  };
+
+  // Process and calculate Uang Makan directly from all stored PDFs in IndexedDB
+  const handleProcessFromStoredArchive = async () => {
+    if (storedPdfs.length === 0) {
+      setNotification({
+        message: 'Belum ada berkas PDF tersimpan di arsip drive browser.',
+        type: 'info'
+      });
+      return;
+    }
+
+    setIsProcessingArchive(true);
+    setArchiveProgress({ current: 0, total: storedPdfs.length, fileName: '' });
+
+    try {
+      await ensurePdfJsLoaded();
+    } catch (e: any) {
+      const errMsg = e?.message || 'Gagal memuat sistem pembaca PDF.js. Periksa koneksi internet Anda.';
+      setNotification({ message: 'Gagal menginisialisasi pustaka PDF: ' + errMsg, type: 'error' });
+      setIsProcessingArchive(false);
+      return;
+    }
+
+    const newParsedList: ParsedAttendance[] = [];
+    const errorsList: ParseErrorRecord[] = [];
+    const batchSize = storedPdfs.length > 200 ? 3 : 4;
+
+    for (let i = 0; i < storedPdfs.length; i += batchSize) {
+      const batch = storedPdfs.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (storedPdf) => {
+        try {
+          setArchiveProgress(prev => ({ ...prev, fileName: storedPdf.fileName }));
+
+          // 1. Check if already has cached parsedResult in full record
+          let fullPdf = await getStoredPdfById(storedPdf.id);
+          if (!fullPdf) fullPdf = storedPdf;
+
+          if (fullPdf.parsedResult && Array.isArray(fullPdf.parsedResult.days) && fullPdf.parsedResult.days.length > 0) {
+            const enriched = enrichWithMasterPegawai(fullPdf.parsedResult);
+            newParsedList.push(enriched);
+            setArchiveProgress(prev => ({ ...prev, current: prev.current + 1 }));
+            return;
+          }
+
+          // 2. Otherwise extract from stored blob or base64
+          let fileBlob: Blob | null = fullPdf.blob || null;
+          if (!fileBlob && fullPdf.base64 && fullPdf.base64.trim() !== '') {
+            fileBlob = base64ToBlob(fullPdf.base64);
+          }
+
+          if (!fileBlob) {
+            throw new Error(`Data fisik berkas ${storedPdf.fileName} tidak ditemukan di IndexedDB.`);
+          }
+
+          const fileObj = new File([fileBlob], storedPdf.fileName, { type: 'application/pdf' });
+          const rawResObj = await parseSinglePdf(fileObj, holidays);
+
+          if (!rawResObj || !rawResObj.days || rawResObj.days.length === 0) {
+            throw new Error('Tidak ditemukan data tabel presensi yang valid di dalam berkas PDF ini.');
+          }
+
+          const resObj = enrichWithMasterPegawai(rawResObj);
+          newParsedList.push(resObj);
+
+          // Cache parsed result back into IndexedDB record for instantaneous future loads
+          try {
+            await savePdfToStore({
+              ...fullPdf,
+              nip: resObj.nip || fullPdf.nip,
+              nama: resObj.nama || fullPdf.nama,
+              periode: resObj.periode || fullPdf.periode,
+              parsedResult: resObj
+            });
+          } catch (storageErr) {
+            // Non-blocking
+          }
+
+          setArchiveProgress(prev => ({ ...prev, current: prev.current + 1 }));
+        } catch (err: any) {
+          console.error(`Error processing stored PDF ${storedPdf.fileName}:`, err);
+          errorsList.push({
+            id: `err_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            fileName: storedPdf.fileName,
+            fileSize: storedPdf.fileSize,
+            errorMessage: err?.message || 'Gagal mengekstrak data presensi dari berkas PDF arsip.',
+            timestamp: new Date().toISOString()
+          });
+          setArchiveProgress(prev => ({ ...prev, current: prev.current + 1 }));
+        }
+      }));
+
+      // Yield control to UI thread
+      await new Promise(resolve => setTimeout(resolve, 15));
+    }
+
+    if (newParsedList.length > 0) {
+      setResults(newParsedList);
+      await saveParsedResultsToIndexedDb(newParsedList);
+      setNotification({
+        message: `Berhasil mengolah & menghitung uang makan untuk ${newParsedList.length} berkas pegawai dari arsip! Tombol "Ekspor Excel Multi-Sheet" kini aktif.`,
+        type: 'success'
+      });
+      logActivity('UPDATE', 'Uang Makan', `Menjalankan proses kalkulasi uang makan dari ${newParsedList.length} berkas arsip PDF.`);
+    }
+
+    if (errorsList.length > 0) {
+      setParseErrors(prev => [...errorsList, ...prev]);
+      setShowErrorDetails(true);
+    }
+
+    setIsProcessingArchive(false);
+  };
+
+  // Safe On-Demand Preview and Download handlers for 1000+ files
+  const handleOpenPdfPreview = async (pdf: StoredPdfRecord) => {
+    try {
+      let activePdf = pdf;
+      if (!pdf.blob && (!pdf.base64 || pdf.base64.trim() === '')) {
+        const fullRecord = await getStoredPdfById(pdf.id);
+        if (fullRecord) activePdf = fullRecord;
+      }
+      const url = getStoredPdfUrl(activePdf);
+      setPdfPreviewModal({ ...activePdf, fileUrl: url, base64: url });
+    } catch (e) {
+      setNotification({ message: 'Gagal membuka pratinjau berkas PDF.', type: 'error' });
+    }
+  };
+
+  const handleDownloadStoredPdf = async (pdf: StoredPdfRecord) => {
+    try {
+      let activePdf = pdf;
+      if (!pdf.blob && (!pdf.base64 || pdf.base64.trim() === '')) {
+        const fullRecord = await getStoredPdfById(pdf.id);
+        if (fullRecord) activePdf = fullRecord;
+      }
+      const url = getStoredPdfUrl(activePdf);
+      if (url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = pdf.fileName || 'presensi.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        if (url.startsWith('blob:')) {
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+      }
+    } catch (e) {
+      setNotification({ message: 'Gagal mengunduh berkas PDF.', type: 'error' });
+    }
+  };
+
+  const handleClosePdfPreview = () => {
+    if (pdfPreviewModal?.fileUrl && pdfPreviewModal.fileUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfPreviewModal.fileUrl);
+    }
+    setPdfPreviewModal(null);
   };
 
   const handleDeleteStoredPdf = (pdf: StoredPdfRecord) => {
@@ -711,13 +1045,14 @@ const UangMakanPage: React.FC = () => {
     let totalNet = 0;
 
     results.forEach(r => {
+      if (!r || !Array.isArray(r.days)) return;
       const umDays = r.days.filter(isHariMasukUM).length;
       totalUangMakanDays += umDays;
 
       const calc = calculateUangMakanByGolongan(r.golongan || '', umDays, tariffConfig);
-      totalBruto += calc.brutoTotal;
-      totalPph += calc.pphTotal;
-      totalNet += calc.netTotal;
+      totalBruto += calc.brutoTotal || 0;
+      totalPph += calc.pphTotal || 0;
+      totalNet += calc.netTotal || 0;
     });
 
     return {
@@ -777,6 +1112,7 @@ const UangMakanPage: React.FC = () => {
     const uniqueNips = new Set<string>();
 
     results.forEach(r => {
+      if (!r || !Array.isArray(r.days)) return;
       const umDays = r.days.filter(isHariMasukUM).length;
       const calc = calculateUangMakanByGolongan(r.golongan || '', umDays, tariffConfig);
 
@@ -788,7 +1124,7 @@ const UangMakanPage: React.FC = () => {
 
       let monthLabel = (r.periode || '').trim();
       if (!monthLabel) {
-        const firstValidDay = r.days.find(d => d.dateStr || d.date);
+        const firstValidDay = r.days.find(d => d && (d.dateStr || d.date));
         if (firstValidDay) {
           const dStr = firstValidDay.dateStr || (firstValidDay.date ? getIsoDateStr(firstValidDay.date) : '');
           if (dStr && dStr.includes('-')) {
@@ -863,6 +1199,7 @@ const UangMakanPage: React.FC = () => {
   // Filtered Results for pegawai
   const filteredResults = useMemo(() => {
     return results.filter(r => {
+      if (!r) return false;
       const q = searchTerm.toLowerCase().trim();
       const matchSearch = !q || 
         (r.nama && r.nama.toLowerCase().includes(q)) || 
@@ -873,7 +1210,7 @@ const UangMakanPage: React.FC = () => {
       if (!matchSearch) return false;
 
       if (filterGolongan !== 'all') {
-        const umDays = r.days.filter(isHariMasukUM).length;
+        const umDays = Array.isArray(r.days) ? r.days.filter(isHariMasukUM).length : 0;
         const calc = calculateUangMakanByGolongan(r.golongan || '', umDays, tariffConfig);
         if (filterGolongan === 'gol4' && calc.categoryName !== 'Golongan IV') return false;
         if (filterGolongan === 'gol3' && calc.categoryName !== 'Golongan III') return false;
@@ -891,9 +1228,11 @@ const UangMakanPage: React.FC = () => {
     let counterNo = 1;
 
     filteredResults.forEach(r => {
+      if (!r || !Array.isArray(r.days)) return;
       const umDays = r.days.filter(isHariMasukUM);
       umDays.forEach((d, idx) => {
-        const dateFormatted = d.date ? getIsoDateStr(d.date) : d.dateStr;
+        if (!d) return;
+        const dateFormatted = d.date ? getIsoDateStr(d.date) : (d.dateStr || '-');
         rows.push({
           no: idx === 0 ? String(counterNo) : '',
           nama: r.nama || '-',
@@ -915,8 +1254,6 @@ const UangMakanPage: React.FC = () => {
   }, [filteredResults, currentPage]);
 
   // Pagination for tab 2
-  const [detailCurrentPage, setDetailCurrentPage] = useState<number>(1);
-  const detailItemsPerPage = 25;
   const totalDetailPages = Math.ceil(detailUangMakanFlattened.length / detailItemsPerPage) || 1;
   const paginatedDetailRows = useMemo(() => {
     const start = (detailCurrentPage - 1) * detailItemsPerPage;
@@ -928,7 +1265,8 @@ const UangMakanPage: React.FC = () => {
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Rekap Uang Makan Per Pegawai Sesuai PMK
-    const rekapPMKData = results.map((r, i) => {
+    const validResults = results.filter(r => r && Array.isArray(r.days));
+    const rekapPMKData = validResults.map((r, i) => {
       const umDays = r.days.filter(isHariMasukUM).length;
       const calc = calculateUangMakanByGolongan(r.golongan || '', umDays, tariffConfig);
       return {
@@ -964,7 +1302,7 @@ const UangMakanPage: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, ws1, 'Rekap Uang Makan PMK');
 
     // Sheet 2: Jumlah Hari Kerja
-    const jumlahHariKerjaData = results.map(r => {
+    const jumlahHariKerjaData = validResults.map(r => {
       const umDays = r.days.filter(isHariMasukUM).length;
       return {
         'NIP': r.nip || '-',
@@ -982,8 +1320,9 @@ const UangMakanPage: React.FC = () => {
 
     // Sheet 3: Detail Absen (Detail Rekap Absensi)
     const detailAbsenData: any[] = [];
-    results.forEach(r => {
+    validResults.forEach(r => {
       r.days.forEach(d => {
+        if (!d) return;
         let statusStr = 'TIDAK MASUK';
         if (d.attendanceType === 'PRESENT') statusStr = 'Hadir';
         else if (d.attendanceType === 'DL_FULL') statusStr = 'Dinas Luar (Full)';
@@ -1024,10 +1363,11 @@ const UangMakanPage: React.FC = () => {
     // Sheet 4: Detail Absensi UM (Tanpa Kolom Golongan)
     const detailUmData: any[] = [];
     let counterNo = 1;
-    results.forEach(r => {
+    validResults.forEach(r => {
       const umDays = r.days.filter(isHariMasukUM);
       umDays.forEach((d, idx) => {
-        const dateFormatted = d.date ? getIsoDateStr(d.date) : d.dateStr;
+        if (!d) return;
+        const dateFormatted = d.date ? getIsoDateStr(d.date) : (d.dateStr || '-');
         detailUmData.push({
           'No': idx === 0 ? counterNo : '',
           'Nama': r.nama || '-',
@@ -1046,8 +1386,82 @@ const UangMakanPage: React.FC = () => {
     ];
     XLSX.utils.book_append_sheet(wb, ws4, 'Detail Absensi UM');
 
+    // Optional Sheet 5: Catatan Berkas Error (Jika ada berkas yang gagal di-parse)
+    if (parseErrors.length > 0) {
+      const errorRows = parseErrors.map((err, idx) => ({
+        'No': idx + 1,
+        'Nama Berkas PDF': err.fileName,
+        'Ukuran Berkas': err.fileSize ? formatBytes(err.fileSize) : '-',
+        'Waktu Error': formatDateTimeSafe(err.timestamp),
+        'Status': 'GAGAL DIPROSES',
+        'Pesan Error / Kendala': err.errorMessage,
+        'Rekomendasi Solusi': 'Pastikan berkas PDF presensi memiliki layer teks asli (bukan foto/scan gambar) dan tidak diproteksi sandi.'
+      }));
+      const wsErr = XLSX.utils.json_to_sheet(errorRows);
+      wsErr['!cols'] = [
+        { wch: 6 },
+        { wch: 38 },
+        { wch: 16 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 45 },
+        { wch: 60 }
+      ];
+      XLSX.utils.book_append_sheet(wb, wsErr, 'Catatan Berkas Error');
+    }
+
     XLSX.writeFile(wb, `Rekap_Uang_Makan_Golongan_PMK_SDM_DJKI_${new Date().toISOString().split('T')[0]}.xlsx`);
-    logActivity('DOWNLOAD', 'Uang Makan', 'Mengekspor rekap Uang Makan sesuai standar PMK ke Excel Multi-Sheet (4 Sheet)');
+    logActivity('DOWNLOAD', 'Uang Makan', `Mengekspor rekap Uang Makan sesuai standar PMK ke Excel Multi-Sheet (${parseErrors.length > 0 ? '5 Sheet termasuk Error' : '4 Sheet'})`);
+  };
+
+  // Dedicated Export for Parsing Errors
+  const handleExportErrorExcel = () => {
+    if (parseErrors.length === 0) {
+      setNotification({ message: 'Tidak ada riwayat berkas error untuk diekspor.', type: 'info' });
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Berkas Gagal / Parsing Error
+    const errorRows = parseErrors.map((err, idx) => ({
+      'No': idx + 1,
+      'Nama Berkas PDF': err.fileName,
+      'Ukuran Berkas': err.fileSize ? formatBytes(err.fileSize) : '-',
+      'Waktu Kejadian': formatDateTimeSafe(err.timestamp),
+      'Status Parsing': 'GAGAL (ERROR)',
+      'Keterangan / Pesan Kendala': err.errorMessage,
+      'Rekomendasi Solusi': '1. Unggah ulang berkas PDF asli dari portal presensi (harus teks digital, bukan scan/foto).\n2. Pastikan file tidak terenkripsi atau diproteksi kata sandi.\n3. Periksa apakah tabel tanggal dan jam presensi tercetak lengkap.'
+    }));
+
+    const ws1 = XLSX.utils.json_to_sheet(errorRows);
+    ws1['!cols'] = [
+      { wch: 6 },
+      { wch: 40 },
+      { wch: 16 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 50 },
+      { wch: 65 }
+    ];
+    XLSX.utils.book_append_sheet(wb, ws1, 'Daftar Berkas Gagal (Error)');
+
+    // Sheet 2: Ringkasan Audit
+    const summaryRows = [
+      { 'Parameter': 'Total Berkas Mengalami Error', 'Nilai': parseErrors.length },
+      { 'Parameter': 'Total Berkas Berhasil Diproses', 'Nilai': results.length },
+      { 'Parameter': 'Waktu Ekspor Laporan', 'Nilai': formatDateTimeSafe(new Date().toISOString()) },
+      { 'Parameter': 'Modul Sistem', 'Nilai': 'Pengelolaan Presensi & Uang Makan ASN DJKI' },
+      { 'Parameter': 'Status Tindak Lanjut', 'Nilai': 'Perlu perbaikan berkas fisik PDF yang dilaporkan gagal' }
+    ];
+    const ws2 = XLSX.utils.json_to_sheet(summaryRows);
+    ws2['!cols'] = [{ wch: 35 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Ringkasan Audit');
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Laporan_Error_Parsing_PDF_Uang_Makan_${dateStr}.xlsx`);
+    logActivity('DOWNLOAD', 'Uang Makan', `Mengekspor laporan ${parseErrors.length} berkas error parsing PDF ke Excel.`);
+    setNotification({ message: `Berhasil mengekspor ${parseErrors.length} berkas error ke Excel.`, type: 'success' });
   };
 
   // Export PDF Report
@@ -1056,9 +1470,10 @@ const UangMakanPage: React.FC = () => {
     doc.setFontSize(14);
     doc.text('REKAPITULASI UANG MAKAN PEGAWAI SDM DJKI (STANDAR PMK)', 40, 40);
     doc.setFontSize(9);
-    doc.text(`Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')} | Gol. I&II: Rp35rb (0%), Gol. III: Rp37rb (5%), Gol. IV: Rp41rb (15%)`, 40, 55);
+    doc.text(`Tanggal Cetak: ${formatDateTimeSafe(new Date().toISOString())} | Gol. I&II: Rp35rb (0%), Gol. III: Rp37rb (5%), Gol. IV: Rp41rb (15%)`, 40, 55);
 
-    const tableData = results.map((r, i) => {
+    const validResults = results.filter(r => r && Array.isArray(r.days));
+    const tableData = validResults.map((r, i) => {
       const umDays = r.days.filter(isHariMasukUM).length;
       const calc = calculateUangMakanByGolongan(r.golongan || '', umDays, tariffConfig);
       return [
@@ -1319,6 +1734,120 @@ const UangMakanPage: React.FC = () => {
             </button>
           </div>
         )}
+
+        {/* Live Parsing Progress Bar */}
+        {isParsing && (
+          <div className="space-y-3 bg-blue-50/80 p-5 rounded-2xl border border-blue-100 animate-fadeIn mt-4">
+            <div className="flex justify-between text-[10px] font-black text-blue-700 uppercase">
+              <span className="flex items-center gap-1.5">
+                <i className="bi bi-arrow-repeat animate-spin"></i>
+                Menganalisis Berkas PDF Presensi...
+              </span>
+              <span>{parseProgress.current} / {parseProgress.total} ({parseProgress.total > 0 ? Math.round((parseProgress.current / parseProgress.total) * 100) : 0}%)</span>
+            </div>
+            <div className="h-2.5 w-full bg-gray-200/80 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-600 rounded-full transition-all duration-300" 
+                style={{ width: `${parseProgress.total > 0 ? (parseProgress.current / parseProgress.total) * 100 : 0}%` }}
+              ></div>
+            </div>
+            <div className="flex justify-between items-center text-[9px] text-gray-500 font-bold uppercase">
+              <span className="truncate max-w-[65%]">File: <b className="text-gray-700">{parseProgress.currentFileName || '-'}</b></span>
+              <span>Sukses: <b className="text-emerald-600">{parseProgress.success}</b> • Gagal: <b className="text-rose-600">{parseProgress.failed}</b></span>
+            </div>
+          </div>
+        )}
+
+        {/* PARSING ERROR & DIAGNOSTIC PANEL WITH EXCEL EXPORT */}
+        {parseErrors.length > 0 && (
+          <div className="bg-rose-50/90 border-2 border-rose-200 rounded-2xl p-5 space-y-4 animate-slideUp mt-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-rose-600 text-white rounded-xl shadow-md shadow-rose-600/20 shrink-0">
+                  <i className="bi bi-exclamation-triangle-fill text-lg"></i>
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-rose-950 uppercase tracking-tight flex items-center gap-2">
+                    Terdeteksi {parseErrors.length} Berkas PDF Gagal Diproses (Parsing Error)
+                  </h4>
+                  <p className="text-[11px] text-rose-700 font-medium mt-0.5">
+                    Berkas di bawah gagal diekstrak karena format tidak sesuai standar atau teks PDF tidak terbaca. Anda dapat mengekspor log rincian kendala ini ke file Excel untuk ditindaklanjuti.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+                <button
+                  onClick={handleExportErrorExcel}
+                  className="flex-1 md:flex-initial px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 shrink-0"
+                  title="Unduh laporan berkas error ke format Excel (.xlsx)"
+                >
+                  <i className="bi bi-file-earmark-excel-fill text-sm"></i> Ekspor Log Error (Excel)
+                </button>
+                <button
+                  onClick={() => setShowErrorDetails(prev => !prev)}
+                  className="px-3 py-2.5 bg-white hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                >
+                  <i className={`bi bi-chevron-${showErrorDetails ? 'up' : 'down'}`}></i>
+                  {showErrorDetails ? 'Tutup Rincian' : 'Lihat Rincian'}
+                </button>
+                <button
+                  onClick={() => {
+                    setParseErrors([]);
+                    localStorage.removeItem('absen_pdf_parse_errors');
+                    setNotification({ message: 'Riwayat berkas error parsing berhasil dibersihkan.', type: 'info' });
+                  }}
+                  className="p-2.5 text-rose-500 hover:text-rose-700 hover:bg-rose-100 rounded-xl transition-all"
+                  title="Bersihkan Log Error"
+                >
+                  <i className="bi bi-trash3 text-sm"></i>
+                </button>
+              </div>
+            </div>
+
+            {showErrorDetails && (
+              <div className="overflow-x-auto border border-rose-200 rounded-xl bg-white shadow-inner">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-rose-100/60 text-[9px] font-black uppercase text-rose-800 border-b border-rose-200 tracking-wider">
+                      <th className="px-3.5 py-2.5 text-center w-10">No</th>
+                      <th className="px-3.5 py-2.5">Nama Berkas PDF</th>
+                      <th className="px-3.5 py-2.5 text-center">Ukuran</th>
+                      <th className="px-3.5 py-2.5">Waktu Kejadian</th>
+                      <th className="px-3.5 py-2.5">Pesan Kendala / Error</th>
+                      <th className="px-3.5 py-2.5">Rekomendasi Tindakan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-rose-100 text-xs font-bold text-gray-800">
+                    {parseErrors.map((err, idx) => (
+                      <tr key={err.id || idx} className="hover:bg-rose-50/40 transition-colors">
+                        <td className="px-3.5 py-2.5 text-center font-mono text-[10px] text-gray-400">{idx + 1}</td>
+                        <td className="px-3.5 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <i className="bi bi-file-earmark-x-fill text-rose-500 text-sm"></i>
+                            <span className="font-extrabold text-gray-900 truncate max-w-[200px]" title={err.fileName}>{err.fileName}</span>
+                          </div>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-center font-mono text-[10px] text-gray-500">
+                          {err.fileSize ? formatBytes(err.fileSize) : '-'}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-[10px] font-mono text-gray-500">
+                          {formatTimeOnlySafe(err.timestamp)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-rose-600 font-semibold text-[11px]">
+                          {err.errorMessage}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-[10px] text-gray-500 font-normal">
+                          Pastikan berkas PDF asli dengan teks terbaca, bukan scan foto murni atau terproteksi sandi.
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* DRIVE ARCHIVE (FOLDER PER BULAN) */}
@@ -1443,25 +1972,24 @@ const UangMakanPage: React.FC = () => {
                       {formatBytes(pdf.fileSize)}
                     </td>
                     <td className="px-4 py-3.5 text-center font-mono text-[10px] text-gray-500">
-                      {new Date(pdf.uploadedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {formatDateTimeSafe(pdf.uploadedAt)}
                     </td>
                     <td className="px-5 py-3.5 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <button
-                          onClick={() => setPdfPreviewModal(pdf)}
+                          onClick={() => handleOpenPdfPreview(pdf)}
                           className="p-2 bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white rounded-xl transition-all shadow-sm"
                           title="Lihat Pratinjau PDF"
                         >
                           <i className="bi bi-eye-fill text-sm"></i>
                         </button>
-                        <a
-                          href={pdf.base64}
-                          download={pdf.fileName}
+                        <button
+                          onClick={() => handleDownloadStoredPdf(pdf)}
                           className="p-2 bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white rounded-xl transition-all shadow-sm inline-flex items-center justify-center"
                           title="Unduh Berkas PDF Original"
                         >
                           <i className="bi bi-download text-sm"></i>
-                        </a>
+                        </button>
                         <button
                           onClick={() => handleDeleteStoredPdf(pdf)}
                           className="p-2 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-xl transition-all shadow-sm"
@@ -1492,23 +2020,137 @@ const UangMakanPage: React.FC = () => {
             <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Gunakan tab untuk melihat Rekap Per Golongan, Detail Absensi, atau Kelola Kalender Hari Libur</p>
           </div>
 
-          {results.length > 0 && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Tombol Olah & Hitung Langsung dari Arsip PDF */}
+            {storedPdfs.length > 0 && (
               <button
-                onClick={handleExportExcel}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-2"
+                onClick={handleProcessFromStoredArchive}
+                disabled={isProcessingArchive}
+                className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                title={`Olah dan hitung data uang makan langsung dari ${storedPdfs.length} berkas PDF di arsip browser`}
+              >
+                <i className={`bi ${isProcessingArchive ? 'bi-arrow-repeat animate-spin' : 'bi-lightning-charge-fill'} text-sm`}></i>
+                {isProcessingArchive
+                  ? `Mengolah Arsip (${archiveProgress.current}/${archiveProgress.total})...`
+                  : results.length > 0
+                    ? `Sinkronisasi Arsip (${storedPdfs.length})`
+                    : `⚡ Olah ${storedPdfs.length} Berkas Dari Arsip`}
+              </button>
+            )}
+
+            {/* Tombol Ekspor Log Error (Excel) jika terdeteksi berkas gagal */}
+            {parseErrors.length > 0 && (
+              <button
+                onClick={handleExportErrorExcel}
+                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md shadow-rose-600/20 flex items-center gap-2 animate-pulse"
+                title="Unduh laporan daftar berkas PDF yang gagal diproses ke file Excel (.xlsx)"
+              >
+                <i className="bi bi-file-earmark-excel-fill text-sm"></i> Ekspor Log Error ({parseErrors.length} Berkas)
+              </button>
+            )}
+
+            {/* Tombol Ekspor Hasil Rekap Utama */}
+            {results.length > 0 ? (
+              <>
+                <button
+                  onClick={handleExportExcel}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-2"
+                  title="Ekspor rekapitulasi ke format Excel Multi-Sheet"
+                >
+                  <i className="bi bi-file-earmark-excel-fill text-sm"></i> Ekspor Excel Multi-Sheet
+                </button>
+                <button
+                  onClick={handleExportPdf}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-2"
+                  title="Ekspor rekapitulasi ke format PDF"
+                >
+                  <i className="bi bi-file-earmark-pdf-fill text-sm"></i> Ekspor PDF
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  if (parseErrors.length > 0) {
+                    handleExportErrorExcel();
+                  } else if (storedPdfs.length > 0) {
+                    setNotification({
+                      message: `Ditemukan ${storedPdfs.length} berkas PDF di arsip browser. Memulai kalkulasi dan olah uang makan...`,
+                      type: 'info'
+                    });
+                    handleProcessFromStoredArchive();
+                  } else {
+                    setNotification({ message: 'Belum ada data presensi yang berhasil diolah. Silakan unggah berkas PDF terlebih dahulu.', type: 'info' });
+                  }
+                }}
+                className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-2 ${
+                  parseErrors.length > 0
+                    ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 cursor-pointer'
+                    : storedPdfs.length > 0
+                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 cursor-pointer'
+                      : 'bg-gray-100 text-gray-400 border border-gray-200 hover:bg-gray-200'
+                }`}
+                title={
+                  parseErrors.length > 0
+                    ? 'Klik untuk ekspor berkas error yang gagal diproses ke Excel'
+                    : storedPdfs.length > 0
+                      ? `Klik untuk langsung mengolah ${storedPdfs.length} berkas dari arsip dan mengaktifkan ekspor Excel`
+                      : 'Belum ada data hasil olah'
+                }
               >
                 <i className="bi bi-file-earmark-excel-fill text-sm"></i> Ekspor Excel Multi-Sheet
+                <span className="text-[9px] bg-white/80 px-1.5 py-0.5 rounded font-bold">
+                  {parseErrors.length > 0 ? 'Ekspor Error' : storedPdfs.length > 0 ? `Klik Olah Arsip (${storedPdfs.length})` : 'Data Kosong'}
+                </span>
               </button>
-              <button
-                onClick={handleExportPdf}
-                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-2"
-              >
-                <i className="bi bi-file-earmark-pdf-fill text-sm"></i> Ekspor PDF
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        {/* PROSES ARSIP PROGRESS BAR */}
+        {isProcessingArchive && (
+          <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-2xl space-y-2.5 shadow-sm">
+            <div className="flex justify-between items-center text-xs font-black uppercase">
+              <span className="text-emerald-950 flex items-center gap-2">
+                <i className="bi bi-arrow-repeat animate-spin text-emerald-600 text-sm"></i>
+                Mengolah Berkas Arsip: <span className="font-mono text-gray-600 text-[11px] lowercase truncate max-w-[280px]">{archiveProgress.fileName || 'Memuat...'}</span>
+              </span>
+              <span className="text-emerald-700 font-mono font-bold">{archiveProgress.current} / {archiveProgress.total}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 h-full transition-all duration-200 rounded-full"
+                style={{ width: `${(archiveProgress.current / (archiveProgress.total || 1)) * 100}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
+
+        {/* CALLOUT BANNER KETIKA HASIL KOSONG TAPI ADA BERKAS ARSIP */}
+        {results.length === 0 && storedPdfs.length > 0 && !isProcessingArchive && (
+          <div className="p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg shrink-0 shadow-md shadow-emerald-600/20">
+                <i className="bi bi-file-earmark-check-fill"></i>
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-emerald-950 uppercase tracking-tight">
+                  Tersedia {storedPdfs.length} Berkas PDF di Arsip Browser
+                </h4>
+                <p className="text-[11px] text-emerald-800 font-medium mt-0.5">
+                  Hasil kalkulasi uang makan belum dimuat ke sesi aktif ini. Klik tombol di samping untuk langsung mengolah data presensi dan mengaktifkan <strong>Ekspor Excel Multi-Sheet</strong>.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleProcessFromStoredArchive}
+              disabled={isProcessingArchive}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2 shrink-0 cursor-pointer"
+            >
+              <i className="bi bi-lightning-charge-fill text-sm"></i>
+              ⚡ Olah Sekarang ({storedPdfs.length} Berkas)
+            </button>
+          </div>
+        )}
 
         {/* TAB NAVIGATION */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-gray-100 p-1.5 rounded-2xl">
@@ -2172,14 +2814,14 @@ const UangMakanPage: React.FC = () => {
 
               <div className="flex items-center gap-2 shrink-0">
                 <a
-                  href={pdfPreviewModal.base64}
+                  href={pdfPreviewModal.fileUrl || pdfPreviewModal.base64}
                   download={pdfPreviewModal.fileName}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase rounded-xl transition-all flex items-center gap-1.5"
                 >
                   <i className="bi bi-download"></i> Unduh PDF
                 </a>
                 <button
-                  onClick={() => setPdfPreviewModal(null)}
+                  onClick={handleClosePdfPreview}
                   className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all"
                 >
                   <i className="bi bi-x-lg"></i>
@@ -2189,7 +2831,7 @@ const UangMakanPage: React.FC = () => {
 
             <div className="p-4 md:p-6 bg-gray-100 flex-1 overflow-hidden">
               <iframe
-                src={pdfPreviewModal.base64}
+                src={pdfPreviewModal.fileUrl || pdfPreviewModal.base64}
                 title={pdfPreviewModal.fileName}
                 className="w-full h-[70vh] rounded-2xl border border-gray-200 bg-white shadow-inner"
               />
@@ -2200,11 +2842,12 @@ const UangMakanPage: React.FC = () => {
 
       {/* DETAIL KEHADIRAN PEGAWAI MODAL */}
       {selectedEmployeeDetail && (() => {
-        const umDays = selectedEmployeeDetail.days.filter(isHariMasukUM).length;
+        const detailDays = Array.isArray(selectedEmployeeDetail.days) ? selectedEmployeeDetail.days : [];
+        const umDays = detailDays.filter(isHariMasukUM).length;
         const calc = calculateUangMakanByGolongan(selectedEmployeeDetail.golongan || '', umDays, tariffConfig);
-        const totalKalender = selectedEmployeeDetail.days.length;
-        const totalWeekend = selectedEmployeeDetail.days.filter(d => d.isWeekend).length;
-        const totalLibur = selectedEmployeeDetail.days.filter(d => d.isHoliday).length;
+        const totalKalender = detailDays.length;
+        const totalWeekend = detailDays.filter(d => d && d.isWeekend).length;
+        const totalLibur = detailDays.filter(d => d && d.isHoliday).length;
         const totalTidakMasuk = totalKalender - totalWeekend - totalLibur - umDays;
 
         return (
@@ -2276,7 +2919,8 @@ const UangMakanPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-xs font-bold text-gray-800">
-                      {selectedEmployeeDetail.days.map((day, idx) => {
+                      {detailDays.map((day, idx) => {
+                        if (!day) return null;
                         const isUM = isHariMasukUM(day);
                         return (
                           <tr key={idx} className={isUM ? 'bg-emerald-50/20' : day.isWeekend || day.isHoliday ? 'bg-gray-50/50 opacity-75' : ''}>

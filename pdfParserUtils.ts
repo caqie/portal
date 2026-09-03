@@ -50,6 +50,7 @@ export interface ParsedAttendance {
 }
 
 export const isHariMasukUM = (d: ParsedDay): boolean => {
+  if (!d) return false;
   // 1. Exclude weekends (Sabtu / Minggu) and holidays (National Holidays / Cuti Bersama)
   if (d.isWeekend || d.isHoliday) return false;
 
@@ -422,35 +423,44 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
     throw new Error('PDF.js library is not loaded yet');
   }
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let pdf: any = null;
   
-  let fullText = '';
-  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-    const page = await pdf.getPage(pageNum);
-    const textContent = await page.getTextContent();
-    const items = textContent.items as any[];
+  try {
+    pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
-    // Sort and construct line-by-line with coordinates to support tabular formats
-    const linesMap: { [key: number]: any[] } = {};
-    items.forEach(item => {
-      const y = Math.round(item.transform[5] * 2) / 2;
-      let foundY = Object.keys(linesMap).find(existingY => Math.abs(Number(existingY) - y) < 4);
-      if (foundY) {
-        linesMap[Number(foundY)].push(item);
-      } else {
-        linesMap[y] = [item];
+    let fullText = '';
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      try {
+        const textContent = await page.getTextContent();
+        const items = textContent.items as any[];
+        
+        // Sort and construct line-by-line with coordinates to support tabular formats
+        const linesMap: { [key: number]: any[] } = {};
+        items.forEach(item => {
+          const y = Math.round(item.transform[5] * 2) / 2;
+          let foundY = Object.keys(linesMap).find(existingY => Math.abs(Number(existingY) - y) < 4);
+          if (foundY) {
+            linesMap[Number(foundY)].push(item);
+          } else {
+            linesMap[y] = [item];
+          }
+        });
+        
+        const sortedY = Object.keys(linesMap).map(Number).sort((a, b) => b - a);
+        let pageText = '';
+        sortedY.forEach(y => {
+          const lineItems = linesMap[y].sort((a, b) => a.transform[4] - b.transform[4]);
+          const lineText = lineItems.map(item => item.str).join(' ');
+          pageText += lineText + '\n';
+        });
+        fullText += pageText + '\n';
+      } finally {
+        if (page && typeof page.cleanup === 'function') {
+          page.cleanup();
+        }
       }
-    });
-    
-    const sortedY = Object.keys(linesMap).map(Number).sort((a, b) => b - a);
-    let pageText = '';
-    sortedY.forEach(y => {
-      const lineItems = linesMap[y].sort((a, b) => a.transform[4] - b.transform[4]);
-      const lineText = lineItems.map(item => item.str).join(' ');
-      pageText += lineText + '\n';
-    });
-    fullText += pageText + '\n';
-  }
+    }
   
   let nama = '';
   let nip = '';
@@ -754,4 +764,18 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
       uangMakanHariMasukCount
     }
   };
+  } finally {
+    if (pdf) {
+      try {
+        if (typeof pdf.cleanup === 'function') {
+          pdf.cleanup();
+        }
+        if (typeof pdf.destroy === 'function') {
+          await pdf.destroy().catch(() => {});
+        }
+      } catch (e) {
+        // ignore cleanup error
+      }
+    }
+  }
 };
