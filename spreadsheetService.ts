@@ -1185,7 +1185,7 @@ export const fetchUsersFromSheets = async (bypassCache = false): Promise<AdminUs
       id: get('ID'), 
       nip: (get('NIP') || '').replace(/\D/g, ''), 
       name: get('NAME'), 
-      password: get('PASSWORD'), 
+      password: (get('PASSWORD') || '').trim(), 
       role: rawRole,
       roles: rolesList,
       foto: get('FOTO'),

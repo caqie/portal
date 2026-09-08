@@ -31,7 +31,7 @@ const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: str
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, logActivity, isSuperadmin, canEdit, isAdminPerencanaan, isAdminBangkom, isAdminKarier, isAdminUangMakan } = useAuth();
+  const { user, logActivity, isSuperadmin, canEdit, isAdminPerencanaan, isAdminBangkom, isAdminKarier, isAdminUangMakan, isOnlyAdminUangMakan } = useAuth();
   const [pegawai, setPegawai] = useState<Pegawai[]>(() => {
     const cached = localStorage.getItem('portal_pegawai_db');
     if (cached) {
@@ -744,7 +744,7 @@ const Dashboard = () => {
     logActivity('DOWNLOAD', 'Dashboard', 'Download Matriks Jabatan Lengkap (Excel Export)');
   };
 
-  const isViewerRole = !canEdit;
+  const isViewerRole = !canEdit || isOnlyAdminUangMakan;
   const [viewMode, setViewMode] = useState<'user' | 'admin'>(() => isViewerRole ? 'user' : 'admin');
 
   useEffect(() => {
@@ -753,11 +753,11 @@ const Dashboard = () => {
     }
   }, [isViewerRole]);
 
-  // If in user view mode (Default for Viewer / Pegawai / User role)
-  if (viewMode === 'user') {
+  // If in user view mode or user is strictly Admin Uang Makan (Show user page / data diri view)
+  if (viewMode === 'user' || isOnlyAdminUangMakan) {
     return (
       <UserSelfServiceDashboard 
-        canViewAdminSwitch={canEdit} 
+        canViewAdminSwitch={canEdit && !isOnlyAdminUangMakan} 
         onSwitchToAdminView={() => setViewMode('admin')} 
       />
     );

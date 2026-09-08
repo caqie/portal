@@ -34,7 +34,7 @@ export const LayananSDMAlertBanner: React.FC<LayananSDMAlertBannerProps> = ({ cl
     };
   }, [user]);
 
-  const isAdmin = user?.role === 'Superadmin' || user?.role === 'Editor' || user?.role === 'Admin Uang Makan';
+  const isAdmin = user?.role === 'Superadmin' || user?.role === 'Editor' || user?.role === 'Admin Perencanaan & Layanan' || (user?.roles && (user.roles.includes('Superadmin') || user.roles.includes('Admin Perencanaan & Layanan')));
   const userNip = user?.nip;
 
   // Cek tiket milik user yang butuh perbaikan

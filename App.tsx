@@ -140,7 +140,7 @@ const AppContent = () => {
   const [systemConfig, setSystemConfig] = useState<SystemConfig>({ maintenance: { all: false, pages: [] }, pageAccess: [] });
   
   const location = useLocation();
-  const { user, logout, isSuperadmin, canEdit, isAuthenticated, hasRole, activeRole, setActiveRole, userRoles } = useAuth();
+  const { user, logout, isSuperadmin, canEdit, isAuthenticated, hasRole, activeRole, setActiveRole, userRoles, isOnlyAdminUangMakan } = useAuth();
 
   const [userSdmBadge, setUserSdmBadge] = useState<{ count: number; isUrgent: boolean }>({ count: 0, isUrgent: false });
   const [adminSdmBadge, setAdminSdmBadge] = useState<number>(0);
@@ -313,17 +313,12 @@ const AppContent = () => {
 
   if (!isAuthenticated && !location.pathname.startsWith('/ukom') && !location.pathname.startsWith('/quizdjki') && location.pathname !== '/login') return <Navigate to="/login" replace />;
   if (location.pathname === '/login' && isAuthenticated) {
-    const onlyUangMakan = hasRole('Admin Uang Makan') && !hasRole('Superadmin') && !hasRole('Editor') && !hasRole('Admin Perencanaan & Layanan') && !hasRole('Admin Pengembangan Kompetensi') && !hasRole('Admin Pengelolaan Karier');
-    if (onlyUangMakan) {
+    if (isOnlyAdminUangMakan) {
       return <Navigate to="/uang-makan" replace />;
     }
     return <Navigate to="/" replace />;
   }
   if (location.pathname === '/login') return <LoginPage />;
-  const onlyUangMakanRole = hasRole('Admin Uang Makan') && !hasRole('Superadmin') && !hasRole('Editor') && !hasRole('Admin Perencanaan & Layanan') && !hasRole('Admin Pengembangan Kompetensi') && !hasRole('Admin Pengelolaan Karier');
-  if (location.pathname === '/' && onlyUangMakanRole) {
-    return <Navigate to="/uang-makan" replace />;
-  }
   
   const formattedDate = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -336,18 +331,13 @@ const AppContent = () => {
   const hasAccess = (path: string) => {
     if (isSuperadmin || hasRole('Superadmin')) return true;
     
-    // Admin Uang Makan specific permissions
-    if (hasRole('Admin Uang Makan') && !hasRole('Superadmin') && !hasRole('Editor') && !hasRole('Admin Perencanaan & Layanan')) {
-      return (
-        path === '/uang-makan' ||
-        path === '/' ||
-        path === '/pegawai' ||
-        path.startsWith('/pegawai/') ||
-        path === '/quizdjki' ||
-        path.startsWith('/quiz') ||
-        path.startsWith('/layanan-sdm') ||
-        path === '/rekap-absensi'
-      );
+    // Admin Uang Makan specific permissions: strictly only Admin Uang Makan page and user page / data diri user view
+    if (isOnlyAdminUangMakan) {
+      if (path === '/uang-makan') return true;
+      if (path === '/') return true;
+      if (user?.nip && (path === `/pegawai/${user.nip}` || path === `/pegawai/${user.nip.replace(/\D/g, '')}`)) return true;
+      if (path === '/layanan-sdm/pengajuan-saya' || path.startsWith('/layanan-sdm/pengajuan/')) return true;
+      return false;
     }
 
     // Dashboard root is always accessible to all authenticated users
@@ -504,7 +494,7 @@ const AppContent = () => {
           </button>
 
           <div className={`pt-8 md:pt-10 pb-6 md:pb-8 flex flex-col items-center ${isCollapsed ? 'px-2' : 'px-6 md:px-8'}`}>
-            <Link to={user?.role === 'Admin Uang Makan' ? "/uang-makan" : "/"} className={`relative transition-all duration-500 ${isCollapsed ? 'w-12 h-12 md:w-14 md:h-14' : 'w-20 h-20 md:w-24 md:h-24'} mb-3 md:mb-4 active:scale-95 group`}>
+            <Link to={isOnlyAdminUangMakan ? "/uang-makan" : "/"} className={`relative transition-all duration-500 ${isCollapsed ? 'w-12 h-12 md:w-14 md:h-14' : 'w-20 h-20 md:w-24 md:h-24'} mb-3 md:mb-4 active:scale-95 group`}>
                 <div className="w-full h-full bg-white rounded-xl md:rounded-2xl p-2 md:p-2.5 border-2 md:border-4 border-white ring-1 ring-white/10 shadow-2xl flex items-center justify-center overflow-hidden shimmer-effect">
                    <img src={systemLogo || DEFAULT_LOGO} className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-110" />
                 </div>
@@ -518,86 +508,107 @@ const AppContent = () => {
           </div>
           
           <nav className="flex-1 mt-2 md:mt-4 overflow-y-auto no-scrollbar space-y-0.5 pb-20">
-            {hasAccess('/') && <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard" active={location.pathname === '/'} collapsed={isCollapsed} />}
-            {hasAccess('/pegawai') && <SidebarItem to="/pegawai" icon="bi-person-vcard-fill" label="Database Pegawai" active={location.pathname === '/pegawai'} collapsed={isCollapsed} />}
-            
-            {hasAccess('/tupoksi-sdm') && (
-              <SidebarItem 
-                to="/tupoksi-sdm" 
-                icon="bi-kanban-fill" 
-                label="Tupoksi SDM" 
-                active={['/tupoksi-sdm', '/layanan', '/kenaikan-pangkat', '/skp', '/pak', '/anjab-abk', '/pensiun', '/kgb-gen', '/spmt-spp', '/pelantikan-gen', '/satya-lencana', '/magang-pkl', '/tubel-ibel', '/pengembangan', '/talenta', '/anggaran-dipa', '/sakip-rb', '/disiplin-lhkpn', '/keuangan', '/laporan', '/admin/layanan-sdm', '/layanan-sdm', '/ukom/admin', '/quizdjki'].some(p => p === '/tupoksi-sdm' ? location.pathname === '/tupoksi-sdm' : location.pathname.startsWith(p))} 
-                collapsed={isCollapsed} 
-              />
-            )}
-
-            {hasAccess('/tugas-rutin') && (
-              <SidebarItem 
-                to="/tugas-rutin" 
-                icon="bi-clipboard2-check-fill" 
-                label="Log Tugas Rutin" 
-                active={location.pathname.startsWith('/tugas-rutin')} 
-                collapsed={isCollapsed} 
-              />
-            )}
-
-            {(hasAccess('/presensi') || hasAccess('/rekap-absensi') || hasAccess('/admin/attendance')) && (
-              <SidebarItem 
-                to="/presensi" 
-                icon="bi-camera-video-fill" 
-                label="Presensi & Kehadiran" 
-                active={['/presensi', '/face-registration', '/admin/attendance', '/rekap-absensi', '/absensi-online'].some(p => location.pathname.startsWith(p))} 
-                collapsed={isCollapsed} 
-              />
-            )}
-
-            {hasAccess('/uang-makan') && (
-              <SidebarItem 
-                to="/uang-makan" 
-                icon="bi-cash-coin" 
-                label="Admin Uang Makan" 
-                active={location.pathname.startsWith('/uang-makan')} 
-                collapsed={isCollapsed} 
-              />
-            )}
-
-            {(hasAccess('/persuratan') || hasAccess('/kegiatan') || hasAccess('/dossiers')) && (
+            {isOnlyAdminUangMakan ? (
               <>
-                {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Administrasi</div>}
-                {hasAccess('/persuratan') && <SidebarItem to="/persuratan" icon="bi-envelope-paper-fill" label="Persuratan Digital" active={location.pathname === '/persuratan'} collapsed={isCollapsed} />}
-                {hasAccess('/kegiatan') && <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Kalender Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />}
-                {hasAccess('/dossiers') && <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />}
-              </>
-            )}
-
-            {hasAccess('/layanan-sdm/pengajuan-saya') && (
-              <>
-                {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Layanan Mandiri</div>}
                 <SidebarItem 
-                  to="/layanan-sdm/pengajuan-saya" 
-                  icon="bi-inboxes-fill" 
-                  label="Pengajuan Saya" 
-                  active={location.pathname === '/layanan-sdm/pengajuan-saya'} 
+                  to="/uang-makan" 
+                  icon="bi-cash-coin" 
+                  label="Admin Uang Makan" 
+                  active={location.pathname.startsWith('/uang-makan')} 
                   collapsed={isCollapsed} 
-                  badge={userSdmBadge.count > 0 ? userSdmBadge.count : null}
-                  badgeColor={userSdmBadge.isUrgent ? 'bg-amber-500' : 'bg-blue-600'}
-                  badgePulse={userSdmBadge.isUrgent}
+                />
+                <SidebarItem 
+                  to="/" 
+                  icon="bi-person-bounding-box" 
+                  label="Data Diri Pegawai" 
+                  active={location.pathname === '/' || (!!user?.nip && location.pathname === `/pegawai/${user.nip}`)} 
+                  collapsed={isCollapsed} 
                 />
               </>
-            )}
-
-            {hasAccess('/ukom/login') && (
+            ) : (
               <>
-                {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Uji Kompetensi</div>}
-                <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian CAT" active={location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin'} collapsed={isCollapsed} target="_blank" />
-              </>
-            )}
+                {hasAccess('/') && <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard" active={location.pathname === '/'} collapsed={isCollapsed} />}
+                {hasAccess('/pegawai') && <SidebarItem to="/pegawai" icon="bi-person-vcard-fill" label="Database Pegawai" active={location.pathname === '/pegawai'} collapsed={isCollapsed} />}
+                
+                {hasAccess('/tupoksi-sdm') && (
+                  <SidebarItem 
+                    to="/tupoksi-sdm" 
+                    icon="bi-kanban-fill" 
+                    label="Tupoksi SDM" 
+                    active={['/tupoksi-sdm', '/layanan', '/kenaikan-pangkat', '/skp', '/pak', '/anjab-abk', '/pensiun', '/kgb-gen', '/spmt-spp', '/pelantikan-gen', '/satya-lencana', '/magang-pkl', '/tubel-ibel', '/pengembangan', '/talenta', '/anggaran-dipa', '/sakip-rb', '/disiplin-lhkpn', '/keuangan', '/laporan', '/admin/layanan-sdm', '/layanan-sdm', '/ukom/admin', '/quizdjki'].some(p => p === '/tupoksi-sdm' ? location.pathname === '/tupoksi-sdm' : location.pathname.startsWith(p))} 
+                    collapsed={isCollapsed} 
+                  />
+                )}
 
-            {(hasAccess('/settings') || hasAccess('/logs')) && (
-              <>
-                {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Sistem</div>}
-                {hasAccess('/settings') && <SidebarItem to="/settings" icon="bi-gear-wide-connected" label="Pengaturan" active={location.pathname === '/settings'} collapsed={isCollapsed} />}
-                {hasAccess('/logs') && <SidebarItem to="/logs" icon="bi-clock-history" label="Audit Logs" active={location.pathname === '/logs'} collapsed={isCollapsed} />}
+                {hasAccess('/tugas-rutin') && (
+                  <SidebarItem 
+                    to="/tugas-rutin" 
+                    icon="bi-clipboard2-check-fill" 
+                    label="Log Tugas Rutin" 
+                    active={location.pathname.startsWith('/tugas-rutin')} 
+                    collapsed={isCollapsed} 
+                  />
+                )}
+
+                {(hasAccess('/presensi') || hasAccess('/rekap-absensi') || hasAccess('/admin/attendance')) && (
+                  <SidebarItem 
+                    to="/presensi" 
+                    icon="bi-camera-video-fill" 
+                    label="Presensi & Kehadiran" 
+                    active={['/presensi', '/face-registration', '/admin/attendance', '/rekap-absensi', '/absensi-online'].some(p => location.pathname.startsWith(p))} 
+                    collapsed={isCollapsed} 
+                  />
+                )}
+
+                {hasAccess('/uang-makan') && (
+                  <SidebarItem 
+                    to="/uang-makan" 
+                    icon="bi-cash-coin" 
+                    label="Admin Uang Makan" 
+                    active={location.pathname.startsWith('/uang-makan')} 
+                    collapsed={isCollapsed} 
+                  />
+                )}
+
+                {(hasAccess('/persuratan') || hasAccess('/kegiatan') || hasAccess('/dossiers')) && (
+                  <>
+                    {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Administrasi</div>}
+                    {hasAccess('/persuratan') && <SidebarItem to="/persuratan" icon="bi-envelope-paper-fill" label="Persuratan Digital" active={location.pathname === '/persuratan'} collapsed={isCollapsed} />}
+                    {hasAccess('/kegiatan') && <SidebarItem to="/kegiatan" icon="bi-calendar2-event-fill" label="Kalender Kegiatan" active={location.pathname === '/kegiatan'} collapsed={isCollapsed} />}
+                    {hasAccess('/dossiers') && <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />}
+                  </>
+                )}
+
+                {hasAccess('/layanan-sdm/pengajuan-saya') && (
+                  <>
+                    {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Layanan Mandiri</div>}
+                    <SidebarItem 
+                      to="/layanan-sdm/pengajuan-saya" 
+                      icon="bi-inboxes-fill" 
+                      label="Pengajuan Saya" 
+                      active={location.pathname === '/layanan-sdm/pengajuan-saya'} 
+                      collapsed={isCollapsed} 
+                      badge={userSdmBadge.count > 0 ? userSdmBadge.count : null}
+                      badgeColor={userSdmBadge.isUrgent ? 'bg-amber-500' : 'bg-blue-600'}
+                      badgePulse={userSdmBadge.isUrgent}
+                    />
+                  </>
+                )}
+
+                {hasAccess('/ukom/login') && (
+                  <>
+                    {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Uji Kompetensi</div>}
+                    <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian CAT" active={location.pathname.startsWith('/ukom') && location.pathname !== '/ukom/admin'} collapsed={isCollapsed} target="_blank" />
+                  </>
+                )}
+
+                {(hasAccess('/settings') || hasAccess('/logs')) && (
+                  <>
+                    {!isCollapsed && <div className="px-8 py-4 text-[8px] font-black text-slate-500 tracking-[0.2em]">Sistem</div>}
+                    {hasAccess('/settings') && <SidebarItem to="/settings" icon="bi-gear-wide-connected" label="Pengaturan" active={location.pathname === '/settings'} collapsed={isCollapsed} />}
+                    {hasAccess('/logs') && <SidebarItem to="/logs" icon="bi-clock-history" label="Audit Logs" active={location.pathname === '/logs'} collapsed={isCollapsed} />}
+                  </>
+                )}
               </>
             )}
           </nav>
@@ -668,13 +679,19 @@ const AppContent = () => {
               {/* Notifikasi Layanan SDM Bell */}
               <NotificationBellSDM />
 
-              <div className="flex flex-col items-end">
-                <span className="text-[9px] md:text-[11px] font-black text-gray-950 truncate max-w-[100px] md:max-w-none">{user?.name}</span>
-                <span className="text-[7px] md:text-[9px] font-bold text-blue-600 tracking-tighter uppercase">{activeRole || user?.role}</span>
-              </div>
-              <div className="h-9 w-9 md:h-12 md:w-12 rounded-lg md:rounded-2xl bg-gray-50 border-2 md:border-4 border-white shadow-xl overflow-hidden shimmer-effect shrink-0">
-                 {user?.foto ? <img src={user.foto} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black text-xs md:text-base">?</div>}
-              </div>
+              <Link 
+                to="/" 
+                className="flex items-center gap-2.5 hover:opacity-80 transition-opacity group text-right cursor-pointer"
+                title="Lihat Data Diri / Profil Pegawai"
+              >
+                <div className="flex flex-col items-end">
+                  <span className="text-[9px] md:text-[11px] font-black text-gray-950 truncate max-w-[100px] md:max-w-none group-hover:text-blue-600 transition-colors">{user?.name}</span>
+                  <span className="text-[7px] md:text-[9px] font-bold text-blue-600 tracking-tighter uppercase">{activeRole || user?.role}</span>
+                </div>
+                <div className="h-9 w-9 md:h-12 md:w-12 rounded-lg md:rounded-2xl bg-gray-50 border-2 md:border-4 border-white shadow-xl overflow-hidden shimmer-effect shrink-0 group-hover:border-blue-300 transition-all">
+                   {user?.foto ? <img src={user.foto} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <div className="h-full w-full flex items-center justify-center text-blue-600 font-black text-xs md:text-base">?</div>}
+                </div>
+              </Link>
             </div>
           </div>
           

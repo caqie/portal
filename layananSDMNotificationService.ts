@@ -100,7 +100,7 @@ export const generateLayananSDMNotifications = (
 
   const notifications: NotifikasiSDM[] = [];
   const readIds = new Set(getReadNotificationIds(user.nip));
-  const isAdmin = user.role === 'Superadmin' || user.role === 'Editor' || user.role === 'Admin Uang Makan';
+  const isAdmin = user.role === 'Superadmin' || user.role === 'Editor' || user.role === 'Admin Perencanaan & Layanan' || (user.roles && (user.roles.includes('Superadmin') || user.roles.includes('Admin Perencanaan & Layanan')));
 
   // 1. Notifikasi untuk PEMOHON / USER BIASA
   const userNip = user.nip;

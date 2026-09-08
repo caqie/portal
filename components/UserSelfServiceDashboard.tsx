@@ -55,7 +55,7 @@ export const UserSelfServiceDashboard: React.FC<UserSelfServiceDashboardProps> =
   canViewAdminSwitch = false,
 }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdminUangMakan, isOnlyAdminUangMakan } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [loading, setLoading] = useState<boolean>(true);
@@ -500,15 +500,27 @@ export const UserSelfServiceDashboard: React.FC<UserSelfServiceDashboardProps> =
           </p>
         </div>
 
-        {canViewAdminSwitch && onSwitchToAdminView && (
-          <button
-            onClick={onSwitchToAdminView}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
-          >
-            <i className="bi bi-graph-up-arrow text-blue-400"></i>
-            <span>Beralih ke Analitik Admin DJKI</span>
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {isAdminUangMakan && (
+            <button
+              onClick={() => navigate('/uang-makan')}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
+            >
+              <i className="bi bi-cash-coin"></i>
+              <span>Admin Uang Makan</span>
+            </button>
+          )}
+
+          {canViewAdminSwitch && onSwitchToAdminView && (
+            <button
+              onClick={onSwitchToAdminView}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
+            >
+              <i className="bi bi-graph-up-arrow text-blue-400"></i>
+              <span>Beralih ke Analitik Admin DJKI</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* USER HERO IDENTITY CARD */}

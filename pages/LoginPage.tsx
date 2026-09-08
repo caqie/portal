@@ -39,10 +39,34 @@ const LoginPage = () => {
     setError('');
     setLoading(true);
 
+    const cleanNip = nip.trim().replace(/\D/g, '');
+    const cleanPassword = password.trim();
+
     try {
       // 1. Ambil data user untuk verifikasi password
-      const users = await fetchUsersFromSheets();
+      let users = await fetchUsersFromSheets();
       
+      let foundUser = users.find(u => 
+        (u.nip || '').replace(/\D/g, '') === cleanNip && 
+        (u.password || '').trim() === cleanPassword
+      );
+
+      // Jika tidak ditemukan di cache lokal, paksa sinkronisasi langsung dari Google Sheets
+      if (!foundUser) {
+        try {
+          const freshUsers = await fetchUsersFromSheets(true);
+          if (freshUsers && freshUsers.length > 0) {
+            users = freshUsers;
+            foundUser = users.find(u => 
+              (u.nip || '').replace(/\D/g, '') === cleanNip && 
+              (u.password || '').trim() === cleanPassword
+            );
+          }
+        } catch (fetchErr) {
+          console.warn('Gagal bypass cache sheets:', fetchErr);
+        }
+      }
+
       if (users.length === 0) {
         setError('Gagal mengambil data pengguna dari Google Sheet. Koneksi database terganggu atau spreadsheet kosong.');
         const lastErr = sessionStorage.getItem('last_spreadsheet_error') || 'Gagal koneksi ke Sheet USERS';
@@ -50,8 +74,6 @@ const LoginPage = () => {
         setLoading(false);
         return;
       }
-
-      let foundUser = users.find(u => u.nip === nip && u.password === password);
 
       if (foundUser) {
         if (foundUser.status === 'Nonaktif') {
@@ -61,7 +83,7 @@ const LoginPage = () => {
         }
         // 2. KONEKSI KE SHEET PEGAWAI: Ambil detail profil lengkap berdasarkan NIP
         const pegawaiList = await fetchPegawaiFromSheets();
-        const profileMatch = pegawaiList.find(p => p.nip === foundUser!.nip);
+        const profileMatch = pegawaiList.find(p => (p.nip || '').replace(/\D/g, '') === (foundUser!.nip || '').replace(/\D/g, ''));
         
         if (profileMatch) {
           // Jika NIP ditemukan di database pegawai, gabungkan datanya
@@ -76,7 +98,12 @@ const LoginPage = () => {
         
         login(foundUser);
       } else {
-        setError('NIP atau Password salah. Silakan periksa kembali.');
+        const nipExists = users.some(u => (u.nip || '').replace(/\D/g, '') === cleanNip);
+        if (nipExists) {
+          setError('Kata sandi yang dimasukkan salah. Untuk akun pegawai DJKI, kata sandi default adalah dgip123.');
+        } else {
+          setError('NIP tidak terdaftar dalam database pengguna. Silakan periksa kembali.');
+        }
       }
     } catch (err) {
       setError('Gagal menghubungkan ke server. Pastikan koneksi internet stabil.');

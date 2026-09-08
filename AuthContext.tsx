@@ -12,6 +12,7 @@ interface AuthContextType {
   isSuperadmin: boolean;
   canEdit: boolean;
   isAdminUangMakan: boolean;
+  isOnlyAdminUangMakan: boolean;
   isAdminPerencanaan: boolean;
   isAdminBangkom: boolean;
   isAdminKarier: boolean;
@@ -164,15 +165,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdminBangkom = hasRole('Admin Pengembangan Kompetensi') || hasRole('Admin Bangkom') || isSuperadmin;
   const isAdminKarier = hasRole('Admin Pengelolaan Karier') || hasRole('Admin Manajemen Karier') || isSuperadmin;
   
-  const canEdit = isSuperadmin || userRoles.some(r => [
+  const activeRole = user?.activeRole || user?.role || 'Viewer';
+  
+  const isOnlyAdminUangMakan = (
+    (hasRole('Admin Uang Makan') || user?.role === 'Admin Uang Makan' || activeRole === 'Admin Uang Makan') &&
+    !isSuperadmin &&
+    !hasRole('Superadmin') &&
+    (
+      activeRole === 'Admin Uang Makan' ||
+      (!hasRole('Admin Perencanaan & Layanan') && 
+       !hasRole('Admin Pengembangan Kompetensi') && 
+       !hasRole('Admin Pengelolaan Karier') && 
+       !hasRole('Editor'))
+    )
+  );
+
+  const canEdit = !isOnlyAdminUangMakan && (isSuperadmin || userRoles.some(r => [
     'Editor', 
     'Admin Perencanaan & Layanan', 
     'Admin Pengembangan Kompetensi', 
-    'Admin Pengelolaan Karier', 
-    'Admin Uang Makan'
-  ].includes(r));
+    'Admin Pengelolaan Karier'
+  ].includes(r)));
 
-  const activeRole = user?.activeRole || user?.role || 'Viewer';
   const isMultiRole = userRoles.length > 1;
 
   if (loading) {
@@ -194,6 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isSuperadmin, 
       canEdit, 
       isAdminUangMakan,
+      isOnlyAdminUangMakan,
       isAdminPerencanaan,
       isAdminBangkom,
       isAdminKarier,
