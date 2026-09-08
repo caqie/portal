@@ -112,12 +112,18 @@ export interface SKPRecord {
   tahun: number; 
   periodeMulai: string; 
   periodeSelesai: string; 
+  periodeLabel?: string;
+  periodeTeks?: string;
+  kotaTtd?: string;
   tglPenilaian: string; 
+  jenisPendekatan?: string;
+  jenisJabatanKategori?: string;
   capaianOrganisasi: string; 
   ratingHasilKerja: string; 
   ratingPerilaku: string; 
   predikatKinerja: string; 
   catatan?: string; 
+  catatanRekomendasi?: string;
   hasilKerja: any[]; 
   perilakuKerja: any[]; 
   lampiran?: any; 

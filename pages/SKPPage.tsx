@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
 import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, fetchSKPFromSheets, syncTableRemote, uploadFileToDrive } from '../spreadsheetService';
-import { Pegawai, SKPRecord, HasilKerjaRow, PerilakuKerjaRow } from '../types';
+import { Pegawai, SKPRecord } from '../types';
 import { useAuth } from '../AuthContext';
-import { DEFAULT_LOGO } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -14,139 +13,22 @@ import html2canvas from 'html2canvas';
 // @ts-ignore
 import { jsPDF } from 'jspdf';
 
-const LOGO_GARUDA_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/National_emblem_of_Indonesia_Garuda_Pancasila.svg/800px-National_emblem_of_Indonesia_Garuda_Pancasila.svg.png";
+// Subcomponents
+import { 
+  BERAKHLAK_DEFAULT, 
+  DEFAULT_RHK_ITEMS, 
+  DEFAULT_LAMPIRAN, 
+  getPegawaiDisplayInfo, 
+  SKPItemRHK, 
+  SKPPerilakuItem 
+} from '../components/skp/skpDefaults';
+import { DokumenEvaluasiPage1 } from '../components/skp/DokumenEvaluasiPage1';
+import { LampiranSKPPage2 } from '../components/skp/LampiranSKPPage2';
+import { SasaranKinerjaPages34 } from '../components/skp/SasaranKinerjaPages34';
+import { EvaluasiKinerjaPages56 } from '../components/skp/EvaluasiKinerjaPages56';
+import { RekamanUmpanBalikPages78 } from '../components/skp/RekamanUmpanBalikPages78';
 
-const INITIAL_PERILAKU: PerilakuKerjaRow[] = [
-  { poin: 'Berorientasi Pelayanan', deskripsi: 'Memahami dan memenuhi kebutuhan masyarakat; Ramah, cekatan, solutif, dan dapat diandalkan; Melakukan perbaikan tiada henti', ekspektasi: 'Ekspektasi Khusus Pimpinan: Memberikan pelayanan di atas standar dan responsif.', umpanBalik: 'Sangat responsif terhadap keluhan pegawai.' },
-  { poin: 'Akuntabel', deskripsi: 'Melaksanakan tugas dengan jujur, bertanggung jawab, cermat, disiplin dan berintegritas tinggi', ekspektasi: 'Ekspektasi Khusus Pimpinan: Disiplin waktu dan integritas terjaga.', umpanBalik: 'Selalu hadir tepat waktu dan laporan akurat.' },
-  { poin: 'Kompeten', deskripsi: 'Meningkatkan kompetensi diri untuk menjawab tantangan yang selalu berubah', ekspektasi: 'Ekspektasi Khusus Pimpinan: Aktif dalam pengembangan diri.', umpanBalik: 'Berhasil menyelesaikan sertifikasi teknis tahun ini.' },
-  { poin: 'Harmonis', deskripsi: 'Menghargai setiap orang apapun latar belakangnya; Suka menolong orang lain', ekspektasi: 'Ekspektasi Khusus Pimpinan: Membangun suasana kerja yang kondusif.', umpanBalik: 'Menjadi penengah yang baik dalam tim.' },
-  { poin: 'Loyal', deskripsi: 'Memegang teguh ideologi Pancasila, UUD 1945, setia kepada NKRI', ekspektasi: 'Ekspektasi Khusus Pimpinan: Menjaga rahasia jabatan dan negara.', umpanBalik: 'Sangat menjaga kerahasiaan data kepegawaian.' },
-  { poin: 'Adaptif', deskripsi: 'Cepat menyesuaikan diri menghadapi perubahan; Terus berinovasi', ekspektasi: 'Ekspektasi Khusus Pimpinan: Proaktif dalam digitalisasi layanan.', umpanBalik: 'Berhasil menginisiasi sistem pengarsipan digital.' },
-  { poin: 'Kolaboratif', deskripsi: 'Memberi kesempatan kepada berbagai pihak untuk berkontribusi', ekspektasi: 'Ekspektasi Khusus Pimpinan: Aktif bersinergi dengan unit lain.', umpanBalik: 'Kolaborasi yang baik dengan bagian keuangan.' }
-];
-
-const getCurveData = (capaian: string) => {
-  const raw = (capaian || '').toUpperCase();
-  let key = 'BAIK';
-  if (raw.includes('ISTIMEWA')) key = 'ISTIMEWA';
-  else if (raw.includes('SANGAT KURANG')) key = 'SANGAT_KURANG';
-  else if (raw.includes('KURANG')) key = 'KURANG';
-  else if (raw.includes('CUKUP') || raw.includes('BUTUH PERBAIKAN')) key = 'CUKUP';
-  
-  const curves: Record<string, string> = {
-    ISTIMEWA: "M 20 130 C 100 130, 200 130, 300 85 C 340 60, 360 20, 380 20 C 390 20, 410 80, 420 130",
-    BAIK: "M 20 130 C 80 130, 140 120, 200 100 C 250 80, 280 20, 300 20 C 320 20, 360 85, 380 95 C 395 105, 410 120, 420 130",
-    CUKUP: "M 20 130 C 50 130, 100 105, 140 70 C 180 35, 200 20, 220 20 C 240 20, 260 35, 300 70 C 340 105, 390 130, 420 130",
-    KURANG: "M 20 130 C 30 120, 45 105, 60 95 C 80 85, 120 20, 140 20 C 160 20, 190 80, 220 85 C 280 100, 340 125, 420 130",
-    SANGAT_KURANG: "M 20 130 C 30 80, 50 20, 60 20 C 80 20, 100 60, 140 80 C 200 115, 300 130, 420 130"
-  };
-
-  const curvePoints: Record<string, { x: number; y: number }[]> = {
-    ISTIMEWA: [
-      { x: 60, y: 128 },
-      { x: 140, y: 125 },
-      { x: 220, y: 115 },
-      { x: 300, y: 80 },
-      { x: 380, y: 20 }
-    ],
-    BAIK: [
-      { x: 60, y: 128 },
-      { x: 140, y: 120 },
-      { x: 220, y: 85 },
-      { x: 300, y: 20 },
-      { x: 380, y: 95 }
-    ],
-    CUKUP: [
-      { x: 60, y: 118 },
-      { x: 140, y: 70 },
-      { x: 220, y: 20 },
-      { x: 300, y: 70 },
-      { x: 380, y: 118 }
-    ],
-    KURANG: [
-      { x: 60, y: 95 },
-      { x: 140, y: 20 },
-      { x: 220, y: 85 },
-      { x: 300, y: 120 },
-      { x: 380, y: 128 }
-    ],
-    SANGAT_KURANG: [
-      { x: 60, y: 20 },
-      { x: 140, y: 80 },
-      { x: 220, y: 115 },
-      { x: 300, y: 125 },
-      { x: 380, y: 128 }
-    ]
-  };
-
-  return {
-    key,
-    dPath: curves[key],
-    fillPath: curves[key] + " L 420 130 L 20 130 Z",
-    points: curvePoints[key]
-  };
-};
-
-const renderCurve = (capaian: string) => {
-  const { key, dPath, fillPath, points } = getCurveData(capaian);
-  const gradId = `curveGrad-${key}`;
-  return (
-    <svg width="100%" viewBox="0 0 440 180" className="mx-auto" style={{ maxWidth: '440px' }}>
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {/* Horizontal Baseline */}
-      <line x1="20" y1="130" x2="420" y2="130" stroke="#000" strokeWidth="2" />
-      
-      {/* Fill Under Curve */}
-      <path d={fillPath} fill={`url(#${gradId})`} />
-      
-      {/* Main Curve Line */}
-      <path d={dPath} fill="none" stroke="#2563eb" strokeWidth="3" />
-
-      {/* Projection Dashed Lines and Points */}
-      {points.map((p, idx) => {
-        const isPeak = (key === 'ISTIMEWA' && idx === 4) ||
-                       (key === 'BAIK' && idx === 3) ||
-                       (key === 'CUKUP' && idx === 2) ||
-                       (key === 'KURANG' && idx === 1) ||
-                       (key === 'SANGAT_KURANG' && idx === 0);
-        return (
-          <g key={idx}>
-            {/* Vertical dashed line */}
-            <line x1={p.x} y1="130" x2={p.x} y2={p.y} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3,3" />
-            {/* Point dot */}
-            <circle cx={p.x} cy={p.y} r={isPeak ? "6" : "4"} fill={isPeak ? "#ef4444" : "#3b82f6"} stroke="#fff" strokeWidth="1.5" />
-            {/* Mini tag for peak */}
-            {isPeak && (
-              <g>
-                <rect x={p.x - 20} y={p.y - 18} width="40" height="12" rx="3" fill="#ef4444" />
-                <text x={p.x} y={p.y - 10} textAnchor="middle" fontSize="6px" fill="#fff" fontWeight="bold">PUNCAK</text>
-              </g>
-            )}
-          </g>
-        );
-      })}
-
-      {/* X-Axis labels */}
-      <text x="60" y="145" textAnchor="middle" fontSize="7px" fontWeight="bold" fill="#334155">Sangat Kurang</text>
-      <text x="140" y="145" textAnchor="middle" fontSize="7px" fontWeight="bold" fill="#334155">Kurang</text>
-      <text x="220" y="145" textAnchor="middle" fontSize="7px" fontWeight="bold" fill="#334155">Butuh Perbaikan</text>
-      <text x="300" y="145" textAnchor="middle" fontSize="7px" fontWeight="bold" fill="#334155">Baik</text>
-      <text x="380" y="145" textAnchor="middle" fontSize="7px" fontWeight="bold" fill="#334155">Sangat Baik</text>
-
-      {/* X Axis Legend */}
-      <text x="220" y="165" textAnchor="middle" fontSize="9px" fontWeight="800" fill="#0f172a" letterSpacing="1">PREDIKAT KINERJA INDIVIDU PEGAWAI</text>
-    </svg>
-  );
-};
-
-const SKPPage = () => {
-  const navigate = useNavigate();
+export const SKPPage: React.FC = () => {
   const { canEdit, isSuperadmin, logActivity } = useAuth();
   
   const [skpList, setSkpList] = useState<SKPRecord[]>([]);
@@ -154,11 +36,14 @@ const SKPPage = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [activeView, setActiveView] = useState<'table' | 'editor' | 'preview'>('table');
+  const [previewTab, setPreviewTab] = useState<'all' | 'doc_eval' | 'lampiran' | 'sasaran' | 'evaluasi' | 'rekaman'>('all');
   const [editorStep, setEditorStep] = useState<'identitas' | 'hasil_kerja' | 'perilaku' | 'lampiran'>('identitas');
   const [selectedSKP, setSelectedSKP] = useState<any | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
-  const pdfRef = useRef<HTMLDivElement>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<SKPRecord | null>(null);
+
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
 
   const calculatePredikatKinerja = (hasil: string, perilaku: string) => {
     const h = (hasil || '').toUpperCase();
@@ -185,36 +70,34 @@ const SKPPage = () => {
     if (p === 'SANGAT BAIK') return 'bg-blue-50 text-blue-700 border-blue-200';
     if (p === 'BAIK') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
     if (p.includes('BUTUH PERBAIKAN')) return 'bg-amber-50 text-amber-700 border-amber-200';
-    if (p.includes('KURANG') && p.includes('MISCONDUCT')) return 'bg-orange-50 text-orange-750 border-orange-200';
+    if (p.includes('KURANG') && p.includes('MISCONDUCT')) return 'bg-orange-50 text-orange-700 border-orange-200';
     if (p === 'SANGAT KURANG') return 'bg-rose-50 text-rose-700 border-rose-200';
     return 'bg-gray-50 text-gray-700 border-gray-200';
   };
 
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<SKPRecord | null>(null);
-
+  // Form State initialized with official sample defaults
   const [formData, setFormData] = useState<any>({
     nip: '',
     namaPegawai: '',
     penilaiNip: '',
     atasanPenilaiNip: '',
-    tahun: new Date().getFullYear(),
-    periodeMulai: '01 Januari 2024',
-    periodeSelesai: '31 Desember 2024',
-    tglPenilaian: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-    capaianOrganisasi: 'BAIK',
-    ratingHasilKerja: 'SESUAI EKSPEKTASI',
-    ratingPerilaku: 'SESUAI EKSPEKTASI',
-    predikatKinerja: 'BAIK',
-    hasilKerja: [
-      { rencanaPimpinan: 'Terwujudnya pengelolaan administrasi dan layanan kepegawaian yang tertib, akurat, dan sesuai ketentuan', rencanaPegawai: 'Terlaksananya pelayanan administrasi kepegawaian di lingkungan DJKI', aspek: 'Kualitas', indikator: 'Persentase layanan administrasi kepegawaian yang diselesaikan', target: '100%', realisasi: '100%', umpanBalik: 'Sangat Baik' }
-    ],
-    perilakuKerja: INITIAL_PERILAKU,
-    lampiran: {
-      dukunganSumberDaya: '1. Dukungan sarana prasarana berupa perangkat komputer dan akses database kepegawaian.\n2. Bimbingan teknis terkait regulasi terbaru.',
-      skemaPertanggungjawaban: '1. Laporan berkala setiap bulan.\n2. Bukti dokumen (E-Dossier).',
-      konsekuensi: '1. Penghargaan berupa usulan kenaikan pangkat tepat waktu bila memenuhi target.\n2. Teguran lisan dan bimbingan khusus bila target tidak tercapai.'
-    }
+    tahun: 2025,
+    periodeLabel: 'AKHIR',
+    periodeMulai: '01 Oktober 2025',
+    periodeSelesai: '31 Desember 2025',
+    periodeTeks: '01 Oktober s.d 31 Desember 2025',
+    kotaTtd: 'Jakarta',
+    tglPenilaian: '06 Januari 2026',
+    jenisPendekatan: 'PENDEKATAN HASIL KERJA KUANTITATIF',
+    jenisJabatanKategori: 'BAGI JABATAN FUNGSIONAL UMUM',
+    capaianOrganisasi: 'ISTIMEWA',
+    ratingHasilKerja: 'DI ATAS EKSPEKTASI',
+    ratingPerilaku: 'DI ATAS EKSPEKTASI',
+    predikatKinerja: 'SANGAT BAIK',
+    catatanRekomendasi: '-',
+    hasilKerja: DEFAULT_RHK_ITEMS,
+    perilakuKerja: BERAKHLAK_DEFAULT,
+    lampiran: DEFAULT_LAMPIRAN
   });
 
   useEffect(() => { loadInitialData(); }, []);
@@ -233,9 +116,13 @@ const SKPPage = () => {
     setLoading(true);
     try {
       const [pRes, sRes] = await Promise.all([fetchPegawaiFromSheets(), fetchSKPFromSheets()]);
-      setPegawaiList(pRes);
-      setSkpList(sRes as any || []);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+      setPegawaiList(pRes || []);
+      setSkpList((sRes as any) || []);
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const searchableOptions = useMemo(() => pegawaiList.map(p => ({
@@ -244,11 +131,45 @@ const SKPPage = () => {
     subLabel: `NIP. ${p.nip} - ${p.jabatan}`
   })), [pegawaiList]);
 
-  const addHasilKerja = () => {
-    setFormData({
-      ...formData,
-      hasilKerja: [...formData.hasilKerja, { rencanaPimpinan: '', rencanaPegawai: '', aspek: 'Kualitas', indikator: '', target: '', realisasi: '', umpanBalik: '' }]
-    });
+  // Handle Pegawai selection with automatic echelon hierarchy detection
+  const handleSelectPegawai = (nip: string) => {
+    const selected = pegawaiList.find(p => p.nip === nip);
+    if (!selected) return;
+
+    // Automatically resolve Penilai and Atasan Penilai using SOTK service
+    const hierarki = getAtasanLangsung(selected, pegawaiList);
+    const penilaiNip = hierarki.atasan?.nip || '';
+    const atasanPenilaiNip = hierarki.atasanPenilai?.nip || '';
+
+    setFormData((prev: any) => ({
+      ...prev,
+      nip: selected.nip,
+      namaPegawai: selected.nama,
+      penilaiNip: penilaiNip || prev.penilaiNip,
+      atasanPenilaiNip: atasanPenilaiNip || prev.atasanPenilaiNip,
+      jenisJabatanKategori: selected.jabatan?.toUpperCase().includes('FUNGSIONAL') 
+        ? 'BAGI JABATAN FUNGSIONAL' 
+        : (selected.jenisPegawai === 'PPPK' ? 'BAGI JABATAN FUNGSIONAL UMUM' : 'BAGI JABATAN FUNGSIONAL / STRUKTURAL')
+    }));
+  };
+
+  const addHasilKerja = (kategori: 'UTAMA' | 'TAMBAHAN' = 'UTAMA') => {
+    setFormData((prev: any) => ({
+      ...prev,
+      hasilKerja: [
+        ...prev.hasilKerja, 
+        { 
+          kategori,
+          rencanaPimpinan: '', 
+          rencanaPegawai: '', 
+          aspek: 'Kualitas', 
+          indikator: '', 
+          target: '100%', 
+          realisasi: '100%', 
+          umpanBalik: 'DAPAT DIPERTAHANKAN' 
+        }
+      ]
+    }));
   };
 
   const removeHasilKerja = (index: number) => {
@@ -263,14 +184,14 @@ const SKPPage = () => {
     setFormData({ ...formData, hasilKerja: newList });
   };
 
-  const handlePerilakuChange = (index: number, field: string, value: string) => {
+  const handlePerilakuChange = (index: number, field: 'ekspektasi' | 'umpanBalik', value: string) => {
     const newList = [...formData.perilakuKerja];
     newList[index] = { ...newList[index], [field]: value };
     setFormData({ ...formData, perilakuKerja: newList });
   };
 
   const handleSave = async () => {
-    if (!formData.nip || !formData.penilaiNip) return alert("Mohon lengkapi data subjek dan penilai");
+    if (!formData.nip) return alert("Mohon pilih Pegawai yang dinilai.");
     setSyncing(true);
     const payload = {
       ...formData,
@@ -284,76 +205,28 @@ const SKPPage = () => {
         setSelectedSKP(payload);
         setActiveView('preview');
         setShowSuccess(true);
-        logActivity(formData.id ? 'UPDATE' : 'CREATE', 'SKP', `Terbitkan SKP: ${payload.namaPegawai}`);
+        logActivity(formData.id ? 'UPDATE' : 'CREATE', 'SKP', `Terbitkan Dokumen SKP: ${payload.namaPegawai}`);
       }
-    } catch (e) { alert("Gagal menyimpan ke database cloud."); } finally { setSyncing(false); }
-  };
-
-  const handleDownloadPdf = async () => {
-    if (!pdfRef.current) return;
-    setSyncing(true);
-    try {
-      const canvas = await html2canvas(pdfRef.current, { scale: 2.5, useCORS: true });
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const imgWidth = 210;
-      const pageHeight = 297;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save(`SKP_${formData.namaPegawai?.replace(/\s+/g, '_')}_${formData.tahun}.pdf`);
-    } catch (e) {
-      alert("Gagal cetak PDF.");
-    } finally {
-      setSyncing(false);
+    } catch (e) { 
+      alert("Gagal menyimpan ke database cloud."); 
+    } finally { 
+      setSyncing(false); 
     }
   };
 
-  const handleSaveToDossier = async () => {
-    if (!pdfRef.current || !formData.nip) return;
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
     setSyncing(true);
     try {
-      const canvas = await html2canvas(pdfRef.current, { scale: 2.5, useCORS: true });
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgWidth, imgHeight);
-      const pdfBase64 = pdf.output('datauristring');
-      
-      const fileName = `SKP_${formData.namaPegawai?.replace(/\s+/g, '_')}_${formData.tahun}_${Date.now()}.pdf`;
-      const res = await uploadFileToDrive(fileName, 'application/pdf', pdfBase64);
-      
-      if (res.success && res.fileUrl) {
-        const payload = {
-          id: `DOS-${Date.now()}`,
-          nip: formData.nip,
-          namaPegawai: formData.namaPegawai,
-          tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-          keterangan: `Dokumen Hasil Evaluasi Kinerja (SKP) Tahun ${formData.tahun}`,
-          fileName: fileName,
-          fileUrl: res.fileUrl
-        };
-        const ok = await syncTableRemote('DOSSIER', 'SAVE', payload);
-        if (ok) {
-          logActivity('CREATE', 'DOSSIER', `Simpan SKP ke Dossier: ${formData.namaPegawai}`);
-          alert("Dokumen SKP berhasil disimpan ke E-Dossier Pegawai.");
-        }
-      } else {
-        alert("Gagal mengunggah file ke Drive.");
+      const ok = await syncTableRemote('SKP', 'DELETE', { id: itemToDelete.id });
+      if (ok) {
+        await loadInitialData();
+        setIsConfirmOpen(false);
+        setItemToDelete(null);
+        logActivity('DELETE', 'SKP', `Hapus SKP ID: ${itemToDelete.id}`);
       }
     } catch (e) {
-      console.error(e);
-      alert("Gagal menyimpan ke Dossier.");
+      alert("Gagal menghapus data.");
     } finally {
       setSyncing(false);
     }
@@ -364,654 +237,932 @@ const SKPPage = () => {
   const pPenilai = pegawaiList.find(p => p.nip === activeRecord.penilaiNip);
   const pAtasan = pegawaiList.find(p => p.nip === activeRecord.atasanPenilaiNip);
 
-  const SectionHeader = ({ title }: { title: string }) => (
-    <div className="bg-gray-100 border border-black p-1 text-[9pt] font-bold uppercase text-center">{title}</div>
-  );
+  // PDF Generation: captures each page cleanly without cut-offs
+  const handleDownloadPdf = async (allPages = true) => {
+    if (!pdfContainerRef.current) return;
+    setSyncing(true);
+    try {
+      const pageElements = pdfContainerRef.current.querySelectorAll<HTMLElement>('.skp-page-item');
+      if (pageElements.length === 0) {
+        alert("Tidak ada halaman dokumen yang dapat diexport.");
+        return;
+      }
 
-  const inputClass = "w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-blue-600 transition-all";
-  const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      let addedFirst = false;
+
+      for (let i = 0; i < pageElements.length; i++) {
+        const el = pageElements[i];
+        
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff'
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+
+        if (addedFirst) {
+          pdf.addPage('a4', 'portrait');
+        } else {
+          addedFirst = true;
+        }
+
+        // Exact A4 dimensions: 210mm x 297mm
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+      }
+
+      const sanitizedName = (activeRecord.namaPegawai || 'Pegawai').replace(/[\s/\\?%*:|"<>]+/g, '_');
+      const filename = `SKP_${sanitizedName}_${activeRecord.tahun || 2025}.pdf`;
+      pdf.save(filename);
+    } catch (err) {
+      console.error(err);
+      alert("Gagal memproses dokumen PDF.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Save PDF into E-Dossier
+  const handleSaveToDossier = async () => {
+    if (!pdfContainerRef.current) return;
+    setSyncing(true);
+    try {
+      const pageElements = pdfContainerRef.current.querySelectorAll<HTMLElement>('.skp-page-item');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      let addedFirst = false;
+
+      for (let i = 0; i < pageElements.length; i++) {
+        const el = pageElements[i];
+        const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+        if (addedFirst) pdf.addPage('a4', 'portrait');
+        else addedFirst = true;
+        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+      }
+
+      const pdfBase64 = pdf.output('datauristring').split(',')[1];
+      const sanitizedName = (activeRecord.namaPegawai || 'Pegawai').replace(/[\s/\\?%*:|"<>]+/g, '_');
+      const fileName = `SKP_${sanitizedName}_${activeRecord.tahun || 2025}.pdf`;
+
+      const uploadRes = await uploadFileToDrive(fileName, 'application/pdf', pdfBase64);
+      if (uploadRes && uploadRes.fileUrl) {
+        await syncTableRemote('DOSSIER', 'SAVE', {
+          id: `DOS-SKP-${Date.now()}`,
+          nip: activeRecord.nip,
+          namaPegawai: activeRecord.namaPegawai,
+          kategori: 'SKP',
+          namaDokumen: `SKP Tahunan ${activeRecord.tahun || 2025} - ${activeRecord.predikatKinerja}`,
+          fileUrl: uploadRes.fileUrl,
+          tanggalUpload: new Date().toISOString().split('T')[0]
+        });
+        alert("Dokumen SKP berhasil disimpan ke E-Dossier Pegawai!");
+      }
+    } catch (e) {
+      alert("Gagal mengunggah ke E-Dossier.");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   return (
-    <div className="space-y-8 animate-fadeIn pb-24 text-black">
-      <SuccessModal isOpen={showSuccess} onClose={() => setShowSuccess(false)} title="SKP Diterbitkan" />
-      <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={async () => {
-         if(!itemToDelete) return;
-         setSyncing(true);
-         const ok = await syncTableRemote('SKP', 'DELETE', { 
-           id: itemToDelete.id, 
-           nip: itemToDelete.nip,
-           nama: itemToDelete.namaPegawai
-         });
-         if(ok) { setSkpList(prev => prev.filter(s => s.id !== itemToDelete.id)); setIsConfirmOpen(false); }
-         setSyncing(false);
-      }} />
+    <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen text-slate-800">
       
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
-        <div className="flex items-center gap-4">
-          <button onClick={() => activeView === 'table' ? navigate('/layanan') : setActiveView('table')} className="h-12 w-12 bg-white border border-gray-100 text-gray-400 rounded-2xl flex items-center justify-center hover:text-blue-600 shadow-sm transition-all">
-            <i className="bi bi-arrow-left text-xl"></i>
-          </button>
-          <div>
-            <h3 className="text-2xl font-black text-gray-900 uppercase">E-Kinerja SKP Generator</h3>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-2">
-               <i className="bi bi-patch-check-fill text-blue-600"></i> Standar Permenpan RB 6/2022
-            </p>
-          </div>
+      {/* Print Style Injector */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #skp-print-container, #skp-print-container * {
+            visibility: visible;
+          }
+          #skp-print-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            background: transparent;
+          }
+          .skp-page-item {
+            page-break-after: always !important;
+            break-after: page !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            width: 210mm !important;
+            min-height: 297mm !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
+
+      {/* Header Bar */}
+      <div className="no-print flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+            <span className="p-2 bg-blue-600 text-white rounded-lg shadow-sm">
+              <i className="bi bi-award-fill"></i>
+            </span>
+            Sasaran Kinerja Pegawai (SKP) & Evaluasi Kinerja
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Format Standar Dokumen Evaluasi Kinerja ASN Berdasarkan Permen PANRB No. 6 Tahun 2022
+          </p>
         </div>
-        <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100">
-           <button onClick={() => setActiveView('table')} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'table' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400'}`}>Arsip SKP</button>
-           {canEdit && <button onClick={() => { setFormData({...formData, id: undefined, hasilKerja: [formData.hasilKerja[0]]}); setActiveView('editor'); setEditorStep('identitas'); }} className={`px-8 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${activeView === 'editor' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400'}`}>Buat SKP Baru</button>}
+
+        <div className="flex items-center gap-2">
+          {activeView !== 'table' && (
+            <button
+              onClick={() => setActiveView('table')}
+              className="px-3.5 py-2 text-sm font-semibold rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 shadow-sm transition"
+            >
+              <i className="bi bi-arrow-left mr-1.5"></i>
+              Daftar SKP
+            </button>
+          )}
+
+          {activeView === 'table' && canEdit && (
+            <button
+              onClick={() => {
+                setSelectedSKP(null);
+                setActiveView('editor');
+              }}
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition flex items-center gap-1.5"
+            >
+              <i className="bi bi-plus-lg"></i>
+              Buat SKP Baru
+            </button>
+          )}
+
+          {activeView === 'preview' && (
+            <>
+              <button
+                onClick={() => setActiveView('editor')}
+                className="px-3.5 py-2 text-sm font-semibold rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 shadow-sm transition"
+              >
+                <i className="bi bi-pencil mr-1.5"></i>
+                Edit Data
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="px-3.5 py-2 text-sm font-semibold rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 shadow-sm transition"
+              >
+                <i className="bi bi-printer mr-1.5"></i>
+                Cetak (Print)
+              </button>
+              <button
+                onClick={() => handleDownloadPdf(true)}
+                disabled={syncing}
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition flex items-center gap-1.5"
+              >
+                <i className="bi bi-file-earmark-pdf"></i>
+                {syncing ? 'Memproses PDF...' : 'Unduh PDF (8 Halaman)'}
+              </button>
+              <button
+                onClick={handleSaveToDossier}
+                disabled={syncing}
+                className="px-3.5 py-2 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition"
+                title="Simpan file ke folder e-Dossier pegawai"
+              >
+                <i className="bi bi-folder-symlink mr-1.5"></i>
+                Simpan E-Dossier
+              </button>
+            </>
+          )}
         </div>
       </div>
 
+      {/* VIEW 1: TABLE OF SKP ARCHIVE */}
       {activeView === 'table' && (
-        <div className="bg-white rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
-           <table className="w-full text-left">
-              <thead className="bg-gray-50 text-[8px] font-black uppercase text-gray-400 border-b tracking-widest">
-                 <tr><th className="px-10 py-5">Nama Pegawai</th><th className="px-4 py-5 text-center">Tahun</th><th className="px-4 py-5 text-center">Predikat</th><th className="px-10 py-5 text-right">Opsi</th></tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                 {skpList.map(s => (
-                    <tr key={s.id} className="hover:bg-blue-50/5 group transition-all">
-                       <td className="px-10 py-5">
-                          <p className="text-[11px] font-black text-gray-950 uppercase leading-none mb-1.5">{s.namaPegawai}</p>
-                          <p className="text-[9px] font-mono text-blue-600 font-bold tracking-tighter">NIP. {s.nip}</p>
-                       </td>
-                       <td className="px-4 py-5 text-center font-black text-gray-400">{s.tahun}</td>
-                       <td className="px-4 py-5 text-center">
-                          <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase border transition-all ${getPredikatBadgeStyle(s.predikatKinerja)}`}>{s.predikatKinerja}</span>
-                       </td>
-                       <td className="px-10 py-5 text-right">
-                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                           <button onClick={() => { setSelectedSKP(s); setActiveView('preview'); }} className="h-9 px-6 rounded-xl bg-gray-950 text-white text-[9px] font-black uppercase shadow-lg">Lihat Dokumen</button>
-                           {(isSuperadmin || canEdit) && <button onClick={() => { setItemToDelete(s); setIsConfirmOpen(true); }} className="h-9 w-9 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><i className="bi bi-trash-fill"></i></button>}
-                         </div>
-                       </td>
-                    </tr>
-                 ))}
-              </tbody>
-           </table>
-        </div>
-      )}
-
-      {activeView === 'editor' && (
-        <div className="max-w-7xl mx-auto space-y-6 animate-modalEnter">
-           <div className="bg-white rounded-[3.5rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full min-h-[750px]">
-              <div className="flex border-b bg-gray-50/50 overflow-x-auto no-scrollbar">
-                 {[
-                   {id: 'identitas', label: '1. Identitas & Rating', icon: 'bi-person-vcard-fill'},
-                   {id: 'hasil_kerja', label: '2. Rencana Kerja', icon: 'bi-table'},
-                   {id: 'perilaku', label: '3. Perilaku Kerja', icon: 'bi-chat-heart-fill'},
-                   {id: 'lampiran', label: '4. Lampiran SKP', icon: 'bi-paperclip'}
-                 ].map(t => (
-                   <button key={t.id} onClick={() => setEditorStep(t.id as any)} className={`px-10 py-5 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-all border-b-4 ${editorStep === t.id ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-gray-400'}`}>
-                      <i className={`bi ${t.icon}`}></i> {t.label}
-                   </button>
-                 ))}
-              </div>
-
-              <div className="p-10 flex-1 overflow-y-auto custom-scrollbar">
-                 {editorStep === 'identitas' && (
-                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 animate-fadeIn">
-                      <div className="space-y-6">
-                         <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-3 tracking-widest">A. Data Subjek & Penilai</h5>
-                         <SearchableSelect label="Pegawai Yang Dinilai" options={searchableOptions} value={formData.nip} onChange={v => {
-                            const p = pegawaiList.find(x => x.nip === v);
-                            if(p) {
-                              const atasanInfo = getAtasanLangsung(p, pegawaiList);
-                              setFormData({
-                                ...formData, 
-                                nip: v, 
-                                namaPegawai: p.nama,
-                                penilaiNip: atasanInfo.atasan?.nip || formData.penilaiNip,
-                                atasanPenilaiNip: atasanInfo.atasanPenilai?.nip || formData.atasanPenilaiNip
-                              });
-                            }
-                         }} />
-
-                         {formData.nip && (() => {
-                            const selectedPeg = pegawaiList.find(x => x.nip === formData.nip);
-                            if (!selectedPeg) return null;
-                            const atasanInfo = getAtasanLangsung(selectedPeg, pegawaiList);
-                            return (
-                              <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs space-y-1.5 animate-fadeIn shadow-xs">
-                                 <div className="flex items-center justify-between">
-                                    <span className="flex items-center gap-1.5 font-black text-blue-900 text-[10px] uppercase tracking-wider">
-                                       <i className="bi bi-shield-check text-blue-600 text-xs"></i>
-                                       SOTK DJKI: Pejabat Penilai Otomatis
-                                    </span>
-                                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-200/70 text-blue-800 font-bold uppercase">
-                                       {atasanInfo.unitNode.shortName || 'Unit Terstruktur'}
-                                    </span>
-                                 </div>
-                                 <div className="text-[11px] text-slate-700">
-                                    <p><span className="font-semibold text-slate-900">Atasan Langsung (Penilai):</span> {atasanInfo.atasan ? `${atasanInfo.atasan.nama} (${atasanInfo.atasan.jabatan})` : 'Menteri Hukum'}</p>
-                                    {atasanInfo.atasanPenilai && (
-                                      <p className="mt-0.5"><span className="font-semibold text-slate-900">Atasan Penilai:</span> {atasanInfo.atasanPenilai.nama} ({atasanInfo.atasanPenilai.jabatan})</p>
-                                    )}
-                                 </div>
-                                 <p className="text-[10px] text-blue-700/90 italic pt-0.5 border-t border-blue-100">
-                                    ℹ️ {atasanInfo.dasarPenilaian}
-                                 </p>
-                              </div>
-                            );
-                         })()}
-
-                         <div className="grid grid-cols-2 gap-4">
-                            <SearchableSelect label="Pejabat Penilai" options={searchableOptions} value={formData.penilaiNip} onChange={v => setFormData({...formData, penilaiNip: v})} />
-                            <SearchableSelect label="Atasan Penilai" options={searchableOptions} value={formData.atasanPenilaiNip} onChange={v => setFormData({...formData, atasanPenilaiNip: v})} />
-                         </div>
-                         <div className="grid grid-cols-2 gap-4">
-                            <div><label className={labelClass}>Tahun</label><input type="number" className={inputClass} value={formData.tahun} onChange={e=>setFormData({...formData, tahun: parseInt(e.target.value)})} /></div>
-                            <div><label className={labelClass}>Tanggal Cetak</label><input type="text" className={inputClass} value={formData.tglPenilaian} onChange={e=>setFormData({...formData, tglPenilaian: e.target.value})} /></div>
-                         </div>
-                      </div>
-                      <div className="space-y-6">
-                         <div className="flex justify-between items-center border-b pb-3 mb-4">
-                            <h5 className="text-[10px] font-black text-rose-600 uppercase tracking-widest flex items-center gap-2">
-                               <i className="bi bi-star-fill text-rose-500 animate-pulse"></i> B. Rating Kinerja Akhir (Permen PANRB 6/2022)
-                            </h5>
-                            <button type="button" onClick={() => setShowGuide(true)} className="text-[9px] font-black uppercase text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all">
-                               <i className="bi bi-book"></i> Panduan &amp; Matriks
-                            </button>
-                         </div>
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                            
-                            {/* Capaian Organisasi */}
-                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2">
-                               <label className={labelClass}>Capaian Organisasi</label>
-                               <select className={`${inputClass} bg-white shadow-sm border-gray-200`} value={formData.capaianOrganisasi} onChange={e=>setFormData({...formData, capaianOrganisasi: e.target.value})}>
-                                  <option>BAIK</option>
-                                  <option>ISTIMEWA</option>
-                                  <option>CUKUP / BUTUH PERBAIKAN</option>
-                                  <option>KURANG</option>
-                                  <option>SANGAT KURANG</option>
-                               </select>
-                               <div className="text-[9.5px] font-semibold leading-relaxed p-2.5 rounded-xl bg-white border border-slate-100 text-gray-500">
-                                  {formData.capaianOrganisasi === 'ISTIMEWA' && "✓ Melampaui target & trajectory yang ditetapkan pimpinan (Sangat memuaskan)."}
-                                  {formData.capaianOrganisasi === 'BAIK' && "✓ Hasil kerja tepat sasaran, memenuhi target, & sesuai standar kualitas."}
-                                  {formData.capaianOrganisasi?.includes('CUKUP') && "✓ Menunjukkan progres positif namun masih butuh bimbingan & perbaikan."}
-                                  {formData.capaianOrganisasi === 'KURANG' && "✓ Sebagian sasaran strategis tidak terpenihu atau di bawah standar."}
-                                  {formData.capaianOrganisasi === 'SANGAT KURANG' && "✓ Realisasi kerja sangat jauh di bawah target (Critical gap)."}
-                               </div>
-                            </div>
-
-                            {/* Rating Hasil Kerja */}
-                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2">
-                               <label className={labelClass}>Rating Hasil Kerja</label>
-                               <select className={`${inputClass} bg-white shadow-sm border-gray-200`} value={formData.ratingHasilKerja} onChange={e=>setFormData({...formData, ratingHasilKerja: e.target.value})}>
-                                  <option>SESUAI EKSPEKTASI</option>
-                                  <option>DI ATAS EKSPEKTASI</option>
-                                  <option>DI BAWAH EKSPEKTASI</option>
-                               </select>
-                               <div className="text-[9.5px] font-semibold leading-relaxed p-2.5 rounded-xl bg-white border border-slate-100 text-gray-500 font-semibold">
-                                  {formData.ratingHasilKerja === 'DI ATAS EKSPEKTASI' && "Seluruh hasil kerja di atas ekspektasi & tidak ada hasil utama di bawah ekspektasi. Umpan balik pimpinan positif."}
-                                  {formData.ratingHasilKerja === 'SESUAI EKSPEKTASI' && "Sebagian besar hasil kerja sesuai target, hanya sebagian sangat kecil hasil utama di bawah ekspektasi."}
-                                  {formData.ratingHasilKerja === 'DI BAWAH EKSPEKTASI' && "Sebagian besar/seluruh hasil kerja tidak memenuhi standar yang ditentukan pimpinan."}
-                                </div>
-                            </div>
-
-                            {/* Rating Perilaku */}
-                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-2">
-                               <label className={labelClass}>Rating Perilaku Kerja</label>
-                               <select className={`${inputClass} bg-white shadow-sm border-gray-200`} value={formData.ratingPerilaku} onChange={e=>setFormData({...formData, ratingPerilaku: e.target.value})}>
-                                  <option>SESUAI EKSPEKTASI</option>
-                                  <option>DI ATAS EKSPEKTASI</option>
-                                  <option>DI BAWAH EKSPEKTASI</option>
-                               </select>
-                               <div className="text-[9.5px] font-semibold leading-relaxed p-2.5 rounded-xl bg-white border border-slate-100 text-gray-500 font-semibold">
-                                  {formData.ratingPerilaku === 'DI ATAS EKSPEKTASI' && "Konsisten mendemonstrasikan nilai BerAKHLAK & menjadi penggerak/role model di lingkungan kerja."}
-                                  {formData.ratingPerilaku === 'SESUAI EKSPEKTASI' && "Konsisten running nilai dasar ASN BerAKHLAK untuk diri pribadi secara penuh."}
-                                  {formData.ratingPerilaku === 'DI BAWAH EKSPEKTASI' && "Belum secara konsisten mendemonstrasikan asas dasar perilaku BerAKHLAK, butuh perbaikan."}
-                                </div>
-                            </div>
-
-                            {/* Predikat Kinerja */}
-                            <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 space-y-2">
-                               <div className="flex justify-between items-center">
-                                  <label className="text-[9px] font-black text-blue-800 uppercase tracking-widest pl-3 block mb-1">Predikat Kinerja</label>
-                                  <span className="text-[8px] font-black text-blue-600 uppercase tracking-widest bg-blue-100/30 px-2 py-0.5 rounded border border-blue-200/50">TERHITUNG OTOMATIS</span>
-                               </div>
-                               <div className="relative">
-                                  <input 
-                                     type="text" 
-                                     readOnly 
-                                     className={`${inputClass} bg-white border-blue-200 text-blue-900 border font-extrabold text-[11px] uppercase shadow-inner block pr-12`}
-                                     value={formData.predikatKinerja} 
-                                  />
-                                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                     <i className="bi bi-cpu-fill text-blue-500 text-sm animate-pulse"></i>
-                                  </div>
-                               </div>
-                               <div className="text-[9.5px] font-semibold leading-relaxed p-2.5 rounded-xl bg-white border border-blue-100/50 text-blue-950/80">
-                                  <span>Matriks Persilangan Regulasi:</span>
-                                  <p className="font-extrabold mt-1 text-[10px] text-blue-700 font-semibold">
-                                     Hasil Kerja ({formData.ratingHasilKerja}) + Perilaku ({formData.ratingPerilaku}) ➔ {formData.predikatKinerja}
-                                  </p>
-                                </div>
-                             </div>
-
-                         </div>
-                      </div>
-                   </div>
-                 )}
-
-                 {editorStep === 'hasil_kerja' && (
-                   <div className="space-y-8 animate-fadeIn">
-                      <div className="flex justify-between items-center border-b pb-4">
-                         <h5 className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Rencana Hasil Kerja & Evaluasi</h5>
-                         <button onClick={addHasilKerja} className="px-6 py-2 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase shadow-lg">+ Tambah RHK</button>
-                      </div>
-                      <div className="space-y-6">
-                         {formData.hasilKerja.map((row: any, i: number) => (
-                           <div key={i} className="p-8 bg-gray-50 rounded-[2.5rem] border border-gray-100 relative group/row">
-                              <button onClick={() => removeHasilKerja(i)} className="absolute top-4 right-4 h-8 w-8 bg-rose-50 text-rose-500 rounded-lg opacity-0 group-hover/row:opacity-100 transition-all"><i className="bi bi-trash-fill"></i></button>
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                 <div className="space-y-4">
-                                    <div><label className={labelClass}>RHK Atasan (Intervensi)</label><textarea rows={2} className={`${inputClass} resize-none normal-case`} value={row.rencanaPimpinan} onChange={e=>handleHasilKerjaChange(i, 'rencanaPimpinan', e.target.value)} /></div>
-                                    <div><label className={labelClass}>RHK Pegawai</label><textarea rows={2} className={`${inputClass} resize-none normal-case`} value={row.rencanaPegawai} onChange={e=>handleHasilKerjaChange(i, 'rencanaPegawai', e.target.value)} /></div>
-                                 </div>
-                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className={labelClass}>Aspek</label><select className={inputClass} value={row.aspek} onChange={e=>handleHasilKerjaChange(i, 'aspek', e.target.value)}><option>Kualitas</option><option>Kuantitas</option><option>Waktu</option><option>Biaya</option></select></div>
-                                    <div><label className={labelClass}>Target</label><input className={inputClass} value={row.target} onChange={e=>handleHasilKerjaChange(i, 'target', e.target.value)} /></div>
-                                    <div className="col-span-full"><label className={labelClass}>Indikator Kinerja Individu</label><input className={inputClass} value={row.indikator} onChange={e=>handleHasilKerjaChange(i, 'indikator', e.target.value)} /></div>
-                                    <div><label className={labelClass}>Realisasi</label><input className={inputClass} value={row.realisasi} onChange={e=>handleHasilKerjaChange(i, 'realisasi', e.target.value)} /></div>
-                                    <div><label className={labelClass}>Umpan Balik (Feedback)</label><input className={inputClass} value={row.umpanBalik} onChange={e=>handleHasilKerjaChange(i, 'umpanBalik', e.target.value)} /></div>
-                                 </div>
-                              </div>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
-                 )}
-
-                 {editorStep === 'perilaku' && (
-                    <div className="space-y-6 animate-fadeIn">
-                       <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-3 tracking-widest">Perilaku Kerja (Core Values BerAKHLAK)</h5>
-                       <div className="grid grid-cols-1 gap-4">
-                          {formData.perilakuKerja.map((p: any, i: number) => (
-                             <div key={i} className="p-6 bg-gray-50 rounded-3xl border border-gray-100 grid grid-cols-12 gap-6 items-center">
-                                <div className="col-span-3">
-                                   <p className="text-[11px] font-black text-gray-900 uppercase">{p.poin}</p>
-                                </div>
-                                <div className="col-span-4">
-                                   <label className={labelClass}>Ekspektasi Khusus</label>
-                                   <textarea rows={2} className={`${inputClass} resize-none text-[10px] normal-case`} value={p.ekspektasi} onChange={e=>handlePerilakuChange(i, 'ekspektasi', e.target.value)} />
-                                </div>
-                                <div className="col-span-5">
-                                   <label className={labelClass}>Feedback Pimpinan</label>
-                                   <textarea rows={2} className={`${inputClass} resize-none text-[10px] normal-case`} value={p.umpanBalik} onChange={e=>handlePerilakuChange(i, 'umpanBalik', e.target.value)} />
-                                </div>
-                             </div>
-                          ))}
-                       </div>
-                    </div>
-                 )}
-
-                 {editorStep === 'lampiran' && (
-                    <div className="space-y-8 animate-fadeIn max-w-4xl">
-                       <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-3 tracking-widest">Lampiran SKP (Opsional)</h5>
-                       <div className="space-y-6">
-                          <div><label className={labelClass}>Dukungan Sumber Daya</label><textarea rows={4} className={`${inputClass} resize-none normal-case`} value={formData.lampiran.dukunganSumberDaya} onChange={e=>setFormData({...formData, lampiran: {...formData.lampiran, dukunganSumberDaya: e.target.value}})} /></div>
-                          <div><label className={labelClass}>Skema Pertanggungjawaban</label><textarea rows={4} className={`${inputClass} resize-none normal-case`} value={formData.lampiran.skemaPertanggungjawaban} onChange={e=>setFormData({...formData, lampiran: {...formData.lampiran, skemaPertanggungjawaban: e.target.value}})} /></div>
-                          <div><label className={labelClass}>Konsekuensi</label><textarea rows={4} className={`${inputClass} resize-none normal-case`} value={formData.lampiran.konsekuensi} onChange={e=>setFormData({...formData, lampiran: {...formData.lampiran, konsekuensi: e.target.value}})} /></div>
-                       </div>
-                    </div>
-                 )}
-              </div>
-
-              <div className="p-10 bg-gray-50 border-t flex justify-center shrink-0">
-                 <button onClick={handleSave} disabled={syncing} className="px-24 py-5 bg-[#111827] text-white rounded-[2rem] font-black text-[10px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all">Simpan & Lihat Hasil</button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {activeView === 'preview' && (
-         <div className="animate-fadeIn space-y-10">
-            <div className="flex justify-end gap-3 no-print px-6">
-               <button onClick={() => setActiveView('editor')} className="px-8 py-4 bg-white text-gray-500 border border-gray-200 rounded-2xl text-[11px] font-black uppercase">Edit Kembali</button>
-               {canEdit && (
-                 <button onClick={handleSaveToDossier} disabled={syncing} className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-2 shadow-xl active:scale-95 transition-all">
-                   {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-folder-fill"></i>} Simpan ke Dossier
-                 </button>
-               )}
-               {canEdit && (
-                 <button onClick={handleSave} disabled={syncing} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-2 shadow-xl active:scale-95 transition-all">
-                   {syncing ? <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-arrow-up-fill"></i>} Simpan
-                 </button>
-               )}
-               <button onClick={handleDownloadPdf} className="px-10 py-4 bg-gray-950 text-white rounded-2xl font-black uppercase text-[11px] flex items-center gap-3 shadow-xl active:scale-95 transition-all"><i className="bi bi-file-earmark-pdf-fill"></i> Download PDF (5 Hal)</button>
-            </div>
-            
-            <div className="bg-gray-300 py-10 flex flex-col items-center gap-10 overflow-x-auto no-scrollbar">
-               <div ref={pdfRef} className="bg-white shadow-2xl p-[1.5cm_1.5cm] font-arial text-black space-y-20" style={{ width: '210mm' }}>
-                  
-                  {/* HALAMAN 1: SAMPUL/EVALUASI */}
-                  <div className="min-h-[267mm] flex flex-col">
-                     <div className="flex flex-col items-center mb-8 border-b-2 border-black pb-4 text-center">
-                        <p className="text-[12pt] font-bold uppercase leading-tight">KEMENTERIAN HUKUM REPUBLIK INDONESIA</p>
-                        <p className="text-[12pt] font-bold uppercase leading-tight">DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL</p>
-                        <div className="h-1 bg-black w-full my-2"></div>
-                        <p className="text-[13pt] font-bold uppercase mt-6 underline leading-tight">DOKUMEN EVALUASI KINERJA PEGAWAI</p>
-                        <p className="text-[11pt] font-bold uppercase leading-tight">PERIODE: {activeRecord.periodeMulai} S.D {activeRecord.periodeSelesai}</p>
-                     </div>
-
-                     <div className="space-y-8">
-                        <div>
-                           <SectionHeader title="1. IDENTITAS PEGAWAI" />
-                           <table className="w-full border-collapse border border-black text-[9pt]">
-                              <tbody>
-                                 <tr className="border border-black">
-                                    <td className="w-10 p-2 border-r border-black text-center">1</td>
-                                    <td className="w-48 p-2 border-r border-black">Nama</td>
-                                    <td className="p-2 font-bold uppercase">{pSubjek?.nama || '-'}</td>
-                                 </tr>
-                                 <tr className="border border-black">
-                                    <td className="p-2 border-r border-black text-center">2</td>
-                                    <td className="p-2 border-r border-black">NIP</td>
-                                    <td className="p-2">{activeRecord.nip}</td>
-                                 </tr>
-                                 <tr className="border border-black">
-                                    <td className="p-2 border-r border-black text-center">3</td>
-                                    <td className="p-2 border-r border-black">Pangkat/Gol</td>
-                                    <td className="p-2 uppercase">{pSubjek?.pangkat} ({pSubjek?.golRuang})</td>
-                                 </tr>
-                                 <tr className="border border-black">
-                                    <td className="p-2 border-r border-black text-center">4</td>
-                                    <td className="p-2 border-r border-black">Jabatan</td>
-                                    <td className="p-2 uppercase">{pSubjek?.jabatan}</td>
-                                 </tr>
-                                 <tr className="border border-black">
-                                    <td className="p-2 border-r border-black text-center">5</td>
-                                    <td className="p-2 border-r border-black">Unit Kerja</td>
-                                    <td className="p-2 uppercase">{pSubjek?.unitKerja}</td>
-                                 </tr>
-                              </tbody>
-                           </table>
-                        </div>
-
-                        <div>
-                           <SectionHeader title="2. PEJABAT PENILAI KINERJA" />
-                           <table className="w-full border-collapse border border-black text-[9pt]">
-                              <tbody>
-                                 <tr className="border border-black"><td className="w-10 p-2 border-r border-black text-center">1</td><td className="w-48 p-2 border-r border-black">Nama</td><td className="p-2 font-bold uppercase">{pPenilai?.nama || '-'}</td></tr>
-                                 <tr className="border border-black"><td className="p-2 border-r border-black text-center">2</td><td className="p-2 border-r border-black">NIP</td><td className="p-2">{activeRecord.penilaiNip}</td></tr>
-                                 <tr className="border border-black"><td className="p-2 border-r border-black text-center">3</td><td className="p-2 border-r border-black">Jabatan</td><td className="p-2 uppercase">{pPenilai?.jabatan}</td></tr>
-                              </tbody>
-                           </table>
-                        </div>
-
-                        <div>
-                           <SectionHeader title="3. ATASAN PEJABAT PENILAI KINERJA" />
-                           <table className="w-full border-collapse border border-black text-[9pt] mb-6">
-                              <tbody>
-                                 <tr className="border border-black"><td className="w-10 p-2 border-r border-black text-center">1</td><td className="w-48 p-2 border-r border-black">Nama</td><td className="p-2 font-bold uppercase">{pAtasan?.nama || '-'}</td></tr>
-                                 <tr className="border border-black"><td className="w-10 p-2 border-r border-black text-center">2</td><td className="p-2 border-r border-black">NIP</td><td className="p-2">{activeRecord.atasanPenilaiNip || '-'}</td></tr>
-                                 <tr className="border border-black"><td className="w-10 p-2 border-r border-black text-center">3</td><td className="p-2 border-r border-black">Jabatan</td><td className="p-2 uppercase">{pAtasan?.jabatan || '-'}</td></tr>
-                              </tbody>
-                           </table>
-                        </div>
-
-                        <div>
-                           <SectionHeader title="4. HASIL EVALUASI KINERJA" />
-                           <div className="border border-black p-6 space-y-4">
-                              <div className="flex justify-between items-center">
-                                 <span className="text-[10pt] font-bold">A. CAPAIAN KINERJA ORGANISASI</span>
-                                 <span className="px-6 py-2 bg-gray-100 border border-black text-[12pt] font-black">{activeRecord.capaianOrganisasi}</span>
-                              </div>
-                              <div className="border border-black p-4 flex flex-col items-center bg-gray-50/20 rounded-xl space-y-2">
-                                 <p className="text-[8.5pt] font-black tracking-widest uppercase text-center text-gray-700">POLA DISTRIBUSI PENILAIAN KINERJA PEGAWAI (ORGANISASI {activeRecord.capaianOrganisasi})</p>
-                                 <div className="w-full bg-white border border-gray-200/50 p-2 rounded-lg">
-                                    {renderCurve(activeRecord.capaianOrganisasi)}
-                                 </div>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                 <span className="text-[10pt] font-bold">B. RATING HASIL KERJA</span>
-                                 <span className="px-6 py-2 bg-gray-100 border border-black text-[10pt] font-black">{activeRecord.ratingHasilKerja}</span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                 <span className="text-[10pt] font-bold">C. RATING PERILAKU KERJA</span>
-                                 <span className="px-6 py-2 bg-gray-100 border border-black text-[10pt] font-black">{activeRecord.ratingPerilaku}</span>
-                              </div>
-                              <div className="mt-8 pt-8 border-t-2 border-black flex flex-col items-center">
-                                 <p className="text-[11pt] font-bold mb-2">PREDIKAT KINERJA PEGAWAI</p>
-                                 <p className="text-[24pt] font-black underline">{activeRecord.predikatKinerja}</p>
-                              </div>
-                           </div>
-                        </div>
-
-                        <div className="mt-auto grid grid-cols-2 text-[10pt] text-center pt-20">
-                           <div className="flex flex-col items-center">
-                              <p className="mb-24 uppercase">Pegawai yang Dinilai,</p>
-                              <p className="font-bold uppercase underline leading-none">{pSubjek?.nama}</p>
-                              <p className="mt-1">NIP {activeRecord.nip}</p>
-                           </div>
-                           <div className="flex flex-col items-center">
-                              <p className="mb-4">Jakarta, {activeRecord.tglPenilaian}</p>
-                              <p className="mb-24 uppercase">Pejabat Penilai Kinerja,</p>
-                              <p className="font-bold uppercase underline leading-none">{pPenilai?.nama}</p>
-                              <p className="mt-1">NIP {activeRecord.penilaiNip}</p>
-                           </div>
-                        </div>
-                     </div>
-                  </div>
-
-                  {/* HALAMAN 2: TABEL HASIL KERJA */}
-                  <div className="min-h-[267mm]">
-                     <div className="text-center font-bold text-[12pt] underline mb-8 uppercase">RENCANA HASIL KERJA DAN EVALUASI</div>
-                     <table className="w-full border-collapse border-2 border-black text-[8pt]">
-                        <thead className="bg-gray-100 text-center font-bold">
-                           <tr className="border-b-2 border-black">
-                              <th className="p-2 border-r border-black w-8">NO</th>
-                              <th className="p-2 border-r border-black w-40">RENCANA HASIL KERJA ATASAN</th>
-                              <th className="p-2 border-r border-black w-40">RENCANA HASIL KERJA</th>
-                              <th className="p-2 border-r border-black w-16">ASPEK</th>
-                              <th className="p-2 border-r border-black">INDIKATOR & TARGET</th>
-                              <th className="p-2 border-r border-black">REALISASI</th>
-                              <th className="p-2">FEEDBACK</th>
-                           </tr>
-                        </thead>
-                        <tbody>
-                           {activeRecord.hasilKerja.map((rhk: any, idx: number) => (
-                              <tr key={idx} className="border-b border-black align-top">
-                                 <td className="p-2 border-r border-black text-center">{idx + 1}</td>
-                                 <td className="p-2 border-r border-black">{rhk.rencanaPimpinan}</td>
-                                 <td className="p-2 border-r border-black font-bold">{rhk.rencanaPegawai}</td>
-                                 <td className="p-2 border-r border-black text-center">{rhk.aspek}</td>
-                                 <td className="p-2 border-r border-black">
-                                    <p className="italic mb-1">{rhk.indikator}</p>
-                                    <p className="font-bold">Target: {rhk.target}</p>
-                                 </td>
-                                 <td className="p-2 border-r border-black text-center font-bold">{rhk.realisasi}</td>
-                                 <td className="p-2 italic">{rhk.umpanBalik}</td>
-                              </tr>
-                           ))}
-                        </tbody>
-                     </table>
-                  </div>
-
-                  {/* HALAMAN 3: PERILAKU KERJA */}
-                  <div className="min-h-[267mm]">
-                     <div className="text-center font-bold text-[12pt] underline mb-8 uppercase">PERILAKU KERJA DAN FEEDBACK</div>
-                     <table className="w-full border-collapse border-2 border-black text-[8.5pt]">
-                        <thead className="bg-gray-100 text-center font-bold">
-                           <tr className="border-b-2 border-black">
-                              <th className="p-2 border-r border-black w-8">NO</th>
-                              <th className="p-2 border-r border-black w-48">PERILAKU KERJA / CORE VALUES</th>
-                              <th className="p-2 border-r border-black">EKSPEKTASI KHUSUS PIMPINAN</th>
-                              <th className="p-2">UMPAN BALIK (FEEDBACK)</th>
-                           </tr>
-                        </thead>
-                        <tbody>
-                           {activeRecord.perilakuKerja.map((p: any, idx: number) => (
-                              <tr key={idx} className="border-b border-black align-top">
-                                 <td className="p-2 border-r border-black text-center">{idx + 1}</td>
-                                 <td className="p-2 border-r border-black">
-                                    <p className="font-bold uppercase mb-1">{p.poin}</p>
-                                    <p className="text-[7.5pt] text-gray-600 leading-tight">{p.deskripsi}</p>
-                                 </td>
-                                 <td className="p-2 border-r border-black">{p.ekspektasi}</td>
-                                 <td className="p-2 italic">{p.umpanBalik}</td>
-                              </tr>
-                           ))}
-                        </tbody>
-                     </table>
-                  </div>
-
-                  {/* HALAMAN 4: LAMPIRAN */}
-                  <div className="min-h-[267mm]">
-                     <div className="text-center font-bold text-[12pt] underline mb-8 uppercase">LAMPIRAN SASARAN KINERJA PEGAWAI</div>
-                     <div className="space-y-8 text-[10pt]">
-                        <div>
-                           <p className="font-bold mb-2">I. DUKUNGAN SUMBER DAYA</p>
-                           <div className="p-4 border border-black whitespace-pre-wrap">{activeRecord.lampiran?.dukunganSumberDaya}</div>
-                        </div>
-                        <div>
-                           <p className="font-bold mb-2">II. SKEMA PERTANGGUNGJAWABAN</p>
-                           <div className="p-4 border border-black whitespace-pre-wrap">{activeRecord.lampiran?.skemaPertanggungjawaban}</div>
-                        </div>
-                        <div>
-                           <p className="font-bold mb-2">III. KONSEKUENSI</p>
-                           <div className="p-4 border border-black whitespace-pre-wrap">{activeRecord.lampiran?.konsekuensi}</div>
-                        </div>
-                     </div>
-                  </div>
-
-               </div>
-            </div>
-         </div>
-      )}
-       {/* PANDUAN & MATRIKS MODAL */}
-       {showGuide && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn no-print text-black">
-             <div className="bg-white rounded-[2.5rem] w-full max-w-4xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh] animate-modalEnter">
-                
-                {/* Modal Header */}
-                <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                   <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
-                         <i className="bi bi-book-half text-lg animate-bounce"></i>
-                      </div>
-                      <div className="text-left">
-                         <h4 className="text-xs font-black text-gray-900 uppercase">Panduan &amp; Matriks Penilaian Kinerja</h4>
-                         <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Permen PANRB Nomor 6 Tahun 2022</p>
-                      </div>
-                   </div>
-                   <button onClick={() => setShowGuide(false)} className="h-10 w-10 text-gray-400 hover:text-gray-950 bg-white border border-gray-100 rounded-xl flex items-center justify-center hover:shadow-sm transition-all">
-                      <i className="bi bi-x-lg text-sm"></i>
-                   </button>
-                </div>
-
-                {/* Modal Content */}
-                <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1 text-left">
-                   
-                   {/* 1. Rumus SKP Category */}
-                   <div className="space-y-4">
-                      <h5 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                         <span className="h-2 w-2 bg-blue-600 rounded-full"></span> 1. Klasifikasi Penilaian SKP
-                      </h5>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-semibold">
-                         <div className="p-4 rounded-2xl bg-blue-50/40 border border-blue-200/20 space-y-1">
-                            <span className="text-[9px] font-black text-blue-800 uppercase tracking-widest block">DI ATAS EKSPEKTASI</span>
-                            <div className="text-[11px] font-black text-blue-950 mt-1">Nilai SKP &gt; 100 Poin</div>
-                            <p className="text-[9.5px] leading-relaxed text-blue-900/80 font-medium pt-1">Sebagian besar atau seluruh hasil kerja Anda melampaui target yang ditetapkan, serta memberikan dampak tambahan yang positif bagi unit kerja atau instansi. (Sesuai dengan panduan penetapan kementerian/lembaga).</p>
-                         </div>
-                         <div className="p-4 rounded-2xl bg-emerald-50/40 border border-emerald-200/20 space-y-1">
-                            <span className="text-[9px] font-black text-emerald-800 uppercase tracking-widest block">SESUAI EKSPEKTASI</span>
-                            <div className="text-[11px] font-black text-emerald-950 mt-1">Nilai SKP 90 - 100 Poin</div>
-                            <p className="text-[9.5px] leading-relaxed text-emerald-900/80 font-medium pt-1">Hasil kerja Anda tepat sasaran, memenuhi target, dan sesuai dengan standar kualitas yang telah ditentukan.</p>
-                         </div>
-                         <div className="p-4 rounded-2xl bg-rose-50/40 border border-rose-200/20 space-y-1">
-                            <span className="text-[9px] font-black text-rose-800 uppercase tracking-widest block">DI BAWAH EKSPEKTASI</span>
-                            <div className="text-[11px] font-black text-rose-950 mt-1">Nilai SKP &lt; 90 Poin</div>
-                            <p className="text-[9.5px] leading-relaxed text-rose-900/80 font-medium pt-1">Hasil kerja tidak mencapai target dan memerlukan perbaikan, evaluasi, bimbingan, atau pembinaan lebih lanjut.</p>
-                         </div>
-                      </div>
-                   </div>
-
-                   {/* 2. Matriks Persilangan */}
-                   <div className="space-y-4">
-                      <h5 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-2">
-                         <span className="h-2 w-2 bg-indigo-600 rounded-full"></span> 2. Matriks Kuadran Predikat Kinerja ASN
-                      </h5>
-                      <div className="overflow-x-auto rounded-3xl border border-gray-150 shadow-sm max-w-full">
-                         <table className="w-full text-center border-collapse text-xs">
-                            <thead>
-                               <tr className="bg-gray-50 border-b border-gray-150">
-                                  <th className="p-4 font-black text-gray-400 text-[8px] uppercase tracking-wider border-r border-gray-150 w-36">Hasil Kerja \ Perilaku</th>
-                                  <th className="p-4 font-black text-rose-900 text-[9px] uppercase tracking-wider bg-rose-50/30 border-r border-gray-150">DI BAWAH EKSPEKTASI</th>
-                                  <th className="p-4 font-black text-emerald-105 text-[9px] uppercase tracking-wider bg-emerald-50/30 border-r border-gray-150">SESUAI EKSPEKTASI</th>
-                                  <th className="p-4 font-black text-blue-900 text-[9px] uppercase tracking-wider bg-blue-50/30">DI ATAS EKSPEKTASI</th>
-                               </tr>
-                            </thead>
-                            <tbody>
-                               <tr className="border-b border-gray-150">
-                                  <td className="p-4 font-black bg-blue-50/30 border-r border-gray-150 text-[9px] uppercase text-left">DI ATAS EKSPEKTASI</td>
-                                  <td className="p-4 border-r border-gray-150 bg-yellow-50/65">
-                                     <span className="px-2 py-1 rounded bg-orange-100 text-orange-900 text-[9px] font-black uppercase">KURANG / MISCONDUCT</span>
-                                  </td>
-                                  <td className="p-4 border-r border-gray-150 bg-emerald-50/40">
-                                     <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-900 text-[9px] font-black uppercase">BAIK</span>
-                                  </td>
-                                  <td className="p-4 bg-blue-50/45">
-                                     <span className="px-2 py-1 rounded bg-blue-100 text-blue-900 text-[9px] font-black uppercase">SANGAT BAIK</span>
-                                  </td>
-                               </tr>
-                               <tr className="border-b border-gray-150">
-                                  <td className="p-4 font-black bg-emerald-50/30 border-r border-gray-150 text-[9px] uppercase text-left">SESUAI EKSPEKTASI</td>
-                                  <td className="p-4 border-r border-gray-150 bg-yellow-50/65">
-                                     <span className="px-2 py-1 rounded bg-orange-100 text-orange-900 text-[9px] font-black uppercase">KURANG / MISCONDUCT</span>
-                                  </td>
-                                  <td className="p-4 border-r border-gray-150 bg-emerald-50/40">
-                                     <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-900 text-[9px] font-black uppercase">BAIK</span>
-                                  </td>
-                                  <td className="p-4 bg-emerald-50/45">
-                                     <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-900 text-[9px] font-black uppercase">BAIK</span>
-                                  </td>
-                               </tr>
-                               <tr>
-                                  <td className="p-4 font-black bg-rose-50/30 border-r border-gray-150 text-[9px] uppercase text-left">DI BAWAH EKSPEKTASI</td>
-                                  <td className="p-4 border-r border-gray-150 bg-red-50/45">
-                                     <span className="px-2 py-1 rounded bg-red-100 text-red-900 text-[9px] font-black uppercase">SANGAT KURANG</span>
-                                  </td>
-                                  <td className="p-4 border-r border-gray-150 bg-amber-50/45">
-                                     <span className="px-2 py-1 rounded bg-amber-100 text-amber-900 text-[9px] font-black uppercase">BUTUH PERBAIKAN</span>
-                                  </td>
-                                  <td className="p-4 bg-amber-50/45">
-                                     <span className="px-2 py-1 rounded bg-amber-100 text-amber-900 text-[9px] font-black uppercase">BUTUH PERBAIKAN</span>
-                                  </td>
-                               </tr>
-                            </tbody>
-                         </table>
-                      </div>
-                   </div>
-
-                   {/* 3. Core Values BerAKHLAK */}
-                   <div className="space-y-4">
-                      <h5 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2">
-                         <span className="h-2 w-2 bg-emerald-600 rounded-full"></span> 3. Core Values BerAKHLAK ASN
-                      </h5>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                         <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100"><strong className="text-[9px] text-gray-900 uppercase block mb-1">Berorientasi Pelayanan</strong><p className="text-[9.5px] leading-relaxed text-gray-500 font-medium">Memahami &amp; memenuhi kebutuhan masyarakat dengan ramah, solutif, cekatan &amp; dapat diandalkan.</p></div>
-                         <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100"><strong className="text-[9px] text-gray-900 uppercase block mb-1">Akuntabel</strong><p className="text-[9.5px] leading-relaxed text-gray-500 font-medium font-semibold">Melaksanakan tugas secara jujur, bertanggung jawab, cermat, disiplin, berintegritas tinggi.</p></div>
-                         <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100"><strong className="text-[9px] text-gray-900 uppercase block mb-1">Kompeten</strong><p className="text-[9.5px] leading-relaxed text-gray-500 font-medium">Meningkatkan kompetensi diri untuk menjawab tantangan, membantu orang lain belajar.</p></div>
-                         <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100"><strong className="text-[9px] text-gray-900 uppercase block mb-1">Harmonis</strong><p className="text-[9.5px] leading-relaxed text-gray-500 font-medium font-semibold">Saling peduli, menghargai perbedaan latar belakang, membangun lingkungan kerja kondusif.</p></div>
-                      </div>
-                   </div>
-
-                </div>
-
-                {/* Modal Footer */}
-                <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end">
-                   <button onClick={() => setShowGuide(false)} className="px-8 h-12 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase shadow-lg transition-all hover:bg-slate-950">
-                      Saya Mengerti
-                   </button>
-                </div>
-
-             </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+            <span className="text-sm font-semibold text-slate-700">
+              Arsip Dokumen SKP Pegawai ({skpList.length})
+            </span>
           </div>
-       )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                  <th className="p-3">Nama Pegawai / NIP</th>
+                  <th className="p-3">Tahun</th>
+                  <th className="p-3">Capaian Organisasi</th>
+                  <th className="p-3">Hasil Kerja</th>
+                  <th className="p-3">Perilaku</th>
+                  <th className="p-3">Predikat Kinerja</th>
+                  <th className="p-3 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {skpList.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-400">
+                      Belum ada data SKP tersimpan. Klik "Buat SKP Baru" untuk memulai.
+                    </td>
+                  </tr>
+                ) : (
+                  skpList.map((row) => (
+                    <tr key={row.id} className="hover:bg-slate-50 transition">
+                      <td className="p-3">
+                        <div className="font-semibold text-slate-900">{row.namaPegawai}</div>
+                        <div className="text-xs text-slate-500 font-mono">NIP. {row.nip}</div>
+                      </td>
+                      <td className="p-3 font-medium text-slate-700">{row.tahun || 2025}</td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200 uppercase">
+                          {row.capaianOrganisasi || 'ISTIMEWA'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-xs">{row.ratingHasilKerja || 'DI ATAS EKSPEKTASI'}</td>
+                      <td className="p-3 text-xs">{row.ratingPerilaku || 'DI ATAS EKSPEKTASI'}</td>
+                      <td className="p-3">
+                        <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${getPredikatBadgeStyle(row.predikatKinerja)} uppercase`}>
+                          {row.predikatKinerja || 'SANGAT BAIK'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right space-x-1 whitespace-nowrap">
+                        <button
+                          onClick={() => {
+                            setSelectedSKP(row);
+                            setFormData(row);
+                            setActiveView('preview');
+                          }}
+                          className="px-2.5 py-1 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold transition"
+                        >
+                          <i className="bi bi-eye mr-1"></i>
+                          Lihat 8 Hal
+                        </button>
+                        {canEdit && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setFormData(row);
+                                setSelectedSKP(row);
+                                setActiveView('editor');
+                              }}
+                              className="px-2.5 py-1 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 text-xs font-semibold transition"
+                            >
+                              <i className="bi bi-pencil mr-1"></i>
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => {
+                                setItemToDelete(row);
+                                setIsConfirmOpen(true);
+                              }}
+                              className="px-2.5 py-1 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-semibold transition"
+                            >
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 2: EDITOR (4 STEPS) */}
+      {activeView === 'editor' && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          {/* Editor Step Tabs */}
+          <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
+            {[
+              { id: 'identitas', label: '1. Identitas & Rating', icon: 'bi-person-badge' },
+              { id: 'hasil_kerja', label: '2. Rencana Hasil Kerja', icon: 'bi-list-check' },
+              { id: 'perilaku', label: '3. Perilaku Core Values', icon: 'bi-heart-half' },
+              { id: 'lampiran', label: '4. Lampiran SKP', icon: 'bi-paperclip' },
+            ].map(step => (
+              <button
+                key={step.id}
+                onClick={() => setEditorStep(step.id as any)}
+                className={`px-5 py-3.5 text-sm font-semibold flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
+                  editorStep === step.id
+                    ? 'border-blue-600 text-blue-600 bg-white shadow-xs'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <i className={`bi ${step.icon}`}></i>
+                {step.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="p-6">
+            {/* STEP 1: IDENTITAS & PENILAIAN */}
+            {editorStep === 'identitas' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Subjek Pegawai */}
+                  <div className="space-y-4 p-4 rounded-lg bg-slate-50 border border-slate-200">
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                      <i className="bi bi-person text-blue-600"></i>
+                      Pegawai Yang Dinilai
+                    </h3>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Pilih Pegawai (Auto SOTK)
+                      </label>
+                      <SearchableSelect
+                        options={searchableOptions}
+                        value={formData.nip}
+                        onChange={handleSelectPegawai}
+                        placeholder="Cari nama atau NIP..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Lengkap</label>
+                      <input
+                        type="text"
+                        value={formData.namaPegawai || ''}
+                        onChange={e => setFormData({ ...formData, namaPegawai: e.target.value })}
+                        className="w-full text-sm border rounded-lg p-2 bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Kategori Jabatan SKP</label>
+                      <input
+                        type="text"
+                        value={formData.jenisJabatanKategori || 'BAGI JABATAN FUNGSIONAL UMUM'}
+                        onChange={e => setFormData({ ...formData, jenisJabatanKategori: e.target.value })}
+                        className="w-full text-sm border rounded-lg p-2 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Pejabat Penilai Kinerja */}
+                  <div className="space-y-4 p-4 rounded-lg bg-slate-50 border border-slate-200">
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                      <i className="bi bi-shield-check text-blue-600"></i>
+                      Pejabat Penilai Kinerja (Atasan Langsung)
+                    </h3>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Pilih Pejabat Penilai
+                      </label>
+                      <SearchableSelect
+                        options={searchableOptions}
+                        value={formData.penilaiNip}
+                        onChange={val => setFormData({ ...formData, penilaiNip: val })}
+                        placeholder="Pilih Pejabat Penilai..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Atasan Pejabat Penilai Kinerja
+                      </label>
+                      <SearchableSelect
+                        options={searchableOptions}
+                        value={formData.atasanPenilaiNip}
+                        onChange={val => setFormData({ ...formData, atasanPenilaiNip: val })}
+                        placeholder="Pilih Atasan Penilai..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Kota & Tanggal Penilaian</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={formData.kotaTtd || 'Jakarta'}
+                          onChange={e => setFormData({ ...formData, kotaTtd: e.target.value })}
+                          placeholder="Kota"
+                          className="text-sm border rounded-lg p-2 bg-white"
+                        />
+                        <input
+                          type="text"
+                          value={formData.tglPenilaian || '06 Januari 2026'}
+                          onChange={e => setFormData({ ...formData, tglPenilaian: e.target.value })}
+                          placeholder="Tanggal TTD"
+                          className="text-sm border rounded-lg p-2 bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Periode & Ratings */}
+                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-4">
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                    Periode Evaluasi & Rating Kinerja
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Tahun Evaluasi</label>
+                      <input
+                        type="number"
+                        value={formData.tahun || 2025}
+                        onChange={e => setFormData({ ...formData, tahun: parseInt(e.target.value) || 2025 })}
+                        className="w-full text-sm border rounded-lg p-2 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Label Periode</label>
+                      <input
+                        type="text"
+                        value={formData.periodeLabel || 'AKHIR'}
+                        onChange={e => setFormData({ ...formData, periodeLabel: e.target.value })}
+                        className="w-full text-sm border rounded-lg p-2 bg-white"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Rentang Tanggal Periode</label>
+                      <input
+                        type="text"
+                        value={formData.periodeTeks || '01 Oktober s.d 31 Desember 2025'}
+                        onChange={e => setFormData({ ...formData, periodeTeks: e.target.value })}
+                        className="w-full text-sm border rounded-lg p-2 bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Capaian Organisasi</label>
+                      <select
+                        value={formData.capaianOrganisasi || 'ISTIMEWA'}
+                        onChange={e => setFormData({ ...formData, capaianOrganisasi: e.target.value })}
+                        className="w-full text-sm border rounded-lg p-2 bg-white font-medium"
+                      >
+                        <option value="ISTIMEWA">ISTIMEWA</option>
+                        <option value="BAIK">BAIK</option>
+                        <option value="BUTUH PERBAIKAN">BUTUH PERBAIKAN</option>
+                        <option value="KURANG">KURANG</option>
+                        <option value="SANGAT KURANG">SANGAT KURANG</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Rating Hasil Kerja</label>
+                      <select
+                        value={formData.ratingHasilKerja || 'DI ATAS EKSPEKTASI'}
+                        onChange={e => setFormData({ ...formData, ratingHasilKerja: e.target.value })}
+                        className="w-full text-sm border rounded-lg p-2 bg-white font-medium"
+                      >
+                        <option value="DI ATAS EKSPEKTASI">DI ATAS EKSPEKTASI</option>
+                        <option value="SESUAI EKSPEKTASI">SESUAI EKSPEKTASI</option>
+                        <option value="DI BAWAH EKSPEKTASI">DI BAWAH EKSPEKTASI</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Rating Perilaku</label>
+                      <select
+                        value={formData.ratingPerilaku || 'DI ATAS EKSPEKTASI'}
+                        onChange={e => setFormData({ ...formData, ratingPerilaku: e.target.value })}
+                        className="w-full text-sm border rounded-lg p-2 bg-white font-medium"
+                      >
+                        <option value="DI ATAS EKSPEKTASI">DI ATAS EKSPEKTASI</option>
+                        <option value="SESUAI EKSPEKTASI">SESUAI EKSPEKTASI</option>
+                        <option value="DI BAWAH EKSPEKTASI">DI BAWAH EKSPEKTASI</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Predikat Kinerja</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={formData.predikatKinerja || calculatedPredikat}
+                        className="w-full text-sm border rounded-lg p-2 bg-slate-100 font-bold text-blue-700"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Catatan / Rekomendasi</label>
+                    <input
+                      type="text"
+                      value={formData.catatanRekomendasi || '-'}
+                      onChange={e => setFormData({ ...formData, catatanRekomendasi: e.target.value })}
+                      className="w-full text-sm border rounded-lg p-2 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: RENCANA HASIL KERJA */}
+            {editorStep === 'hasil_kerja' && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800">
+                      Rencana Hasil Kerja Utama & Tambahan ({formData.hasilKerja?.length || 0})
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Target, realisasi dan umpan balik berkelanjutan berdasarkan bukti dukung.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => addHasilKerja('UTAMA')}
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700"
+                    >
+                      + Tambah RHK Utama
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addHasilKerja('TAMBAHAN')}
+                      className="px-3 py-1.5 rounded-lg bg-slate-600 text-white text-xs font-semibold hover:bg-slate-700"
+                    >
+                      + Tambah RHK Tambahan
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {formData.hasilKerja?.map((item: any, idx: number) => (
+                    <div key={idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50 space-y-3 relative">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                          #{idx + 1} - Kinerja {item.kategori || 'UTAMA'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeHasilKerja(idx)}
+                          className="text-rose-600 hover:text-rose-800 text-xs font-semibold"
+                        >
+                          <i className="bi bi-trash mr-1"></i>
+                          Hapus
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Rencana Hasil Kerja Pimpinan yang Diintervensi
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={item.rencanaPimpinan || ''}
+                            onChange={e => handleHasilKerjaChange(idx, 'rencanaPimpinan', e.target.value)}
+                            className="w-full text-xs border rounded p-2 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Rencana Hasil Kerja Pegawai
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={item.rencanaPegawai || ''}
+                            onChange={e => handleHasilKerjaChange(idx, 'rencanaPegawai', e.target.value)}
+                            className="w-full text-xs border rounded p-2 bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Aspek</label>
+                          <select
+                            value={item.aspek || 'Kualitas'}
+                            onChange={e => handleHasilKerjaChange(idx, 'aspek', e.target.value)}
+                            className="w-full text-xs border rounded p-1.5 bg-white font-medium"
+                          >
+                            <option value="Kualitas">Kualitas</option>
+                            <option value="Kuantitas">Kuantitas</option>
+                            <option value="Waktu">Waktu</option>
+                            <option value="Biaya">Biaya</option>
+                          </select>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Indikator Kinerja Individu</label>
+                          <input
+                            type="text"
+                            value={item.indikator || ''}
+                            onChange={e => handleHasilKerjaChange(idx, 'indikator', e.target.value)}
+                            className="w-full text-xs border rounded p-1.5 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Target</label>
+                          <input
+                            type="text"
+                            value={item.target || ''}
+                            onChange={e => handleHasilKerjaChange(idx, 'target', e.target.value)}
+                            className="w-full text-xs border rounded p-1.5 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Realisasi Bukti Dukung</label>
+                          <input
+                            type="text"
+                            value={item.realisasi || ''}
+                            onChange={e => handleHasilKerjaChange(idx, 'realisasi', e.target.value)}
+                            className="w-full text-xs border rounded p-1.5 bg-white font-semibold"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung
+                        </label>
+                        <input
+                          type="text"
+                          value={item.umpanBalik || ''}
+                          onChange={e => handleHasilKerjaChange(idx, 'umpanBalik', e.target.value)}
+                          className="w-full text-xs border rounded p-1.5 bg-white uppercase font-medium text-slate-800"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: PERILAKU KERJA BERAKHLAK */}
+            {editorStep === 'perilaku' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-800">
+                  Core Values ASN BerAKHLAK (7 Nilai Dasar)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Tentukan Ekspektasi Khusus Pimpinan dan Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung.
+                </p>
+
+                <div className="space-y-4">
+                  {formData.perilakuKerja?.map((item: any, idx: number) => (
+                    <div key={idx} className="p-4 rounded-lg border border-slate-200 bg-slate-50 space-y-2">
+                      <div className="font-bold text-sm text-blue-900">
+                        {idx + 1}. {item.poin}
+                      </div>
+                      <ul className="list-disc pl-5 text-xs text-slate-600 space-y-0.5">
+                        {item.subPoints?.map((sp: string, sIdx: number) => (
+                          <li key={sIdx}>{sp}</li>
+                        ))}
+                      </ul>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Ekspektasi Khusus Pimpinan
+                          </label>
+                          <input
+                            type="text"
+                            value={item.ekspektasi || 'Untuk Dapat Dipertahankan'}
+                            onChange={e => handlePerilakuChange(idx, 'ekspektasi', e.target.value)}
+                            className="w-full text-xs border rounded p-2 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Umpan Balik Berkelanjutan Berdasarkan Bukti Dukung
+                          </label>
+                          <input
+                            type="text"
+                            value={item.umpanBalik || ''}
+                            onChange={e => handlePerilakuChange(idx, 'umpanBalik', e.target.value)}
+                            className="w-full text-xs border rounded p-2 bg-white font-medium"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* STEP 4: LAMPIRAN SKP */}
+            {editorStep === 'lampiran' && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-800">
+                  Lampiran Sasaran Kinerja Pegawai
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Masukkan tiap butir poin dukungan sumber daya, skema pertanggungjawaban, dan konsekuensi (satu baris per poin).
+                </p>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      1. Dukungan Sumber Daya
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={Array.isArray(formData.lampiran?.dukunganSumberDaya) ? formData.lampiran.dukunganSumberDaya.join('\n') : (formData.lampiran?.dukunganSumberDaya || '')}
+                      onChange={e => setFormData({
+                        ...formData,
+                        lampiran: {
+                          ...formData.lampiran,
+                          dukunganSumberDaya: e.target.value.split('\n').filter(Boolean)
+                        }
+                      })}
+                      className="w-full text-xs border rounded-lg p-2.5 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      2. Skema Pertanggungjawaban
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={Array.isArray(formData.lampiran?.skemaPertanggungjawaban) ? formData.lampiran.skemaPertanggungjawaban.join('\n') : (formData.lampiran?.skemaPertanggungjawaban || '')}
+                      onChange={e => setFormData({
+                        ...formData,
+                        lampiran: {
+                          ...formData.lampiran,
+                          skemaPertanggungjawaban: e.target.value.split('\n').filter(Boolean)
+                        }
+                      })}
+                      className="w-full text-xs border rounded-lg p-2.5 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      3. Konsekuensi
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={Array.isArray(formData.lampiran?.konsekuensi) ? formData.lampiran.konsekuensi.join('\n') : (formData.lampiran?.konsekuensi || '')}
+                      onChange={e => setFormData({
+                        ...formData,
+                        lampiran: {
+                          ...formData.lampiran,
+                          konsekuensi: e.target.value.split('\n').filter(Boolean)
+                        }
+                      })}
+                      className="w-full text-xs border rounded-lg p-2.5 bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Actions */}
+            <div className="flex justify-between items-center pt-6 mt-6 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  if (editorStep === 'identitas') setActiveView('table');
+                  else if (editorStep === 'hasil_kerja') setEditorStep('identitas');
+                  else if (editorStep === 'perilaku') setEditorStep('hasil_kerja');
+                  else if (editorStep === 'lampiran') setEditorStep('perilaku');
+                }}
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                Kembali
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSKP(formData);
+                    setActiveView('preview');
+                  }}
+                  className="px-4 py-2 text-sm font-semibold rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                >
+                  <i className="bi bi-eye mr-1.5"></i>
+                  Pratinjau Dokumen
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={syncing}
+                  className="px-5 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition"
+                >
+                  {syncing ? 'Menyimpan...' : 'Simpan & Terbitkan SKP'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: OFFICIAL 8-PAGE DOCUMENT PREVIEW */}
+      {activeView === 'preview' && (
+        <div className="space-y-6">
+          {/* Preview Navigation Tabs */}
+          <div className="no-print bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-1">
+              {[
+                { id: 'all', label: 'Semua (8 Halaman Lengkap)' },
+                { id: 'doc_eval', label: 'Hal 1: Dokumen Evaluasi' },
+                { id: 'lampiran', label: 'Hal 2: Lampiran SKP' },
+                { id: 'sasaran', label: 'Hal 3-4: Sasaran Kinerja' },
+                { id: 'evaluasi', label: 'Hal 5-6: Evaluasi Kinerja' },
+                { id: 'rekaman', label: 'Hal 7-8: Rekaman Umpan Balik' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setPreviewTab(tab.id as any)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                    previewTab === tab.id
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="text-xs font-medium text-slate-500">
+              Format Standar PermenPANRB 6/2022
+            </div>
+          </div>
+
+          {/* Document Container */}
+          <div 
+            ref={pdfContainerRef}
+            id="skp-print-container"
+            className="flex flex-col items-center gap-8 py-4 bg-slate-200/60 rounded-xl p-4 md:p-8 overflow-x-auto"
+          >
+            {/* HALAMAN 1: DOKUMEN EVALUASI KINERJA PEGAWAI */}
+            {(previewTab === 'all' || previewTab === 'doc_eval') && (
+              <div className="shadow-2xl">
+                <DokumenEvaluasiPage1 
+                  data={activeRecord} 
+                  pSubjek={pSubjek} 
+                  pPenilai={pPenilai} 
+                  pAtasan={pAtasan} 
+                />
+              </div>
+            )}
+
+            {/* HALAMAN 2: LAMPIRAN SASARAN KINERJA PEGAWAI */}
+            {(previewTab === 'all' || previewTab === 'lampiran') && (
+              <div className="shadow-2xl">
+                <LampiranSKPPage2 
+                  data={activeRecord} 
+                  pSubjek={pSubjek} 
+                  pPenilai={pPenilai} 
+                />
+              </div>
+            )}
+
+            {/* HALAMAN 3 & 4: SASARAN KINERJA PEGAWAI KUANTITATIF */}
+            {(previewTab === 'all' || previewTab === 'sasaran') && (
+              <div className="flex flex-col gap-8 shadow-2xl">
+                <SasaranKinerjaPages34 
+                  data={activeRecord} 
+                  pSubjek={pSubjek} 
+                  pPenilai={pPenilai} 
+                />
+              </div>
+            )}
+
+            {/* HALAMAN 5 & 6: EVALUASI KINERJA PEGAWAI */}
+            {(previewTab === 'all' || previewTab === 'evaluasi') && (
+              <div className="flex flex-col gap-8 shadow-2xl">
+                <EvaluasiKinerjaPages56 
+                  data={activeRecord} 
+                  pSubjek={pSubjek} 
+                  pPenilai={pPenilai} 
+                />
+              </div>
+            )}
+
+            {/* HALAMAN 7 & 8: REKAMAN INFORMASI UMPAN BALIK BERKELANJUTAN */}
+            {(previewTab === 'all' || previewTab === 'rekaman') && (
+              <div className="flex flex-col gap-8 shadow-2xl">
+                <RekamanUmpanBalikPages78 
+                  data={activeRecord} 
+                  pSubjek={pSubjek} 
+                  pPenilai={pPenilai} 
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={handleDelete}
+        title="Hapus Data SKP"
+        message={`Apakah Anda yakin ingin menghapus data SKP untuk ${itemToDelete?.namaPegawai || ''}?`}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccess}
+        onClose={() => setShowSuccess(false)}
+        title="Dokumen SKP Berhasil Diterbitkan"
+        message="Data SKP dan Evaluasi Kinerja berhasil disimpan dan dokumen siap dicetak atau diunduh sebagai PDF."
+      />
+
     </div>
   );
 };
