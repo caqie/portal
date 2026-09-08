@@ -12,6 +12,8 @@ import SearchableSelect from '../components/SearchableSelect';
 import SheetErrorGuideModal from '../components/SheetErrorGuideModal';
 import AutocompleteInput from '../components/AutocompleteInput';
 import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
+import { StrukturOrganisasiTree } from '../components/StrukturOrganisasiTree';
+import { getAtasanLangsung, getAllPegawaiForNode, PopulatedOrganisasiNode } from '../services/strukturOrganisasiService';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -60,8 +62,15 @@ const PegawaiPage = () => {
   const [filterKlasifikasi, setFilterKlasifikasi] = useState(sessionStorage.getItem('pegawai_filterKlasifikasi') || 'Semua Klasifikasi');
   const [filterAgama, setFilterAgama] = useState(sessionStorage.getItem('pegawai_filterAgama') || 'Semua Agama');
   const [jurusanSearch, setJurusanSearch] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
-    return (sessionStorage.getItem('pegawai_viewMode') as 'grid' | 'list') || 'grid';
+  const [filterSotk, setFilterSotk] = useState<{
+    id: string;
+    nama: string;
+    shortName?: string;
+    level: string;
+    targetNips: Set<string>;
+  } | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'struktur'>(() => {
+    return (sessionStorage.getItem('pegawai_viewMode') as 'grid' | 'list' | 'struktur') || 'grid';
   });
 
   // Persist filters and scroll to sessionStorage
@@ -640,9 +649,16 @@ const PegawaiPage = () => {
       // NOTE: We no longer hide ghost records so the user can see/fix them
       // if (!(p.nama || '').trim() || !(p.nip || '').trim()) return false;
 
-      const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
+      const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.bagian, p.subBagian, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
       const match = searchStr.includes(term);
-      const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
+
+      const pNipClean = (p.nip || p.id || '').replace(/\D/g, '');
+      const sotkMatch = !filterSotk || filterSotk.targetNips.has(pNipClean);
+
+      const pUnitNorm = normalizeUnitName(p.unitKerja);
+      const filterUnitNorm = filterUnit === 'Semua Unit' ? 'Semua Unit' : normalizeUnitName(filterUnit);
+      const unitMatch = filterUnit === 'Semua Unit' || pUnitNorm === filterUnitNorm;
+
       const selectedSubJenis = filterJenis === 'Semua Jenis' || !filterJenis ? [] : filterJenis.split(',').filter(Boolean);
       const jenisMatch = selectedSubJenis.length === 0 || selectedSubJenis.map(s => s.toLowerCase()).includes((p.jenisPegawai || '').trim().toLowerCase());
       const statusMatch = filterStatus === 'Semua Status' || (p.status || 'Aktif') === filterStatus;
@@ -710,9 +726,9 @@ const PegawaiPage = () => {
         }
       }
 
-      return match && unitMatch && jenisMatch && statusMatch && golonganMatch && pendidikanMatch && jurusanMatch && ageMatch && klasifikasiMatch && agamaMatch;
+      return match && sotkMatch && unitMatch && jenisMatch && statusMatch && golonganMatch && pendidikanMatch && jurusanMatch && ageMatch && klasifikasiMatch && agamaMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama]);
+  }, [pegawaiList, searchTerm, filterSotk, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama]);
 
   const filteredForCounts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -720,9 +736,16 @@ const PegawaiPage = () => {
     const max = maxAge ? parseInt(maxAge) : 200;
 
     return (pegawaiList || []).filter(p => {
-      const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
+      const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.bagian, p.subBagian, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
       const match = searchStr.includes(term);
-      const unitMatch = filterUnit === 'Semua Unit' || normalizeUnitName(p.unitKerja) === filterUnit;
+
+      const pNipClean = (p.nip || p.id || '').replace(/\D/g, '');
+      const sotkMatch = !filterSotk || filterSotk.targetNips.has(pNipClean);
+
+      const pUnitNorm = normalizeUnitName(p.unitKerja);
+      const filterUnitNorm = filterUnit === 'Semua Unit' ? 'Semua Unit' : normalizeUnitName(filterUnit);
+      const unitMatch = filterUnit === 'Semua Unit' || pUnitNorm === filterUnitNorm;
+
       const selectedSubJenis = filterJenis === 'Semua Jenis' || !filterJenis ? [] : filterJenis.split(',').filter(Boolean);
       const jenisMatch = selectedSubJenis.length === 0 || selectedSubJenis.map(s => s.toLowerCase()).includes((p.jenisPegawai || '').trim().toLowerCase());
       
@@ -757,9 +780,9 @@ const PegawaiPage = () => {
           } else ageMatch = false;
         } else ageMatch = false;
       }
-      return match && unitMatch && jenisMatch && ageMatch && pendidikanMatch && jurusanMatch && klasifikasiMatch && agamaMatch;
+      return match && sotkMatch && unitMatch && jenisMatch && ageMatch && pendidikanMatch && jurusanMatch && klasifikasiMatch && agamaMatch;
     });
-  }, [pegawaiList, searchTerm, filterUnit, filterJenis, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama]);
+  }, [pegawaiList, searchTerm, filterSotk, filterUnit, filterJenis, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -981,6 +1004,42 @@ const PegawaiPage = () => {
   const detailLabel = "text-[8px] font-black text-gray-400 tracking-[0.2em] block mb-1.5";
   const detailValue = "text-[13px] font-black text-gray-900 leading-tight";
   const detailValueNoCaps = "text-[13px] font-black text-gray-900 leading-tight";
+
+  const handleSelectOrganisasiNode = (node: PopulatedOrganisasiNode) => {
+    const allPegawaiInNode = getAllPegawaiForNode(node);
+    const targetNips = new Set(allPegawaiInNode.map(p => (p.nip || p.id || '').replace(/\D/g, '')));
+
+    // Bersihkan pencarian teks bebas & usia agar seluruh anggota unit tampil
+    setSearchTerm('');
+    setMinAge('');
+    setMaxAge('');
+
+    if (node.level === 'ditjen') {
+      setFilterSotk(null);
+      setFilterUnit('Semua Unit');
+    } else if (node.level === 'direktorat') {
+      const normalized = normalizeUnitName(node.nama);
+      setFilterUnit(normalized);
+      setFilterSotk({
+        id: node.id,
+        nama: node.nama,
+        shortName: node.shortName,
+        level: node.level,
+        targetNips
+      });
+    } else {
+      // Subdirektorat, Bagian, atau Subbagian
+      setFilterSotk({
+        id: node.id,
+        nama: node.nama,
+        shortName: node.shortName,
+        level: node.level,
+        targetNips
+      });
+      setFilterUnit('Semua Unit');
+    }
+    setViewMode('list');
+  };
 
   return (
     <div className="space-y-8 animate-fadeIn pb-24 text-black">
@@ -1236,7 +1295,7 @@ const PegawaiPage = () => {
           <input type="text" placeholder="Pencarian Cepat: Nama, NIP, atau NIK..." className="w-full pl-10 md:pl-14 pr-6 md:pr-8 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[9px] md:text-xs font-black uppercase outline-none focus:border-blue-600 transition-all shadow-inner" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
-          <select className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
+          <select className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterUnit} onChange={e => { setFilterUnit(e.target.value); setFilterSotk(null); }}>
               <option>Semua Unit</option>
               {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
           </select>
@@ -1543,6 +1602,7 @@ const PegawaiPage = () => {
           <button 
             onClick={() => {
               setSearchTerm('');
+              setFilterSotk(null);
               setFilterUnit('Semua Unit');
               setFilterJenis('Semua Jenis');
               setFilterStatus('Semua Status');
@@ -1602,6 +1662,19 @@ const PegawaiPage = () => {
               <i className="bi bi-list-ul text-xs"></i>
               <span>List</span>
             </button>
+            <button 
+              type="button"
+              onClick={() => setViewMode('struktur')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] md:text-[9px] font-black uppercase transition-all cursor-pointer ${
+                viewMode === 'struktur' 
+                  ? 'bg-white text-blue-600 shadow-sm' 
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+              title="Tampilan Struktur Organisasi Per Direktorat (SOTK)"
+            >
+              <i className="bi bi-diagram-3-fill text-xs"></i>
+              <span>Struktur</span>
+            </button>
           </div>
         </div>
 
@@ -1650,7 +1723,58 @@ const PegawaiPage = () => {
         </div>
       </div>
 
-      {viewMode === 'grid' ? (
+      {filterSotk && viewMode !== 'struktur' && (
+        <div className="bg-blue-50/90 border border-blue-200 p-3.5 px-5 rounded-2xl md:rounded-[2rem] flex flex-wrap items-center justify-between gap-3 shadow-xs animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse shrink-0"></span>
+            <div>
+              <p className="text-[10px] font-black uppercase text-blue-700 tracking-wider">
+                Filter Struktur SOTK Aktif
+              </p>
+              <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5 mt-0.5">
+                <span>{filterSotk.nama}</span>
+                {filterSotk.shortName && (
+                  <span className="text-slate-500 font-medium">({filterSotk.shortName})</span>
+                )}
+                <span className="ml-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-200/80 text-blue-900 font-extrabold">
+                  {filterSotk.targetNips.size} Pegawai Terpilih
+                </span>
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setViewMode('struktur')}
+              className="px-3 py-1.5 rounded-xl bg-white text-blue-700 hover:bg-blue-100/60 font-bold text-xs border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <i className="bi bi-diagram-3-fill text-xs"></i>
+              <span>Lihat Bagan</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterSotk(null);
+                setFilterUnit('Semua Unit');
+              }}
+              className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-xs border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <i className="bi bi-x-circle-fill text-xs"></i>
+              <span>Hapus Filter SOTK</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'struktur' ? (
+        <div className="space-y-4 animate-fadeIn">
+          <StrukturOrganisasiTree
+            allPegawai={pegawaiList}
+            onSelectNode={handleSelectOrganisasiNode}
+            onViewPegawaiDetail={(peg) => navigate(`/pegawai/${peg.nip}`)}
+          />
+        </div>
+      ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6 animate-fadeIn">
           {loading ? Array(6).fill(0).map((_,i) => <div key={i} className="h-32 md:h-44 bg-white rounded-2xl md:rounded-[3rem] animate-pulse"></div>) : 
            (filteredPegawai || []).map((p, i) => {
@@ -1701,6 +1825,15 @@ const PegawaiPage = () => {
                            <span className={`px-1 md:px-2 py-0.5 text-[5px] md:text-[7px] font-black rounded border uppercase ${isDup || isInv ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{p.golRuang || '-'}</span>
                            <span className="px-1 md:px-2 py-0.5 bg-gray-50 text-gray-500 text-[5px] md:text-[7px] font-black rounded border border-gray-200 uppercase truncate max-w-[60px] md:max-w-none">{p.jenisPegawai || '-'}</span>
                         </div>
+                        {(() => {
+                          const atasanInfo = getAtasanLangsung(p, pegawaiList);
+                          return (
+                            <div className="text-[6px] md:text-[8px] text-slate-500 font-semibold truncate mt-1 flex items-center gap-1" title={atasanInfo.dasarPenilaian}>
+                              <i className="bi bi-shield-check text-blue-600"></i>
+                              <span>Penilai: {atasanInfo.atasan ? atasanInfo.atasan.nama : 'Menteri Hukum RI'}</span>
+                            </div>
+                          );
+                        })()}
                      </div>
                   </div>
                   {isInv && <div className="absolute top-0 right-0 px-2 py-0.5 bg-rose-600 text-white text-[6px] font-black uppercase tracking-tighter">DATA BERMASALAH</div>}
@@ -1845,6 +1978,15 @@ const PegawaiPage = () => {
                               </span>
                             )}
                           </div>
+                          {(() => {
+                            const atasanInfo = getAtasanLangsung(p, pegawaiList);
+                            return (
+                              <div className="flex items-center gap-1 mt-1 text-[8px] md:text-[9px] text-blue-700 font-semibold truncate bg-blue-50/70 px-1.5 py-0.5 rounded border border-blue-100/80 max-w-fit" title={atasanInfo.dasarPenilaian}>
+                                <i className="bi bi-shield-check text-blue-600"></i>
+                                <span>Penilai: {atasanInfo.atasan ? atasanInfo.atasan.nama : 'Menteri Hukum RI'}</span>
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         {/* Pangkat & Golongan */}

@@ -9,6 +9,7 @@ import { AK_KOEFISIEN, PREDIKAT_MULTIPLIER, formatPegawaiName } from '../constan
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
+import { getAtasanLangsung } from '../services/strukturOrganisasiService';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -126,11 +127,13 @@ const PAKPage = () => {
       else if (jab.includes('PENYELIA')) detectedJenjang = 'PENYELIA';
 
       const currentKoef = AK_KOEFISIEN[detectedJenjang] || 12.5;
+      const atasanInfo = getAtasanLangsung(p, pegawaiList);
       setFormData({
         ...formData,
         nip: p.nip,
         namaPegawai: p.nama,
         jenjang: detectedJenjang,
+        penilaiNip: atasanInfo.atasan?.nip || formData.penilaiNip,
         konversiRows: [{ tahun: new Date().getFullYear(), predikat: 'Baik', koef: currentKoef, multiplier: 1.0, ak: currentKoef }]
       });
     }
@@ -379,6 +382,30 @@ const PAKPage = () => {
                        <div className="space-y-6">
                           <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-3 tracking-widest">Otentikasi & Validitas</h5>
                           <SearchableSelect label="Pejabat Penandatangan SK" options={allPegawaiOptions} value={formData.penilaiNip} onChange={v => setFormData({...formData, penilaiNip: v})} />
+                          {formData.nip && (() => {
+                             const selectedPeg = pegawaiList.find(x => x.nip === formData.nip);
+                             if (!selectedPeg) return null;
+                             const atasanInfo = getAtasanLangsung(selectedPeg, pegawaiList);
+                             return (
+                               <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs space-y-1 animate-fadeIn">
+                                  <div className="flex items-center justify-between">
+                                     <span className="flex items-center gap-1.5 font-black text-blue-900 text-[10px] uppercase tracking-wider">
+                                        <i className="bi bi-shield-check text-blue-600 text-xs"></i>
+                                        Pejabat Penilai / Penandatangan Otomatis
+                                     </span>
+                                     <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-200/70 text-blue-800 font-bold uppercase">
+                                        {atasanInfo.unitNode.shortName || 'SOTK DJKI'}
+                                     </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-800">
+                                     <span className="font-semibold">Atasan Langsung:</span> {atasanInfo.atasan ? `${atasanInfo.atasan.nama} (${atasanInfo.atasan.jabatan})` : 'Menteri Hukum'}
+                                  </p>
+                                  <p className="text-[10px] text-blue-700 italic">
+                                     ℹ️ {atasanInfo.dasarPenilaian}
+                                  </p>
+                               </div>
+                             );
+                          })()}
                           <div className="grid grid-cols-2 gap-4">
                              <div><label className={labelClass}>Tempat Penetapan</label><input className={inputClass} value={formData.tempat} onChange={e=>setFormData({...formData, tempat: e.target.value})} /></div>
                              <div><label className={labelClass}>Tanggal Penetapan</label><input className={inputClass} value={formData.tglDibuat} onChange={e=>setFormData({...formData, tglDibuat: e.target.value})} /></div>

@@ -8,6 +8,7 @@ import { DEFAULT_LOGO } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
+import { getAtasanLangsung } from '../services/strukturOrganisasiService';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -456,8 +457,46 @@ const SKPPage = () => {
                          <h5 className="text-[10px] font-black text-blue-600 uppercase border-b pb-3 tracking-widest">A. Data Subjek & Penilai</h5>
                          <SearchableSelect label="Pegawai Yang Dinilai" options={searchableOptions} value={formData.nip} onChange={v => {
                             const p = pegawaiList.find(x => x.nip === v);
-                            if(p) setFormData({...formData, nip: v, namaPegawai: p.nama});
+                            if(p) {
+                              const atasanInfo = getAtasanLangsung(p, pegawaiList);
+                              setFormData({
+                                ...formData, 
+                                nip: v, 
+                                namaPegawai: p.nama,
+                                penilaiNip: atasanInfo.atasan?.nip || formData.penilaiNip,
+                                atasanPenilaiNip: atasanInfo.atasanPenilai?.nip || formData.atasanPenilaiNip
+                              });
+                            }
                          }} />
+
+                         {formData.nip && (() => {
+                            const selectedPeg = pegawaiList.find(x => x.nip === formData.nip);
+                            if (!selectedPeg) return null;
+                            const atasanInfo = getAtasanLangsung(selectedPeg, pegawaiList);
+                            return (
+                              <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs space-y-1.5 animate-fadeIn shadow-xs">
+                                 <div className="flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5 font-black text-blue-900 text-[10px] uppercase tracking-wider">
+                                       <i className="bi bi-shield-check text-blue-600 text-xs"></i>
+                                       SOTK DJKI: Pejabat Penilai Otomatis
+                                    </span>
+                                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-200/70 text-blue-800 font-bold uppercase">
+                                       {atasanInfo.unitNode.shortName || 'Unit Terstruktur'}
+                                    </span>
+                                 </div>
+                                 <div className="text-[11px] text-slate-700">
+                                    <p><span className="font-semibold text-slate-900">Atasan Langsung (Penilai):</span> {atasanInfo.atasan ? `${atasanInfo.atasan.nama} (${atasanInfo.atasan.jabatan})` : 'Menteri Hukum'}</p>
+                                    {atasanInfo.atasanPenilai && (
+                                      <p className="mt-0.5"><span className="font-semibold text-slate-900">Atasan Penilai:</span> {atasanInfo.atasanPenilai.nama} ({atasanInfo.atasanPenilai.jabatan})</p>
+                                    )}
+                                 </div>
+                                 <p className="text-[10px] text-blue-700/90 italic pt-0.5 border-t border-blue-100">
+                                    ℹ️ {atasanInfo.dasarPenilaian}
+                                 </p>
+                              </div>
+                            );
+                         })()}
+
                          <div className="grid grid-cols-2 gap-4">
                             <SearchableSelect label="Pejabat Penilai" options={searchableOptions} value={formData.penilaiNip} onChange={v => setFormData({...formData, penilaiNip: v})} />
                             <SearchableSelect label="Atasan Penilai" options={searchableOptions} value={formData.atasanPenilaiNip} onChange={v => setFormData({...formData, atasanPenilaiNip: v})} />

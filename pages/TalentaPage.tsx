@@ -19,6 +19,7 @@ import {
 import { useAuth } from '../AuthContext';
 import SearchableSelect from '../components/SearchableSelect';
 import { formatPegawaiName } from '../constants';
+import { getAtasanLangsung } from '../services/strukturOrganisasiService';
 import * as XLSX from 'xlsx';
 
 // Recharts for graphics
@@ -1596,6 +1597,47 @@ export default function TalentaPage() {
 
                   {selectedPegawaiId && (
                     <div className="space-y-8 animate-fadeIn text-[#1e293b]">
+
+                      {/* PEJABAT PENILAI SOTK DJKI */}
+                      {(() => {
+                        const targetPeg = pegawaiList.find(p => p.id === selectedPegawaiId || p.nip === selectedPegawaiId);
+                        if (!targetPeg) return null;
+                        const atasanInfo = getAtasanLangsung(targetPeg, pegawaiList);
+                        return (
+                          <div className="p-4 bg-white rounded-2xl border border-blue-200 shadow-sm space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 text-xs font-black text-blue-900 uppercase tracking-wider">
+                                <i className="bi bi-shield-check text-blue-600"></i>
+                                Pejabat Penilai Kinerja Definitif (Atasan Langsung)
+                              </span>
+                              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                                {atasanInfo.unitNode.nama}
+                              </span>
+                            </div>
+                            {atasanInfo.atasan ? (
+                              <div className="flex items-center gap-3 pt-1">
+                                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 font-black flex items-center justify-center border border-blue-200 shrink-0">
+                                  {atasanInfo.atasan.foto ? (
+                                    <img src={atasanInfo.atasan.foto} alt="" className="w-full h-full object-cover rounded-xl" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    atasanInfo.atasan.nama.charAt(0)
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-slate-900">{atasanInfo.atasan.nama}</p>
+                                  <p className="text-[11px] text-slate-600 font-medium">{atasanInfo.atasan.jabatan}</p>
+                                  <p className="text-[10px] text-slate-400 font-mono">NIP {atasanInfo.atasan.nip}</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-500 italic">Penilaian langsung oleh Menteri Hukum / Dirjen KI</p>
+                            )}
+                            <p className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-100">
+                              Dasar Penugasan SOTK: {atasanInfo.dasarPenilaian}
+                            </p>
+                          </div>
+                        );
+                      })()}
                       
                       {/* INFORMASI UMUM */}
                       <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
