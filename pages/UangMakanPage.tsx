@@ -1323,13 +1323,19 @@ const UangMakanPage: React.FC = () => {
     validResults.forEach(r => {
       r.days.forEach(d => {
         if (!d) return;
-        let statusStr = 'TIDAK MASUK';
-        if (d.attendanceType === 'PRESENT') statusStr = 'Hadir';
-        else if (d.attendanceType === 'DL_FULL') statusStr = 'Dinas Luar (Full)';
-        else if (d.attendanceType === 'HOLIDAY') statusStr = 'Libur Nasional';
-        else if (d.attendanceType === 'WEEKEND') statusStr = 'Akhir Pekan';
-        else if (d.attendanceType === 'EXCUSED') statusStr = d.status || 'Izin / Cuti';
-        else if (d.status) statusStr = d.status;
+        // Kolom status harus sesuai dengan yang ada di PDF
+        let statusStr = '';
+        if (d.status && d.status.trim() !== '' && d.status.trim() !== '-') {
+          statusStr = d.status.trim();
+        } else if (d.isWeekend || d.attendanceType === 'WEEKEND') {
+          statusStr = d.dayName && d.dayName.toLowerCase() === 'sabtu' ? 'Sabtu' : 'Minggu';
+        } else if (d.isHoliday || d.attendanceType === 'HOLIDAY') {
+          statusStr = 'Libur Nasional';
+        } else if (d.jamMasuk || d.jamKeluar) {
+          statusStr = 'Hadir';
+        } else {
+          statusStr = 'TIDAK MASUK';
+        }
 
         detailAbsenData.push({
           'NIP': r.nip || '-',

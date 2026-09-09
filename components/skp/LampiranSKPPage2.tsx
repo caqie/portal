@@ -28,17 +28,21 @@ export const LampiranSKPPage2: React.FC<PageProps> = ({ data, pSubjek, pPenilai 
     : (typeof lampiran.konsekuensi === 'string' ? lampiran.konsekuensi.split('\n').filter(Boolean) : []);
 
   return (
-    <div className="skp-page-item bg-white p-[1.2cm] text-black font-sans text-[8.5pt] leading-normal flex flex-col justify-between" style={{ width: '210mm', minHeight: '297mm' }}>
+    <div 
+      className="skp-page-item skp-portrait bg-white p-[1.2cm] text-black font-sans text-[8.5pt] leading-normal flex flex-col mb-8 shadow-sm" 
+      data-orientation="portrait"
+      style={{ width: '210mm', minHeight: '297mm' }}
+    >
       <div>
         {/* Title */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-5">
           <h1 className="text-[11pt] font-bold uppercase tracking-wide">
             LAMPIRAN SASARAN KINERJA PEGAWAI
           </h1>
         </div>
 
         {/* Instansi & Periode Header */}
-        <div className="flex justify-between items-center text-[8.5pt] font-bold uppercase mb-1">
+        <div className="flex justify-between items-center text-[8.5pt] font-bold uppercase mb-1.5">
           <div>KEMENTERIAN HUKUM RI</div>
           <div>PERIODE PENILAIAN : {periodeText}</div>
         </div>
@@ -47,7 +51,7 @@ export const LampiranSKPPage2: React.FC<PageProps> = ({ data, pSubjek, pPenilai 
         <div className="border border-black">
           
           {/* DUKUNGAN SUMBER DAYA */}
-          <div className="bg-[#bdd7ee] border-b border-black px-2 py-1 font-bold text-[8.5pt] uppercase">
+          <div className="bg-[#bdd7ee] border-b border-black px-2.5 py-1 font-bold text-[8.5pt] uppercase">
             DUKUNGAN SUMBER DAYA
           </div>
           <table className="w-full border-collapse text-[8.5pt]">
@@ -55,21 +59,21 @@ export const LampiranSKPPage2: React.FC<PageProps> = ({ data, pSubjek, pPenilai 
               {dukunganSumberDaya.length > 0 ? (
                 dukunganSumberDaya.map((item, idx) => (
                   <tr key={idx} className="border-b border-black last:border-b-0">
-                    <td className="w-8 px-2 py-1 text-center align-top">{idx + 1}</td>
-                    <td className="px-2 py-1 border-l border-black align-top">{item}</td>
+                    <td className="w-8 px-2.5 py-1.5 text-center align-top">{idx + 1}</td>
+                    <td className="px-2.5 py-1.5 border-l border-black align-top">{item}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td className="w-8 px-2 py-1 text-center align-top">1</td>
-                  <td className="px-2 py-1 border-l border-black align-top">-</td>
+                  <td className="w-8 px-2.5 py-1.5 text-center align-top">1</td>
+                  <td className="px-2.5 py-1.5 border-l border-black align-top">-</td>
                 </tr>
               )}
             </tbody>
           </table>
 
           {/* SKEMA PERTANGGUNGJAWABAN */}
-          <div className="bg-[#bdd7ee] border-t border-b border-black px-2 py-1 font-bold text-[8.5pt] uppercase">
+          <div className="bg-[#bdd7ee] border-t border-b border-black px-2.5 py-1 font-bold text-[8.5pt] uppercase">
             SKEMA PERTANGGUNGJAWABAN
           </div>
           <table className="w-full border-collapse text-[8.5pt]">
@@ -77,21 +81,21 @@ export const LampiranSKPPage2: React.FC<PageProps> = ({ data, pSubjek, pPenilai 
               {skemaPertanggungjawaban.length > 0 ? (
                 skemaPertanggungjawaban.map((item, idx) => (
                   <tr key={idx} className="border-b border-black last:border-b-0">
-                    <td className="w-8 px-2 py-1 text-center align-top">{idx + 1}</td>
-                    <td className="px-2 py-1 border-l border-black align-top">{item}</td>
+                    <td className="w-8 px-2.5 py-1.5 text-center align-top">{idx + 1}</td>
+                    <td className="px-2.5 py-1.5 border-l border-black align-top">{item}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td className="w-8 px-2 py-1 text-center align-top">1</td>
-                  <td className="px-2 py-1 border-l border-black align-top">-</td>
+                  <td className="w-8 px-2.5 py-1.5 text-center align-top">1</td>
+                  <td className="px-2.5 py-1.5 border-l border-black align-top">-</td>
                 </tr>
               )}
             </tbody>
           </table>
 
           {/* KONSEKUENSI */}
-          <div className="bg-[#bdd7ee] border-t border-b border-black px-2 py-1 font-bold text-[8.5pt] uppercase">
+          <div className="bg-[#bdd7ee] border-t border-b border-black px-2.5 py-1 font-bold text-[8.5pt] uppercase">
             KONSEKUENSI
           </div>
           <table className="w-full border-collapse text-[8.5pt]">
@@ -99,14 +103,14 @@ export const LampiranSKPPage2: React.FC<PageProps> = ({ data, pSubjek, pPenilai 
               {konsekuensi.length > 0 ? (
                 konsekuensi.map((item, idx) => (
                   <tr key={idx} className="border-b border-black last:border-b-0">
-                    <td className="w-8 px-2 py-1 text-center align-top">{idx + 1}</td>
-                    <td className="px-2 py-1 border-l border-black align-top">{item}</td>
+                    <td className="w-8 px-2.5 py-1.5 text-center align-top">{idx + 1}</td>
+                    <td className="px-2.5 py-1.5 border-l border-black align-top">{item}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td className="w-8 px-2 py-1 text-center align-top">1</td>
-                  <td className="px-2 py-1 border-l border-black align-top">-</td>
+                  <td className="w-8 px-2.5 py-1.5 text-center align-top">1</td>
+                  <td className="px-2.5 py-1.5 border-l border-black align-top">-</td>
                 </tr>
               )}
             </tbody>
@@ -115,16 +119,16 @@ export const LampiranSKPPage2: React.FC<PageProps> = ({ data, pSubjek, pPenilai 
         </div>
       </div>
 
-      {/* Signatures */}
-      <div className="grid grid-cols-2 text-[8.5pt] pt-8">
+      {/* Signatures - Clean spacing without extreme gap */}
+      <div className="grid grid-cols-2 text-[8.5pt] mt-8 pt-3">
         <div className="flex flex-col items-center text-center">
-          <p className="mb-20">Pegawai Yang Dinilai,</p>
+          <p className="mb-12">Pegawai Yang Dinilai,</p>
           <p className="font-bold uppercase leading-none">{namaSubjek}</p>
           <p className="mt-1 text-[8pt]">{subjekInfo.nipLabel} {subjekInfo.nip}</p>
         </div>
         <div className="flex flex-col items-center text-center">
           <p>{data.kotaTtd || 'Jakarta'}, {data.tglPenilaian || '06 Januari 2026'}</p>
-          <p className="mb-20">Pejabat Penilai Kinerja,</p>
+          <p className="mb-12">Pejabat Penilai Kinerja,</p>
           <p className="font-bold uppercase leading-none">{penilaiInfo.nama}</p>
           <p className="mt-1 text-[8pt]">NIP {penilaiInfo.nip}</p>
         </div>

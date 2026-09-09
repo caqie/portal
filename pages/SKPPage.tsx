@@ -237,7 +237,7 @@ export const SKPPage: React.FC = () => {
   const pPenilai = pegawaiList.find(p => p.nip === activeRecord.penilaiNip);
   const pAtasan = pegawaiList.find(p => p.nip === activeRecord.atasanPenilaiNip);
 
-  // PDF Generation: captures each page cleanly without cut-offs
+  // PDF Generation: captures each page cleanly with dynamic orientation (Portrait for Hal 1 & 2, Landscape for Hal 3-8)
   const handleDownloadPdf = async (allPages = true) => {
     if (!pdfContainerRef.current) return;
     setSyncing(true);
@@ -248,11 +248,14 @@ export const SKPPage: React.FC = () => {
         return;
       }
 
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      let addedFirst = false;
+      let pdf: jsPDF | null = null;
 
       for (let i = 0; i < pageElements.length; i++) {
         const el = pageElements[i];
+        const isLandscape = el.getAttribute('data-orientation') === 'landscape';
+        const orientation = isLandscape ? 'landscape' : 'portrait';
+        const widthMm = isLandscape ? 297 : 210;
+        const heightMm = isLandscape ? 210 : 297;
         
         const canvas = await html2canvas(el, {
           scale: 2,
@@ -263,19 +266,19 @@ export const SKPPage: React.FC = () => {
 
         const imgData = canvas.toDataURL('image/jpeg', 0.98);
 
-        if (addedFirst) {
-          pdf.addPage('a4', 'portrait');
+        if (!pdf) {
+          pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
         } else {
-          addedFirst = true;
+          pdf.addPage('a4', orientation);
         }
 
-        // Exact A4 dimensions: 210mm x 297mm
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+        // Exact A4 dimensions based on orientation
+        pdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
       }
 
       const sanitizedName = (activeRecord.namaPegawai || 'Pegawai').replace(/[\s/\\?%*:|"<>]+/g, '_');
       const filename = `SKP_${sanitizedName}_${activeRecord.tahun || 2025}.pdf`;
-      pdf.save(filename);
+      pdf?.save(filename);
     } catch (err) {
       console.error(err);
       alert("Gagal memproses dokumen PDF.");
@@ -284,23 +287,36 @@ export const SKPPage: React.FC = () => {
     }
   };
 
-  // Save PDF into E-Dossier
+  // Save PDF into E-Dossier with dynamic orientation
   const handleSaveToDossier = async () => {
     if (!pdfContainerRef.current) return;
     setSyncing(true);
     try {
       const pageElements = pdfContainerRef.current.querySelectorAll<HTMLElement>('.skp-page-item');
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      let addedFirst = false;
+      if (pageElements.length === 0) return;
+
+      let pdf: jsPDF | null = null;
 
       for (let i = 0; i < pageElements.length; i++) {
         const el = pageElements[i];
+        const isLandscape = el.getAttribute('data-orientation') === 'landscape';
+        const orientation = isLandscape ? 'landscape' : 'portrait';
+        const widthMm = isLandscape ? 297 : 210;
+        const heightMm = isLandscape ? 210 : 297;
+
         const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
         const imgData = canvas.toDataURL('image/jpeg', 0.98);
-        if (addedFirst) pdf.addPage('a4', 'portrait');
-        else addedFirst = true;
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+
+        if (!pdf) {
+          pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
+        } else {
+          pdf.addPage('a4', orientation);
+        }
+
+        pdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
       }
+
+      if (!pdf) return;
 
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
       const sanitizedName = (activeRecord.namaPegawai || 'Pegawai').replace(/[\s/\\?%*:|"<>]+/g, '_');
@@ -329,7 +345,7 @@ export const SKPPage: React.FC = () => {
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen text-slate-800">
       
-      {/* Print Style Injector */}
+      {/* Print Style Injector with Mixed Orientation Support */}
       <style>{`
         @media print {
           body * {
@@ -352,8 +368,24 @@ export const SKPPage: React.FC = () => {
             break-after: page !important;
             margin: 0 !important;
             box-shadow: none !important;
+          }
+          .skp-portrait, [data-orientation="portrait"] {
             width: 210mm !important;
             min-height: 297mm !important;
+            page: page-portrait;
+          }
+          .skp-landscape, [data-orientation="landscape"] {
+            width: 297mm !important;
+            min-height: 210mm !important;
+            page: page-landscape;
+          }
+          @page page-portrait {
+            size: A4 portrait;
+            margin: 0;
+          }
+          @page page-landscape {
+            size: A4 landscape;
+            margin: 0;
           }
           .no-print {
             display: none !important;

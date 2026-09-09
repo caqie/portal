@@ -633,7 +633,7 @@ const RekapAbsensiPage = () => {
     const detailAbsensiData: any[] = [];
     results.forEach(r => {
       r.days.forEach(d => {
-        let statusStr = d.status || '';
+        let statusStr = (d.status && d.status.trim() !== '-' ? d.status.trim() : '');
         if (!statusStr) {
           if (d.isWeekend) {
             statusStr = d.dayName.toLowerCase() === 'sabtu' ? 'Sabtu' : 'Minggu';

@@ -101,8 +101,15 @@ export const isHariMasukUM = (d: ParsedDay): boolean => {
   const isDlHalf = statusLower.includes('dl half') || statusLower.includes('dinas luar half') || statusLower.includes('half');
   const isIzinSah = statusLower.includes('izin sah') || statusLower.includes('ijin sah') || statusLower.includes('hadir sah');
 
-  // Included if has absensi (jam masuk or jam keluar) OR is DL Half OR is Izin Sah
-  if (hasAbsensi || isDlHalf || isIzinSah) {
+  // Aturan DL Half:
+  // Ketika di PDF ada keterangan DL Half tetapi TIDAK ADA absensinya (jam masuk/pulang kosong),
+  // maka TIDAK MENDAPAT uang makan. Kecuali ada keterangan DL Half DAN ADA absensinya, baru mendapat uang makan.
+  if (isDlHalf) {
+    return hasAbsensi;
+  }
+
+  // Untuk selain DL Half: berhak uang makan jika ada absensi (jam masuk atau jam keluar) ATAU surat izin sah kedinasan
+  if (hasAbsensi || isIzinSah) {
     return true;
   }
 
@@ -264,7 +271,11 @@ export const parseLine = (line: string) => {
   times.forEach(t => {
     status = status.replace(t, '');
   });
-  status = status.trim();
+  // Bersihkan tanda '-' placeholder jam dan spasi berlebih
+  status = status.replace(/^(\s*-\s*)+/g, '').replace(/(\s*-\s*)+$/g, '').replace(/\s+/g, ' ').trim();
+  if (status === '-' || status === '') {
+    status = '';
+  }
   
   let jamMasuk: string | null = null;
   let jamKeluar: string | null = null;
@@ -565,7 +576,10 @@ export const parseSinglePdf = async (file: File, holidays: Holiday[]): Promise<P
           }
         } else if (parsed.status) {
           const lowerStatus = parsed.status.toLowerCase();
-          if (lowerStatus.includes('dl half') || lowerStatus.includes('dinas luar half') || lowerStatus.includes('ijin sah') || lowerStatus.includes('izin sah')) {
+          if (lowerStatus.includes('dl half') || lowerStatus.includes('dinas luar half')) {
+            // DL Half tanpa absensi (tidak ada jam) tidak dihitung hadir fisik
+            attendanceType = 'EXCUSED';
+          } else if (lowerStatus.includes('ijin sah') || lowerStatus.includes('izin sah')) {
             attendanceType = 'PRESENT';
           } else if (lowerStatus.includes('dl full') || lowerStatus.includes('dinas luar full') || lowerStatus === 'dl' || (lowerStatus.includes('dinas luar') && !lowerStatus.includes('half'))) {
             attendanceType = 'DL_FULL';

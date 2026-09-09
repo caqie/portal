@@ -19,14 +19,18 @@ export const DokumenEvaluasiPage1: React.FC<PageProps> = ({ data, pSubjek, pPeni
   const periodeText = data.periodeTeks || `${data.periodeMulai || '01 Oktober'} s.d ${data.periodeSelesai || '31 Desember 2025'}`;
 
   return (
-    <div className="skp-page-item bg-white p-[1.2cm] text-black font-sans text-[8.5pt] leading-normal flex flex-col justify-between" style={{ width: '210mm', minHeight: '297mm' }}>
+    <div 
+      className="skp-page-item skp-portrait bg-white p-[1.2cm] text-black font-sans text-[8.5pt] leading-normal flex flex-col mb-8 shadow-sm" 
+      data-orientation="portrait"
+      style={{ width: '210mm', minHeight: '297mm' }}
+    >
       <div>
         {/* Header Garuda & Title */}
-        <div className="flex flex-col items-center text-center mb-6">
+        <div className="flex flex-col items-center text-center mb-5">
           <img 
             src={LOGO_GARUDA_URL} 
             alt="Garuda Pancasila" 
-            className="w-16 h-16 object-contain mb-3"
+            className="w-16 h-16 object-contain mb-2.5"
             referrerPolicy="no-referrer"
           />
           <h1 className="text-[11pt] font-bold tracking-wide uppercase leading-tight">
@@ -44,7 +48,7 @@ export const DokumenEvaluasiPage1: React.FC<PageProps> = ({ data, pSubjek, pPeni
         </div>
 
         {/* Instansi Label */}
-        <div className="text-[8.5pt] font-bold uppercase mb-1">
+        <div className="text-[8.5pt] font-bold uppercase mb-1.5">
           KEMENTERIAN HUKUM RI
         </div>
 
@@ -52,147 +56,147 @@ export const DokumenEvaluasiPage1: React.FC<PageProps> = ({ data, pSubjek, pPeni
         <div className="border border-black">
           
           {/* 1. PEGAWAI YANG DINILAI */}
-          <div className="bg-[#bdd7ee] border-b border-black px-2 py-1 font-bold text-[8.5pt] uppercase">
+          <div className="bg-[#bdd7ee] border-b border-black px-2.5 py-1 font-bold text-[8.5pt] uppercase">
             1. PEGAWAI YANG DINILAI
           </div>
           <table className="w-full border-collapse text-[8pt]">
             <tbody>
               <tr className="border-b border-black">
-                <td className="w-48 px-2 py-0.5 font-normal">NAMA</td>
-                <td className="w-4 px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 font-bold uppercase">{namaSubjek}</td>
+                <td className="w-56 px-2.5 py-1 font-normal align-middle">NAMA</td>
+                <td className="w-4 px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 font-bold uppercase align-middle">{namaSubjek}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">{subjekInfo.nipLabel}</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5">{subjekInfo.nip}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">{subjekInfo.nipLabel}</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 align-middle">{subjekInfo.nip}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">PANGKAT/GOL. RUANG</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 uppercase">{subjekInfo.pangkatGol}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">PANGKAT/GOL. RUANG</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 uppercase align-middle">{subjekInfo.pangkatGol}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">JABATAN</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 uppercase">{subjekInfo.jabatan}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">JABATAN</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 uppercase align-middle">{subjekInfo.jabatan}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">UNIT KERJA</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 uppercase">{subjekInfo.unitKerja}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">UNIT KERJA</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 uppercase align-middle">{subjekInfo.unitKerja}</td>
               </tr>
             </tbody>
           </table>
 
           {/* 2. PEJABAT PENILAI KINERJA */}
-          <div className="bg-[#bdd7ee] border-b border-black px-2 py-1 font-bold text-[8.5pt] uppercase">
+          <div className="bg-[#bdd7ee] border-b border-black px-2.5 py-1 font-bold text-[8.5pt] uppercase">
             2. PEJABAT PENILAI KINERJA
           </div>
           <table className="w-full border-collapse text-[8pt]">
             <tbody>
               <tr className="border-b border-black">
-                <td className="w-48 px-2 py-0.5 font-normal">NAMA</td>
-                <td className="w-4 px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 font-bold uppercase">{penilaiInfo.nama}</td>
+                <td className="w-56 px-2.5 py-1 font-normal align-middle">NAMA</td>
+                <td className="w-4 px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 font-bold uppercase align-middle">{penilaiInfo.nama}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">NIP</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5">{penilaiInfo.nip}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">NIP</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 align-middle">{penilaiInfo.nip}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">PANGKAT/GOL. RUANG</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 uppercase">{penilaiInfo.pangkatGol}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">PANGKAT/GOL. RUANG</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 uppercase align-middle">{penilaiInfo.pangkatGol}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">JABATAN</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 uppercase">{penilaiInfo.jabatan}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">JABATAN</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 uppercase align-middle">{penilaiInfo.jabatan}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">UNIT KERJA</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 uppercase">{penilaiInfo.unitKerja}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">UNIT KERJA</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 uppercase align-middle">{penilaiInfo.unitKerja}</td>
               </tr>
             </tbody>
           </table>
 
           {/* 3. ATASAN PEJABAT PENILAI KINERJA */}
-          <div className="bg-[#bdd7ee] border-b border-black px-2 py-1 font-bold text-[8.5pt] uppercase">
+          <div className="bg-[#bdd7ee] border-b border-black px-2.5 py-1 font-bold text-[8.5pt] uppercase">
             3. ATASAN PEJABAT PENILAI KINERJA
           </div>
           <table className="w-full border-collapse text-[8pt]">
             <tbody>
               <tr className="border-b border-black">
-                <td className="w-48 px-2 py-0.5 font-normal">NAMA</td>
-                <td className="w-4 px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 font-bold uppercase">{atasanInfo.nama}</td>
+                <td className="w-56 px-2.5 py-1 font-normal align-middle">NAMA</td>
+                <td className="w-4 px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 font-bold uppercase align-middle">{atasanInfo.nama}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">NIP</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5">{atasanInfo.nip}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">NIP</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 align-middle">{atasanInfo.nip}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">PANGKAT/GOL. RUANG</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 uppercase">{atasanInfo.pangkatGol}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">PANGKAT/GOL. RUANG</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 uppercase align-middle">{atasanInfo.pangkatGol}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">JABATAN</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 uppercase">{atasanInfo.jabatan}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">JABATAN</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 uppercase align-middle">{atasanInfo.jabatan}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">UNIT KERJA</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 uppercase">{atasanInfo.unitKerja}</td>
+                <td className="px-2.5 py-1 font-normal align-middle">UNIT KERJA</td>
+                <td className="px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 uppercase align-middle">{atasanInfo.unitKerja}</td>
               </tr>
             </tbody>
           </table>
 
           {/* 4. EVALUASI KINERJA */}
-          <div className="bg-[#bdd7ee] border-b border-black px-2 py-1 font-bold text-[8.5pt] uppercase">
+          <div className="bg-[#bdd7ee] border-b border-black px-2.5 py-1 font-bold text-[8.5pt] uppercase">
             4. EVALUASI KINERJA
           </div>
           <table className="w-full border-collapse text-[8pt]">
             <tbody>
               <tr className="border-b border-black">
-                <td className="w-48 px-2 py-0.5 font-normal">CAPAIAN KINERJA ORGANISASI</td>
-                <td className="w-4 px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 font-bold uppercase">{data.capaianOrganisasi || 'ISTIMEWA'}</td>
+                <td className="w-56 px-2.5 py-1 font-normal align-middle">CAPAIAN KINERJA ORGANISASI</td>
+                <td className="w-4 px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 font-bold uppercase align-middle">{data.capaianOrganisasi || 'ISTIMEWA'}</td>
               </tr>
               <tr className="border-b border-black">
-                <td className="px-2 py-0.5 font-normal">PREDIKAT KINERJA PEGAWAI</td>
-                <td className="px-1 py-0.5 text-center">:</td>
-                <td className="px-2 py-0.5 font-bold uppercase">{data.predikatKinerja || 'SANGAT BAIK'}</td>
+                <td className="w-56 px-2.5 py-1 font-normal align-middle">PREDIKAT KINERJA PEGAWAI</td>
+                <td className="w-4 px-1 py-1 text-center align-middle">:</td>
+                <td className="px-2.5 py-1 font-bold uppercase align-middle">{data.predikatKinerja || 'SANGAT BAIK'}</td>
               </tr>
             </tbody>
           </table>
 
           {/* 5. CATATAN/REKOMENDASI */}
-          <div className="bg-[#bdd7ee] border-b border-black px-2 py-1 font-bold text-[8.5pt] uppercase">
+          <div className="bg-[#bdd7ee] border-b border-black px-2.5 py-1 font-bold text-[8.5pt] uppercase">
             5. CATATAN/REKOMENDASI
           </div>
-          <div className="px-2 py-1.5 min-h-[30px] text-[8pt]">
+          <div className="px-2.5 py-2 min-h-[36px] text-[8pt] flex items-center">
             {data.catatanRekomendasi || data.catatan || '-'}
           </div>
 
         </div>
       </div>
 
-      {/* Signature Section */}
-      <div className="grid grid-cols-2 text-[8.5pt] pt-8">
+      {/* Signature Section - Positioned nicely with standard gap */}
+      <div className="grid grid-cols-2 text-[8.5pt] mt-6 pt-3">
         <div className="flex flex-col items-center text-center">
-          <p className="mb-20">Pegawai yang Dinilai</p>
+          <p className="mb-12">Pegawai yang Dinilai</p>
           <p className="font-bold uppercase leading-none">{namaSubjek}</p>
           <p className="mt-1 text-[8pt]">{subjekInfo.nipLabel} {subjekInfo.nip}</p>
         </div>
         <div className="flex flex-col items-center text-center">
           <p>{data.kotaTtd || 'Jakarta'}, {data.tglPenilaian || '06 Januari 2026'}</p>
-          <p className="mb-20">Pejabat Penilai Kinerja</p>
+          <p className="mb-12">Pejabat Penilai Kinerja</p>
           <p className="font-bold uppercase leading-none">{penilaiInfo.nama}</p>
           <p className="mt-1 text-[8pt]">NIP {penilaiInfo.nip}</p>
         </div>
