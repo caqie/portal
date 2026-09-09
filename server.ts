@@ -123,6 +123,22 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // Serve Google Apps Script Code for easy copying in frontend
+  app.get("/api/apps-script-code", (req, res) => {
+    try {
+      const codePath = path.join(process.cwd(), "GoogleAppsScript_Code.js");
+      if (fs.existsSync(codePath)) {
+        const code = fs.readFileSync(codePath, "utf-8");
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        res.send(code);
+        return;
+      }
+      res.status(404).send("// GoogleAppsScript_Code.js not found");
+    } catch (e: any) {
+      res.status(500).send("// Error loading code: " + e.message);
+    }
+  });
+
   // Spreadsheet Config Endpoints
   const configPath = path.join(process.cwd(), "spreadsheet-config.json");
 

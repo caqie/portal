@@ -12,13 +12,23 @@
 var FOLDER_ID_DATABASE = "19OkO6ZAMnTXaxy-58ntHRVNI85W-u23O"; 
 
 /**
- * FUNGSI SETUP: JALANKAN INI PERTAMA KALI DI EDITOR
- * Untuk memberikan izin akses Drive, Spreadsheet, dan Doc.
+ * FUNGSI SETUP: JALANKAN INI PERTAMA KALI DI EDITOR GOOGLE APPS SCRIPT
+ * Pilih fungsi 'setup' di menu dropdown atas, lalu klik tombol 'Run' (Jalankan)
+ * untuk memberikan otorisasi izin akses Drive, Spreadsheet, dan Dokumen.
  */
 function setup() {
-  DriveApp.getRootFolder();
-  SpreadsheetApp.getActiveSpreadsheet();
-  console.log("Izin berhasil diberikan! Sekarang silakan lakukan Deploy > New Web App.");
+  try {
+    var root = DriveApp.getRootFolder();
+    var testFile = root.createFile("portal_sdm_setup_check.txt", "OK");
+    testFile.setTrashed(true);
+    SpreadsheetApp.getActiveSpreadsheet();
+    console.log("=== OTORISASI BERHASIL ===");
+    console.log("Izin Google Drive dan Spreadsheet telah aktif!");
+    console.log("Langkah selanjutnya: Klik 'Deploy' > 'New deployment' (atau 'Manage deployments' > versi baru).");
+    console.log("PENTING: Pilih 'Execute as: Me (email Anda)' dan 'Who has access: Anyone'.");
+  } catch (err) {
+    console.error("Setup Error: " + err.toString());
+  }
 }
 
 function doGet(e) {
@@ -75,10 +85,15 @@ function handleGenerateFromTemplate(payload, driveFolderId) {
     var templateFile = DriveApp.getFileById(templateId);
     
     var folder;
-    if (driveFolderId && driveFolderId !== "PASTE_YOUR_FOLDER_ID_HERE") {
-      folder = DriveApp.getFolderById(driveFolderId);
+    var targetFolderId = (driveFolderId && driveFolderId !== "PASTE_YOUR_FOLDER_ID_HERE") ? driveFolderId : FOLDER_ID_DATABASE;
+    if (targetFolderId && targetFolderId.trim() !== "") {
+      try {
+        folder = DriveApp.getFolderById(targetFolderId.trim());
+      } catch (fErr) {
+        folder = DriveApp.getRootFolder();
+      }
     } else {
-      folder = DriveApp.getFolderById(FOLDER_ID_DATABASE);
+      folder = DriveApp.getRootFolder();
     }
 
     var newFile = templateFile.makeCopy(fileName, folder);
@@ -88,7 +103,15 @@ function handleGenerateFromTemplate(payload, driveFolderId) {
       body.replaceText("{{" + key.toUpperCase() + "}}", replacements[key] || "-");
     }
     doc.saveAndClose();
-    newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    try {
+      newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (sErr) {
+      try {
+        newFile.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch (dErr) {}
+    }
+
     return createResponse({ success: true, fileUrl: newFile.getUrl(), fileId: newFile.getId() });
   } catch (e) { return createResponse({ success: false, message: e.toString() }); }
 }
@@ -292,29 +315,82 @@ function handleDelete(ss, moduleName, payload) {
 
 function handleUpload(payload, driveFolderId) {
   try {
-    var folder;
+    var folder = null;
     var targetFolderId = (driveFolderId && driveFolderId !== "PASTE_YOUR_FOLDER_ID_HERE") ? driveFolderId : FOLDER_ID_DATABASE;
-    
-    try {
-      folder = DriveApp.getFolderById(targetFolderId);
-    } catch (err) {
-      return createResponse({ 
-        success: false, 
-        message: "Drive Access Error. Pastikan ID Folder benar dan Admin sudah klik 'Run setup'. Detail: " + err.toString() 
-      });
+
+    // 1. Coba akses folder spesifik yang ditentukan
+    if (targetFolderId && targetFolderId.trim() !== "") {
+      try {
+        folder = DriveApp.getFolderById(targetFolderId.trim());
+      } catch (errFolder) {
+        console.warn("Folder ID spesifik tidak dapat diakses atau bukan milik akun ini: " + errFolder.toString());
+        folder = null;
+      }
     }
 
-    var base64Data = payload.base64;
-    var bytes = Utilities.base64Decode(base64Data.includes(",") ? base64Data.split(",")[1] : base64Data);
-    var blob = Utilities.newBlob(bytes, payload.mimeType || "image/jpeg", payload.fileName || "FILE_" + Date.now());
-    var file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    // 2. Jika folder target tidak valid/akses ditolak, gunakan atau buat subfolder 'PORTAL_SDM_UPLOADS' di Drive akun
+    if (!folder) {
+      try {
+        var existingFolders = DriveApp.getFoldersByName("PORTAL_SDM_UPLOADS");
+        folder = existingFolders.hasNext() ? existingFolders.next() : DriveApp.createFolder("PORTAL_SDM_UPLOADS");
+      } catch (errCreateFolder) {
+        folder = DriveApp.getRootFolder();
+      }
+    }
+
+    // 3. Decode base64 data
+    var base64Data = (payload && payload.base64) ? payload.base64 : "";
+    if (base64Data.indexOf(",") !== -1) {
+      base64Data = base64Data.split(",")[1];
+    }
+    var bytes = Utilities.base64Decode(base64Data);
+    var blob = Utilities.newBlob(bytes, payload.mimeType || "image/jpeg", payload.fileName || ("FILE_" + Date.now()));
+
+    // 4. Buat file (dengan fallback otomatis jika folder target ditolak hak aksesnya)
+    var file;
+    try {
+      file = folder.createFile(blob);
+    } catch (errFileInFolder) {
+      console.warn("Gagal membuat file di folder target, mencoba fallback ke root Drive: " + errFileInFolder.toString());
+      try {
+        file = DriveApp.getRootFolder().createFile(blob);
+      } catch (errRoot) {
+        throw new Error("Gagal menyimpan file ke Google Drive: " + errRoot.toString());
+      }
+    }
+
+    // 5. Atur izin akses file agar dapat dilihat (jangan biarkan error jika Google Workspace melarang sharing publik)
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (shareErr) {
+      try {
+        file.setSharing(DriveApp.Access.DOMAIN_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch (domainErr) {
+        console.warn("Set sharing publik/domain dibatasi oleh kebijakan Google Workspace: " + shareErr.toString());
+      }
+    }
+
+    var fileId = file.getId();
     return createResponse({ 
       success: true, 
-      fileUrl: "https://drive.google.com/uc?id=" + file.getId(),
-      fileId: file.getId()
+      fileUrl: "https://drive.google.com/uc?id=" + fileId + "&export=view",
+      viewUrl: "https://drive.google.com/file/d/" + fileId + "/view",
+      fileId: fileId
     });
-  } catch (e) { return createResponse({ success: false, message: "UPLOAD_ERROR: " + e.toString() }); }
+  } catch (e) {
+    var errMsg = e.toString();
+    if (errMsg.indexOf("存取遭拒") !== -1 || errMsg.indexOf("Access denied") !== -1 || errMsg.indexOf("DriveApp") !== -1) {
+      return createResponse({ 
+        success: false, 
+        message: "Akses Google Drive Ditolak (DriveApp Access Denied).\n\n" +
+                 "Langkah Perbaikan di Google Apps Script:\n" +
+                 "1. Pastikan Web App dideploy dengan 'Execute as: Me' (bukan 'User accessing web app') dan 'Who has access: Anyone'.\n" +
+                 "2. Buka editor Google Apps Script, pilih fungsi 'setup', lalu klik 'Run' (Jalankan) untuk mengizinkan hak akses Google Drive.\n" +
+                 "3. Pastikan ID Folder Drive di Pengaturan adalah folder milik akun Google Anda (atau akun Anda memiliki akses Editor)."
+      });
+    }
+    return createResponse({ success: false, message: "UPLOAD_ERROR: " + errMsg }); 
+  }
 }
 
 function getSpreadsheet(ssId) {

@@ -166,7 +166,18 @@ const DatabaseConfigModal: React.FC<DatabaseConfigModalProps> = ({ isOpen, onClo
               onChange={(e) => setDriveFolderId(e.target.value)}
             />
             <p className="text-[8px] text-gray-400 font-bold ml-1">
-              ID Folder Google Drive untuk mengunggah dokumen dossier pegawai.
+              ID Folder Google Drive untuk mengunggah dokumen/berkas (dapat dikosongkan agar otomatis disimpan ke folder PORTAL_SDM_UPLOADS di Drive akun Anda).
+            </p>
+          </div>
+
+          {/* Drive Permission Info Box */}
+          <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-[9px] text-amber-900 leading-relaxed space-y-1">
+            <div className="flex items-center gap-1.5 font-black text-amber-950">
+              <i className="bi bi-info-circle-fill text-amber-600"></i>
+              <span>PENTING AGAR UPLOAD BERHASIL:</span>
+            </div>
+            <p className="font-semibold text-gray-700">
+              Saat Deploy Web App di Apps Script, pilih <strong>Execute as: Me</strong> dan <strong>Who has access: Anyone</strong>. Di editor Apps Script, pilih fungsi <strong>setup</strong> lalu klik <strong>Run</strong> untuk menyetujui izin Google Drive.
             </p>
           </div>
 

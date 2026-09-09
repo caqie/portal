@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { fetchPegawaiFromSheets, syncTableRemote, fetchPelantikanFromSheets, uploadFileToDrive } from '../spreadsheetService'; // Asumsi path ini benar
 import { Pegawai } from '../types'; // Asumsi path ini benar
 import { useAuth } from '../AuthContext';
-import { formatPegawaiName } from '../constants';
+import { formatPegawaiName, formatNip } from '../constants';
+import { LOGO_GARUDA_EMAS_URL, LOGO_GARUDA_RESMI_URL } from '../assets/branding';
 import SearchableSelect from '../components/SearchableSelect';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -12,8 +13,6 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import html2canvas from 'html2canvas';
 // @ts-ignore
 import { jsPDF } from 'jspdf';
-
-const LOGO_GARUDA_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/National_emblem_of_Indonesia_Garuda_Pancasila_gold.svg/1024px-National_emblem_of_Indonesia_Garuda_Pancasila_gold.svg.png";
 
 // Helper Function: Angka Terbilang
 const terbilang = (nilai: number) => {
@@ -106,7 +105,7 @@ const PelantikanGeneratorPage = () => {
     pjbNama: 'ANDRIEANSJAH',
     pjbNip: '197410061998031002',
     pjbJabatan: 'SEKRETARIS DIREKTORAT JENDERAL',
-    asnNip: '', asnNama: '', asnPangkat: '', asnGolRuang: '', asnJabatan: '', asnAgama: '',
+    asnNip: '', asnNama: '', asnPangkat: '', asnGolRuang: '', asnJabatan: '', asnJabatanBaru: '', asnJabatanLama: '', asnAgama: '',
     saksi1Nama: '', saksi1Nip: '', saksi1Jabatan: '',
     saksi2Nama: '', saksi2Nip: '', saksi2Jabatan: '',
     nomorSk: '',
@@ -116,6 +115,9 @@ const PelantikanGeneratorPage = () => {
   };
 
   const [formData, setFormData] = useState<any>(initialFormData);
+  const [logoVariant, setLogoVariant] = useState<'emas' | 'resmi'>('emas');
+  const [asnJabatanMap, setAsnJabatanMap] = useState<Record<string, string>>({});
+  const [globalJabatanBaru, setGlobalJabatanBaru] = useState<string>('');
 
   useEffect(() => {
     if (selectedNips.length > 0) {
@@ -133,21 +135,29 @@ const PelantikanGeneratorPage = () => {
 
   const currentPreviewData = useMemo(() => {
     if (!activePegawai) {
-      return formData;
+      const jbt = (formData.asnJabatanBaru || formData.asnJabatan || '').trim();
+      return {
+        ...formData,
+        asnJabatan: jbt,
+        asnJabatanBaru: jbt
+      };
     }
     const oathTexts = getOathTexts(activePegawai.agama || '');
+    const jabatanBaru = (asnJabatanMap[activePegawai.nip] || formData.asnJabatanBaru || formData.asnJabatan || '').trim();
     return {
       ...formData,
       asnNip: activePegawai.nip,
       asnNama: activePegawai.nama,
       asnPangkat: activePegawai.pangkat || '',
       asnGolRuang: activePegawai.golRuang || '',
-      asnJabatan: activePegawai.jabatan || '',
+      asnJabatan: jabatanBaru,
+      asnJabatanBaru: jabatanBaru,
+      asnJabatanLama: activePegawai.jabatan || '',
       asnAgama: activePegawai.agama || '',
       kataPelantikan: oathTexts.pembuka,
       penutupKataPelantikan: oathTexts.penutup
     };
-  }, [formData, activePegawai]);
+  }, [formData, activePegawai, asnJabatanMap]);
 
   useEffect(() => {
     loadData();
@@ -170,13 +180,16 @@ const PelantikanGeneratorPage = () => {
     const p = pegawaiList.find(x => x.nip === nip);
     if (p) {
         const oathTexts = getOathTexts(p.agama || '');
+        const jbt = (asnJabatanMap[p.nip] || formData.asnJabatanBaru || formData.asnJabatan || '').trim();
         setFormData({ 
             ...formData, 
             asnNip: p.nip, 
             asnNama: p.nama, 
             asnPangkat: p.pangkat, 
             asnGolRuang: p.golRuang, 
-            asnJabatan: p.jabatan,
+            asnJabatan: jbt,
+            asnJabatanBaru: jbt,
+            asnJabatanLama: p.jabatan || '',
             asnAgama: p.agama,
             kataPelantikan: oathTexts.pembuka, 
             penutupKataPelantikan: oathTexts.penutup
@@ -186,19 +199,40 @@ const PelantikanGeneratorPage = () => {
 
   const handleSave = async () => {
     if (selectedNips.length === 0) return alert("Pilih pegawai terlebih dahulu");
+
+    // Validasi Jabatan Baru
+    if (!editingId) {
+      const missingJabatan = selectedNips.filter(nip => {
+        const j = (asnJabatanMap[nip] || formData.asnJabatanBaru || formData.asnJabatan || '').trim();
+        return !j;
+      });
+      if (missingJabatan.length > 0) {
+        const sample = pegawaiList.find(x => x.nip === missingJabatan[0]);
+        if (!confirm(`Terdapat ${missingJabatan.length} pegawai (misal: ${sample?.nama || missingJabatan[0]}) yang belum diisi Jabatan Baru. Apakah Anda yakin ingin menyimpan?`)) {
+          return;
+        }
+      }
+    }
+
     setSyncing(true);
     try {
       if (editingId) {
+        const jabatanBaru = (formData.asnJabatanBaru || formData.asnJabatan || '').trim();
+        const updatedFormData = {
+          ...formData,
+          asnJabatan: jabatanBaru,
+          asnJabatanBaru: jabatanBaru
+        };
         const payload = {
           id: editingId,
-          nomor: formData.nomor,
-          asnNip: formData.asnNip,
+          nomor: updatedFormData.nomor,
+          asnNip: updatedFormData.asnNip,
           type: docType,
-          data: JSON.stringify(formData)
+          data: JSON.stringify(updatedFormData)
         };
         const ok = await syncTableRemote('PELANTIKAN', 'SAVE', payload);
         if (ok) {
-          logActivity('UPDATE', 'Pelantikan', `Simpan Dokumen Pelantikan: ${formData.asnNama}`);
+          logActivity('UPDATE', 'Pelantikan', `Simpan Dokumen Pelantikan: ${formData.asnNama} (Jabatan Baru: ${jabatanBaru})`);
           await loadData();
           setShowSuccess(true);
           setActiveView('list');
@@ -210,13 +244,16 @@ const PelantikanGeneratorPage = () => {
           const p = pegawaiList.find(x => x.nip === nip);
           if (p) {
             const oathTexts = getOathTexts(p.agama || '');
+            const jabatanBaru = (asnJabatanMap[p.nip] || formData.asnJabatanBaru || formData.asnJabatan || '').trim();
             const singleAsnData = {
               ...formData,
               asnNip: p.nip,
               asnNama: p.nama,
               asnPangkat: p.pangkat || '',
               asnGolRuang: p.golRuang || '',
-              asnJabatan: p.jabatan || '',
+              asnJabatan: jabatanBaru,
+              asnJabatanBaru: jabatanBaru,
+              asnJabatanLama: p.jabatan || '',
               asnAgama: p.agama || '',
               kataPelantikan: oathTexts.pembuka,
               penutupKataPelantikan: oathTexts.penutup
@@ -288,7 +325,14 @@ const PelantikanGeneratorPage = () => {
   const handleEdit = (item: any) => {
     try {
       const data = item.data && item.data.trim() ? JSON.parse(item.data) : {};
+      const jbt = data.asnJabatanBaru || data.asnJabatan || '';
+      data.asnJabatanBaru = jbt;
+      data.asnJabatan = jbt;
       setFormData(data);
+      if (data.asnNip) {
+        setAsnJabatanMap({ [data.asnNip]: jbt });
+        setGlobalJabatanBaru(jbt);
+      }
       setEditingId(item.id);
       setDocType(item.type || 'BA');
       setSelectedNips(data.asnNip ? [data.asnNip] : []);
@@ -424,7 +468,23 @@ const PelantikanGeneratorPage = () => {
                        <tr key={h.id || idx} className="hover:bg-blue-50/5 group transition-all">
                           <td className="px-10 py-6">
                              <p className="text-[12px] font-black text-gray-950 uppercase">{p?.nama || 'Unknown'}</p>
-                             <p className="text-[9px] font-mono text-blue-600">NIP. {h.asnNip}</p>
+                             <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                                 <span className="text-[9px] font-mono text-blue-600">NIP. {h.asnNip}</span>
+                                 {(() => {
+                                   try {
+                                     const parsed = h.data && h.data.trim() ? JSON.parse(h.data) : null;
+                                     const jbt = parsed?.asnJabatan || parsed?.asnJabatanBaru;
+                                     if (jbt) {
+                                       return (
+                                         <span className="text-[8.5px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-md uppercase">
+                                            {jbt}
+                                         </span>
+                                       );
+                                     }
+                                   } catch(e) {}
+                                   return null;
+                                 })()}
+                              </div>
                           </td>
                           <td className="px-4 py-6">
                              <p className="text-[11px] font-black text-gray-700 uppercase">{h.nomor}</p>
@@ -464,123 +524,339 @@ const PelantikanGeneratorPage = () => {
       ) : activeView === 'editor' ? (
         <div className="max-w-6xl mx-auto bg-white p-10 md:p-14 rounded-[3.5rem] border border-gray-100 shadow-sm space-y-12 animate-modalEnter">
            {editingId ? (
-             <div className="space-y-1">
-               <label className={labelClass}>Pegawai Yang Dilantik</label>
-               <input type="text" className={readOnlyClass} value={`${formData.asnNama} (NIP. ${formData.asnNip}) - ${formData.asnJabatan}`} readOnly />
+             <div className="bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200 space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                   <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                     <i className="bi bi-pencil-square text-blue-600"></i> Mode Ubah Dokumen Pelantikan
+                   </h5>
+                   <span className="text-[9px] font-bold text-gray-500 font-mono">ID: {editingId}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className={labelClass}>Pegawai Yang Dilantik</label>
+                    <input type="text" className={readOnlyClass} value={`${formData.asnNama} (NIP. ${formData.asnNip})`} readOnly />
+                  </div>
+                  <div className="space-y-1">
+                    <label className={labelClass}>Jabatan Lama (Master Data)</label>
+                    <input type="text" className={readOnlyClass} value={formData.asnJabatanLama || (pegawaiList.find(x => x.nip === formData.asnNip)?.jabatan) || '-'} readOnly />
+                  </div>
+                </div>
+                <div className="space-y-1 pt-2 border-t border-slate-200">
+                  <label className="text-[10.5px] font-black text-blue-700 uppercase tracking-widest block">
+                    <i className="bi bi-briefcase-fill mr-1.5 text-blue-600"></i> Jabatan Baru (Yang Dilantik) *
+                  </label>
+                  <input 
+                    type="text" 
+                    className="w-full px-5 py-3.5 bg-white border-2 border-blue-500 focus:border-blue-600 rounded-2xl text-[12px] font-extrabold uppercase outline-none focus:ring-4 focus:ring-blue-100 shadow-sm transition-all"
+                    value={formData.asnJabatanBaru || formData.asnJabatan || ''} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFormData((prev: any) => ({ ...prev, asnJabatanBaru: val, asnJabatan: val }));
+                      if (formData.asnNip) {
+                        setAsnJabatanMap(prev => ({ ...prev, [formData.asnNip]: val }));
+                      }
+                    }}
+                    placeholder="Ketikkan Jabatan Baru yang Dilantik (contoh: Pemeriksa Paten Ahli Pertama)..."
+                  />
+                  <p className="text-[9px] text-gray-500 font-medium">Jabatan baru ini akan dicetak pada teks Berita Acara Pelantikan dan Pakta Integritas.</p>
+                </div>
              </div>
            ) : (
-             <div className="space-y-4">
-               <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest block mb-1">
-                 PILIH PEGAWAI YANG DILANTIK (BISA PILIH MULTIPEL)
-               </label>
-               <div className="space-y-3">
-                 {/* Search Input */}
-                 <div className="relative">
-                   <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                   <input
-                     type="text"
-                     placeholder="CARI PEGAWAI BERDASARKAN NAMA, NIP, ATAU JABATAN..."
-                     className="w-full pl-12 pr-10 py-3.5 bg-gray-50 border-2 border-gray-100 focus:border-blue-600 focus:bg-white rounded-2xl text-[11px] font-bold uppercase outline-none transition-all shadow-sm"
-                     value={asnSearchQuery}
-                     onChange={e => setAsnSearchQuery(e.target.value)}
-                   />
-                   {asnSearchQuery && (
+             <div className="space-y-6">
+               <div className="space-y-4">
+                 <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest block mb-1">
+                   PILIH PEGAWAI YANG DILANTIK (BISA PILIH MULTIPEL)
+                 </label>
+                 <div className="space-y-3">
+                   {/* Search Input */}
+                   <div className="relative">
+                     <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                     <input
+                       type="text"
+                       placeholder="CARI PEGAWAI BERDASARKAN NAMA, NIP, ATAU JABATAN..."
+                       className="w-full pl-12 pr-10 py-3.5 bg-gray-50 border-2 border-gray-100 focus:border-blue-600 focus:bg-white rounded-2xl text-[11px] font-bold uppercase outline-none transition-all shadow-sm"
+                       value={asnSearchQuery}
+                       onChange={e => setAsnSearchQuery(e.target.value)}
+                     />
+                     {asnSearchQuery && (
+                       <button
+                         type="button"
+                         onClick={() => setAsnSearchQuery('')}
+                         className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-500 transition-all font-bold cursor-pointer"
+                       >
+                         <i className="bi bi-x-lg text-xs"></i>
+                       </button>
+                     )}
+                   </div>
+
+                   {/* Controls */}
+                   <div className="flex flex-wrap items-center gap-2 text-[8px] md:text-[9.5px]">
                      <button
                        type="button"
-                       onClick={() => setAsnSearchQuery('')}
-                       className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-500 transition-all font-bold cursor-pointer"
+                       onClick={() => {
+                         const visible = pegawaiList
+                           .filter(p => {
+                             const q = asnSearchQuery.toLowerCase();
+                             return !q || p.nama?.toLowerCase().includes(q) || p.nip?.includes(q) || p.jabatan?.toLowerCase().includes(q);
+                           })
+                           .map(p => p.nip)
+                           .filter(Boolean);
+                         setSelectedNips(prev => Array.from(new Set([...prev, ...visible])));
+                       }}
+                       className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black uppercase rounded-lg transition-all cursor-pointer"
                      >
-                       <i className="bi bi-x-lg text-xs"></i>
+                       Centang Semua yang Tampil
                      </button>
-                   )}
-                 </div>
+                     <button
+                       type="button"
+                       onClick={() => setSelectedNips([])}
+                       className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-black uppercase rounded-lg transition-all cursor-pointer"
+                     >
+                       Bersihkan Pilihan
+                     </button>
+                     <span className="ml-auto flex items-center pr-2 font-black uppercase text-gray-500 tracking-wider">
+                       Terpilih: <span className="text-blue-600 font-extrabold ml-1">{selectedNips.length} Pegawai</span>
+                     </span>
+                   </div>
 
-                 {/* Controls */}
-                 <div className="flex flex-wrap items-center gap-2 text-[8px] md:text-[9.5px]">
-                   <button
-                     type="button"
-                     onClick={() => {
-                       const visible = pegawaiList
-                         .filter(p => {
-                           const q = asnSearchQuery.toLowerCase();
-                           return !q || p.nama?.toLowerCase().includes(q) || p.nip?.includes(q) || p.jabatan?.toLowerCase().includes(q);
-                         })
-                         .map(p => p.nip)
-                         .filter(Boolean);
-                       setSelectedNips(prev => Array.from(new Set([...prev, ...visible])));
-                     }}
-                     className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black uppercase rounded-lg transition-all cursor-pointer"
-                   >
-                     Centang Semua yang Tampil
-                   </button>
-                   <button
-                     type="button"
-                     onClick={() => setSelectedNips([])}
-                     className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-black uppercase rounded-lg transition-all cursor-pointer"
-                   >
-                     Bersihkan Pilihan
-                   </button>
-                   <span className="ml-auto flex items-center pr-2 font-black uppercase text-gray-500 tracking-wider">
-                     Terpilih: <span className="text-blue-600 font-extrabold ml-1">{selectedNips.length} Pegawai</span>
-                   </span>
-                 </div>
-
-                 {/* Checklist Box */}
-                 <div className="bg-gray-50 border border-gray-100 p-3 rounded-2xl max-h-56 overflow-y-auto space-y-1 custom-scrollbar">
-                   {pegawaiList
-                     .filter(p => {
+                   {/* Checklist Box */}
+                   <div className="bg-gray-50 border border-gray-100 p-3 rounded-2xl max-h-56 overflow-y-auto space-y-1 custom-scrollbar">
+                     {pegawaiList
+                       .filter(p => {
+                         const q = asnSearchQuery.toLowerCase();
+                         return !q || p.nama?.toLowerCase().includes(q) || p.nip?.includes(q) || p.jabatan?.toLowerCase().includes(q);
+                       })
+                       .map(p => {
+                         const isChecked = selectedNips.includes(p.nip);
+                         return (
+                           <label
+                             key={p.nip}
+                             className={`flex items-start md:items-center gap-3 p-2.5 rounded-xl transition-all cursor-pointer border ${
+                               isChecked
+                                 ? 'bg-blue-50/60 border-blue-200/50 hover:bg-blue-50 text-blue-900 border-blue-100'
+                                 : 'bg-white border-transparent hover:bg-gray-150/50 text-gray-800'
+                             }`}
+                           >
+                             <input
+                               type="checkbox"
+                               checked={isChecked}
+                               onChange={() => {
+                                 setSelectedNips(prev =>
+                                   isChecked ? prev.filter(nip => nip !== p.nip) : [...prev, p.nip]
+                                 );
+                               }}
+                               className="w-4.5 h-4.5 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer mt-0.5 md:mt-0"
+                             />
+                             <div className="min-w-0">
+                               <span className="text-[10px] md:text-[11px] font-black uppercase block tracking-tight leading-none text-gray-950">
+                                 {p.nama}
+                               </span>
+                               <span className="text-[8px] font-mono font-bold text-gray-400 mt-1 block">
+                                 NIP. {p.nip} — {p.jabatan || 'No Jabatan'}
+                               </span>
+                             </div>
+                           </label>
+                         );
+                       })}
+                     {pegawaiList.filter(p => {
                        const q = asnSearchQuery.toLowerCase();
                        return !q || p.nama?.toLowerCase().includes(q) || p.nip?.includes(q) || p.jabatan?.toLowerCase().includes(q);
-                     })
-                     .map(p => {
-                       const isChecked = selectedNips.includes(p.nip);
-                       return (
-                         <label
-                           key={p.nip}
-                           className={`flex items-start md:items-center gap-3 p-2.5 rounded-xl transition-all cursor-pointer border ${
-                             isChecked
-                               ? 'bg-blue-50/60 border-blue-200/50 hover:bg-blue-50 text-blue-900 border-blue-100'
-                               : 'bg-white border-transparent hover:bg-gray-150/50 text-gray-800'
-                           }`}
-                         >
-                           <input
-                             type="checkbox"
-                             checked={isChecked}
-                             onChange={() => {
-                               setSelectedNips(prev =>
-                                 isChecked ? prev.filter(nip => nip !== p.nip) : [...prev, p.nip]
-                               );
-                             }}
-                             className="w-4.5 h-4.5 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer mt-0.5 md:mt-0"
-                           />
-                           <div className="min-w-0">
-                             <span className="text-[10px] md:text-[11px] font-black uppercase block tracking-tight leading-none text-gray-950">
-                               {p.nama}
-                             </span>
-                             <span className="text-[8px] font-mono font-bold text-gray-400 mt-1 block">
-                               NIP. {p.nip} — {p.jabatan || 'No Jabatan'}
-                             </span>
-                           </div>
-                         </label>
-                       );
-                     })}
-                   {pegawaiList.filter(p => {
-                     const q = asnSearchQuery.toLowerCase();
-                     return !q || p.nama?.toLowerCase().includes(q) || p.nip?.includes(q) || p.jabatan?.toLowerCase().includes(q);
-                   }).length === 0 && (
-                     <p className="text-center text-[9px] font-black text-gray-400 uppercase py-6 tracking-wide">
-                       Pegawai Tidak Ditemukan
-                     </p>
-                   )}
+                     }).length === 0 && (
+                       <p className="text-center text-[9px] font-black text-gray-400 uppercase py-6 tracking-wide">
+                         Pegawai Tidak Ditemukan
+                       </p>
+                     )}
+                   </div>
                  </div>
                </div>
+
+               {/* JABATAN BARU CONFIGURATION CARD */}
+               {selectedNips.length > 0 && (
+                 <div className="bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-slate-50 border-2 border-blue-200/90 p-6 md:p-8 rounded-[2.5rem] shadow-xs space-y-6">
+                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-blue-200/60 pb-4">
+                     <div>
+                       <h4 className="text-[12px] font-black text-blue-950 uppercase tracking-widest flex items-center gap-2">
+                         <i className="bi bi-award-fill text-blue-600 text-base"></i>
+                         Penetapan Jabatan Baru Yang Dilantik ({selectedNips.length} Pegawai Terpilih)
+                       </h4>
+                       <p className="text-[10px] text-blue-800/80 font-medium mt-0.5">
+                         Tentukan jabatan baru untuk dicetak pada naskah Berita Acara & Pakta Integritas (menggantikan jabatan lama master data).
+                       </p>
+                     </div>
+                   </div>
+
+                   {/* Bulk Apply Input */}
+                   <div className="bg-white p-4.5 rounded-2xl border border-blue-200/70 shadow-sm space-y-2">
+                     <label className="text-[9.5px] font-black text-gray-700 uppercase tracking-wider block">
+                       Terapkan Jabatan Baru Serentak (Jika Semua Pegawai Dilantik pada Jabatan yang Sama):
+                     </label>
+                     <div className="flex flex-col sm:flex-row gap-2">
+                       <input
+                         type="text"
+                         placeholder="CONTOH: PEMERIKSA MEREK AHLI PERTAMA / ANALIS KEBIJAKAN AHLI MUDA..."
+                         value={globalJabatanBaru}
+                         onChange={e => setGlobalJabatanBaru(e.target.value)}
+                         onKeyDown={e => {
+                           if (e.key === 'Enter') {
+                             e.preventDefault();
+                             if (!globalJabatanBaru.trim()) return;
+                             const newMap = { ...asnJabatanMap };
+                             selectedNips.forEach(nip => {
+                               newMap[nip] = globalJabatanBaru.trim();
+                             });
+                             setAsnJabatanMap(newMap);
+                             setFormData((prev: any) => ({
+                               ...prev,
+                               asnJabatanBaru: globalJabatanBaru.trim(),
+                               asnJabatan: globalJabatanBaru.trim()
+                             }));
+                           }
+                         }}
+                         className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 focus:border-blue-600 focus:bg-white rounded-xl text-[11px] font-extrabold uppercase outline-none transition-all shadow-inner"
+                       />
+                       <button
+                         type="button"
+                         onClick={() => {
+                           if (!globalJabatanBaru.trim()) {
+                             alert("Ketikkan nama jabatan baru terlebih dahulu.");
+                             return;
+                           }
+                           const newMap = { ...asnJabatanMap };
+                           selectedNips.forEach(nip => {
+                             newMap[nip] = globalJabatanBaru.trim();
+                           });
+                           setAsnJabatanMap(newMap);
+                           setFormData((prev: any) => ({
+                             ...prev,
+                             asnJabatanBaru: globalJabatanBaru.trim(),
+                             asnJabatan: globalJabatanBaru.trim()
+                           }));
+                         }}
+                         className="px-5 py-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black uppercase text-[10px] rounded-xl tracking-wider shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                       >
+                         <i className="bi bi-check2-all text-sm"></i> Terapkan ke Semua ({selectedNips.length})
+                       </button>
+                     </div>
+                   </div>
+
+                   {/* Individual Pegawai Jabatan Baru List */}
+                   <div className="space-y-2.5">
+                     <div className="flex items-center justify-between text-[9px] font-black uppercase text-gray-500 tracking-wider px-2">
+                       <span>Daftar Pegawai Terpilih & Jabatan Baru Masing-Masing:</span>
+                       <span className="text-blue-600 font-bold">Dapat disesuaikan jika jabatan berbeda</span>
+                     </div>
+                     <div className="max-h-72 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                       {selectedNips.map((nip, idx) => {
+                         const p = pegawaiList.find(x => x.nip === nip);
+                         const currentJbt = asnJabatanMap[nip] || formData.asnJabatanBaru || '';
+                         return (
+                           <div
+                             key={nip}
+                             className="bg-white p-3.5 rounded-2xl border border-gray-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-blue-300 transition-all"
+                           >
+                             <div className="min-w-0 flex-1">
+                               <div className="flex items-center gap-2">
+                                 <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 text-[9px] font-black flex items-center justify-center shrink-0">
+                                   {idx + 1}
+                                 </span>
+                                 <span className="text-[11px] font-black uppercase text-gray-900 truncate">
+                                   {p?.nama || nip}
+                                 </span>
+                               </div>
+                               <div className="flex flex-wrap items-center gap-2 mt-1 ml-7 text-[8.5px]">
+                                 <span className="font-mono text-gray-500">NIP. {nip}</span>
+                                 <span className="text-gray-400">•</span>
+                                 <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-medium">
+                                   Jabatan Lama: {p?.jabatan || '-'}
+                                 </span>
+                               </div>
+                             </div>
+                             
+                             <div className="w-full md:w-80 shrink-0">
+                               <div className="relative">
+                                 <input
+                                   type="text"
+                                   value={currentJbt}
+                                   onChange={e => {
+                                     const val = e.target.value;
+                                     setAsnJabatanMap(prev => ({ ...prev, [nip]: val }));
+                                     if (activePreviewNip === nip || selectedNips.length === 1) {
+                                       setFormData((prev: any) => ({ ...prev, asnJabatanBaru: val, asnJabatan: val }));
+                                     }
+                                   }}
+                                   placeholder="Ketikkan Jabatan Baru..."
+                                   className={`w-full px-3.5 py-2.5 rounded-xl text-[10.5px] font-bold uppercase outline-none transition-all border ${
+                                     currentJbt.trim()
+                                       ? 'bg-blue-50/40 border-blue-300 text-blue-950 focus:border-blue-600 focus:bg-white'
+                                       : 'bg-rose-50/40 border-rose-300 text-rose-950 placeholder-rose-400 focus:border-rose-500 focus:bg-white'
+                                   }`}
+                                 />
+                                 {!currentJbt.trim() && (
+                                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-bold uppercase text-rose-600 pointer-events-none">
+                                     Wajib Diisi
+                                   </span>
+                                 )}
+                               </div>
+                             </div>
+                           </div>
+                         );
+                       })}
+                     </div>
+                   </div>
+                 </div>
+               )}
              </div>
            )}
-           
            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
               <div className="space-y-6">
                  <h5 className="text-[11px] font-black text-blue-600 uppercase border-b pb-2 tracking-widest">1. Atribut Pelantikan</h5>
+                 <div className="space-y-1">
+                    <label className={labelClass}>Varian Lambang Negara</label>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setLogoVariant('emas')}
+                        className={`px-3 py-2 text-[10px] font-black uppercase rounded-xl transition-all border flex items-center justify-center gap-2 cursor-pointer ${
+                          logoVariant === 'emas'
+                            ? 'bg-amber-500 text-white border-amber-600 shadow-sm ring-2 ring-amber-200'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <img src={LOGO_GARUDA_EMAS_URL} alt="Emas" className="w-4 h-4 object-contain" />
+                        Garuda Emas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLogoVariant('resmi')}
+                        className={`px-3 py-2 text-[10px] font-black uppercase rounded-xl transition-all border flex items-center justify-center gap-2 cursor-pointer ${
+                          logoVariant === 'resmi'
+                            ? 'bg-[#111827] text-white border-[#111827] shadow-sm ring-2 ring-gray-200'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <img src={LOGO_GARUDA_RESMI_URL} alt="Berwarna" className="w-4 h-4 object-contain" />
+                        Garuda Berwarna
+                      </button>
+                    </div>
+                 </div>
                  <div className="space-y-1"><label className={labelClass}>Nomor BA</label><input type="text" className={inputClass} value={formData.nomor} onChange={e=>setFormData({...formData, nomor: e.target.value})} /></div>
+                 <div className="space-y-1">
+                    <label className={labelClass}>Jabatan Baru Yang Dilantik</label>
+                    <input 
+                      type="text" 
+                      className={`${inputClass} font-bold text-blue-900 bg-blue-50/20`}
+                      value={currentPreviewData.asnJabatan || ''} 
+                      onChange={e => {
+                        const val = e.target.value;
+                        setFormData((prev: any) => ({ ...prev, asnJabatanBaru: val, asnJabatan: val }));
+                        setGlobalJabatanBaru(val);
+                        if (activePreviewNip) {
+                          setAsnJabatanMap(prev => ({ ...prev, [activePreviewNip]: val }));
+                        }
+                      }} 
+                      placeholder="Jabatan Baru Yang Dilantik"
+                    />
+                 </div>
                  <div className="space-y-1"><label className={labelClass}>Tanggal Lantik</label><input type="date" className={inputClass} value={formData.tanggal} onChange={e=>setFormData({...formData, tanggal: e.target.value})} /></div>
                  <div className="space-y-1"><label className={labelClass}>Tempat</label><input type="text" className={inputClass} value={formData.tempat} onChange={e=>setFormData({...formData, tempat: e.target.value})} /></div>
                  <div className="space-y-1"><label className={labelClass}>Nomor SK</label><input type="text" className={inputClass} value={formData.nomorSk} onChange={e=>setFormData({...formData, nomorSk: e.target.value})} /></div>
@@ -588,17 +864,113 @@ const PelantikanGeneratorPage = () => {
               </div>
 
               <div className="space-y-6">
-                 <h5 className="text-[11px] font-black text-emerald-600 uppercase border-b pb-2 tracking-widest">2. Saksi & Pejabat</h5>
-                 <SearchableSelect label="Pejabat Pengambil Sumpah" options={pegawaiList.map(p=>({value: p.nip, label: p.nama}))} value={formData.pjbNip} onChange={v=>{const p=pegawaiList.find(x=>x.nip===v); if(p) setFormData({...formData, pjbNip:v, pjbNama:p.nama, pjbJabatan:p.jabatan})}} />
+                 <div className="flex items-center justify-between border-b pb-2">
+                    <h5 className="text-[11px] font-black text-emerald-600 uppercase tracking-widest">2. Saksi & Pejabat</h5>
+                    <span className="text-[9px] font-semibold text-gray-400">Nama & Gelar sesuai database</span>
+                 </div>
                  
-                 <div className="space-y-4 pt-4">
+                 <div className="space-y-2">
+                    <SearchableSelect 
+                      label="Pejabat Pengambil Sumpah" 
+                      options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.jabatan || ''}`}))} 
+                      value={formData.pjbNip} 
+                      onChange={v=>{
+                        const p=pegawaiList.find(x=>x.nip===v); 
+                        if(p) setFormData({...formData, pjbNip:v, pjbNama: p.nama, pjbJabatan:p.jabatan});
+                      }} 
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <div>
+                        <label className="text-[9px] font-bold text-gray-500 uppercase">Nama & Gelar Pejabat</label>
+                        <input 
+                          type="text" 
+                          className={inputClass} 
+                          value={formData.pjbNama} 
+                          onChange={e=>setFormData({...formData, pjbNama: e.target.value})}
+                          placeholder="Nama & Gelar Pejabat"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-gray-500 uppercase">Jabatan Pejabat</label>
+                        <input 
+                          type="text" 
+                          className={inputClass} 
+                          value={formData.pjbJabatan} 
+                          onChange={e=>setFormData({...formData, pjbJabatan: e.target.value})}
+                          placeholder="Jabatan Pejabat"
+                        />
+                      </div>
+                    </div>
+                 </div>
+                 
+                 <div className="space-y-2 pt-2 border-t border-gray-100">
                     <h6 className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Saksi 1</h6>
-                    <SearchableSelect label="Pilih Saksi 1" options={pegawaiList.map(p=>({value: p.nip, label: p.nama}))} value={formData.saksi1Nip} onChange={v=>{const p=pegawaiList.find(x=>x.nip===v); if(p) setFormData({...formData, saksi1Nip:v, saksi1Nama:p.nama, saksi1Jabatan:p.jabatan})}} />
+                    <SearchableSelect 
+                       label="Pilih Saksi 1" 
+                       options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.jabatan || ''}`}))} 
+                       value={formData.saksi1Nip} 
+                       onChange={v=>{
+                         const p=pegawaiList.find(x=>x.nip===v); 
+                         if(p) setFormData({...formData, saksi1Nip:v, saksi1Nama: p.nama, saksi1Jabatan:p.jabatan});
+                       }} 
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <div>
+                        <label className="text-[9px] font-bold text-gray-500 uppercase">Nama & Gelar Saksi 1</label>
+                        <input 
+                          type="text" 
+                          className={inputClass} 
+                          value={formData.saksi1Nama} 
+                          onChange={e=>setFormData({...formData, saksi1Nama: e.target.value})}
+                          placeholder="Nama & Gelar Saksi 1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-gray-500 uppercase">Jabatan Saksi 1</label>
+                        <input 
+                          type="text" 
+                          className={inputClass} 
+                          value={formData.saksi1Jabatan} 
+                          onChange={e=>setFormData({...formData, saksi1Jabatan: e.target.value})}
+                          placeholder="Jabatan Saksi 1"
+                        />
+                      </div>
+                    </div>
                  </div>
 
-                 <div className="space-y-4 pt-4">
+                 <div className="space-y-2 pt-2 border-t border-gray-100">
                     <h6 className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Saksi 2</h6>
-                    <SearchableSelect label="Pilih Saksi 2" options={pegawaiList.map(p=>({value: p.nip, label: p.nama}))} value={formData.saksi2Nip} onChange={v=>{const p=pegawaiList.find(x=>x.nip===v); if(p) setFormData({...formData, saksi2Nip:v, saksi2Nama:p.nama, saksi2Jabatan:p.jabatan})}} />
+                    <SearchableSelect 
+                       label="Pilih Saksi 2" 
+                       options={pegawaiList.map(p=>({value: p.nip, label: p.nama, subLabel: `NIP. ${p.nip} - ${p.jabatan || ''}`}))} 
+                       value={formData.saksi2Nip} 
+                       onChange={v=>{
+                         const p=pegawaiList.find(x=>x.nip===v); 
+                         if(p) setFormData({...formData, saksi2Nip:v, saksi2Nama: p.nama, saksi2Jabatan:p.jabatan});
+                       }} 
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <div>
+                        <label className="text-[9px] font-bold text-gray-500 uppercase">Nama & Gelar Saksi 2</label>
+                        <input 
+                          type="text" 
+                          className={inputClass} 
+                          value={formData.saksi2Nama} 
+                          onChange={e=>setFormData({...formData, saksi2Nama: e.target.value})}
+                          placeholder="Nama & Gelar Saksi 2"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-gray-500 uppercase">Jabatan Saksi 2</label>
+                        <input 
+                          type="text" 
+                          className={inputClass} 
+                          value={formData.saksi2Jabatan} 
+                          onChange={e=>setFormData({...formData, saksi2Jabatan: e.target.value})}
+                          placeholder="Jabatan Saksi 2"
+                        />
+                      </div>
+                    </div>
                  </div>
               </div>
 
@@ -664,15 +1036,21 @@ const PelantikanGeneratorPage = () => {
                 <div className="flex flex-wrap justify-center gap-1.5 mt-1 border-0">
                   {selectedNips.map(nip => {
                     const p = pegawaiList.find(x => x.nip === nip);
+                    const jbt = asnJabatanMap[nip] || formData.asnJabatanBaru || formData.asnJabatan;
                     const isActive = activePreviewNip === nip;
                     return (
                       <button
                         key={nip}
                         onClick={() => setActivePreviewNip(nip)}
-                        className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all flex items-center gap-1 cursor-pointer border ${isActive ? 'bg-[#111827] text-white border-[#111827] shadow-sm' : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'}`}
+                        className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer border ${isActive ? 'bg-[#111827] text-white border-[#111827] shadow-sm' : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'}`}
                       >
                         <i className={`bi ${isActive ? 'bi-eye-fill text-blue-400' : 'bi-eye text-slate-400'}`}></i>
-                        {p?.nama || nip}
+                        <span>{p?.nama || nip}</span>
+                        {jbt && (
+                          <span className={`text-[8px] px-1.5 py-0.5 rounded font-bold uppercase ${isActive ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700'}`}>
+                            {jbt}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -698,44 +1076,54 @@ const PelantikanGeneratorPage = () => {
     width: docType === 'PAKTA' ? '330mm' : '210mm', 
     minHeight: docType === 'PAKTA' ? '210mm' : '330mm',
     /* Padding di sini adalah "margin internal" untuk memberi sisa kertas di dalam border */
-    padding: docType === 'PAKTA' ? '20mm 25mm' : '25mm 30mm 30mm 35mm'
+    padding: docType === 'PAKTA' ? '20mm 25mm' : '20mm 25mm 20mm 25mm',
+    fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif'
   }}
                      >
                  
                   {docType === 'BA' ? (
                     // --- TEMPLATE BERITA ACARA (PORTRAIT F4) ---
-                    <div className="h-full flex flex-col text-[11pt] leading-snug font-arial text-black">
+                    <div 
+                      className="h-full flex flex-col text-[11pt] leading-snug font-arial text-black"
+                      style={{ fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif' }}
+                    >
                        {/* HEADER */}
-                       <div className="flex flex-col items-center text-center mb-10 pt-4">
-                          <img src={LOGO_GARUDA_URL} style={{ width: '85px', height: 'auto' }} className="mb-6" crossOrigin="anonymous" />
-                          <h1 className="font-bold uppercase tracking-widest text-[13pt] mb-1">BERITA ACARA</h1>
-                          <h2 className="font-bold uppercase tracking-widest text-[11pt] mb-1">PENGAMBILAN SUMPAH JABATAN PEGAWAI NEGERI SIPIL</h2>
-                          <p className="font-normal text-[11pt]">NOMOR : {currentPreviewData.nomor || 'HKI.1-KP.03.04-...'}</p>
+                       <div className="flex flex-col items-center text-center mb-6 pt-1">
+                          <img 
+                            src={logoVariant === 'resmi' ? LOGO_GARUDA_RESMI_URL : LOGO_GARUDA_EMAS_URL} 
+                            style={{ width: '80px', height: 'auto' }} 
+                            className="mb-3.5 object-contain" 
+                            crossOrigin="anonymous" 
+                            alt="Lambang Negara Garuda Pancasila"
+                          />
+                          <h1 className="font-bold uppercase tracking-widest text-[13pt] mb-1 leading-tight text-black">BERITA ACARA</h1>
+                          <h2 className="font-bold uppercase tracking-wider text-[11pt] mb-1 leading-tight text-black">PENGAMBILAN SUMPAH JABATAN PEGAWAI NEGERI SIPIL</h2>
+                          <p className="font-normal text-[10.5pt] text-gray-900">NOMOR : {currentPreviewData.nomor || 'HKI.1-KP.03.04-...'}</p>
                        </div>
 
                        {/* CONTENT */}
-                       <div className="text-justify space-y-4 px-2">
+                       <div className="text-justify space-y-3.5 px-1 text-[11pt] leading-normal">
                           <p className="indent-0">
-                             Pada hari <span className="font-normal">{formatTanggalLengkap(currentPreviewData.tanggal)}</span>, bertempat di {currentPreviewData.tempat || 'Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum Republik Indonesia'}, saya, <span className="font-bold uppercase">{currentPreviewData.pjbNama}</span>, <span className="font-bold uppercase">{currentPreviewData.pjbJabatan}</span> Kementerian Hukum Republik Indonesia, dengan disaksikan oleh 2 (dua) orang saksi masing-masing :
+                             Pada hari <span className="font-normal">{formatTanggalLengkap(currentPreviewData.tanggal)}</span>, bertempat di {currentPreviewData.tempat || 'Direktorat Jenderal Kekayaan Intelektual Kementerian Hukum Republik Indonesia'}, saya, <span className="font-bold">{formatPegawaiName(currentPreviewData.pjbNama)}</span>, <span className="font-bold">{currentPreviewData.pjbJabatan}</span> Kementerian Hukum Republik Indonesia, dengan disaksikan oleh 2 (dua) orang saksi masing-masing :
                           </p>
-                          <div className="space-y-1 ml-4 py-2">
+                          <div className="space-y-1.5 ml-4 py-1 text-[10.5pt]">
                              <div className="flex gap-2">
-                               <span>1.</span>
-                               <span><span className="font-bold uppercase">{currentPreviewData.saksi1Nama}</span>, {currentPreviewData.saksi1Jabatan};</span>
+                               <span className="w-5 font-bold">1.</span>
+                               <span><span className="font-bold">{formatPegawaiName(currentPreviewData.saksi1Nama)}</span>, {currentPreviewData.saksi1Jabatan};</span>
                              </div>
                              <div className="flex gap-2">
-                               <span>2.</span>
-                               <span><span className="font-bold uppercase">{currentPreviewData.saksi2Nama}</span>, {currentPreviewData.saksi2Jabatan}.</span>
+                               <span className="w-5 font-bold">2.</span>
+                               <span><span className="font-bold">{formatPegawaiName(currentPreviewData.saksi2Nama)}</span>, {currentPreviewData.saksi2Jabatan}.</span>
                              </div>
                           </div>
                           <p>
-                             telah mengambil sumpah jabatan <span className="font-normal">{currentPreviewData.asnJabatan}</span> atas nama <span className="font-bold uppercase">{currentPreviewData.asnNama}</span>, yang berdasarkan Keputusan Menteri Hukum Republik Indonesia Nomor <span className="font-normal">{currentPreviewData.nomorSk}</span> tanggal <span className="font-normal">{currentPreviewData.tanggalSk}</span> diangkat sebagai <span className="font-normal">{currentPreviewData.asnJabatan}</span>.
+                             telah mengambil sumpah jabatan <span className="font-normal">{currentPreviewData.asnJabatan}</span> atas nama <span className="font-bold">{formatPegawaiName(currentPreviewData.asnNama)}</span>, yang berdasarkan Keputusan Menteri Hukum Republik Indonesia Nomor <span className="font-normal">{currentPreviewData.nomorSk}</span> tanggal <span className="font-normal">{currentPreviewData.tanggalSk}</span> diangkat sebagai <span className="font-normal">{currentPreviewData.asnJabatan}</span>.
                           </p>
                           <p>Pegawai Negeri Sipil yang mengangkat sumpah tersebut mengucapkan sumpah jabatan sebagai berikut:</p>
                           
-                          <div className="italic space-y-3 py-2">
+                          <div className="italic space-y-2 py-1">
                              <p>”{currentPreviewData.kataPelantikan}:</p>
-                             <div className="pl-8 space-y-2">
+                             <div className="pl-8 space-y-1.5">
                                 <p>bahwa saya, akan setia dan taat kepada Undang-Undang Dasar Negara Republik Indonesia Tahun 1945 serta akan menjalankan segala peraturan perundang-undangan dengan selurus-lurusnya, demi dharma bakti saya kepada bangsa dan negara;</p>
                                 <p>bahwa saya dalam menjalankan tugas jabatan, akan menjunjung etika jabatan, bekerja dengan sebaik-baiknya, dan dengan penuh rasa tanggung jawab;</p>
                                 <p>bahwa saya, akan menjaga integritas, tidak menyalahgunakan kewenangan, serta menghindarkan diri dari perbuatan tercela.”</p>
@@ -743,43 +1131,89 @@ const PelantikanGeneratorPage = () => {
                           </div>
                           
                           {currentPreviewData.penutupKataPelantikan && (
-                              <p className="italic font-bold text-center mt-2">{currentPreviewData.penutupKataPelantikan}</p>
+                              <p className="italic font-bold text-center mt-1 text-[10.5pt]">{currentPreviewData.penutupKataPelantikan}</p>
                           )}
 
-                          <p className="mt-4">Demikian berita acara pengambilan sumpah jabatan ini dibuat dengan sebenar-benarnya untuk dapat digunakan sebagaimana mestinya.</p>
+                          <p className="mt-3">Demikian berita acara pengambilan sumpah jabatan ini dibuat dengan sebenar-benarnya untuk dapat digunakan sebagaimana mestinya.</p>
                        </div>
 
                        {/* SIGNATURES */}
-                       <div className="mt-12 space-y-10">
+                       <div className="mt-8 space-y-6">
+                          {/* Baris 1: Yang Mengangkat Sumpah & Pejabat Yang Mengambil Sumpah */}
                           <div className="grid grid-cols-2 gap-x-12 text-center text-[10.5pt]">
+                             {/* Kolom Kiri: Yang Mengangkat Sumpah */}
                              <div className="flex flex-col items-center">
-                                <p className="mb-24">Yang mengangkat sumpah,</p>
-                                <div className="space-y-0.5">
-                                  <p className="font-bold underline leading-none">{formatPegawaiName(currentPreviewData.asnNama || '')}</p>
-                                  <p>NIP {currentPreviewData.asnNip}</p>
+                                <div className="min-h-[44px] flex items-end justify-center pb-2">
+                                   <p className="leading-snug font-normal text-black">Yang mengangkat sumpah,</p>
+                                </div>
+                                <div className="h-16 w-full flex items-center justify-center">
+                                   {/* Ruang Tanda Tangan */}
+                                </div>
+                                <div className="flex flex-col items-center text-center">
+                                   <p className="font-bold underline underline-offset-2 text-[11pt] tracking-normal leading-normal text-black">
+                                      {formatPegawaiName(currentPreviewData.asnNama || '')}
+                                   </p>
+                                   <p className="text-[10pt] font-normal text-gray-900 mt-1">
+                                      {formatNip(currentPreviewData.asnNip)}
+                                   </p>
                                 </div>
                              </div>
+
+                             {/* Kolom Kanan: Pejabat Yang Mengambil Sumpah */}
                              <div className="flex flex-col items-center">
-                                <p className="mb-4">Pejabat<br/>Yang mengambil sumpah,</p>
-                                <div className="mt-[4.5rem]">
-                                  <p className="font-bold underline leading-none">{formatPegawaiName(currentPreviewData.pjbNama || '')}</p>
-                                  <p>NIP {currentPreviewData.pjbNip}</p>
+                                <div className="min-h-[44px] flex items-end justify-center pb-2">
+                                   <p className="leading-snug font-normal text-black">Pejabat<br />Yang mengambil sumpah,</p>
+                                </div>
+                                <div className="h-16 w-full flex items-center justify-center">
+                                   {/* Ruang Tanda Tangan */}
+                                </div>
+                                <div className="flex flex-col items-center text-center">
+                                   <p className="font-bold underline underline-offset-2 text-[11pt] tracking-normal leading-normal text-black">
+                                      {formatPegawaiName(currentPreviewData.pjbNama || '')}
+                                   </p>
+                                   <p className="text-[10pt] font-normal text-gray-900 mt-1">
+                                      {formatNip(currentPreviewData.pjbNip)}
+                                   </p>
                                 </div>
                              </div>
                           </div>
 
-                          <div className="flex flex-col items-center pt-4">
-                             <p className="font-bold uppercase mb-8">SAKSI-SAKSI,</p>
-                             <div className="grid grid-cols-2 gap-x-20 w-full text-center text-[10.5pt]">
+                          {/* Baris 2: Saksi-Saksi */}
+                          <div className="flex flex-col items-center pt-2">
+                             <p className="font-bold uppercase tracking-wider text-[11pt] mb-3 text-black">SAKSI-SAKSI,</p>
+                             <div className="grid grid-cols-2 gap-x-12 w-full text-center text-[10.5pt]">
                                 <div className="flex flex-col items-center">
-                                   <div className="h-24"></div>
-                                   <p className="font-bold underline leading-none">{formatPegawaiName(currentPreviewData.saksi1Nama || '')}</p>
-                                   <p>NIP {currentPreviewData.saksi1Nip}</p>
+                                   <div className="min-h-[26px] flex items-end justify-center pb-1">
+                                      <p className="leading-snug font-normal text-black">1. Saksi I,</p>
+                                   </div>
+                                   <div className="h-16 w-full flex items-center justify-center">
+                                      {/* Ruang Tanda Tangan */}
+                                   </div>
+                                   <div className="flex flex-col items-center text-center">
+                                      <p className="font-bold underline underline-offset-2 text-[11pt] tracking-normal leading-normal text-black">
+                                         {formatPegawaiName(currentPreviewData.saksi1Nama || '')}
+                                      </p>
+                                      <p className="text-[10pt] font-normal text-gray-900 mt-1">
+                                         {formatNip(currentPreviewData.saksi1Nip)}
+                                      </p>
+                                   </div>
                                 </div>
+
                                 <div className="flex flex-col items-center">
-                                   <div className="h-24"></div>
-                                   <p className="font-bold underline leading-none">{formatPegawaiName(currentPreviewData.saksi2Nama || '')}</p>
-                                   <p>NIP {currentPreviewData.saksi2Nip}</p>
+                                   <div className="min-h-[26px] flex items-end justify-center pb-1">
+                                      <p className="leading-snug font-normal text-black">2. Saksi II,</p>
+                                   </div>
+                                   <div className="h-16 w-full flex items-center justify-center">
+                                      {/* Ruang Tanda Tangan */}
+                                   </div>
+                                   <div className="flex flex-col items-center text-center">
+                                      <p className="font-bold underline underline-offset-2 text-[11pt] tracking-normal leading-normal text-black">
+                                         {formatPegawaiName(currentPreviewData.saksi2Nama || '')}
+                                      </p>
+                                      <p className="text-[10pt] font-normal text-gray-900 mt-1">
+                                         {formatNip(currentPreviewData.saksi2Nip)}
+                                      </p>
+                                   </div>
                                 </div>
                              </div>
                           </div>
@@ -787,7 +1221,10 @@ const PelantikanGeneratorPage = () => {
                     </div>
                   ) : (
                     // --- TEMPLATE PAKTA INTEGRITAS (LANDSCAPE F4) ---
-                    <div className="h-full flex flex-col text-[11pt] leading-relaxed font-arial">
+                    <div 
+                      className="h-full flex flex-col text-[11pt] leading-relaxed font-arial text-black"
+                      style={{ fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif' }}
+                    >
                        {/* HEADER */}
                        <div className="flex flex-col items-center text-center mb-8">
                         <img 
@@ -838,8 +1275,8 @@ const PelantikanGeneratorPage = () => {
     
     {/* Box Nama & NIP (Dipaksa sejajar bawah) */}
     <div className="mt-12"> 
-      <p className="font-bold uppercase underline decoration-2">{currentPreviewData.pjbNama}</p>
-      <p className="mt-1 text-sm">NIP {currentPreviewData.pjbNip}</p>
+      <p className="font-bold underline underline-offset-2 text-[11pt]">{formatPegawaiName(currentPreviewData.pjbNama || '')}</p>
+      <p className="mt-1 text-sm text-gray-800">{formatNip(currentPreviewData.pjbNip)}</p>
     </div>
   </div>
 
@@ -857,8 +1294,8 @@ const PelantikanGeneratorPage = () => {
 
     {/* Box Nama & NIP (Akan sejajar dengan kolom kiri karena mt-12 yang sama) */}
     <div className="mt-12">
-      <p className="font-bold uppercase underline decoration-2">{currentPreviewData.asnNama || '...'}</p>
-      <p className="mt-1 text-sm">NIP {currentPreviewData.asnNip}</p>
+      <p className="font-bold underline underline-offset-2 text-[11pt]">{formatPegawaiName(currentPreviewData.asnNama || '...')}</p>
+      <p className="mt-1 text-sm text-gray-800">{formatNip(currentPreviewData.asnNip)}</p>
     </div>
   </div>
 </div>

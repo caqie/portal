@@ -1339,8 +1339,25 @@ export const uploadFileToDrive = async (fileName: string, mimeType: string, base
         const text = await response.text();
         try {
             const result = JSON.parse(text);
-            if (!result.success && !result.message) {
-                result.message = "Gagal memproses file di server Google.";
+            if (!result.success) {
+                const rawMsg = result.message || "Gagal memproses file di server Google.";
+                if (
+                    rawMsg.includes('存取遭拒') || 
+                    rawMsg.toLowerCase().includes('access denied') || 
+                    rawMsg.includes('DriveApp')
+                ) {
+                    result.message = "Akses Google Drive Ditolak (DriveApp Access Denied).\n\n" +
+                        "Penyebab dan Solusi di Google Apps Script:\n" +
+                        "1. Pastikan Web App dideploy dengan:\n" +
+                        "   - 'Execute as' (Jalankan sebagai): 'Me' (Email akun Anda)\n" +
+                        "   - 'Who has access' (Akses): 'Anyone' (Siapa saja)\n\n" +
+                        "2. Otorisasi Izin Akses (Authorization):\n" +
+                        "   Buka editor Google Apps Script, pilih fungsi 'setup' di menu atas, lalu klik tombol 'Run' (Jalankan) untuk mengizinkan akses Drive.\n\n" +
+                        "3. Salin Kode Terbaru:\n" +
+                        "   Pastikan Google Apps Script menggunakan kode terbaru (tersedia di file GoogleAppsScript_Code.js) yang mendukung fallback folder otomatis.";
+                } else {
+                    result.message = rawMsg;
+                }
             }
             return result;
         } catch (parseError) {

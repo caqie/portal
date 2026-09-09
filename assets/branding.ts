@@ -5,3 +5,7 @@ export const LOGO_DJKI_URL = "https://lh3.googleusercontent.com/d/1he5AoYAHMd9dl
 
 // Logo Pengayoman Kemenkumham RI (High Res & CORS Compatible)
 export const LOGO_PENGAYOMAN_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Logo_Kemenkumham_RI.svg/1024px-Logo_Kemenkumham_RI.svg.png";
+
+// Lambang Negara Garuda Pancasila Resmi & Emas (Local SVG, no external CORS/network dependencies)
+export const LOGO_GARUDA_EMAS_URL = "/logo_garuda_emas.svg";
+export const LOGO_GARUDA_RESMI_URL = "/logo_garuda_resmi.svg";

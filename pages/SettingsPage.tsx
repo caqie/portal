@@ -61,6 +61,11 @@ const SettingsPage = () => {
     driveFolderId: JSON.parse(localStorage.getItem('portal_cloud_config') || '{}').driveFolderId || ''
   });
 
+  const [showScriptModal, setShowScriptModal] = useState(false);
+  const [scriptCode, setScriptCode] = useState<string>('');
+  const [loadingScript, setLoadingScript] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
+
   useEffect(() => { loadSettingsData(); }, [activeTab]);
 
   const loadSettingsData = async () => {
@@ -255,6 +260,34 @@ const SettingsPage = () => {
       alert("Gagal melakukan audit spreadsheet.");
     }
     setAuditing(false);
+  };
+
+  const openScriptGuide = async () => {
+    setShowScriptModal(true);
+    if (!scriptCode) {
+      setLoadingScript(true);
+      try {
+        const res = await fetch('/api/apps-script-code');
+        if (res.ok) {
+          const text = await res.text();
+          setScriptCode(text);
+        } else {
+          setScriptCode('// Silakan buka file GoogleAppsScript_Code.js di root proyek untuk menyalin kode lengkap.');
+        }
+      } catch (e) {
+        setScriptCode('// Silakan buka file GoogleAppsScript_Code.js di root proyek untuk menyalin kode lengkap.');
+      } finally {
+        setLoadingScript(false);
+      }
+    }
+  };
+
+  const copyScriptToClipboard = () => {
+    if (scriptCode) {
+      navigator.clipboard.writeText(scriptCode);
+      setCopiedScript(true);
+      setTimeout(() => setCopiedScript(false), 3000);
+    }
   };
 
   const handleDeleteSheet = async (sheetId: string, sheetName: string) => {
@@ -786,6 +819,10 @@ const SettingsPage = () => {
                     <button onClick={handleAudit} disabled={auditing} className="px-12 py-4 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-[10px] uppercase transition-all active:scale-95 flex items-center gap-3">
                        {auditing ? <div className="h-4 w-4 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div> : <i className="bi bi-search text-lg"></i>}
                        Audit & Perbaikan Sheet
+                    </button>
+                    <button onClick={openScriptGuide} className="px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase transition-all active:scale-95 flex items-center gap-2.5 shadow-lg shadow-emerald-600/20">
+                       <i className="bi bi-file-earmark-code-fill text-base"></i>
+                       Panduan Deploy & Kode Apps Script
                     </button>
                  </div>
               </div>
@@ -1482,6 +1519,145 @@ const SettingsPage = () => {
         </div>
       )}
       
+
+      {/* MODAL PANDUAN & KODE APPS SCRIPT */}
+      {showScriptModal && (
+        <div className="fixed inset-0 z-[10010] flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 bg-gray-950/70 backdrop-blur-sm animate-fadeIn" 
+            onClick={() => setShowScriptModal(false)}
+          ></div>
+          
+          <div className="relative bg-white w-full max-w-3xl rounded-[2.5rem] shadow-2xl p-6 md:p-8 flex flex-col animate-modalEnter border border-gray-100 max-h-[92vh] overflow-hidden text-gray-950 z-20">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 pb-4 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-inner shrink-0">
+                  <i className="bi bi-file-earmark-code-fill text-2xl"></i>
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-gray-950 uppercase tracking-tight">
+                    Panduan & Kode Google Apps Script
+                  </h3>
+                  <p className="text-[10px] text-gray-500 font-bold">
+                    Mengatasi UPLOAD_ERROR: Exception: 存取遭拒：DriveApp (Access Denied)
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowScriptModal(false)}
+                className="h-10 w-10 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition-all cursor-pointer"
+              >
+                <i className="bi bi-x-lg text-lg"></i>
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="overflow-y-auto py-5 space-y-6 custom-scrollbar pr-2 flex-1 text-[11px]">
+              {/* Critical Notice */}
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 font-black text-amber-900 uppercase tracking-wide text-[11px]">
+                  <i className="bi bi-exclamation-triangle-fill text-amber-600 text-base"></i>
+                  <span>Mengapa Muncul Pesan &ldquo;存取遭拒：DriveApp&rdquo;?</span>
+                </div>
+                <p className="text-gray-700 leading-relaxed">
+                  Error ini berarti Google Apps Script ditolak hak aksesnya saat mencoba membuat atau menyimpan file ke Google Drive. Hal ini terjadi jika script di-deploy dengan opsi yang salah atau belum diberi izin melalui fungsi setup.
+                </p>
+              </div>
+
+              {/* 4 Steps Guide */}
+              <div className="space-y-3">
+                <h4 className="font-black text-gray-900 uppercase tracking-widest text-[10px]">
+                  4 Langkah Solusi Cepat:
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="h-5 w-5 rounded-full bg-blue-600 text-white font-black text-[10px] flex items-center justify-center">1</span>
+                      <strong className="text-gray-900 font-bold uppercase text-[10px]">Salin Kode Terbaru</strong>
+                    </div>
+                    <p className="text-gray-600 text-[10px] leading-relaxed">
+                      Klik tombol &ldquo;Salin Seluruh Kode Script&rdquo; di bawah, lalu buka Google Sheets &gt; <strong>Ekstensi</strong> &gt; <strong>Apps Script</strong>. Hapus seluruh isi kode lama dan tempel (Paste) kode ini.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-100 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="h-5 w-5 rounded-full bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center">2</span>
+                      <strong className="text-emerald-950 font-bold uppercase text-[10px]">Jalankan Fungsi Setup</strong>
+                    </div>
+                    <p className="text-gray-600 text-[10px] leading-relaxed">
+                      Di toolbar atas editor Apps Script, pada menu pilihan fungsi (di samping tombol Run/Debug), pilih fungsi <code className="bg-emerald-100 px-1 py-0.5 rounded font-mono font-bold text-emerald-800">setup</code> lalu klik tombol <strong>Run (Jalankan)</strong>. Setujui permintaan izin Google Drive &amp; Sheets.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 bg-rose-50/70 rounded-2xl border border-rose-100 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="h-5 w-5 rounded-full bg-rose-600 text-white font-black text-[10px] flex items-center justify-center">3</span>
+                      <strong className="text-rose-950 font-bold uppercase text-[10px]">Deploy Web App (Penting!)</strong>
+                    </div>
+                    <p className="text-gray-600 text-[10px] leading-relaxed">
+                      Klik tombol biru <strong>Deploy</strong> &gt; <strong>New deployment</strong> (atau <strong>Manage deployments</strong> &gt; Edit &gt; New version).<br/>
+                      &bull; <strong>Execute as:</strong> Pilih <span className="font-bold text-rose-700">&ldquo;Me (email Anda)&rdquo;</span> <em>(JANGAN pilih &ldquo;User accessing web app&rdquo;)</em>.<br/>
+                      &bull; <strong>Who has access:</strong> Pilih <span className="font-bold text-rose-700">&ldquo;Anyone&rdquo;</span>.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 bg-sky-50/70 rounded-2xl border border-sky-100 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="h-5 w-5 rounded-full bg-sky-600 text-white font-black text-[10px] flex items-center justify-center">4</span>
+                      <strong className="text-sky-950 font-bold uppercase text-[10px]">Pasang Web App URL</strong>
+                    </div>
+                    <p className="text-gray-600 text-[10px] leading-relaxed">
+                      Salin URL Web App yang berakhiran <code className="bg-sky-100 px-1 py-0.5 rounded font-mono text-sky-800">/exec</code> dan tempelkan ke kolom <strong>Google Apps Script Web App URL</strong> di formulir pengaturan ini.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Code Section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider">
+                    Kode Backend Lengkap (GoogleAppsScript_Code.js)
+                  </span>
+                  <button 
+                    onClick={copyScriptToClipboard}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-blue-500/20"
+                  >
+                    <i className={`bi ${copiedScript ? "bi-check2-circle" : "bi-clipboard-check"}`}></i>
+                    {copiedScript ? "Berhasil Disalin!" : "Salin Seluruh Kode Script"}
+                  </button>
+                </div>
+                <div className="relative bg-gray-900 rounded-2xl p-4 overflow-hidden border border-gray-800">
+                  {loadingScript ? (
+                    <div className="py-12 flex flex-col items-center justify-center text-gray-400 gap-2">
+                      <div className="h-6 w-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-[10px] font-bold uppercase">Memuat kode script...</span>
+                    </div>
+                  ) : (
+                    <pre className="text-[9px] font-mono text-emerald-400 overflow-x-auto max-h-56 custom-scrollbar whitespace-pre leading-relaxed select-all">
+                      {scriptCode}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Sticky Footer */}
+            <div className="pt-4 border-t border-gray-100 flex justify-end shrink-0">
+              <button
+                onClick={() => setShowScriptModal(false)}
+                className="px-8 py-3.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+              >
+                Tutup Panduan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }

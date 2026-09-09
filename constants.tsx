@@ -427,7 +427,7 @@ export const polishGelarDanNama = (rawInput: string): {
   }
 
   // Identify standard front-of-name titles/honorifics
-  const frontTitleKeys = new Set(['prof', 'dr', 'drg', 'ir', 'h', 'hj', 'pdt']);
+  const frontTitleKeys = new Set(['prof', 'dr', 'drg', 'ir', 'drs', 'dra', 'h', 'hj', 'pdt', 'apt', 'ns']);
 
   // 2. Tokenize the entire string by splitting by spaces, commas, semicolons
   const rawTokens = rawInput.split(/[\s,;]+/).filter(Boolean);
@@ -466,6 +466,14 @@ export const polishGelarDanNama = (rawInput: string): {
           }
         } else if (cleanToken === 'drg') {
           detectedFront.push('drg.');
+        } else if (cleanToken === 'drs') {
+          detectedFront.push('Drs.');
+        } else if (cleanToken === 'dra') {
+          detectedFront.push('Dra.');
+        } else if (cleanToken === 'apt') {
+          detectedFront.push('Apt.');
+        } else if (cleanToken === 'ns') {
+          detectedFront.push('Ns.');
         } else {
           // Format with trailing dot if not already there, and capitalize first letter
           detectedFront.push(canonicalKey.endsWith('.') ? canonicalKey : `${canonicalKey}.`);
@@ -574,12 +582,21 @@ export const polishGelarDanNama = (rawInput: string): {
 };
 
 /**
- * Helper to format Pegawai Name correctly:
+ * Helper to format Pegawai Name:
  * Preserves the exact name and academic titles (gelar) as stored in the database.
  */
 export const formatPegawaiName = (nama: string): string => {
   if (!nama) return '';
   return nama.trim();
+};
+
+/**
+ * Format NIP standard (e.g., NIP. 198504122008121001)
+ */
+export const formatNip = (nip?: string): string => {
+  if (!nip) return '-';
+  const clean = nip.toString().replace(/^NIP[\.\s:]*/i, '').trim();
+  return clean ? `NIP. ${clean}` : '-';
 };
 
 /**
