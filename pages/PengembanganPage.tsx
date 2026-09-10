@@ -9,6 +9,9 @@ import { formatPegawaiName } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
+import TalentDevelopmentView from '../components/TalentDevelopmentView';
+import KompetensiDashboardView from '../components/KompetensiDashboardView';
+import { FALLBACK_REPRESENTATIVE_PEGAWAI } from '../kompetensiDashboardData';
 import * as XLSX from 'xlsx';
 
 const PengembanganPage = () => {
@@ -20,7 +23,8 @@ const PengembanganPage = () => {
   const [syncing, setSyncing] = useState(false);
   const [uploading, setUploading] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'monitoring' | 'riwayat'>('monitoring');
+  const [activeTab, setActiveTab] = useState<'dashboard_kompetensi' | 'talent_profile' | 'standar_kompetensi' | 'monitoring' | 'riwayat'>('dashboard_kompetensi');
+  const [selectedPegawaiNip, setSelectedPegawaiNip] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<Partial<Pengembangan>>({});
   const [showSuccess, setShowSuccess] = useState(false);
@@ -48,9 +52,15 @@ const PengembanganPage = () => {
     setLoading(true);
     try {
       const [p, r] = await Promise.all([fetchPegawaiFromSheets(), fetchPengembanganFromSheets()]);
-      setPegawaiList(p);
+      const list = p && p.length > 0 ? p : (FALLBACK_REPRESENTATIVE_PEGAWAI as Pegawai[]);
+      setPegawaiList(list);
       setRiwayatList(r || []);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) {
+      console.error(e);
+      setPegawaiList(FALLBACK_REPRESENTATIVE_PEGAWAI as Pegawai[]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const monitoringData = useMemo(() => {
@@ -168,16 +178,63 @@ const PengembanganPage = () => {
           <i className="bi bi-search absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
           <input type="text" placeholder="Cari Nama atau NIP..." className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-xs font-black uppercase outline-none focus:border-blue-600 transition-all shadow-inner" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
-        <div className="flex bg-gray-100 p-1.5 rounded-[1.8rem] shrink-0">
-           <button onClick={() => setActiveTab('monitoring')} className={`px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all ${activeTab === 'monitoring' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400'}`}>Monitoring JP</button>
-           <button onClick={() => setActiveTab('riwayat')} className={`px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all ${activeTab === 'riwayat' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400'}`}>Riwayat Lengkap</button>
+        <div className="flex bg-gray-100 p-1.5 rounded-[1.8rem] shrink-0 overflow-x-auto custom-scrollbar">
+           <button onClick={() => setActiveTab('dashboard_kompetensi')} className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${activeTab === 'dashboard_kompetensi' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>
+             <i className="bi bi-bar-chart-line-fill text-sm"></i>
+             <span>Dashboard Kompetensi</span>
+           </button>
+           <button onClick={() => setActiveTab('talent_profile')} className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${activeTab === 'talent_profile' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>
+             <i className="bi bi-person-badge text-sm"></i>
+             <span>Profil & Asesmen</span>
+           </button>
+           <button onClick={() => setActiveTab('standar_kompetensi')} className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${activeTab === 'standar_kompetensi' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>
+             <i className="bi bi-diagram-3 text-sm"></i>
+             <span>Standar Kompetensi</span>
+           </button>
+           <button onClick={() => setActiveTab('monitoring')} className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${activeTab === 'monitoring' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>
+             <i className="bi bi-speedometer2 text-sm"></i>
+             <span>Monitoring JP</span>
+           </button>
+           <button onClick={() => setActiveTab('riwayat')} className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${activeTab === 'riwayat' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}>
+             <i className="bi bi-clock-history text-sm"></i>
+             <span>Riwayat Pelatihan</span>
+           </button>
         </div>
-        <select className="px-8 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black uppercase outline-none focus:border-blue-600 shadow-inner" value={filterYear} onChange={e => setFilterYear(Number(e.target.value))}>
-            {years.map(y => <option key={y} value={y}>TAHUN {y}</option>)}
-        </select>
+        {activeTab !== 'dashboard_kompetensi' && activeTab !== 'talent_profile' && activeTab !== 'standar_kompetensi' && (
+          <select className="px-8 py-4 bg-gray-50 border-2 border-transparent rounded-[1.8rem] text-[10px] font-black uppercase outline-none focus:border-blue-600 shadow-inner" value={filterYear} onChange={e => setFilterYear(Number(e.target.value))}>
+              {years.map(y => <option key={y} value={y}>TAHUN {y}</option>)}
+          </select>
+        )}
       </div>
 
-      {activeTab === 'monitoring' ? (
+      {activeTab === 'dashboard_kompetensi' ? (
+        <KompetensiDashboardView
+          pegawaiList={pegawaiList}
+          riwayatPelatihanList={riwayatList}
+          onSelectPegawaiForProfile={(nip) => {
+            setSelectedPegawaiNip(nip);
+            setActiveTab('talent_profile');
+          }}
+        />
+      ) : activeTab === 'talent_profile' ? (
+        <TalentDevelopmentView
+          pegawaiList={pegawaiList}
+          riwayatPelatihanList={riwayatList}
+          selectedNip={selectedPegawaiNip}
+          onSelectNip={(nip) => setSelectedPegawaiNip(nip)}
+          canEdit={canEdit}
+          initialSection="tentang_saya"
+        />
+      ) : activeTab === 'standar_kompetensi' ? (
+        <TalentDevelopmentView
+          pegawaiList={pegawaiList}
+          riwayatPelatihanList={riwayatList}
+          selectedNip={selectedPegawaiNip}
+          onSelectNip={(nip) => setSelectedPegawaiNip(nip)}
+          canEdit={canEdit}
+          initialSection="standar_kompetensi"
+        />
+      ) : activeTab === 'monitoring' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
            {loading ? Array(6).fill(0).map((_,i) => <div key={i} className="h-44 bg-white rounded-[3rem] animate-pulse"></div>) : 
             monitoringData.map((p, i) => (
@@ -205,9 +262,21 @@ const PengembanganPage = () => {
                     <div className="h-3 bg-gray-100 rounded-full overflow-hidden border border-gray-50">
                        <div className={`h-full transition-all duration-1000 ${p.isEligible ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-rose-500 shadow-[0_0_10px_rgba(225,29,72,0.3)]'}`} style={{ width: `${p.progress}%` }}></div>
                     </div>
-                    <p className="text-[7px] font-bold text-gray-400 uppercase italic">
-                       {p.isEligible ? 'Target terpenuhi untuk tahun ini' : `Kurang ${p.targetJp - p.totalJp} JP lagi`}
-                    </p>
+                    <div className="flex items-center justify-between pt-1">
+                      <p className="text-[7px] font-bold text-gray-400 uppercase italic">
+                         {p.isEligible ? 'Target terpenuhi untuk tahun ini' : `Kurang ${p.targetJp - p.totalJp} JP lagi`}
+                      </p>
+                      <button
+                        onClick={() => {
+                          setSelectedPegawaiNip(p.nip);
+                          setActiveTab('talent_profile');
+                        }}
+                        className="text-[8px] font-black text-indigo-600 hover:text-indigo-800 uppercase flex items-center gap-1 cursor-pointer bg-indigo-50/60 px-2.5 py-1 rounded-lg hover:bg-indigo-100 transition-colors"
+                      >
+                        <span>Lihat Profil Asesmen</span>
+                        <i className="bi bi-arrow-right"></i>
+                      </button>
+                    </div>
                  </div>
               </div>
             )

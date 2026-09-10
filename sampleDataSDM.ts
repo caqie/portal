@@ -3,6 +3,24 @@ import { INITIAL_TUPOKSI_SDM } from './tupoksiConstants';
 
 export const SAMPLE_PEGAWAI_SDM: Partial<Pegawai>[] = [
   {
+    id: 'PEG-NIZAR',
+    nip: '198911292010121001',
+    nama: 'NIZAR FIKRI, SH, M.H.',
+    golongan: 'III/c',
+    golRuang: 'III/c',
+    pangkat: 'Penata',
+    jabatan: 'ANALIS SDM APARATUR MUDA',
+    unitKerja: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual',
+    subBagian: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual',
+    bagian: 'Sekretariat',
+    email: 'nizar.fikri@dgip.go.id',
+    status: 'PNS',
+    gender: 'L',
+    pendidikan: 'S2 Magister Hukum',
+    tmtPangkat: '2021-04-01',
+    tmtJabatan: '2024-03-15'
+  },
+  {
     id: 'PEG-001',
     nip: '198504122008121001',
     nama: 'BAMBANG HERMANTO, S.T., M.Kom.',
