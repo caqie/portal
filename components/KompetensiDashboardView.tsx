@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Pegawai, Pengembangan } from '../types';
 import { formatPegawaiName } from '../constants';
 import * as XLSX from 'xlsx';
@@ -82,6 +82,12 @@ export const KompetensiDashboardView: React.FC<Props> = ({
   const [selectedJenjangFilter, setSelectedJenjangFilter] = useState<string>('Semua Jenjang');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('Semua Status');
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Drill-down State untuk BarChart Unit Kerja
+  const [selectedDrilldownUnit, setSelectedDrilldownUnit] = useState<string | null>(null);
+  const [drilldownSearch, setDrilldownSearch] = useState<string>('');
+  const [drilldownStatusFilter, setDrilldownStatusFilter] = useState<string>('Semua');
+  const drilldownSectionRef = useRef<HTMLDivElement>(null);
 
   // Unit terpilih untuk komparasi radar
   const [radarUnitCompare, setRadarUnitCompare] = useState<string>(LIST_UNIT_KERJA_DJKI[0]);
@@ -190,6 +196,94 @@ export const KompetensiDashboardView: React.FC<Props> = ({
       kategori: u.kategori
     }));
   }, [unitKerjaStats]);
+
+  // Detail unit kerja yang sedang aktif di-drilldown
+  const drilldownUnitStats = useMemo(() => {
+    if (!selectedDrilldownUnit) return null;
+    const target = selectedDrilldownUnit.toLowerCase();
+    return (
+      unitKerjaStats.find(
+        u =>
+          u.unitKerja.toLowerCase() === target ||
+          u.shortName.toLowerCase() === target ||
+          u.unitKerja.toLowerCase().includes(target) ||
+          target.includes(u.unitKerja.toLowerCase())
+      ) || null
+    );
+  }, [unitKerjaStats, selectedDrilldownUnit]);
+
+  // Daftar pegawai spesifik pada unit kerja yang di-drilldown
+  const drilldownPegawaiList = useMemo(() => {
+    if (!selectedDrilldownUnit) return [];
+    const targetUnit = (drilldownUnitStats ? drilldownUnitStats.unitKerja : selectedDrilldownUnit).toLowerCase();
+    const shortTarget = (drilldownUnitStats ? drilldownUnitStats.shortName : '').toLowerCase();
+
+    return allPegawaiDetails.filter(p => {
+      const pUnit = p.unitKerja.toLowerCase();
+      const matchUnit =
+        pUnit === targetUnit ||
+        pUnit.includes(targetUnit) ||
+        targetUnit.includes(pUnit) ||
+        (shortTarget && (pUnit.includes(shortTarget) || shortTarget.includes(pUnit)));
+
+      if (!matchUnit) return false;
+
+      const matchStatus = drilldownStatusFilter === 'Semua' || p.statusPemenuhan === drilldownStatusFilter;
+
+      const matchSearch =
+        !drilldownSearch ||
+        p.nama.toLowerCase().includes(drilldownSearch.toLowerCase()) ||
+        p.nip.includes(drilldownSearch) ||
+        p.jabatan.toLowerCase().includes(drilldownSearch.toLowerCase()) ||
+        p.jenjangJabatan.toLowerCase().includes(drilldownSearch.toLowerCase());
+
+      return matchStatus && matchSearch;
+    });
+  }, [allPegawaiDetails, selectedDrilldownUnit, drilldownUnitStats, drilldownSearch, drilldownStatusFilter]);
+
+  // Handler klik batang grafik untuk toggle drill-down
+  const handleBarClick = (unitIdentifier: string) => {
+    if (!unitIdentifier) return;
+    if (
+      selectedDrilldownUnit &&
+      (selectedDrilldownUnit.toLowerCase() === unitIdentifier.toLowerCase() ||
+        (drilldownUnitStats &&
+          (drilldownUnitStats.unitKerja.toLowerCase() === unitIdentifier.toLowerCase() ||
+            drilldownUnitStats.shortName.toLowerCase() === unitIdentifier.toLowerCase())))
+    ) {
+      setSelectedDrilldownUnit(null);
+    } else {
+      setSelectedDrilldownUnit(unitIdentifier);
+      setDrilldownSearch('');
+      setDrilldownStatusFilter('Semua');
+      setTimeout(() => {
+        drilldownSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 120);
+    }
+  };
+
+  // Handler ekspor Excel data pegawai unit yang sedang di-drilldown
+  const handleExportDrilldownExcel = () => {
+    if (!selectedDrilldownUnit || drilldownPegawaiList.length === 0) return;
+    const wb = XLSX.utils.book_new();
+    const sheetData = drilldownPegawaiList.map(p => ({
+      'NIP': p.nip,
+      'Nama Pegawai': p.nama,
+      'Jabatan': p.jabatan,
+      'Jenjang Jabatan': p.jenjangJabatan,
+      'Unit Kerja': p.unitKerja,
+      'Skor Manajerial (1-4)': p.skorManajerialAvg,
+      'Standar Minimum': p.standarMinimum,
+      'Gap Capaian': p.gapSkor,
+      'Skor Perilaku 360': p.skorPerilaku360Avg,
+      'Status Pemenuhan': p.statusPemenuhan,
+      'Rekomendasi Bangkom': p.rekomendasiBangkom
+    }));
+    const ws = XLSX.utils.json_to_sheet(sheetData);
+    const unitTitle = drilldownUnitStats ? drilldownUnitStats.shortName : 'Unit';
+    XLSX.utils.book_append_sheet(wb, ws, `Pegawai_${unitTitle}`);
+    XLSX.writeFile(wb, `Daftar_Pegawai_${unitTitle}_Kompetensi_${new Date().getFullYear()}.xlsx`);
+  };
 
   // Data Distribusi Kategori Kecakapan (Donut Chart)
   const categoryDistributionData = useMemo(() => {
@@ -358,6 +452,12 @@ export const KompetensiDashboardView: React.FC<Props> = ({
             <div className="flex justify-between">
               <span>Jumlah Pegawai:</span>
               <span className="font-bold text-white">{data.pegawai} Orang</span>
+            </div>
+            <div className="pt-2 border-t border-gray-800 flex items-center justify-between text-[10px] text-indigo-400 font-extrabold">
+              <span className="flex items-center gap-1.5">
+                <i className="bi bi-hand-index-thumb-fill text-xs"></i> Klik untuk drill-down
+              </span>
+              <span className="text-gray-400 font-bold">Daftar Pegawai &rarr;</span>
             </div>
           </div>
         </div>
@@ -608,20 +708,33 @@ export const KompetensiDashboardView: React.FC<Props> = ({
           <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h3 className="text-lg font-black text-gray-950 uppercase tracking-tight">
-                  Rata-Rata Skor Kompetensi Manajerial Berdasarkan Unit Kerja
-                </h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-lg font-black text-gray-950 uppercase tracking-tight">
+                    Rata-Rata Skor Kompetensi Manajerial Berdasarkan Unit Kerja
+                  </h3>
+                  <span className="hidden sm:inline-flex px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[9px] font-black uppercase border border-indigo-100/80 items-center gap-1 shadow-xs">
+                    <i className="bi bi-cursor-fill text-indigo-600"></i> Klik Batang untuk Drill-Down
+                  </span>
+                </div>
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                  Skala 1.00 - 4.00 • Garis putus-putus merah menunjukkan ambang batas standar minimum (2.75)
+                  Skala 1.00 - 4.00 • Garis putus-putus merah menunjukkan ambang batas standar minimum (2.75) • Klik batang grafik untuk melihat daftar pegawai
                 </p>
               </div>
-              <div className="flex items-center gap-4 text-[10px] font-black uppercase text-gray-500">
+              <div className="flex flex-wrap items-center gap-4 text-[10px] font-black uppercase text-gray-500">
                 <span className="flex items-center gap-1.5">
                   <span className="h-3 w-3 rounded-full bg-indigo-600 inline-block"></span> Skor Aktual
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="h-0.5 w-4 bg-rose-500 inline-block border border-dashed border-rose-500"></span> Standar Minimum
                 </span>
+                {selectedDrilldownUnit && (
+                  <button
+                    onClick={() => setSelectedDrilldownUnit(null)}
+                    className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-[9px] font-black uppercase transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <i className="bi bi-x-circle-fill text-rose-500"></i> Reset Seleksi
+                  </button>
+                )}
               </div>
             </div>
 
@@ -630,6 +743,12 @@ export const KompetensiDashboardView: React.FC<Props> = ({
                 <BarChart
                   data={barUnitData}
                   margin={{ top: 20, right: 30, left: 0, bottom: 25 }}
+                  onClick={(state) => {
+                    if (state && state.activePayload && state.activePayload.length > 0) {
+                      const payload = state.activePayload[0].payload;
+                      handleBarClick(payload.fullName || payload.name);
+                    }
+                  }}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis
@@ -663,17 +782,272 @@ export const KompetensiDashboardView: React.FC<Props> = ({
                     name="Skor Manajerial"
                     radius={[8, 8, 0, 0]}
                     maxBarSize={48}
+                    cursor="pointer"
+                    onClick={(entry: any) => {
+                      if (entry && (entry.fullName || entry.name)) {
+                        handleBarClick(entry.fullName || entry.name);
+                      }
+                    }}
                   >
-                    {barUnitData.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={entry.skor >= 3.1 ? '#4f46e5' : entry.skor >= 2.75 ? '#0284c7' : '#f59e0b'}
-                      />
-                    ))}
+                    {barUnitData.map((entry, index) => {
+                      const isSelected = selectedDrilldownUnit && (
+                        entry.fullName.toLowerCase() === selectedDrilldownUnit.toLowerCase() ||
+                        entry.name.toLowerCase() === selectedDrilldownUnit.toLowerCase() ||
+                        (drilldownUnitStats && (
+                          entry.fullName.toLowerCase() === drilldownUnitStats.unitKerja.toLowerCase() ||
+                          entry.name.toLowerCase() === drilldownUnitStats.shortName.toLowerCase()
+                        ))
+                      );
+                      const isAnySelected = Boolean(selectedDrilldownUnit);
+                      const baseColor = entry.skor >= 3.1 ? '#4f46e5' : entry.skor >= 2.75 ? '#0284c7' : '#f59e0b';
+                      return (
+                        <Cell
+                          key={`cell-${index}`}
+                          cursor="pointer"
+                          fill={baseColor}
+                          fillOpacity={isAnySelected ? (isSelected ? 1 : 0.35) : 1}
+                          stroke={isSelected ? '#0f172a' : '#ffffff'}
+                          strokeWidth={isSelected ? 3 : 0}
+                        />
+                      );
+                    })}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          {/* =========================================================================
+              DRILL-DOWN DAFTAR PEGAWAI UNIT KERJA (MUNCUL DI BAWAH GRAFIK BATANG)
+             ========================================================================= */}
+          <div ref={drilldownSectionRef} id="drilldown-unit-kerja" className="space-y-4 scroll-mt-6">
+            {selectedDrilldownUnit ? (
+              <div className="bg-gradient-to-b from-indigo-50/40 via-white to-white p-8 rounded-[2.5rem] border-2 border-indigo-200/80 shadow-md space-y-6 transition-all animate-fadeIn">
+                {/* Header Drilldown Unit */}
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-indigo-100 pb-6">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 bg-indigo-600 text-white rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
+                        <i className="bi bi-arrow-down-circle-fill"></i>
+                        <span>Drill-Down Unit Kerja</span>
+                      </span>
+                      <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-extrabold uppercase">
+                        {drilldownUnitStats?.shortName || selectedDrilldownUnit}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-black text-gray-950 uppercase tracking-tight">
+                      {drilldownUnitStats?.unitKerja || selectedDrilldownUnit}
+                    </h3>
+                    <p className="text-[11px] font-bold text-gray-500">
+                      Menampilkan {drilldownPegawaiList.length} pegawai terpetakan berdasarkan asesmen kompetensi manajerial & perilaku kerja 360
+                    </p>
+                  </div>
+
+                  {/* Summary Metric Pills & Export */}
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {drilldownUnitStats && (
+                      <>
+                        <div className="px-3.5 py-2 bg-white rounded-2xl border border-gray-200 shadow-xs text-center">
+                          <span className="text-[9px] font-bold uppercase text-gray-400 block">Rata-Rata</span>
+                          <span className="text-xs font-black text-indigo-600">{drilldownUnitStats.avgManajerial} / 4.00</span>
+                        </div>
+                        <div className="px-3.5 py-2 bg-white rounded-2xl border border-gray-200 shadow-xs text-center">
+                          <span className="text-[9px] font-bold uppercase text-gray-400 block">Fit Rate</span>
+                          <span className="text-xs font-black text-emerald-600">{drilldownUnitStats.fitPercentage}%</span>
+                        </div>
+                        <div className="px-3.5 py-2 bg-white rounded-2xl border border-gray-200 shadow-xs text-center">
+                          <span className="text-[9px] font-bold uppercase text-gray-400 block">Status Gap</span>
+                          <span className={`text-xs font-black ${drilldownUnitStats.gapCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            {drilldownUnitStats.gapCount} Butuh Diklat
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                    <button
+                      onClick={handleExportDrilldownExcel}
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                      title="Ekspor data pegawai unit ini ke format Excel"
+                    >
+                      <i className="bi bi-file-earmark-spreadsheet-fill text-xs"></i>
+                      <span>Unduh Excel Unit</span>
+                    </button>
+
+                    <button
+                      onClick={() => setSelectedDrilldownUnit(null)}
+                      className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl text-[10px] font-black uppercase flex items-center gap-1.5 transition-all cursor-pointer"
+                      title="Tutup rincian drill-down"
+                    >
+                      <i className="bi bi-x-lg text-xs"></i>
+                      <span>Tutup Drill-Down</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter & Pencarian Internal Unit */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/70 p-3 rounded-2xl border border-indigo-100/60">
+                  <div className="relative flex-1 max-w-md">
+                    <i className="bi bi-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                    <input
+                      type="text"
+                      placeholder="Cari nama, NIP, atau jabatan pada unit ini..."
+                      value={drilldownSearch}
+                      onChange={e => setDrilldownSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-indigo-600 transition-all shadow-inner"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase text-gray-400">Filter:</span>
+                    <select
+                      value={drilldownStatusFilter}
+                      onChange={e => setDrilldownStatusFilter(e.target.value)}
+                      className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-black uppercase outline-none focus:border-indigo-600 cursor-pointer"
+                    >
+                      <option value="Semua">Semua Status Kelayakan</option>
+                      <option value="Optimal">Optimal</option>
+                      <option value="Memenuhi">Memenuhi Standar</option>
+                      <option value="Perlu Pengembangan">Perlu Pengembangan</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Tabel Daftar Pegawai Ter-Drilldown */}
+                <div className="overflow-x-auto custom-scrollbar rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+                  <table className="min-w-[900px] w-full text-left divide-y divide-gray-100">
+                    <thead className="bg-gray-50/80 text-[9px] font-black uppercase text-gray-400 tracking-wider">
+                      <tr>
+                        <th className="px-5 py-3.5">Pegawai & NIP</th>
+                        <th className="px-4 py-3.5">Jabatan & Jenjang</th>
+                        <th className="px-4 py-3.5 text-center">Skor Manajerial</th>
+                        <th className="px-4 py-3.5 text-center">Perilaku 360</th>
+                        <th className="px-4 py-3.5 text-center">Status Kelayakan</th>
+                        <th className="px-4 py-3.5">Rekomendasi Bangkom</th>
+                        <th className="px-5 py-3.5 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-xs">
+                      {drilldownPegawaiList.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-6 py-10 text-center text-gray-400 font-bold">
+                            Tidak ditemukan pegawai dengan filter yang dipilih pada unit ini.
+                          </td>
+                        </tr>
+                      ) : (
+                        drilldownPegawaiList.map(peg => (
+                          <tr key={peg.nip} className="hover:bg-indigo-50/30 transition-colors">
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-700 font-black text-xs flex items-center justify-center border border-indigo-100 shrink-0">
+                                  {peg.nama.charAt(0)}
+                                </div>
+                                <div>
+                                  <p className="font-black text-gray-950 text-xs">{formatPegawaiName(peg.nama)}</p>
+                                  <p className="text-[10px] font-bold text-gray-400 tracking-wider">NIP. {peg.nip}</p>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-3.5">
+                              <p className="font-bold text-gray-800 text-[11px] leading-snug line-clamp-1">
+                                {peg.jabatan}
+                              </p>
+                              <span className="text-[9px] font-extrabold text-indigo-600 uppercase">
+                                {peg.jenjangJabatan}
+                              </span>
+                            </td>
+
+                            <td className="px-4 py-3.5 text-center">
+                              <div className="inline-flex flex-col items-center">
+                                <span className="font-black text-gray-950 text-xs">{peg.skorManajerialAvg}</span>
+                                <span
+                                  className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
+                                    peg.gapSkor >= 0
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-rose-100 text-rose-800'
+                                  }`}
+                                >
+                                  {peg.gapSkor >= 0 ? `+${peg.gapSkor}` : peg.gapSkor}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-3.5 text-center">
+                              <span className="font-black text-blue-600 text-xs">{peg.skorPerilaku360Avg}</span>
+                              <span className="text-[9px] font-bold text-gray-400 block">PP 30</span>
+                            </td>
+
+                            <td className="px-4 py-3.5 text-center">
+                              <span
+                                className={`inline-block px-2.5 py-1 rounded-xl text-[9px] font-black uppercase ${
+                                  peg.statusPemenuhan === 'Optimal'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : peg.statusPemenuhan === 'Memenuhi'
+                                    ? 'bg-indigo-100 text-indigo-800'
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}
+                              >
+                                {peg.statusPemenuhan}
+                              </span>
+                            </td>
+
+                            <td className="px-4 py-3.5">
+                              <p className="text-[10px] font-bold text-gray-600 line-clamp-1 max-w-[200px]" title={peg.rekomendasiBangkom}>
+                                {peg.rekomendasiBangkom}
+                              </p>
+                            </td>
+
+                            <td className="px-5 py-3.5 text-right">
+                              {onSelectPegawaiForProfile && (
+                                <button
+                                  onClick={() => onSelectPegawaiForProfile(peg.nip)}
+                                  className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 rounded-xl text-[9px] font-black uppercase transition-all shadow-xs cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5"
+                                  title="Buka profil dan asesmen talenta pegawai ini"
+                                >
+                                  <span>Buka Profil</span>
+                                  <i className="bi bi-arrow-right"></i>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              /* Panduan Interaktif Saat Belum Ada Unit Yang Dipilih */
+              <div className="bg-indigo-50/50 border border-indigo-100/80 p-5 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
+                    <i className="bi bi-hand-index-thumb-fill text-lg"></i>
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-gray-900 uppercase tracking-tight">
+                      Fitur Drill-Down Interaktif Aktif
+                    </p>
+                    <p className="text-[11px] font-bold text-gray-500">
+                      Klik pada salah satu batang unit kerja di grafik atas (atau pilih tombol unit kerja berikut) untuk menampilkan daftar pegawai di bawah grafik.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tombol Cepat Pilihan Unit Kerja */}
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {barUnitData.map(u => (
+                    <button
+                      key={u.fullName}
+                      onClick={() => handleBarClick(u.fullName)}
+                      className="px-3 py-1.5 bg-white hover:bg-indigo-600 hover:text-white text-gray-700 rounded-xl text-[9px] font-black uppercase border border-gray-200 transition-all cursor-pointer shadow-xs"
+                      title={`Drill-down ${u.fullName}`}
+                    >
+                      {u.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Grid 2 Kolom: Donut Distribusi Kategori & Stacked Bar Pemenuhan */}
@@ -752,6 +1126,12 @@ export const KompetensiDashboardView: React.FC<Props> = ({
                     data={stackedFitData}
                     layout="vertical"
                     margin={{ top: 10, right: 20, left: 40, bottom: 5 }}
+                    onClick={(state) => {
+                      if (state && state.activePayload && state.activePayload.length > 0) {
+                        const p = state.activePayload[0].payload;
+                        handleBarClick(p.name);
+                      }
+                    }}
                   >
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                     <XAxis type="number" tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
