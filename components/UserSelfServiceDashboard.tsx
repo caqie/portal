@@ -350,7 +350,7 @@ export const UserSelfServiceDashboard: React.FC<UserSelfServiceDashboardProps> =
         judul: 'Jadwal Kenaikan Gaji Berkala (KGB) Mendekat',
         pesan: `TMT KGB Anda dijadwalkan pada ${kgbDetails.tmtBerikutnya} (Sisa ${kgbDetails.sisaHari} hari). Sistem sedang mempersiapkan draf SK KGB Anda secara otomatis.`,
         tipe: 'INFO',
-        link: '/kgb',
+        link: '#tab-kgb',
         timestamp: 'Hari ini',
         dibaca: readNotifIds.includes('notif-kgb-1'),
         prioritas: 'HIGH'
@@ -366,7 +366,7 @@ export const UserSelfServiceDashboard: React.FC<UserSelfServiceDashboardProps> =
         judul: 'Pemberitahuan Usulan Kenaikan Pangkat',
         pesan: `Anda telah memasuki proyeksi kenaikan pangkat periode ${kpDetails.periodeTerdekat}. Silakan pastikan SKP 2 tahun terakhir dan dokumen pendukung telah terunggah di Dossier Digital.`,
         tipe: 'INFO',
-        link: '/kenaikan-pangkat',
+        link: '#tab-pangkat',
         timestamp: 'Kemarin',
         dibaca: readNotifIds.includes('notif-kp-1'),
         prioritas: 'HIGH'
@@ -1612,12 +1612,10 @@ export const UserSelfServiceDashboard: React.FC<UserSelfServiceDashboardProps> =
                 <h3 className="text-lg font-black text-gray-900">Kenaikan Gaji Berkala (KGB)</h3>
                 <p className="text-xs text-gray-500">Jadwal berkala 2 tahun sekali dan status penerbitan SK KGB otomatis.</p>
               </div>
-              <button
-                onClick={() => navigate('/kgb-gen')}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-md transition-all"
-              >
-                <span>Generator SK KGB</span>
-              </button>
+              <div className="flex items-center gap-2 px-3.5 py-2 bg-amber-50 border border-amber-200/80 text-amber-800 rounded-xl text-xs font-bold shadow-xs">
+                <i className="bi bi-clock-history text-amber-600"></i>
+                <span>Jadwal Berkala 2 Tahunan</span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
@@ -1676,12 +1674,10 @@ export const UserSelfServiceDashboard: React.FC<UserSelfServiceDashboardProps> =
                 <h3 className="text-lg font-black text-gray-900">Kenaikan Pangkat (KP) ASN</h3>
                 <p className="text-xs text-gray-500">Informasi golongan ruang, siklus 6 periode BKN, dan proyeksi kenaikan pangkat.</p>
               </div>
-              <button
-                onClick={() => navigate('/kenaikan-pangkat')}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md transition-all"
-              >
-                <span>Buka Modul Kenaikan Pangkat</span>
-              </button>
+              <div className="flex items-center gap-2 px-3.5 py-2 bg-purple-50 border border-purple-200/80 text-purple-800 rounded-xl text-xs font-bold shadow-xs">
+                <i className="bi bi-calendar2-check text-purple-600"></i>
+                <span>Siklus 6 Periode BKN</span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">

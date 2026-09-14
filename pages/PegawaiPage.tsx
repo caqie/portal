@@ -22,7 +22,17 @@ import * as XLSX from 'xlsx';
 
 const PegawaiPage = () => {
   const navigate = useNavigate();
-  const { canEdit, isSuperadmin, logActivity } = useAuth();
+  const { canEdit, isSuperadmin, logActivity, user, isUserPortalView } = useAuth();
+
+  // Redirect to personal profile if in User Portal View (Portal Mandiri Pegawai)
+  useEffect(() => {
+    if (isUserPortalView) {
+      const cleanNip = (user?.nip || '').trim();
+      const targetPath = cleanNip ? `/pegawai/${cleanNip}` : '/pegawai/profile';
+      navigate(targetPath, { replace: true });
+    }
+  }, [isUserPortalView, user?.nip, navigate]);
+
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>(() => {
     const cached = localStorage.getItem('portal_pegawai_db');
     if (cached) {
@@ -1040,6 +1050,15 @@ const PegawaiPage = () => {
     }
     setViewMode('list');
   };
+
+  if (isUserPortalView) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 animate-fadeIn">
+        <div className="h-10 w-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Mengarahkan ke Data Diri Pegawai Anda...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fadeIn pb-24 text-black">
@@ -2454,7 +2473,7 @@ const PegawaiPage = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-50 text-[10px] md:text-xs">
                     {pegawaiList.filter(p => p.nip && selectedNipsForBulk.includes(p.nip)).map((p, index) => (
-                      <tr key={p.nip} className="hover:bg-gray-50/50">
+                      <tr key={`${p.nip || p.id || 'peg'}-${index}`} className="hover:bg-gray-50/50">
                         <td className="p-3 text-center font-bold text-gray-400">{index + 1}</td>
                         <td className="p-3">
                           <p className="font-black text-gray-900 leading-tight">{p.nama}</p>

@@ -971,4 +971,351 @@ export interface LivenessChallenge {
   durationMs: number;
 }
 
+// ============================================================
+// === MODUL EVALUASI KINERJA PPPK BERBASIS SEMESTER ===
+// ============================================================
+
+export type PPPKSemester = 'I' | 'II';
+export type EvaluationPeriodStatus = 'DRAFT' | 'OPEN' | 'CLOSED';
+export type PPPKEvaluationStatus = 'DRAFT' | 'IN_PROGRESS' | 'WAITING_REVIEW' | 'FINAL' | 'CORRECTION_REQUESTED';
+export type PPPKEvaluatorType = 'ATASAN' | 'REKAN_KERJA' | 'SELF' | 'BAWAHAN';
+export type PPPKRespondentType = PPPKEvaluatorType | 'REKAN' | 'LAINNYA';
+
+export interface EvaluationPeriod {
+  id: string;
+  year: number;
+  semester: PPPKSemester;
+  name: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  status: EvaluationPeriodStatus;
+  skpWeight: number; // default 60%
+  behaviorWeight: number; // default 25%
+  attendanceWeight: number; // default 15%
+  notes?: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface BehaviorAspect {
+  id: string;
+  name: string;
+  description: string;
+  weight: number;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BehaviorAssessmentDetail {
+  id: string;
+  assessmentId: string;
+  aspectId: string;
+  aspectName: string;
+  score: number; // 1 - 5 scale
+  comment?: string;
+}
+
+/**
+ * BehaviorAssessment (360° Multi-Rater Assessment Record)
+ * STRICT ARCHITECTURAL SEPARATION:
+ * - subject_employee_id: WAJIB PPPK (Pegawai yang dinilai)
+ * - evaluator_employee_id: PNS atau PPPK (Pegawai yang memberi nilai)
+ */
+export interface BehaviorAssessment {
+  id: string;
+  evaluationId: string;
+  
+  // 1. OBJEK YANG DINILAI (WAJIB PPPK)
+  subject_employee_id: string; // NIP Pegawai PPPK
+  subject_employee_name: string;
+  subject_employee_status: 'PPPK';
+  subject_employee_unit?: string;
+  subject_employee_jabatan?: string;
+
+  // 2. PENILAI / EVALUATOR (DAPAT PNS ATAU PPPK)
+  evaluator_employee_id: string; // NIP Penilai (PNS atau PPPK)
+  evaluator_employee_name: string;
+  evaluator_employee_status: 'PNS' | 'PPPK';
+  evaluator_employee_unit?: string;
+  evaluator_employee_jabatan?: string;
+  evaluator_type: PPPKEvaluatorType; // 'ATASAN' | 'REKAN_KERJA' | 'SELF' | 'BAWAHAN'
+
+  periodId: string;
+  year: number;
+  semester: PPPKSemester;
+
+  // Privacy & Status
+  isAnonymous: boolean;
+  status: 'ASSIGNED' | 'DRAFT' | 'SUBMITTED';
+  score: number; // 0 - 100 converted score
+  averageScoreScale5: number; // 1 - 5 average score
+  comment?: string;
+
+  details: BehaviorAssessmentDetail[];
+  submitted_at?: string;
+  created_at: string;
+  updated_at: string;
+
+  // Backwards compatibility aliases
+  employeeId?: string;
+  employeeName?: string;
+  respondentId?: string;
+  respondentName?: string;
+  respondentType?: PPPKRespondentType;
+  averageScore?: number;
+  convertedScore?: number;
+  submittedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AttendanceEvaluation {
+  id: string;
+  evaluationId: string;
+  employeeId: string; // NIP
+  periodId: string;
+  year: number;
+  semester: PPPKSemester;
+  startDate: string;
+  endDate: string;
+  workDays: number;
+  presentDays: number;
+  lateCount: number;
+  earlyLeaveCount: number;
+  absenceCount: number;
+  officialDutyCount: number;
+  officialDutyHalfCount: number;
+  wfhCount: number;
+  wfoCount: number;
+  rawScore: number; // Base 100
+  penalty: number;
+  finalScore: number; // 0 - 100
+  calculatedAt: string;
+}
+
+export interface PPPKFinalSnapshot {
+  employeeId: string;
+  nip: string;
+  nama: string;
+  jabatan: string;
+  unitKerja: string;
+  periodId: string;
+  year: number;
+  semester: PPPKSemester;
+  skpScore: number;
+  behaviorScore: number;
+  attendanceScore: number;
+  skpWeight: number;
+  behaviorWeight: number;
+  attendanceWeight: number;
+  skpContribution: number;
+  behaviorContribution: number;
+  attendanceContribution: number;
+  finalScore: number;
+  category: string;
+  attendanceSummary: {
+    workDays: number;
+    presentDays: number;
+    lateCount: number;
+    earlyLeaveCount: number;
+    absenceCount: number;
+    officialDutyCount: number;
+    wfhCount: number;
+    wfoCount: number;
+    penalty: number;
+  };
+  behaviorSummary: {
+    respondentCount: number;
+    atasanScore?: number;
+    rekanScore?: number;
+    selfScore?: number;
+    aspectAverages: { aspectId: string; aspectName: string; averageScore: number }[];
+    evaluatorList?: {
+      evaluatorName: string;
+      evaluatorStatus: string;
+      evaluatorType: string;
+      score: number;
+    }[];
+  };
+  skpSummary: {
+    skpId?: string;
+    predikat?: string;
+    capaianOrganisasi?: string;
+    ratingHasilKerja?: string;
+    ratingPerilaku?: string;
+  };
+  finalizedAt: string;
+  finalizedBy: string;
+}
+
+export interface PPPKEvaluation {
+  id: string;
+  employeeId: string; // NIP PPPK (Subject)
+  nama: string;
+  unitKerja: string;
+  jabatan: string;
+  jenisPegawai: 'PPPK'; // WAJIB PPPK
+  periodId: string;
+  year: number;
+  semester: PPPKSemester;
+
+  // Scores (0 - 100)
+  skpScore: number;
+  behaviorScore: number;
+  attendanceScore: number;
+
+  // Weights A (wajib total 100%)
+  skpWeight: number;
+  behaviorWeight: number;
+  attendanceWeight: number;
+
+  // Contributions
+  skpContribution: number;
+  behaviorContribution: number;
+  attendanceContribution: number;
+
+  // Final Output
+  finalScore: number;
+  category: 'Sangat Baik' | 'Baik' | 'Cukup' | 'Kurang' | 'Sangat Kurang';
+  status: PPPKEvaluationStatus;
+  isFinal: boolean;
+
+  // References
+  skpSourceId?: string;
+  skpPredikat?: string;
+
+  // Immutable Snapshot when isFinal === true
+  finalSnapshot?: PPPKFinalSnapshot;
+
+  // Timestamps and Audit Tracking
+  calculatedAt: string;
+  finalizedAt?: string;
+  finalizedBy?: string;
+
+  // Correction Workflow
+  correctionReason?: string;
+  correctionRequestedAt?: string;
+  correctionRequestedBy?: string;
+  correctionApprovedAt?: string;
+  correctionApprovedBy?: string;
+
+  notes?: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface PPPKEvaluationAuditLog {
+  id: string;
+  evaluationId?: string;
+  periodId?: string;
+  employeeId?: string;
+  userId: string;
+  userName: string;
+  action:
+    | 'CREATE'
+    | 'UPDATE'
+    | 'DELETE'
+    | 'CALCULATE'
+    | 'REVIEW'
+    | 'FINALIZE'
+    | 'UNFINALIZE'
+    | 'CORRECTION_REQUEST'
+    | 'APPROVE_CORRECTION'
+    | 'EXPORT_EXCEL'
+    | 'EXPORT_PDF'
+    | 'ASSIGN_RESPONDENT'
+    | 'SUBMIT_360';
+  oldData?: any;
+  newData?: any;
+  reason?: string;
+  createdAt: string;
+}
+
+export type EvaluationAssignmentStatus = 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED';
+export type EvaluationApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface EvaluationAssignment {
+  id: string;
+  evaluation_id: string;
+  subject_employee_id: string; // NIP Pegawai PPPK yang dinilai
+  subject_employee_nama: string;
+  subject_employee_jabatan?: string;
+  subject_employee_unit?: string;
+
+  evaluator_employee_id: string; // NIP Penilai (PNS atau PPPK)
+  evaluator_employee_nama: string;
+  evaluator_employee_status: 'PNS' | 'PPPK';
+  evaluator_employee_jabatan?: string;
+  evaluator_employee_unit?: string;
+  evaluator_type: PPPKEvaluatorType; // 'ATASAN' | 'REKAN_KERJA' | 'SELF' | 'BAWAHAN'
+
+  assignment_status: EvaluationAssignmentStatus;
+  approval_status: EvaluationApprovalStatus;
+  approved_by?: string;
+  approved_at?: string;
+  rejection_reason?: string;
+
+  period_id: string;
+  year: number;
+  semester: PPPKSemester;
+
+  submitted_at?: string;
+  completed_at?: string;
+  score?: number; // 0 - 100 converted score
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PPPKConfigSettings {
+  // BOBOT A: BOBOT KOMPONEN EVALUASI UTAMA (Total 100%)
+  defaultSkpWeight: number; // 60%
+  defaultBehaviorWeight: number; // 25%
+  defaultAttendanceWeight: number; // 15%
+
+  // BOBOT B: BOBOT PENILAI 360° (Total 100%, terpisah dari Bobot A)
+  evaluator360Weights: {
+    atasanWeight: number; // default: 50%
+    rekanKerjaWeight: number; // default: 30%
+    selfWeight: number; // default: 20%
+  };
+
+  // KEBIJAKAN STATUS PENILAI (PNS diperbolehkan)
+  allowedEvaluatorTypes: {
+    atasan: ('PNS' | 'PPPK')[]; // Default ['PNS', 'PPPK']
+    rekanKerja: ('PNS' | 'PPPK')[]; // Default ['PNS', 'PPPK']
+    self: ('PPPK')[]; // Default ['PPPK'] (Wajib PPPK yang dinilai)
+  };
+
+  peerEvaluatorMin: number; // Default 2
+  peerEvaluatorMax: number; // Default 4
+  peerApprovalRequired: boolean; // Default true (usulan rekan kerja harus diapprove admin)
+  enableSelfAssessment: boolean; // Default true
+
+  minBehaviorScale: number;
+  maxBehaviorScale: number;
+  categories: {
+    min: number;
+    max: number;
+    label: 'Sangat Baik' | 'Baik' | 'Cukup' | 'Kurang' | 'Sangat Kurang';
+    color: string;
+    bgBadge: string;
+    textBadge: string;
+  }[];
+  attendancePenalty: {
+    latePenaltyPerEvent: number;
+    earlyLeavePenaltyPerEvent: number;
+    absencePenaltyPerEvent: number;
+    unrecordedPenaltyPerEvent: number;
+  };
+  allowAnonymous: boolean;
+}
+
+
 

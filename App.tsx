@@ -53,6 +53,7 @@ import AdminAttendanceDashboardPage from './pages/Admin/AdminAttendanceDashboard
 import AttendanceSettingsPage from './pages/Admin/AttendanceSettingsPage';
 import TupoksiSDMPage from './pages/TupoksiSDMPage';
 import TubelIbelPage from './pages/TubelIbelPage';
+import EvaluasiPPPKPage from './pages/EvaluasiPPPKPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { initializeAllSDMData } from './sampleDataSDM';
 import { DEFAULT_LOGO, APP_ROUTES } from './constants';
@@ -140,7 +141,21 @@ const AppContent = () => {
   const [systemConfig, setSystemConfig] = useState<SystemConfig>({ maintenance: { all: false, pages: [] }, pageAccess: [] });
   
   const location = useLocation();
-  const { user, logout, isSuperadmin, canEdit, isAuthenticated, hasRole, activeRole, setActiveRole, userRoles, isOnlyAdminUangMakan } = useAuth();
+  const { 
+    user, 
+    logout, 
+    isSuperadmin, 
+    canEdit, 
+    isAuthenticated, 
+    hasRole, 
+    activeRole, 
+    setActiveRole, 
+    userRoles, 
+    isOnlyAdminUangMakan,
+    portalViewMode,
+    setPortalViewMode,
+    isUserPortalView
+  } = useAuth();
 
   const [userSdmBadge, setUserSdmBadge] = useState<{ count: number; isUrgent: boolean }>({ count: 0, isUrgent: false });
   const [adminSdmBadge, setAdminSdmBadge] = useState<number>(0);
@@ -323,6 +338,15 @@ const AppContent = () => {
   const formattedDate = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+  const cleanUserNip = (user?.nip || '').trim();
+  const userProfilePath = cleanUserNip ? `/pegawai/${cleanUserNip}` : '/pegawai/profile';
+  const isUserProfileActive = 
+    location.pathname === userProfilePath || 
+    location.pathname === '/profile' || 
+    location.pathname === '/data-diri' || 
+    location.pathname === '/pegawai/profile' || 
+    (isUserPortalView && location.pathname.startsWith('/pegawai'));
+
   const isPageInMaintenance = (path: string) => {
     if (systemConfig.maintenance?.all) return true;
     return (systemConfig.maintenance?.pages || []).includes(path);
@@ -335,6 +359,7 @@ const AppContent = () => {
     if (isOnlyAdminUangMakan) {
       if (path === '/uang-makan') return true;
       if (path === '/') return true;
+      if (['/profile', '/data-diri', '/pegawai/profile'].includes(path) || path.startsWith('/pegawai/')) return true;
       if (user?.nip && (path === `/pegawai/${user.nip}` || path === `/pegawai/${user.nip.replace(/\D/g, '')}`)) return true;
       if (path === '/layanan-sdm/pengajuan-saya' || path.startsWith('/layanan-sdm/pengajuan/')) return true;
       return false;
@@ -359,9 +384,17 @@ const AppContent = () => {
       return isSuperadmin || hasRole('Superadmin') || hasRole('Admin Uang Makan');
     }
 
+    // Strict Sub-Tim 3 Karier / Admin pages (Generator SK KGB & Modul Kenaikan Pangkat)
+    if (['/kgb-gen', '/kenaikan-pangkat'].includes(path)) {
+      return canEdit || isSuperadmin || hasRole('Superadmin') || hasRole('Admin Pengelolaan Karier') || hasRole('Admin Manajemen Karier');
+    }
+
     // Standard Self-Service Employee / Viewer Pages (always open to authenticated staff)
     const employeeSelfServicePaths = [
       '/',
+      '/profile',
+      '/data-diri',
+      '/pegawai/profile',
       '/pegawai',
       '/layanan',
       '/talenta',
@@ -380,9 +413,7 @@ const AppContent = () => {
       '/anjab-abk',
       '/pelantikan-gen',
       '/spmt-spp',
-      '/kgb-gen',
       '/pensiun',
-      '/kenaikan-pangkat',
       '/satya-lencana',
       '/magang-pkl',
       '/pengembangan'
@@ -508,24 +539,242 @@ const AppContent = () => {
           </div>
           
           <nav className="flex-1 mt-2 md:mt-4 overflow-y-auto no-scrollbar space-y-0.5 pb-20">
-            {isOnlyAdminUangMakan ? (
+            {/* SWITCH MODE BUTTON (For Admins) */}
+            {canEdit && !isOnlyAdminUangMakan && (
+              <div className={`mb-3 ${isCollapsed ? 'px-2' : 'px-4'}`}>
+                {isUserPortalView ? (
+                  <button
+                    onClick={() => setPortalViewMode('admin')}
+                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-blue-600/15 hover:bg-blue-600/30 border border-blue-400/25 text-blue-300 text-[10px] font-bold transition-all ${
+                      isCollapsed ? 'px-1' : 'px-3'
+                    }`}
+                    title="Beralih ke Pusat Kendali Admin SDM"
+                  >
+                    <i className="bi bi-shield-check text-xs text-blue-400"></i>
+                    {!isCollapsed && <span>Ke Mode Admin SDM</span>}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setPortalViewMode('user')}
+                    className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/30 border border-emerald-400/25 text-emerald-300 text-[10px] font-bold transition-all ${
+                      isCollapsed ? 'px-1' : 'px-3'
+                    }`}
+                    title="Buka tampilan Portal Mandiri Pegawai"
+                  >
+                    <i className="bi bi-person-workspace text-xs text-emerald-400"></i>
+                    {!isCollapsed && <span>Portal Mandiri Pegawai</span>}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* CASE 1: SAAT TAMPILAN PORTAL MANDIRI PEGAWAI (SIDEBAR BERUBAH SESUAI ROLE) */}
+            {isUserPortalView ? (
               <>
-                <SidebarItem 
-                  to="/uang-makan" 
-                  icon="bi-cash-coin" 
-                  label="Admin Uang Makan" 
-                  active={location.pathname.startsWith('/uang-makan')} 
-                  collapsed={isCollapsed} 
-                />
-                <SidebarItem 
-                  to="/" 
-                  icon="bi-person-bounding-box" 
-                  label="Data Diri Pegawai" 
-                  active={location.pathname === '/' || (!!user?.nip && location.pathname === `/pegawai/${user.nip}`)} 
-                  collapsed={isCollapsed} 
-                />
+                {/* ROLE 1: ADMIN UANG MAKAN */}
+                {isOnlyAdminUangMakan || activeRole === 'Admin Uang Makan' ? (
+                  <>
+                    {!isCollapsed && (
+                      <div className="px-6 py-2">
+                        <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider">Portal Mandiri & Uang Makan</span>
+                      </div>
+                    )}
+                    <SidebarItem 
+                      to="/uang-makan" 
+                      icon="bi-cash-coin" 
+                      label="Admin Uang Makan" 
+                      active={location.pathname.startsWith('/uang-makan')} 
+                      collapsed={isCollapsed} 
+                    />
+                    <SidebarItem 
+                      to={userProfilePath} 
+                      icon="bi-person-bounding-box" 
+                      label="Data Diri Pegawai" 
+                      active={isUserProfileActive} 
+                      collapsed={isCollapsed} 
+                    />
+                    <SidebarItem 
+                      to="/presensi" 
+                      icon="bi-camera-video-fill" 
+                      label="Presensi & Kehadiran" 
+                      active={['/presensi', '/face-registration', '/rekap-absensi', '/absensi-online'].some(p => location.pathname.startsWith(p))} 
+                      collapsed={isCollapsed} 
+                    />
+                    <SidebarItem 
+                      to="/layanan-sdm/pengajuan-saya" 
+                      icon="bi-inboxes-fill" 
+                      label="Pengajuan Saya" 
+                      active={location.pathname === '/layanan-sdm/pengajuan-saya'} 
+                      collapsed={isCollapsed} 
+                      badge={userSdmBadge.count > 0 ? userSdmBadge.count : null}
+                      badgeColor={userSdmBadge.isUrgent ? 'bg-amber-500' : 'bg-blue-600'}
+                    />
+                    <SidebarItem 
+                      to="/dossiers" 
+                      icon="bi-folder-fill" 
+                      label="E-Dossier Digital" 
+                      active={location.pathname === '/dossiers'} 
+                      collapsed={isCollapsed} 
+                    />
+                  </>
+                ) : activeRole === 'Admin Pengelolaan Karier' || activeRole === 'Admin Manajemen Karier' ? (
+                  /* ROLE 2: SUB-TIM 3 (ADMIN PENGELOLAAN KARIER & DISIPLIN) */
+                  <>
+                    {!isCollapsed && (
+                      <div className="px-6 py-2">
+                        <span className="text-[9px] font-black uppercase text-purple-400 tracking-wider">Sub-Tim 3: Karier & Disiplin</span>
+                      </div>
+                    )}
+                    <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard Mandiri" active={location.pathname === '/'} collapsed={isCollapsed} />
+                    <SidebarItem to={userProfilePath} icon="bi-person-vcard-fill" label="Data Diri Pegawai" active={isUserProfileActive} collapsed={isCollapsed} />
+                    <SidebarItem to="/presensi" icon="bi-camera-video-fill" label="Presensi & Kehadiran" active={['/presensi', '/face-registration', '/rekap-absensi', '/absensi-online'].some(p => location.pathname.startsWith(p))} collapsed={isCollapsed} />
+                    <SidebarItem 
+                      to="/layanan-sdm/pengajuan-saya" 
+                      icon="bi-inboxes-fill" 
+                      label="Pengajuan Layanan" 
+                      active={location.pathname === '/layanan-sdm/pengajuan-saya'} 
+                      collapsed={isCollapsed} 
+                      badge={userSdmBadge.count > 0 ? userSdmBadge.count : null}
+                      badgeColor={userSdmBadge.isUrgent ? 'bg-amber-500' : 'bg-blue-600'}
+                    />
+                    <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />
+                    
+                    {!isCollapsed && <div className="px-8 py-3 text-[8px] font-black text-slate-500 tracking-[0.2em]">Alat Kerja Karier</div>}
+                    <SidebarItem to="/tupoksi-sdm" icon="bi-kanban-fill" label="Tupoksi Sub-Tim 3" active={location.pathname === '/tupoksi-sdm'} collapsed={isCollapsed} />
+                    <SidebarItem to="/kgb-gen" icon="bi-calculator-fill" label="Generator SK KGB" active={location.pathname === '/kgb-gen'} collapsed={isCollapsed} />
+                    <SidebarItem to="/kenaikan-pangkat" icon="bi-award-fill" label="Modul Kenaikan Pangkat" active={location.pathname === '/kenaikan-pangkat'} collapsed={isCollapsed} />
+                    <SidebarItem to="/evaluasi-pppk" icon="bi-card-checklist" label="Evaluasi PPPK" active={location.pathname === '/evaluasi-pppk'} collapsed={isCollapsed} />
+                    <SidebarItem to="/tugas-rutin" icon="bi-clipboard2-check-fill" label="Log Tugas Rutin" active={location.pathname.startsWith('/tugas-rutin')} collapsed={isCollapsed} />
+                  </>
+                ) : activeRole === 'Admin Perencanaan & Layanan' || activeRole === 'Admin Perencanaan' ? (
+                  /* ROLE 3: SUB-TIM 1 (ADMIN PERENCANAAN & LAYANAN) */
+                  <>
+                    {!isCollapsed && (
+                      <div className="px-6 py-2">
+                        <span className="text-[9px] font-black uppercase text-blue-400 tracking-wider">Sub-Tim 1: Perencanaan & Layanan</span>
+                      </div>
+                    )}
+                    <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard Mandiri" active={location.pathname === '/'} collapsed={isCollapsed} />
+                    <SidebarItem to={userProfilePath} icon="bi-person-vcard-fill" label="Data Diri Pegawai" active={isUserProfileActive} collapsed={isCollapsed} />
+                    <SidebarItem to="/presensi" icon="bi-camera-video-fill" label="Presensi & Kehadiran" active={['/presensi', '/face-registration', '/rekap-absensi', '/absensi-online'].some(p => location.pathname.startsWith(p))} collapsed={isCollapsed} />
+                    <SidebarItem 
+                      to="/layanan-sdm/pengajuan-saya" 
+                      icon="bi-inboxes-fill" 
+                      label="Pengajuan Layanan" 
+                      active={location.pathname === '/layanan-sdm/pengajuan-saya'} 
+                      collapsed={isCollapsed} 
+                      badge={userSdmBadge.count > 0 ? userSdmBadge.count : null}
+                      badgeColor={userSdmBadge.isUrgent ? 'bg-amber-500' : 'bg-blue-600'}
+                    />
+                    <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />
+                    
+                    {!isCollapsed && <div className="px-8 py-3 text-[8px] font-black text-slate-500 tracking-[0.2em]">Alat Kerja Perencanaan</div>}
+                    <SidebarItem to="/tupoksi-sdm" icon="bi-kanban-fill" label="Tupoksi Sub-Tim 1" active={location.pathname === '/tupoksi-sdm'} collapsed={isCollapsed} />
+                    <SidebarItem 
+                      to="/admin/layanan-sdm" 
+                      icon="bi-inbox-fill" 
+                      label="Verifikasi Layanan" 
+                      active={location.pathname === '/admin/layanan-sdm'} 
+                      collapsed={isCollapsed}
+                      badge={adminSdmBadge > 0 ? adminSdmBadge : null}
+                      badgeColor="bg-rose-500"
+                    />
+                    <SidebarItem to="/persuratan" icon="bi-envelope-paper-fill" label="Persuratan Digital" active={location.pathname === '/persuratan'} collapsed={isCollapsed} />
+                    <SidebarItem to="/tugas-rutin" icon="bi-clipboard2-check-fill" label="Log Tugas Rutin" active={location.pathname.startsWith('/tugas-rutin')} collapsed={isCollapsed} />
+                  </>
+                ) : activeRole === 'Admin Pengembangan Kompetensi' || activeRole === 'Admin Bangkom' ? (
+                  /* ROLE 4: SUB-TIM 2 (ADMIN PENGEMBANGAN KOMPETENSI / BANGKOM & TALENTA) */
+                  <>
+                    {!isCollapsed && (
+                      <div className="px-6 py-2">
+                        <span className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">Sub-Tim 2: Bangkom & Talenta</span>
+                      </div>
+                    )}
+                    <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard Mandiri" active={location.pathname === '/'} collapsed={isCollapsed} />
+                    <SidebarItem to={userProfilePath} icon="bi-person-vcard-fill" label="Data Diri Pegawai" active={isUserProfileActive} collapsed={isCollapsed} />
+                    <SidebarItem to="/presensi" icon="bi-camera-video-fill" label="Presensi & Kehadiran" active={['/presensi', '/face-registration', '/rekap-absensi', '/absensi-online'].some(p => location.pathname.startsWith(p))} collapsed={isCollapsed} />
+                    <SidebarItem 
+                      to="/layanan-sdm/pengajuan-saya" 
+                      icon="bi-inboxes-fill" 
+                      label="Pengajuan Layanan" 
+                      active={location.pathname === '/layanan-sdm/pengajuan-saya'} 
+                      collapsed={isCollapsed} 
+                      badge={userSdmBadge.count > 0 ? userSdmBadge.count : null}
+                      badgeColor={userSdmBadge.isUrgent ? 'bg-amber-500' : 'bg-blue-600'}
+                    />
+                    <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />
+                    
+                    {!isCollapsed && <div className="px-8 py-3 text-[8px] font-black text-slate-500 tracking-[0.2em]">Alat Kerja Bangkom</div>}
+                    <SidebarItem to="/tupoksi-sdm" icon="bi-kanban-fill" label="Tupoksi Sub-Tim 2" active={location.pathname === '/tupoksi-sdm'} collapsed={isCollapsed} />
+                    <SidebarItem to="/pengembangan" icon="bi-mortarboard-fill" label="Pengembangan Pegawai" active={location.pathname === '/pengembangan'} collapsed={isCollapsed} />
+                    <SidebarItem to="/talenta" icon="bi-stars" label="Manajemen Talenta" active={location.pathname === '/talenta'} collapsed={isCollapsed} />
+                    <SidebarItem to="/ukom/admin" icon="bi-cpu-fill" label="Admin Ukom & CAT" active={location.pathname === '/ukom/admin'} collapsed={isCollapsed} />
+                    <SidebarItem to="/tugas-rutin" icon="bi-clipboard2-check-fill" label="Log Tugas Rutin" active={location.pathname.startsWith('/tugas-rutin')} collapsed={isCollapsed} />
+                  </>
+                ) : isSuperadmin || activeRole === 'Superadmin' || activeRole === 'Editor' ? (
+                  /* ROLE 5: SUPERADMIN / EDITOR (USER PORTAL PREVIEW) */
+                  <>
+                    {!isCollapsed && (
+                      <div className="px-6 py-2">
+                        <span className="text-[9px] font-black uppercase text-indigo-400 tracking-wider">Portal Mandiri (Admin View)</span>
+                      </div>
+                    )}
+                    <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard Pegawai" active={location.pathname === '/'} collapsed={isCollapsed} />
+                    <SidebarItem to={userProfilePath} icon="bi-person-vcard-fill" label="Data Diri Pegawai" active={isUserProfileActive} collapsed={isCollapsed} />
+                    <SidebarItem to="/presensi" icon="bi-camera-video-fill" label="Presensi & Kehadiran" active={['/presensi', '/face-registration', '/rekap-absensi', '/absensi-online'].some(p => location.pathname.startsWith(p))} collapsed={isCollapsed} />
+                    <SidebarItem 
+                      to="/layanan-sdm/pengajuan-saya" 
+                      icon="bi-inboxes-fill" 
+                      label="Pengajuan Layanan" 
+                      active={location.pathname === '/layanan-sdm/pengajuan-saya'} 
+                      collapsed={isCollapsed} 
+                      badge={userSdmBadge.count > 0 ? userSdmBadge.count : null}
+                      badgeColor={userSdmBadge.isUrgent ? 'bg-amber-500' : 'bg-blue-600'}
+                    />
+                    <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />
+                    <SidebarItem to="/evaluasi-pppk" icon="bi-award-fill" label="Evaluasi PPPK" active={location.pathname.startsWith('/evaluasi-pppk')} collapsed={isCollapsed} />
+                    <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian CAT" active={location.pathname.startsWith('/ukom')} collapsed={isCollapsed} target="_blank" />
+
+                    {!isCollapsed && <div className="px-8 py-3 text-[8px] font-black text-slate-500 tracking-[0.2em]">Pintasan Admin</div>}
+                    <SidebarItem to="/tupoksi-sdm" icon="bi-kanban-fill" label="Tupoksi SDM Master" active={location.pathname === '/tupoksi-sdm'} collapsed={isCollapsed} />
+                    <SidebarItem to="/settings" icon="bi-gear-wide-connected" label="Pengaturan Sistem" active={location.pathname === '/settings'} collapsed={isCollapsed} />
+                    <SidebarItem to="/logs" icon="bi-clock-history" label="Audit Logs" active={location.pathname === '/logs'} collapsed={isCollapsed} />
+                  </>
+                ) : (
+                  /* ROLE 6: PEGAWAI / VIEWER (NON-ADMIN REGULAR EMPLOYEE) */
+                  <>
+                    {!isCollapsed && (
+                      <div className="px-6 py-2">
+                        <span className="text-[9px] font-black uppercase text-blue-400 tracking-wider">Portal Mandiri Pegawai</span>
+                      </div>
+                    )}
+                    <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard Pegawai" active={location.pathname === '/'} collapsed={isCollapsed} />
+                    <SidebarItem to={userProfilePath} icon="bi-person-vcard-fill" label="Data Diri Pegawai" active={isUserProfileActive} collapsed={isCollapsed} />
+                    <SidebarItem 
+                      to="/presensi" 
+                      icon="bi-camera-video-fill" 
+                      label="Presensi & Absensi" 
+                      active={['/presensi', '/face-registration', '/rekap-absensi', '/absensi-online'].some(p => location.pathname.startsWith(p))} 
+                      collapsed={isCollapsed} 
+                    />
+                    <SidebarItem 
+                      to="/layanan-sdm/pengajuan-saya" 
+                      icon="bi-inboxes-fill" 
+                      label="Pengajuan Layanan SDM" 
+                      active={location.pathname === '/layanan-sdm/pengajuan-saya'} 
+                      collapsed={isCollapsed} 
+                      badge={userSdmBadge.count > 0 ? userSdmBadge.count : null}
+                      badgeColor={userSdmBadge.isUrgent ? 'bg-amber-500' : 'bg-blue-600'}
+                      badgePulse={userSdmBadge.isUrgent}
+                    />
+                    <SidebarItem to="/dossiers" icon="bi-folder-fill" label="E-Dossier Digital" active={location.pathname === '/dossiers'} collapsed={isCollapsed} />
+                    <SidebarItem to="/evaluasi-pppk" icon="bi-award-fill" label="Evaluasi PPPK" active={location.pathname.startsWith('/evaluasi-pppk')} collapsed={isCollapsed} />
+                    <SidebarItem to="/ukom/login" icon="bi-pencil-square" label="Portal Ujian CAT" active={location.pathname.startsWith('/ukom')} collapsed={isCollapsed} target="_blank" />
+                  </>
+                )}
               </>
             ) : (
+              /* CASE 2: MODE ADMIN SDM (PUSAT KENDALI LENGKAP) */
               <>
                 {hasAccess('/') && <SidebarItem to="/" icon="bi-grid-1x2-fill" label="Dashboard" active={location.pathname === '/'} collapsed={isCollapsed} />}
                 {hasAccess('/pegawai') && <SidebarItem to="/pegawai" icon="bi-person-vcard-fill" label="Database Pegawai" active={location.pathname === '/pegawai'} collapsed={isCollapsed} />}
@@ -546,6 +795,16 @@ const AppContent = () => {
                     icon="bi-clipboard2-check-fill" 
                     label="Log Tugas Rutin" 
                     active={location.pathname.startsWith('/tugas-rutin')} 
+                    collapsed={isCollapsed} 
+                  />
+                )}
+
+                {hasAccess('/evaluasi-pppk') && (
+                  <SidebarItem 
+                    to="/evaluasi-pppk" 
+                    icon="bi-award-fill" 
+                    label="Evaluasi PPPK" 
+                    active={location.pathname.startsWith('/evaluasi-pppk')} 
                     collapsed={isCollapsed} 
                   />
                 )}
@@ -676,11 +935,30 @@ const AppContent = () => {
                 </div>
               )}
 
+              {/* Portal Mode Toggle Pill (for Admins) */}
+              {canEdit && !isOnlyAdminUangMakan && (
+                <button
+                  onClick={() => setPortalViewMode(isUserPortalView ? 'admin' : 'user')}
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[9px] font-black uppercase transition-all ${
+                    isUserPortalView
+                      ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                  }`}
+                  title={isUserPortalView ? "Klik untuk kembali ke Pusat Kendali Admin SDM" : "Klik untuk beralih ke Portal Mandiri Pegawai"}
+                >
+                  <i className={`bi ${isUserPortalView ? 'bi-person-workspace text-amber-600' : 'bi-shield-lock-fill text-emerald-600'} text-[11px]`}></i>
+                  <span>{isUserPortalView ? 'Portal Mandiri' : 'Mode Admin'}</span>
+                  <span className="text-[8px] opacity-75 font-normal underline">
+                    {isUserPortalView ? 'Ke Admin' : 'Ke Mandiri'}
+                  </span>
+                </button>
+              )}
+
               {/* Notifikasi Layanan SDM Bell */}
               <NotificationBellSDM />
 
               <Link 
-                to="/" 
+                to={userProfilePath} 
                 className="flex items-center gap-2.5 hover:opacity-80 transition-opacity group text-right cursor-pointer"
                 title="Lihat Data Diri / Profil Pegawai"
               >
@@ -730,6 +1008,9 @@ const AppContent = () => {
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/pegawai" element={<PegawaiPage />} />
                     <Route path="/pegawai/:nip" element={<ProfilePegawaiPage />} />
+                    <Route path="/pegawai/profile" element={<ProfilePegawaiPage />} />
+                    <Route path="/profile" element={<ProfilePegawaiPage />} />
+                    <Route path="/data-diri" element={<ProfilePegawaiPage />} />
                     <Route path="/layanan" element={<LayananKepegawaianPage />} />
                     <Route path="/tugas-rutin" element={<TugasRutinPage />} />
                     <Route path="/tupoksi-sdm" element={<TupoksiSDMPage />} />
@@ -745,6 +1026,7 @@ const AppContent = () => {
                     <Route path="/absensi-online" element={<AbsensiOnlinePage />} />
                     <Route path="/rekap-absensi" element={<RekapAbsensiPage />} />
                     <Route path="/uang-makan" element={<UangMakanPage />} />
+                    <Route path="/evaluasi-pppk" element={<EvaluasiPPPKPage />} />
                     <Route path="/skp" element={<SKPPage />} />
                     <Route path="/pak" element={<PAKPage />} />
                     <Route path="/anjab-abk" element={<ABKAnjabPage />} />

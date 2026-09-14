@@ -677,6 +677,7 @@ export const APP_ROUTES = [
   { path: '/settings', label: 'Pengaturan Sistem', icon: 'bi-gear-wide-connected' },
   { path: '/logs', label: 'Audit Logs', icon: 'bi-clock-history' },
   { path: '/skp', label: 'E-Kinerja SKP', icon: 'bi-file-earmark-text' },
+  { path: '/evaluasi-pppk', label: 'Evaluasi Kinerja PPPK', icon: 'bi-award-fill' },
   { path: '/pak', label: 'Angka Kredit (PAK)', icon: 'bi-file-earmark-medical' },
   { path: '/anjab-abk', label: 'ANJAB & ABK Formasi', icon: 'bi-diagram-3' },
   { path: '/pelantikan-gen', label: 'Berita Acara Pelantikan', icon: 'bi-file-earmark-person' },

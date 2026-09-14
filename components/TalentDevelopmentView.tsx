@@ -204,17 +204,33 @@ export const TalentDevelopmentView: React.FC<Props> = ({
   canEdit = true,
   initialSection
 }) => {
+  // Ensure unique list by NIP to prevent duplicate React keys or duplicate dropdown options
+  const uniquePegawaiList = useMemo(() => {
+    const seen = new Set<string>();
+    const unique: Pegawai[] = [];
+    for (const p of pegawaiList) {
+      const key = (p.nip || p.id || '').trim();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        unique.push(p);
+      } else if (!key) {
+        unique.push(p);
+      }
+    }
+    return unique;
+  }, [pegawaiList]);
+
   // Select employee (default to selected, or Nizar Fikri, or Wahdan Hafizh, or first in list)
   const activePegawai = useMemo(() => {
     if (selectedNip) {
-      const found = pegawaiList.find(p => p.nip === selectedNip);
+      const found = uniquePegawaiList.find(p => p.nip === selectedNip);
       if (found) return found;
     }
-    const nizar = pegawaiList.find(p => p.nama.toLowerCase().includes('nizar') || p.nip === '198911292010121001');
+    const nizar = uniquePegawaiList.find(p => p.nama.toLowerCase().includes('nizar') || p.nip === '198911292010121001');
     if (nizar) return nizar;
-    const wahdan = pegawaiList.find(p => p.nama.toLowerCase().includes('wahdan') || p.nip === '199402012015031001');
+    const wahdan = uniquePegawaiList.find(p => p.nama.toLowerCase().includes('wahdan') || p.nip === '199402012015031001');
     if (wahdan) return wahdan;
-    if (pegawaiList.length > 0) return pegawaiList[0];
+    if (uniquePegawaiList.length > 0) return uniquePegawaiList[0];
     return {
       id: 'PEG-NIZAR',
       nip: '198911292010121001',
@@ -229,7 +245,7 @@ export const TalentDevelopmentView: React.FC<Props> = ({
       jenisPegawai: 'PNS',
       status: 'Aktif'
     };
-  }, [pegawaiList, selectedNip]);
+  }, [uniquePegawaiList, selectedNip]);
 
   // Active navigation section from left sidebar
   const [activeSection, setActiveSection] = useState<SidebarSection>(initialSection || 'tentang_saya');
@@ -605,8 +621,8 @@ export const TalentDevelopmentView: React.FC<Props> = ({
               onChange={(e) => onSelectNip && onSelectNip(e.target.value)}
               className="w-full text-xs font-black text-gray-900 bg-transparent border-0 outline-none cursor-pointer"
             >
-              {pegawaiList.map(p => (
-                <option key={p.nip} value={p.nip}>
+              {uniquePegawaiList.map((p, idx) => (
+                <option key={`${p.nip || p.id || 'peg'}-${idx}`} value={p.nip}>
                   {formatPegawaiName(p.nama)} — {p.nip} ({p.jabatan || 'ASN'})
                 </option>
               ))}

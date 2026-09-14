@@ -389,11 +389,11 @@ export const StrukturOrganisasiTree: React.FC<Props> = ({
 
               <div className="max-h-56 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
                 {activeDetailNode.directPegawai.length > 0 ? (
-                  activeDetailNode.directPegawai.slice(0, 15).map(peg => {
+                  activeDetailNode.directPegawai.slice(0, 15).map((peg, idx) => {
                     const atasanInfo = getAtasanLangsung(peg, allPegawai);
                     return (
                       <div
-                        key={peg.nip || peg.id}
+                        key={`${peg.nip || peg.id || 'dir'}-${idx}`}
                         className="p-2 rounded-lg bg-white border border-slate-100 hover:border-blue-200 text-xs flex items-center justify-between group transition-all"
                       >
                         <div className="min-w-0 pr-2">

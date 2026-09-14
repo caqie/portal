@@ -255,7 +255,36 @@ export const SAMPLE_ABK_PETA_KEBUTUHAN = [
 
 export const initializeAllSDMData = (forceReload = false) => {
   try {
-    // 1. Pegawai Master is handled live from Google Sheets/Database. Do not overwrite with mock data.
+    // 1. Pegawai Master is handled live from Google Sheets/Database. Ensure local cache has no duplicate NIPs.
+    const rawPegawai = localStorage.getItem('portal_pegawai_db');
+    if (rawPegawai) {
+      try {
+        const parsed = JSON.parse(rawPegawai);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const seen = new Set<string>();
+          const clean: any[] = [];
+          let hasDupes = false;
+          for (const item of parsed) {
+            const key = (item?.nip || item?.id || '').trim();
+            if (key) {
+              if (!seen.has(key)) {
+                seen.add(key);
+                clean.push(item);
+              } else {
+                hasDupes = true;
+              }
+            } else {
+              clean.push(item);
+            }
+          }
+          if (hasDupes) {
+            localStorage.setItem('portal_pegawai_db', JSON.stringify(clean));
+          }
+        }
+      } catch (err) {
+        // parse error ignored
+      }
+    }
 
     // 2. Initialize Layanan SDM Pengajuan DB
     const existingPengajuan = localStorage.getItem('layanan_sdm_pengajuan_db');

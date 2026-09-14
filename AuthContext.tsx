@@ -21,6 +21,9 @@ interface AuthContextType {
   setActiveRole: (role: string) => void;
   hasRole: (roleName?: string) => boolean;
   isMultiRole: boolean;
+  portalViewMode: 'user' | 'admin';
+  setPortalViewMode: (mode: 'user' | 'admin') => void;
+  isUserPortalView: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -189,6 +192,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isMultiRole = userRoles.length > 1;
 
+  const [portalViewMode, setPortalViewModeState] = useState<'user' | 'admin'>(() => {
+    try {
+      const saved = localStorage.getItem('portal_view_mode');
+      if (saved === 'user' || saved === 'admin') return saved;
+    } catch (e) {}
+    return 'admin';
+  });
+
+  const setPortalViewMode = (mode: 'user' | 'admin') => {
+    setPortalViewModeState(mode);
+    try {
+      localStorage.setItem('portal_view_mode', mode);
+    } catch (e) {}
+  };
+
+  const isViewerRole = !canEdit || isOnlyAdminUangMakan || activeRole === 'Viewer' || activeRole === 'Pegawai' || activeRole === 'User';
+  const isUserPortalView = isViewerRole || portalViewMode === 'user';
+
   if (loading) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-gray-50">
@@ -216,7 +237,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       activeRole,
       setActiveRole,
       hasRole,
-      isMultiRole
+      isMultiRole,
+      portalViewMode,
+      setPortalViewMode,
+      isUserPortalView
     }}>
       {children}
     </AuthContext.Provider>

@@ -17,7 +17,7 @@ import { jsPDF } from 'jspdf';
 const ProfilePegawaiPage = () => {
   const { nip } = useParams<{ nip: string }>();
   const navigate = useNavigate();
-  const { logActivity, canEdit, isSuperadmin } = useAuth();
+  const { logActivity, canEdit, isSuperadmin, user, isUserPortalView } = useAuth();
   const [pegawai, setPegawai] = useState<Pegawai | null>(null);
   const [dossiers, setDossiers] = useState<Dossier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +41,7 @@ const ProfilePegawaiPage = () => {
 
   useEffect(() => {
     loadData();
-  }, [nip]);
+  }, [nip, user?.nip]);
 
   const formatDateForInput = (dateStr: string | undefined): string => {
     return parseDateToYYYYMMDD(dateStr);
@@ -66,7 +66,35 @@ const ProfilePegawaiPage = () => {
         fetchPegawaiFromSheets(), 
         fetchDossiersFromSheets(true)
       ]);
-      const found = pData.find(p => (p.nip || '').replace(/\D/g, '') === (nip || '').replace(/\D/g, ''));
+
+      const cleanParamNip = (nip || '').replace(/\D/g, '');
+      const cleanUserNip = (user?.nip || '').replace(/\D/g, '');
+      const isGenericProfile = !cleanParamNip || nip === 'profile' || nip === 'me' || nip === 'data-diri';
+
+      let found: Pegawai | undefined;
+
+      if (isGenericProfile) {
+        if (cleanUserNip) {
+          found = pData.find(p => (p.nip || '').replace(/\D/g, '') === cleanUserNip);
+        }
+        if (!found && user?.name) {
+          found = pData.find(p => (p.nama || '').toLowerCase().trim() === user.name.toLowerCase().trim());
+        }
+        if (!found && user?.name) {
+          found = pData.find(p => (p.nama || '').toLowerCase().includes(user.name.toLowerCase().trim()));
+        }
+      } else {
+        found = pData.find(p => (p.nip || '').replace(/\D/g, '') === cleanParamNip);
+        if (!found && cleanUserNip && cleanParamNip === cleanUserNip && user?.name) {
+          found = pData.find(p => (p.nama || '').toLowerCase().includes(user.name.toLowerCase().trim()));
+        }
+      }
+
+      // Safe fallback if still not found and in portal view or generic profile
+      if (!found && pData.length > 0 && (isGenericProfile || isUserPortalView)) {
+        found = pData[0];
+      }
+
       if (found) {
         // Enrich data
         const enriched: Pegawai = {
@@ -172,7 +200,7 @@ const ProfilePegawaiPage = () => {
         }
 
         setPegawai(enriched);
-        const filteredDossiers = dData.filter(d => (d.nip || '').replace(/\D/g, '') === (nip || '').replace(/\D/g, ''))
+        const filteredDossiers = dData.filter(d => (d.nip || '').replace(/\D/g, '') === (found.nip || '').replace(/\D/g, ''))
           .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
         setDossiers(filteredDossiers);
       }
@@ -587,9 +615,16 @@ const ProfilePegawaiPage = () => {
     <div className="bg-white p-20 rounded-[3rem] text-center border border-gray-100 shadow-sm">
       <i className="bi bi-exclamation-triangle text-rose-500 text-4xl mb-4 block"></i>
       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pegawai tidak ditemukan</p>
-      <button onClick={() => navigate('/pegawai')} className="mt-6 px-8 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase">Kembali ke Database</button>
+      <button onClick={() => navigate(isUserPortalView ? '/' : '/pegawai')} className="mt-6 px-8 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase">
+        {isUserPortalView ? 'Kembali ke Dashboard Pegawai' : 'Kembali ke Database ASN'}
+      </button>
     </div>
   );
+
+  const cleanParamNip = (nip || '').replace(/\D/g, '');
+  const cleanUserNip = (user?.nip || '').replace(/\D/g, '');
+  const isSelfView = isUserPortalView || (!cleanParamNip || nip === 'profile' || nip === 'me' || nip === 'data-diri') || (!!cleanUserNip && cleanUserNip === (pegawai?.nip || '').replace(/\D/g, ''));
+  const canEditThisProfile = canEdit || isSuperadmin || isSelfView;
 
   const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest";
   const inputClass = "w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-[13px] font-bold outline-none focus:border-blue-600 transition-all uppercase";
@@ -601,11 +636,24 @@ const ProfilePegawaiPage = () => {
 
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 md:mb-12">
         <div className="flex items-center gap-4 md:gap-6 w-full lg:w-auto">
-          <button onClick={() => navigate(-1)} className="h-10 w-10 md:h-12 md:w-12 bg-white border border-gray-100 text-gray-400 rounded-xl md:rounded-2xl flex items-center justify-center hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm shrink-0">
+          <button 
+            onClick={() => isUserPortalView ? navigate('/') : navigate(-1)} 
+            className="h-10 w-10 md:h-12 md:w-12 bg-white border border-gray-100 text-gray-400 rounded-xl md:rounded-2xl flex items-center justify-center hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm shrink-0"
+            title={isUserPortalView ? "Kembali ke Dashboard Pegawai" : "Kembali"}
+          >
             <i className="bi bi-arrow-left"></i>
           </button>
           <div className="min-w-0">
-            <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter truncate">Profil Lengkap Pegawai</h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter truncate">
+                {isSelfView ? 'Data Diri & Profil Pegawai' : 'Profil Lengkap Pegawai'}
+              </h3>
+              {isSelfView && (
+                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black bg-blue-50 text-blue-600 border border-blue-200 uppercase tracking-wider">
+                  <i className="bi bi-person-check-fill mr-1"></i> Data Diri Anda
+                </span>
+              )}
+            </div>
             <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 flex items-center gap-2 truncate">
               <i className="bi bi-person-badge-fill text-blue-600"></i> {formatPegawaiName(pegawai.nama)} • NIP. {pegawai.nip}
             </p>
@@ -624,7 +672,7 @@ const ProfilePegawaiPage = () => {
             {syncing ? <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>}
             Cetak DRH
           </button>
-          {(canEdit || isSuperadmin) && (
+          {canEditThisProfile && (
             !isEditing ? (
               <button onClick={() => setIsEditing(true)} className="flex-1 lg:flex-none px-6 md:px-8 py-3 md:py-4 bg-blue-600 text-white rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase shadow-lg shadow-blue-200 flex items-center justify-center gap-3 active:scale-95 transition-all">
                 <i className="bi bi-pencil-square"></i>

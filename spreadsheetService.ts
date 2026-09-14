@@ -870,7 +870,7 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
 };
 
 export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegawai[]> => {
-  return fetchTableData<Pegawai>('PEGAWAI', 'portal_pegawai_db', (cols, headers) => {
+  const rawList = await fetchTableData<Pegawai>('PEGAWAI', 'portal_pegawai_db', (cols, headers) => {
     const get = (k: string) => { 
       const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
       return (i !== -1 && cols[i]) ? cols[i] : ''; 
@@ -1047,6 +1047,22 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
 
     return p;
   }, bypassCache);
+
+  // Guarantee list has unique NIPs
+  const seen = new Set<string>();
+  const uniqueResult: Pegawai[] = [];
+  for (const item of rawList) {
+    const key = (item.nip || item.id || '').trim();
+    if (key) {
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueResult.push(item);
+      }
+    } else {
+      uniqueResult.push(item);
+    }
+  }
+  return uniqueResult;
 };
 
 export const fetchSatyaLencanaFromSheets = (bypassCache = false) => fetchTableData<SatyaLencanaRecord>('SATYA_LENCANA', 'satya_lencana_db', (cols, headers) => {

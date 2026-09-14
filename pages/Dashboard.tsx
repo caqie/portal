@@ -31,7 +31,20 @@ const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: str
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, logActivity, isSuperadmin, canEdit, isAdminPerencanaan, isAdminBangkom, isAdminKarier, isAdminUangMakan, isOnlyAdminUangMakan } = useAuth();
+  const { 
+    user, 
+    logActivity, 
+    isSuperadmin, 
+    canEdit, 
+    isAdminPerencanaan, 
+    isAdminBangkom, 
+    isAdminKarier, 
+    isAdminUangMakan, 
+    isOnlyAdminUangMakan,
+    portalViewMode,
+    setPortalViewMode,
+    isUserPortalView
+  } = useAuth();
   const [pegawai, setPegawai] = useState<Pegawai[]>(() => {
     const cached = localStorage.getItem('portal_pegawai_db');
     if (cached) {
@@ -745,20 +758,13 @@ const Dashboard = () => {
   };
 
   const isViewerRole = !canEdit || isOnlyAdminUangMakan;
-  const [viewMode, setViewMode] = useState<'user' | 'admin'>(() => isViewerRole ? 'user' : 'admin');
 
-  useEffect(() => {
-    if (isViewerRole) {
-      setViewMode('user');
-    }
-  }, [isViewerRole]);
-
-  // If in user view mode or user is strictly Admin Uang Makan (Show user page / data diri view)
-  if (viewMode === 'user' || isOnlyAdminUangMakan) {
+  // If in user portal view mode or user is strictly Admin Uang Makan (Show user page / data diri view)
+  if (isUserPortalView || isOnlyAdminUangMakan) {
     return (
       <UserSelfServiceDashboard 
         canViewAdminSwitch={canEdit && !isOnlyAdminUangMakan} 
-        onSwitchToAdminView={() => setViewMode('admin')} 
+        onSwitchToAdminView={() => setPortalViewMode('admin')} 
       />
     );
   }
@@ -773,7 +779,7 @@ const Dashboard = () => {
             <span className="text-xs font-bold text-gray-700">Mode Tampilan: <strong>Pusat Kendali Admin SDM ({user?.activeRole || user?.role})</strong></span>
           </div>
           <button
-            onClick={() => setViewMode('user')}
+            onClick={() => setPortalViewMode('user')}
             className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-all"
           >
             <i className="bi bi-person-workspace"></i>

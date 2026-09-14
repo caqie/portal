@@ -94,11 +94,28 @@ export const KompetensiDashboardView: React.FC<Props> = ({
 
   // Gabungkan data pegawai nyata dengan data representative fallback jika data awal sangat sedikit
   const combinedPegawaiList = useMemo(() => {
-    const list = [...pegawaiList];
+    const list: Pegawai[] = [];
+    const seen = new Set<string>();
+
+    // Masukkan pegawai awal yang unik
+    for (const p of pegawaiList) {
+      const key = (p.nip || p.id || '').trim();
+      if (key) {
+        if (!seen.has(key)) {
+          seen.add(key);
+          list.push(p);
+        }
+      } else {
+        list.push(p);
+      }
+    }
+
     // Jika pegawai nyata kurang dari 12, lengkapi dengan sample representative agar visualisasi kaya
     if (list.length < 12) {
       FALLBACK_REPRESENTATIVE_PEGAWAI.forEach(fallback => {
-        if (!list.some(p => p.nip === fallback.nip)) {
+        const key = (fallback.nip || fallback.id || '').trim();
+        if (key && !seen.has(key)) {
+          seen.add(key);
           list.push(fallback as Pegawai);
         }
       });
@@ -934,8 +951,8 @@ export const KompetensiDashboardView: React.FC<Props> = ({
                           </td>
                         </tr>
                       ) : (
-                        drilldownPegawaiList.map(peg => (
-                          <tr key={peg.nip} className="hover:bg-indigo-50/30 transition-colors">
+                        drilldownPegawaiList.map((peg, idx) => (
+                          <tr key={`${peg.nip || 'drill'}-${idx}`} className="hover:bg-indigo-50/30 transition-colors">
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-3">
                                 <div className="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-700 font-black text-xs flex items-center justify-center border border-indigo-100 shrink-0">
@@ -1622,8 +1639,8 @@ export const KompetensiDashboardView: React.FC<Props> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 text-xs">
-                {filteredPegawaiDetails.map(peg => (
-                  <tr key={peg.nip} className="hover:bg-indigo-50/20 transition-colors group">
+                {filteredPegawaiDetails.map((peg, idx) => (
+                  <tr key={`${peg.nip || 'peg'}-${idx}`} className="hover:bg-indigo-50/20 transition-colors group">
                     <td className="px-6 py-4">
                       <p className="font-black text-gray-950 text-[12px]">{formatPegawaiName(peg.nama)}</p>
                       <p className="text-[10px] font-bold text-gray-400 tracking-wider">NIP. {peg.nip}</p>
