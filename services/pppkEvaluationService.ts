@@ -28,7 +28,12 @@ import {
   SmartAttendanceRecord,
   EvaluationAssignment,
   EvaluationAssignmentStatus,
-  EvaluationApprovalStatus
+  EvaluationApprovalStatus,
+  PPPKKetuaTimKerja,
+  PPPKBulkAttendanceRecord,
+  PPPKSkpItem,
+  PPPKSkpSubmission,
+  PPPKPeerAssignmentPair
 } from '../types';
 import { getSmartAttendanceRecords } from './smartPresensi/SmartAttendanceService';
 import { getAtasanLangsung } from './strukturOrganisasiService';
@@ -42,7 +47,11 @@ const STORAGE_KEYS = {
   ASSIGNMENTS: 'portal_pppk_evaluation_assignments',
   ATTENDANCE: 'portal_pppk_attendance_evaluations',
   SETTINGS: 'portal_pppk_config_settings',
-  AUDIT: 'portal_pppk_audit_logs'
+  AUDIT: 'portal_pppk_audit_logs',
+  KETUA_TIM: 'portal_pppk_ketua_tim_kerja',
+  BULK_ATTENDANCE: 'portal_pppk_bulk_attendance',
+  SKP_SUBMISSIONS: 'portal_pppk_skp_submissions',
+  PEER_PAIRS: 'portal_pppk_peer_pairs'
 };
 
 // Default 10 Behavior Aspects
@@ -1674,10 +1683,12 @@ export function calculateAverageBehaviorScore(
 
   // Rekap rata-rata per aspek
   const aspectTotals: Record<string, { name: string; sum: number; count: number }> = {};
-  assessments.forEach(a => {
-    (a.details || []).forEach(d => {
+  (assessments ?? []).forEach(a => {
+    if (!a) return;
+    (a.details ?? []).forEach(d => {
+      if (!d || !d.aspectId) return;
       if (!aspectTotals[d.aspectId]) {
-        aspectTotals[d.aspectId] = { name: d.aspectName, sum: 0, count: 0 };
+        aspectTotals[d.aspectId] = { name: d.aspectName || 'Aspek', sum: 0, count: 0 };
       }
       aspectTotals[d.aspectId].sum += Number(d.score || 0);
       aspectTotals[d.aspectId].count += 1;
@@ -2666,4 +2677,809 @@ export function initializePPPKEvaluationData(): void {
       localStorage.setItem(STORAGE_KEYS.ASSIGNMENTS, JSON.stringify(seedAssignments));
     }
   }
+
+  // Seed Ketua Tim Kerja if empty
+  const rawKetuaTim = localStorage.getItem(STORAGE_KEYS.KETUA_TIM);
+  if (!rawKetuaTim) {
+    localStorage.setItem(STORAGE_KEYS.KETUA_TIM, JSON.stringify(DEFAULT_KETUA_TIM_KERJA_LIST));
+  }
+
+  // Seed Peer Assignment Pairs if empty
+  const rawPeerPairs = localStorage.getItem(STORAGE_KEYS.PEER_PAIRS);
+  if (!rawPeerPairs) {
+    const pppks = getPPPKEmployees();
+    const all = getAllEmployees();
+    const pnsList = all.filter(p => !p.jenisPegawai?.includes('PPPK'));
+    const currentPeriod = getEvaluationPeriods().find(p => p.semester === 'I') || getEvaluationPeriods()[0];
+
+    if (pppks.length > 0 && currentPeriod) {
+      const now = new Date().toLocaleString('id-ID');
+      const pairs: PPPKPeerAssignmentPair[] = pppks.map((p, idx) => {
+        const pnsPeer = pnsList[idx % pnsList.length] || { nip: '198504122008121001', nama: 'Bambang Irawan, S.Sos.', jabatan: 'Analis Kepegawaian', unitKerja: p.unitKerja };
+        const pppkPeers = pppks.filter(o => o.nip !== p.nip);
+        const pppkPeer = pppkPeers[idx % pppkPeers.length] || { nip: '199503142023022003', nama: 'Fajar Nugraha', jabatan: 'Pranata Komputer', unitKerja: p.unitKerja };
+
+        return {
+          id: `PAIR-${currentPeriod.year}-${currentPeriod.semester}-${p.nip}`,
+          evaluationId: `EVAL-PPPK-${currentPeriod.year}-${currentPeriod.semester}-${p.nip}`,
+          subjectNip: p.nip,
+          subjectNama: p.nama,
+          unitKerja: p.unitKerja,
+          year: currentPeriod.year,
+          semester: currentPeriod.semester,
+          assignedByRole: 'KETUA_TIM',
+          assignedByName: 'Raden Bagus Prasetyo, S.H.',
+          assignedByNip: '198205042006041002',
+          assignedAt: now,
+          rekanPnsNip: pnsPeer.nip,
+          rekanPnsNama: pnsPeer.nama,
+          rekanPnsJabatan: pnsPeer.jabatan || 'Staf Teknis',
+          rekanPnsUnit: pnsPeer.unitKerja || p.unitKerja,
+          rekanPnsStatus: idx < 2 ? 'COMPLETED' : 'PENDING',
+          rekanPnsScoreAvg: idx < 2 ? 4.15 : undefined,
+          rekanPnsSubmittedAt: idx < 2 ? now : undefined,
+          rekanPppkNip: pppkPeer.nip,
+          rekanPppkNama: pppkPeer.nama,
+          rekanPppkJabatan: pppkPeer.jabatan || 'PPPK Teknis',
+          rekanPppkUnit: pppkPeer.unitKerja || p.unitKerja,
+          rekanPppkStatus: idx < 2 ? 'COMPLETED' : 'PENDING',
+          rekanPppkScoreAvg: idx < 2 ? 4.25 : undefined,
+          rekanPppkSubmittedAt: idx < 2 ? now : undefined,
+          status: idx < 2 ? 'SELESAI' : 'DITETAPKAN',
+          updatedAt: now
+        };
+      });
+      localStorage.setItem(STORAGE_KEYS.PEER_PAIRS, JSON.stringify(pairs));
+    }
+  }
+
+  // Seed SKP Submissions if empty
+  const rawSkp = localStorage.getItem(STORAGE_KEYS.SKP_SUBMISSIONS);
+  if (!rawSkp) {
+    const pppks = getPPPKEmployees();
+    const currentPeriod = getEvaluationPeriods().find(p => p.semester === 'I') || getEvaluationPeriods()[0];
+
+    if (pppks.length > 0 && currentPeriod) {
+      const now = new Date().toLocaleString('id-ID');
+      const defaultSkpItems: PPPKSkpItem[] = [
+        {
+          id: 'skp-item-1',
+          no: 1,
+          rencanaHasilKerja: 'Melakukan verifikasi dan validasi berkas permohonan kekayaan intelektual sesuai SOP kedinasan',
+          indikatorKinerja: 'Jumlah berkas terverifikasi dengan tingkat akurasi 100%',
+          target: 120,
+          satuan: 'Berkas Dokumen',
+          realisasi: 124,
+          capaianPersen: 103.3,
+          umpanBalikPenilai: 'Target terlampaui dengan baik dan minim revisi administrasi.'
+        },
+        {
+          id: 'skp-item-2',
+          no: 2,
+          rencanaHasilKerja: 'Menyusun laporan rekapitulasi data layanan harian dan bulanan pada sistem informasi portal DJKI',
+          indikatorKinerja: 'Jumlah dokumen laporan rekapitulasi bulanan tepat waktu',
+          target: 6,
+          satuan: 'Laporan',
+          realisasi: 6,
+          capaianPersen: 100,
+          umpanBalikPenilai: 'Laporan tepat waktu setiap akhir bulan.'
+        },
+        {
+          id: 'skp-item-3',
+          no: 3,
+          rencanaHasilKerja: 'Memberikan layanan konsultasi teknis bagi pemohon kekayaan intelektual secara luring dan daring',
+          indikatorKinerja: 'Jumlah pemohon terlayani dengan kepuasan layanan di atas 90%',
+          target: 60,
+          satuan: 'Layanan Pemohon',
+          realisasi: 65,
+          capaianPersen: 108.3,
+          umpanBalikPenilai: 'Respon cepat dan ramah sesuai standar BerAKHLAK.'
+        },
+        {
+          id: 'skp-item-4',
+          no: 4,
+          rencanaHasilKerja: 'Mendokumentasikan arsip berkas kepegawaian dan administrasi operasional unit kerja',
+          indikatorKinerja: 'Jumlah arsip terdigitalisasi dan tertata rapi dalam sistem cloud/drive',
+          target: 100,
+          satuan: 'Arsip Dokumen',
+          realisasi: 100,
+          capaianPersen: 100,
+          umpanBalikPenilai: 'Penyimpanan arsip terorganisir dengan rapi.'
+        }
+      ];
+
+      const submissions: PPPKSkpSubmission[] = pppks.map((p, idx) => {
+        const isAssessed = idx < 3;
+        const totalTarget = defaultSkpItems.reduce((s, it) => s + it.target, 0);
+        const totalRealisasi = defaultSkpItems.reduce((s, it) => s + it.realisasi, 0);
+        const ratingHasil: 'DIATAS EKSPEKTASI' | 'SESUAI EKSPEKTASI' | 'DIBAWAH EKSPEKTASI' =
+          totalRealisasi > totalTarget ? 'DIATAS EKSPEKTASI' : totalRealisasi === totalTarget ? 'SESUAI EKSPEKTASI' : 'DIBAWAH EKSPEKTASI';
+
+        return {
+          id: `SKP-${currentPeriod.year}-${currentPeriod.semester}-${p.nip}`,
+          evaluationId: `EVAL-PPPK-${currentPeriod.year}-${currentPeriod.semester}-${p.nip}`,
+          employeeId: p.nip,
+          namaPegawai: p.nama,
+          nipPegawai: p.nip,
+          jabatanPegawai: p.jabatan,
+          unitKerja: p.unitKerja,
+          year: currentPeriod.year,
+          semester: currentPeriod.semester,
+          penilaiType: 'KETUA_TIM',
+          penilaiId: 'KTT-SDM-01',
+          penilaiNama: 'Raden Bagus Prasetyo, S.H., M.Si.',
+          penilaiNip: '198205042006041002',
+          penilaiJabatan: 'Ketua Tim Kerja SDM / Analis SDM Aparatur Ahli Muda',
+          penilaiPangkatGolRuang: 'Penata Tk. I (III/d)',
+          penilaiUnitKerja: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual',
+          status: isAssessed ? 'DISETUJUI' : idx === 3 ? 'DIAJUKAN' : 'DRAFT',
+          tanggalPengajuan: isAssessed || idx === 3 ? '2026-06-25' : undefined,
+          tanggalPenilaian: isAssessed ? '2026-06-28' : undefined,
+          items: defaultSkpItems,
+          totalTarget,
+          totalRealisasi,
+          rataRataCapaianPersen: 102.9,
+          ratingHasilKerja: ratingHasil,
+          catatanPenilai: isAssessed ? 'Capaian hasil kerja melampaui target yang ditetapkan dengan mutu kerja prima.' : undefined,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: p.nama,
+          updatedBy: isAssessed ? 'Raden Bagus Prasetyo, S.H.' : p.nama
+        };
+      });
+
+      localStorage.setItem(STORAGE_KEYS.SKP_SUBMISSIONS, JSON.stringify(submissions));
+    }
+  }
+}
+
+// ============================================================================
+// 1. SERVICE: KETUA TIM KERJA
+// ============================================================================
+
+export const DEFAULT_KETUA_TIM_KERJA_LIST: PPPKKetuaTimKerja[] = [
+  {
+    id: 'KTT-SDM-01',
+    nama: 'Raden Bagus Prasetyo, S.H., M.Si.',
+    nip: '198205042006041002',
+    pangkatGolRuang: 'Penata Tk. I (III/d)',
+    jabatan: 'Analis SDM Aparatur Ahli Muda / Ketua Tim Kerja SDM',
+    namaTimKerja: 'Tim Kerja Perencanaan & Layanan SDM',
+    unitKerja: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual',
+    direktorat: 'Sekretariat DJKI',
+    status: 'AKTIF',
+    anggotaPppkNip: ['199511102022031005', '199408122023022001'],
+    catatan: 'Membawahi pengelolaan kepegawaian, SKP, dan evaluasi kinerja PPPK',
+    createdAt: '2026-01-05 08:00',
+    updatedAt: '2026-01-05 08:00'
+  },
+  {
+    id: 'KTT-TU-02',
+    nama: 'Bambang Irawan, S.Sos., M.M.',
+    nip: '197803122003121001',
+    pangkatGolRuang: 'Pembina (IV/a)',
+    jabatan: 'Arsiparis Ahli Madya / Ketua Tim Kerja TU & Rumah Tangga',
+    namaTimKerja: 'Tim Kerja Tata Usaha, BMN, dan Rumah Tangga',
+    unitKerja: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual',
+    direktorat: 'Sekretariat DJKI',
+    status: 'AKTIF',
+    anggotaPppkNip: ['199605202023021002'],
+    catatan: 'Membawahi urusan persuratan, kearsipan, dan fasilitas kantor',
+    createdAt: '2026-01-05 08:00',
+    updatedAt: '2026-01-05 08:00'
+  },
+  {
+    id: 'KTT-KEU-03',
+    nama: 'Sri Rahayu, S.E., M.Ak.',
+    nip: '198407152008122002',
+    pangkatGolRuang: 'Penata Tk. I (III/d)',
+    jabatan: 'Pranata Keuangan APBN Ahli Muda / Ketua Tim Kerja Keuangan',
+    namaTimKerja: 'Tim Kerja Keuangan & Pengelolaan Anggaran',
+    unitKerja: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual',
+    direktorat: 'Sekretariat DJKI',
+    status: 'AKTIF',
+    anggotaPppkNip: ['199503142023022003'],
+    catatan: 'Membawahi verifikasi anggaran, penggajian, dan pertanggungjawaban keuangan',
+    createdAt: '2026-01-05 08:00',
+    updatedAt: '2026-01-05 08:00'
+  },
+  {
+    id: 'KTT-TI-04',
+    nama: 'Dimas Aditya Pratama, S.Kom., M.T.I.',
+    nip: '198811202012121002',
+    pangkatGolRuang: 'Penata (III/c)',
+    jabatan: 'Pranata Komputer Ahli Muda / Ketua Tim Kerja TI',
+    namaTimKerja: 'Tim Kerja Sistem Informasi & Transformasi Digital TI',
+    unitKerja: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual',
+    direktorat: 'Sekretariat DJKI',
+    status: 'AKTIF',
+    anggotaPppkNip: ['199701152024021001'],
+    catatan: 'Membawahi infrastruktur server, jaringan, dan pengembangan aplikasi portal DJKI',
+    createdAt: '2026-01-05 08:00',
+    updatedAt: '2026-01-05 08:00'
+  },
+  {
+    id: 'KTT-PATEN-05',
+    nama: 'Ir. Hendra Wijaya, M.Sc.',
+    nip: '197904102005011003',
+    pangkatGolRuang: 'Pembina (IV/a)',
+    jabatan: 'Pemeriksa Paten Ahli Madya / Ketua Tim Kerja Paten',
+    namaTimKerja: 'Tim Kerja Pemeriksaan Substantif Permohonan Paten',
+    unitKerja: 'Direktorat Paten, DTLST, dan Rahasia Dagang',
+    direktorat: 'Direktorat Paten',
+    status: 'AKTIF',
+    anggotaPppkNip: [],
+    catatan: 'Membawahi pemeriksaan teknis substantif permohonan paten nasional dan PCT',
+    createdAt: '2026-01-05 08:00',
+    updatedAt: '2026-01-05 08:00'
+  },
+  {
+    id: 'KTT-MEREK-06',
+    nama: 'Maya Kusuma Putri, S.H., LL.M.',
+    nip: '198606142010122003',
+    pangkatGolRuang: 'Penata Tk. I (III/d)',
+    jabatan: 'Pemeriksa Merek Ahli Muda / Ketua Tim Kerja Merek',
+    namaTimKerja: 'Tim Kerja Pemeriksaan Merek & Indikasi Geografis',
+    unitKerja: 'Direktorat Merek dan Indikasi Geografis',
+    direktorat: 'Direktorat Merek',
+    status: 'AKTIF',
+    anggotaPppkNip: [],
+    catatan: 'Membawahi pengujian kebaruan dan klasifikasi kelas barang/jasa merek',
+    createdAt: '2026-01-05 08:00',
+    updatedAt: '2026-01-05 08:00'
+  },
+  {
+    id: 'KTT-HAKCIPTA-07',
+    nama: 'Ratna Dewi, S.H., M.H.',
+    nip: '198509192009122001',
+    pangkatGolRuang: 'Penata Tk. I (III/d)',
+    jabatan: 'Pemeriksa Desain Industri Ahli Muda / Ketua Tim Kerja Hak Cipta',
+    namaTimKerja: 'Tim Kerja Pengelolaan Permohonan & Publikasi Hak Cipta',
+    unitKerja: 'Direktorat Hak Cipta dan Desain Industri',
+    direktorat: 'Direktorat Hak Cipta',
+    status: 'AKTIF',
+    anggotaPppkNip: [],
+    catatan: 'Membawahi pencatatan ciptaan e-HakCipta dan permohonan desain industri',
+    createdAt: '2026-01-05 08:00',
+    updatedAt: '2026-01-05 08:00'
+  }
+];
+
+export function getKetuaTimKerjaList(): PPPKKetuaTimKerja[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.KETUA_TIM);
+    if (!raw) return DEFAULT_KETUA_TIM_KERJA_LIST;
+    return JSON.parse(raw);
+  } catch (e) {
+    return DEFAULT_KETUA_TIM_KERJA_LIST;
+  }
+}
+
+export function saveKetuaTimKerja(item: Partial<PPPKKetuaTimKerja>, userId: string, userName: string): PPPKKetuaTimKerja {
+  const list = getKetuaTimKerjaList();
+  const now = new Date().toLocaleString('id-ID');
+
+  let savedItem: PPPKKetuaTimKerja;
+
+  if (item.id) {
+    const idx = list.findIndex(k => k.id === item.id);
+    if (idx !== -1) {
+      savedItem = {
+        ...list[idx],
+        ...item,
+        updatedAt: now
+      };
+      list[idx] = savedItem;
+    } else {
+      savedItem = {
+        id: item.id,
+        nama: item.nama || '',
+        nip: item.nip || '',
+        pangkatGolRuang: item.pangkatGolRuang || 'Penata (III/c)',
+        jabatan: item.jabatan || 'Ketua Tim Kerja',
+        namaTimKerja: item.namaTimKerja || 'Tim Kerja',
+        unitKerja: item.unitKerja || 'Direktorat Jenderal Kekayaan Intelektual',
+        direktorat: item.direktorat || 'Sekretariat DJKI',
+        status: item.status || 'AKTIF',
+        anggotaPppkNip: item.anggotaPppkNip || [],
+        catatan: item.catatan,
+        createdAt: now,
+        updatedAt: now
+      };
+      list.push(savedItem);
+    }
+  } else {
+    savedItem = {
+      id: `KTT-CUSTOM-${Date.now()}`,
+      nama: item.nama || '',
+      nip: item.nip || '',
+      pangkatGolRuang: item.pangkatGolRuang || 'Penata (III/c)',
+      jabatan: item.jabatan || 'Ketua Tim Kerja',
+      namaTimKerja: item.namaTimKerja || 'Tim Kerja',
+      unitKerja: item.unitKerja || 'Direktorat Jenderal Kekayaan Intelektual',
+      direktorat: item.direktorat || 'Sekretariat DJKI',
+      status: item.status || 'AKTIF',
+      anggotaPppkNip: item.anggotaPppkNip || [],
+      catatan: item.catatan,
+      createdAt: now,
+      updatedAt: now
+    };
+    list.push(savedItem);
+  }
+
+  localStorage.setItem(STORAGE_KEYS.KETUA_TIM, JSON.stringify(list));
+  recordPPPKLog('UPDATE', userId, userName, { reason: 'Simpan data Ketua Tim Kerja', newData: { ketuaTimId: savedItem.id } });
+  return savedItem;
+}
+
+export function deleteKetuaTimKerja(id: string, userId: string, userName: string): boolean {
+  const list = getKetuaTimKerjaList().filter(k => k.id !== id);
+  localStorage.setItem(STORAGE_KEYS.KETUA_TIM, JSON.stringify(list));
+  recordPPPKLog('DELETE', userId, userName, { reason: 'Hapus data Ketua Tim Kerja', oldData: { deletedId: id } });
+  return true;
+}
+
+export function getKetuaTimForPppk(pppkNip: string): PPPKKetuaTimKerja | undefined {
+  const list = getKetuaTimKerjaList();
+  return list.find(k => k.status === 'AKTIF' && k.anggotaPppkNip?.includes(pppkNip));
+}
+
+// ============================================================================
+// 2. SERVICE: BULK PENILAIAN ABSENSI PPPK
+// ============================================================================
+
+export function calculateAttendanceCriteria(alfa: number): {
+  skorAnalisis: number;
+  kriteriaText: string;
+  nilaiKehadiranBobot: number;
+  attendanceScore100: number;
+} {
+  let skor = 5;
+  let kriteriaText = 'Sangat Baik (Alfa: 0 kali)';
+
+  if (alfa > 8) {
+    skor = 1;
+    kriteriaText = 'Sangat Kurang (Alfa: > 8 kali)';
+  } else if (alfa >= 6) {
+    skor = 2;
+    kriteriaText = 'Kurang (Alfa: 6 - 8 kali)';
+  } else if (alfa >= 3) {
+    skor = 3;
+    kriteriaText = 'Cukup (Alfa: 3 - 5 kali)';
+  } else if (alfa >= 1) {
+    skor = 4;
+    kriteriaText = 'Baik (Alfa: 1 - 2 kali)';
+  } else {
+    skor = 5;
+    kriteriaText = 'Sangat Baik (Alfa: 0 kali)';
+  }
+
+  const nilaiKehadiranBobot = Number((skor * 0.4).toFixed(2));
+  const attendanceScore100 = skor * 20; // 5 -> 100, 4 -> 80, 3 -> 60, 2 -> 40, 1 -> 20
+
+  return { skorAnalisis: skor, kriteriaText, nilaiKehadiranBobot, attendanceScore100 };
+}
+
+export function getBulkAttendanceRecords(year: number, semester: PPPKSemester): PPPKBulkAttendanceRecord[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.BULK_ATTENDANCE);
+    let allRecords: PPPKBulkAttendanceRecord[] = raw ? JSON.parse(raw) : [];
+
+    let filtered = allRecords.filter(r => r.year === year && r.semester === semester);
+    const pppks = getPPPKEmployees();
+    const ketuaTimList = getKetuaTimKerjaList();
+    const evals = getPPPKEvaluations().filter(e => Number(e.year) === year && e.semester === semester);
+
+    // If no records for this period or new employees found, initialize them
+    let hasChanges = false;
+    pppks.forEach(p => {
+      const existing = filtered.find(r => r.employeeId === p.nip);
+      if (!existing) {
+        const ev = evals.find(e => e.employeeId === p.nip);
+        const ketuaTim = ketuaTimList.find(k => k.anggotaPppkNip?.includes(p.nip));
+        const alfa = ev?.alfaCount ?? 0;
+        const calc = calculateAttendanceCriteria(alfa);
+
+        const newRec: PPPKBulkAttendanceRecord = {
+          id: `ATT-${year}-${semester}-${p.nip}`,
+          employeeId: p.nip,
+          nama: p.nama,
+          unitKerja: p.unitKerja,
+          jabatan: p.jabatan,
+          timKerja: ketuaTim ? ketuaTim.namaTimKerja : 'Tim Kerja Operasional',
+          year,
+          semester,
+          totalHariKerja: 120,
+          hadir: 120 - alfa,
+          izin: 0,
+          sakit: 0,
+          cuti: 0,
+          alfa,
+          skorAnalisis: calc.skorAnalisis,
+          kriteriaText: calc.kriteriaText,
+          nilaiKehadiranBobot: calc.nilaiKehadiranBobot,
+          attendanceScore100: calc.attendanceScore100,
+          updatedAt: new Date().toLocaleString('id-ID'),
+          updatedBy: 'Sistem Inisialisasi'
+        };
+
+        allRecords.push(newRec);
+        filtered.push(newRec);
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      localStorage.setItem(STORAGE_KEYS.BULK_ATTENDANCE, JSON.stringify(allRecords));
+    }
+
+    return filtered;
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveBulkAttendanceRecords(
+  records: PPPKBulkAttendanceRecord[],
+  userId: string,
+  userName: string
+): boolean {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.BULK_ATTENDANCE);
+    let allRecords: PPPKBulkAttendanceRecord[] = raw ? JSON.parse(raw) : [];
+
+    const now = new Date().toLocaleString('id-ID');
+
+    // Update records in storage
+    records.forEach(rec => {
+      const calc = calculateAttendanceCriteria(rec.alfa || 0);
+      rec.skorAnalisis = calc.skorAnalisis;
+      rec.kriteriaText = calc.kriteriaText;
+      rec.nilaiKehadiranBobot = calc.nilaiKehadiranBobot;
+      rec.attendanceScore100 = calc.attendanceScore100;
+      rec.updatedAt = now;
+      rec.updatedBy = userName;
+
+      const idx = allRecords.findIndex(r => r.id === rec.id || (r.employeeId === rec.employeeId && r.year === rec.year && r.semester === rec.semester));
+      if (idx !== -1) {
+        allRecords[idx] = { ...allRecords[idx], ...rec };
+      } else {
+        allRecords.push(rec);
+      }
+
+      // Automatically sync into PPPKEvaluation
+      const evals = getPPPKEvaluations();
+      const evalItem = evals.find(e => e.employeeId === rec.employeeId && Number(e.year) === rec.year && e.semester === rec.semester);
+      if (evalItem) {
+        evalItem.alfaCount = rec.alfa;
+        evalItem.analisisKehadiranSkor = calc.skorAnalisis;
+        evalItem.nilaiKehadiranBobot = calc.nilaiKehadiranBobot;
+        evalItem.attendanceScore = calc.attendanceScore100;
+
+        // Recalculate evaluation score
+        try {
+          recalculateEvaluation(evalItem.id, userId, userName);
+        } catch (e) {
+          // ignore lock if draft
+        }
+      }
+    });
+
+    localStorage.setItem(STORAGE_KEYS.BULK_ATTENDANCE, JSON.stringify(allRecords));
+    recordPPPKLog('UPDATE', userId, userName, { reason: 'Simpan massal penilaian absensi PPPK', newData: { count: records.length } });
+    return true;
+  } catch (e) {
+    console.error('Failed to save bulk attendance:', e);
+    return false;
+  }
+}
+
+// ============================================================================
+// 3. SERVICE: PENILAIAN REKAN KERJA (PNS & PPPK DITETAPKAN ATASAN/KETUA TIM)
+// ============================================================================
+
+export function getPeerAssignmentPairs(year: number, semester: PPPKSemester): PPPKPeerAssignmentPair[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.PEER_PAIRS);
+    if (!raw) return [];
+    const all: PPPKPeerAssignmentPair[] = JSON.parse(raw);
+    return all.filter(p => p.year === year && p.semester === semester);
+  } catch (e) {
+    return [];
+  }
+}
+
+export function savePeerAssignmentPair(
+  pair: Partial<PPPKPeerAssignmentPair>,
+  userId: string,
+  userName: string
+): PPPKPeerAssignmentPair {
+  const raw = localStorage.getItem(STORAGE_KEYS.PEER_PAIRS);
+  let all: PPPKPeerAssignmentPair[] = raw ? JSON.parse(raw) : [];
+  const now = new Date().toLocaleString('id-ID');
+
+  let saved: PPPKPeerAssignmentPair;
+  const idx = all.findIndex(p => p.id === pair.id || (p.subjectNip === pair.subjectNip && p.year === pair.year && p.semester === pair.semester));
+
+  if (idx !== -1) {
+    saved = {
+      ...all[idx],
+      ...pair,
+      updatedAt: now
+    };
+    all[idx] = saved;
+  } else {
+    saved = {
+      id: pair.id || `PAIR-${pair.year}-${pair.semester}-${pair.subjectNip}`,
+      subjectNip: pair.subjectNip || '',
+      subjectNama: pair.subjectNama || '',
+      unitKerja: pair.unitKerja || '',
+      year: pair.year || 2026,
+      semester: pair.semester || 'I',
+      assignedByRole: pair.assignedByRole || 'KETUA_TIM',
+      assignedByName: pair.assignedByName || userName,
+      assignedByNip: pair.assignedByNip || userId,
+      assignedAt: now,
+      rekanPnsNip: pair.rekanPnsNip || '',
+      rekanPnsNama: pair.rekanPnsNama || '',
+      rekanPnsJabatan: pair.rekanPnsJabatan || '',
+      rekanPnsUnit: pair.rekanPnsUnit || '',
+      rekanPnsStatus: pair.rekanPnsStatus || 'PENDING',
+      rekanPppkNip: pair.rekanPppkNip || '',
+      rekanPppkNama: pair.rekanPppkNama || '',
+      rekanPppkJabatan: pair.rekanPppkJabatan || '',
+      rekanPppkUnit: pair.rekanPppkUnit || '',
+      rekanPppkStatus: pair.rekanPppkStatus || 'PENDING',
+      status: 'DITETAPKAN',
+      updatedAt: now
+    };
+    all.push(saved);
+  }
+
+  localStorage.setItem(STORAGE_KEYS.PEER_PAIRS, JSON.stringify(all));
+  recordPPPKLog('ASSIGN_RESPONDENT', userId, userName, { employeeId: saved.subjectNip, reason: 'Penetapan Penilai Rekan Kerja PNS & PPPK', newData: { pairId: saved.id } });
+  return saved;
+}
+
+export function savePeerAssessmentReview(
+  params: {
+    subjectNip: string;
+    peerType: 'PNS' | 'PPPK';
+    ratings: { [code: string]: number };
+    year: number;
+    semester: PPPKSemester;
+    evaluatorNip: string;
+    evaluatorNama: string;
+  },
+  userId: string,
+  userName: string
+): boolean {
+  try {
+    const evals = getPPPKEvaluations();
+    const ev = evals.find(e => e.employeeId === params.subjectNip && Number(e.year) === params.year && e.semester === params.semester);
+    if (!ev) return false;
+
+    // Apply ratings to berakhlakList
+    if (ev.berakhlakList) {
+      ev.berakhlakList.forEach(asp => {
+        asp.subItems.forEach(sub => {
+          if (params.ratings[sub.code] !== undefined) {
+            if (params.peerType === 'PNS') {
+              sub.skorRekanPns = params.ratings[sub.code];
+            } else {
+              sub.skorRekanPppk = params.ratings[sub.code];
+            }
+          }
+        });
+      });
+    }
+
+    // Update pair status
+    const pairs = getPeerAssignmentPairs(params.year, params.semester);
+    const pair = pairs.find(p => p.subjectNip === params.subjectNip);
+    if (pair) {
+      const now = new Date().toLocaleString('id-ID');
+      const scores = Object.values(params.ratings);
+      const avg = scores.length > 0 ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)) : 4.0;
+
+      if (params.peerType === 'PNS') {
+        pair.rekanPnsStatus = 'COMPLETED';
+        pair.rekanPnsScoreAvg = avg;
+        pair.rekanPnsSubmittedAt = now;
+      } else {
+        pair.rekanPppkStatus = 'COMPLETED';
+        pair.rekanPppkScoreAvg = avg;
+        pair.rekanPppkSubmittedAt = now;
+      }
+
+      if (pair.rekanPnsStatus === 'COMPLETED' && pair.rekanPppkStatus === 'COMPLETED') {
+        pair.status = 'SELESAI';
+      }
+
+      savePeerAssignmentPair(pair, userId, userName);
+    }
+
+    // Save and recalculate evaluation
+    createOrUpdateEvaluation(ev, userId, userName);
+    recalculateEvaluation(ev.id, userId, userName);
+    return true;
+  } catch (e) {
+    console.error('Error submitting peer review:', e);
+    return false;
+  }
+}
+
+// ============================================================================
+// 4. SERVICE: MODUL PENGAJUAN & PENILAIAN SKP (HASIL KERJA PPPK)
+// ============================================================================
+
+export function getSkpSubmissions(year: number, semester: PPPKSemester): PPPKSkpSubmission[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SKP_SUBMISSIONS);
+    if (!raw) return [];
+    const all: PPPKSkpSubmission[] = JSON.parse(raw);
+    return all.filter(s => s.year === year && s.semester === semester);
+  } catch (e) {
+    return [];
+  }
+}
+
+export function getSkpSubmissionById(id: string): PPPKSkpSubmission | undefined {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SKP_SUBMISSIONS);
+    if (!raw) return undefined;
+    const all: PPPKSkpSubmission[] = JSON.parse(raw);
+    return all.find(s => s.id === id);
+  } catch (e) {
+    return undefined;
+  }
+}
+
+export function getSkpSubmissionByEmployee(employeeId: string, year: number, semester: PPPKSemester): PPPKSkpSubmission | undefined {
+  const list = getSkpSubmissions(year, semester);
+  return list.find(s => s.employeeId === employeeId);
+}
+
+export function saveSkpSubmission(
+  sub: Partial<PPPKSkpSubmission>,
+  userId: string,
+  userName: string
+): PPPKSkpSubmission {
+  const raw = localStorage.getItem(STORAGE_KEYS.SKP_SUBMISSIONS);
+  let all: PPPKSkpSubmission[] = raw ? JSON.parse(raw) : [];
+  const now = new Date().toLocaleString('id-ID');
+
+  const items = sub.items || [];
+  const totalTarget = items.reduce((s, it) => s + (Number(it.target) || 0), 0);
+  const totalRealisasi = items.reduce((s, it) => s + (Number(it.realisasi) || 0), 0);
+  const rataRataCapaianPersen = items.length > 0
+    ? Number((items.reduce((s, it) => s + (it.capaianPersen || 0), 0) / items.length).toFixed(1))
+    : 100;
+
+  const ratingHasil: 'DIATAS EKSPEKTASI' | 'SESUAI EKSPEKTASI' | 'DIBAWAH EKSPEKTASI' =
+    totalRealisasi > totalTarget ? 'DIATAS EKSPEKTASI' : totalRealisasi === totalTarget ? 'SESUAI EKSPEKTASI' : 'DIBAWAH EKSPEKTASI';
+
+  let saved: PPPKSkpSubmission;
+  const idx = all.findIndex(s => s.id === sub.id || (s.employeeId === sub.employeeId && s.year === sub.year && s.semester === sub.semester));
+
+  if (idx !== -1) {
+    saved = {
+      ...all[idx],
+      ...sub,
+      items,
+      totalTarget,
+      totalRealisasi,
+      rataRataCapaianPersen,
+      ratingHasilKerja: sub.ratingHasilKerja || ratingHasil,
+      updatedAt: now,
+      updatedBy: userName
+    };
+    all[idx] = saved;
+  } else {
+    saved = {
+      id: sub.id || `SKP-${sub.year}-${sub.semester}-${sub.employeeId}`,
+      evaluationId: sub.evaluationId || `EVAL-PPPK-${sub.year}-${sub.semester}-${sub.employeeId}`,
+      employeeId: sub.employeeId || '',
+      namaPegawai: sub.namaPegawai || '',
+      nipPegawai: sub.nipPegawai || sub.employeeId || '',
+      jabatanPegawai: sub.jabatanPegawai || '',
+      unitKerja: sub.unitKerja || '',
+      year: sub.year || 2026,
+      semester: sub.semester || 'I',
+      penilaiType: sub.penilaiType || 'KETUA_TIM',
+      penilaiId: sub.penilaiId,
+      penilaiNama: sub.penilaiNama || '',
+      penilaiNip: sub.penilaiNip || '',
+      penilaiJabatan: sub.penilaiJabatan || '',
+      penilaiPangkatGolRuang: sub.penilaiPangkatGolRuang,
+      penilaiUnitKerja: sub.penilaiUnitKerja,
+      status: sub.status || 'DRAFT',
+      tanggalPengajuan: sub.tanggalPengajuan,
+      tanggalPenilaian: sub.tanggalPenilaian,
+      items,
+      totalTarget,
+      totalRealisasi,
+      rataRataCapaianPersen,
+      ratingHasilKerja: sub.ratingHasilKerja || ratingHasil,
+      catatanPenilai: sub.catatanPenilai,
+      catatanRevisi: sub.catatanRevisi,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: userName,
+      updatedBy: userName
+    };
+    all.push(saved);
+  }
+
+  localStorage.setItem(STORAGE_KEYS.SKP_SUBMISSIONS, JSON.stringify(all));
+  recordPPPKLog('UPDATE', userId, userName, { employeeId: saved.employeeId, reason: 'Simpan draft SKP PPPK', newData: { skpId: saved.id } });
+  return saved;
+}
+
+export function submitSkpToAssessor(subId: string, userId: string, userName: string): PPPKSkpSubmission {
+  const sub = getSkpSubmissionById(subId);
+  if (!sub) throw new Error('Pengajuan SKP tidak ditemukan');
+
+  const now = new Date().toISOString().split('T')[0];
+  sub.status = 'DIAJUKAN';
+  sub.tanggalPengajuan = now;
+
+  return saveSkpSubmission(sub, userId, userName);
+}
+
+export function reviewAndGradeSkp(
+  subId: string,
+  updates: {
+    items?: PPPKSkpItem[];
+    ratingHasilKerja: 'DIATAS EKSPEKTASI' | 'SESUAI EKSPEKTASI' | 'DIBAWAH EKSPEKTASI';
+    catatanPenilai?: string;
+    status: 'DISETUJUI' | 'PERLU_REVISI';
+    catatanRevisi?: string;
+  },
+  userId: string,
+  userName: string
+): PPPKSkpSubmission {
+  const sub = getSkpSubmissionById(subId);
+  if (!sub) throw new Error('Pengajuan SKP tidak ditemukan');
+
+  const now = new Date().toISOString().split('T')[0];
+
+  if (updates.items) sub.items = updates.items;
+  sub.ratingHasilKerja = updates.ratingHasilKerja;
+  sub.catatanPenilai = updates.catatanPenilai;
+  sub.catatanRevisi = updates.catatanRevisi;
+  sub.status = updates.status;
+
+  if (updates.status === 'DISETUJUI') {
+    sub.tanggalPenilaian = now;
+
+    // Automatically sync items into PPPKEvaluation hasilKerjaList
+    const evals = getPPPKEvaluations();
+    const ev = evals.find(e => e.employeeId === sub.employeeId && Number(e.year) === sub.year && e.semester === sub.semester);
+    if (ev && sub.items) {
+      ev.hasilKerjaList = sub.items.map((it, idx) => ({
+        no: it.no || idx + 1,
+        rencanaHasilKerja: it.rencanaHasilKerja,
+        target: it.target,
+        realisasi: it.realisasi
+      }));
+      ev.ratingHasilKerja = sub.ratingHasilKerja;
+
+      // Update Pejabat Penilai Kinerja info if available
+      if (sub.penilaiNama && sub.penilaiNip) {
+        ev.pejabatPenilai = {
+          nama: sub.penilaiNama,
+          nip: sub.penilaiNip,
+          pangkatGolRuang: sub.penilaiPangkatGolRuang || ev.pejabatPenilai?.pangkatGolRuang || 'Penata Tk. I (III/d)',
+          jabatan: sub.penilaiJabatan,
+          unitKerja: sub.penilaiUnitKerja || ev.unitKerja
+        };
+      }
+
+      createOrUpdateEvaluation(ev, userId, userName);
+      recalculateEvaluation(ev.id, userId, userName);
+    }
+  }
+
+  return saveSkpSubmission(sub, userId, userName);
 }

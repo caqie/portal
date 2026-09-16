@@ -363,23 +363,30 @@ const ProfilePegawaiPage = () => {
       
       y += 10;
       pdf.setFont('helvetica', 'normal');
-      (pegawai.keluarga || []).forEach((k, i) => {
-        pdf.rect(20, y, 10, 10);
-        pdf.text((i+1).toString(), 25, y+7, { align: 'center' });
-        pdf.rect(30, y, 60, 10);
-        pdf.text(k.nama || '-', 32, y+7);
-        pdf.rect(90, y, 30, 10);
-        pdf.text(k.hubungan || '-', 105, y+7, { align: 'center' });
-        pdf.rect(120, y, 40, 10);
-        pdf.text(k.tanggalLahir || '-', 140, y+7, { align: 'center' });
-        pdf.rect(160, y, 30, 10);
-        pdf.text(k.pekerjaan || '-', 162, y+7);
+      const keluargaList = pegawai.keluarga && Array.isArray(pegawai.keluarga) ? pegawai.keluarga : [];
+      if (keluargaList.length === 0) {
+        pdf.rect(20, y, 170, 10);
+        pdf.text('Belum ada data keluarga tercatat', 105, y + 6.5, { align: 'center' });
         y += 10;
-        if (y > 270) {
-          pdf.addPage();
-          y = 20;
-        }
-      });
+      } else {
+        keluargaList.forEach((k, i) => {
+          pdf.rect(20, y, 10, 10);
+          pdf.text((i + 1).toString(), 25, y + 7, { align: 'center' });
+          pdf.rect(30, y, 60, 10);
+          pdf.text(k.nama || '-', 32, y + 7);
+          pdf.rect(90, y, 30, 10);
+          pdf.text(k.hubungan || '-', 105, y + 7, { align: 'center' });
+          pdf.rect(120, y, 40, 10);
+          pdf.text(k.tanggalLahir || '-', 140, y + 7, { align: 'center' });
+          pdf.rect(160, y, 30, 10);
+          pdf.text(k.pekerjaan || '-', 162, y + 7);
+          y += 10;
+          if (y > 270) {
+            pdf.addPage();
+            y = 20;
+          }
+        });
+      }
       
       // Signature
       y += 20;

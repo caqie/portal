@@ -20,9 +20,9 @@ const PPPKAnnualRecapTab: React.FC<PPPKAnnualRecapTabProps> = ({
 
   // Unit kerja list
   const unitList = useMemo(() => {
-    const all = getAnnualRecap(selectedYear);
+    const all = getAnnualRecap(selectedYear) ?? [];
     const set = new Set<string>();
-    all.forEach(a => { if (a.unitKerja) set.add(a.unitKerja); });
+    (all ?? []).forEach(a => { if (a?.unitKerja) set.add(a.unitKerja); });
     return Array.from(set).sort();
   }, [selectedYear]);
 

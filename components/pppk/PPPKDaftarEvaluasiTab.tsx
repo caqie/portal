@@ -36,15 +36,16 @@ const PPPKDaftarEvaluasiTab: React.FC<PPPKDaftarEvaluasiTabProps> = ({
   // Distinct unit kerja list
   const unitKerjaList = useMemo(() => {
     const set = new Set<string>();
-    evaluations.forEach(e => {
-      if (e.unitKerja) set.add(e.unitKerja.trim());
+    (evaluations ?? []).forEach(e => {
+      if (e?.unitKerja) set.add(e.unitKerja.trim());
     });
     return Array.from(set).sort();
   }, [evaluations]);
 
   // Filtered evaluations
   const filteredEvaluations = useMemo(() => {
-    return evaluations.filter(e => {
+    return (evaluations ?? []).filter(e => {
+      if (!e) return false;
       if (Number(e.year) !== selectedYear) return false;
       if (e.semester !== selectedSemester) return false;
       if (selectedUnit !== 'ALL' && e.unitKerja !== selectedUnit) return false;

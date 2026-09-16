@@ -2,43 +2,48 @@ import React, { useMemo } from 'react';
 import { PPPKEvaluation, EvaluationPeriod } from '../../types';
 
 interface PPPKDashboardTabProps {
-  evaluations: PPPKEvaluation[];
-  periods: EvaluationPeriod[];
-  selectedYear: number;
-  selectedSemester: 'I' | 'II';
-  onSelectPeriod: (year: number, semester: 'I' | 'II') => void;
-  onNavigateToTab: (tab: string) => void;
-  totalPPPKCount: number;
+  evaluations?: PPPKEvaluation[];
+  periods?: EvaluationPeriod[];
+  selectedYear?: number;
+  selectedSemester?: 'I' | 'II';
+  onSelectPeriod?: (year: number, semester: 'I' | 'II') => void;
+  onNavigateToTab?: (tab: string) => void;
+  totalPPPKCount?: number;
 }
 
 const PPPKDashboardTab: React.FC<PPPKDashboardTabProps> = ({
-  evaluations,
-  periods,
-  selectedYear,
-  selectedSemester,
-  onSelectPeriod,
-  onNavigateToTab,
-  totalPPPKCount
+  evaluations = [],
+  periods = [],
+  selectedYear = 2026,
+  selectedSemester = 'I',
+  onSelectPeriod = () => {},
+  onNavigateToTab = () => {},
+  totalPPPKCount = 0
 }) => {
-  // Current active period evaluations
+  // Current active period evaluations with defensive null checks
   const currentEvals = useMemo(() => {
-    return evaluations.filter(e => Number(e.year) === selectedYear && e.semester === selectedSemester);
+    const safeEvaluations = evaluations ?? [];
+    if (!Array.isArray(safeEvaluations)) return [];
+    return safeEvaluations.filter(
+      e => e && Number(e?.year) === Number(selectedYear ?? 2026) && e?.semester === (selectedSemester ?? 'I')
+    );
   }, [evaluations, selectedYear, selectedSemester]);
 
-  // Statistics calculation
+  // Statistics calculation with defensive checks and null coalescing
   const stats = useMemo(() => {
-    const totalAssessed = currentEvals.length;
-    const finalizedCount = currentEvals.filter(e => e.isFinal).length;
-    const inProgressCount = currentEvals.filter(e => !e.isFinal && e.status !== 'DRAFT').length;
-    const draftCount = currentEvals.filter(e => e.status === 'DRAFT').length;
-    const notAssessedCount = Math.max(0, totalPPPKCount - totalAssessed);
+    const safeEvals = Array.isArray(currentEvals) ? currentEvals : [];
+    const totalAssessed = safeEvals.length;
+    const finalizedCount = (safeEvals ?? []).filter(e => Boolean(e?.isFinal)).length;
+    const inProgressCount = (safeEvals ?? []).filter(e => e && !e?.isFinal && e?.status !== 'DRAFT').length;
+    const draftCount = (safeEvals ?? []).filter(e => e?.status === 'DRAFT').length;
+    const notAssessedCount = Math.max(0, Number(totalPPPKCount ?? 0) - totalAssessed);
 
     let sumFinal = 0;
     let sumSKP = 0;
     let sumBehavior = 0;
     let sumAttendance = 0;
 
-    const categoryCounts = {
+    const categoryCounts: Record<string, number> = {
       'Sangat Baik': 0,
       'Baik': 0,
       'Cukup': 0,
@@ -46,14 +51,16 @@ const PPPKDashboardTab: React.FC<PPPKDashboardTabProps> = ({
       'Sangat Kurang': 0
     };
 
-    currentEvals.forEach(e => {
-      sumFinal += e.finalScore;
-      sumSKP += e.skpScore;
-      sumBehavior += e.behaviorScore;
-      sumAttendance += e.attendanceScore;
+    // Defensive check and null-coalescing before calling forEach on the assessment data arrays
+    (safeEvals ?? []).forEach(e => {
+      if (!e) return;
+      sumFinal += Number(e?.finalScore ?? 0);
+      sumSKP += Number(e?.skpScore ?? 0);
+      sumBehavior += Number(e?.behaviorScore ?? 0);
+      sumAttendance += Number(e?.attendanceScore ?? 0);
 
-      if (e.category in categoryCounts) {
-        categoryCounts[e.category as keyof typeof categoryCounts]++;
+      if (e?.category && e.category in categoryCounts) {
+        categoryCounts[e.category] = (categoryCounts[e.category] ?? 0) + 1;
       }
     });
 
@@ -299,13 +306,14 @@ const PPPKDashboardTab: React.FC<PPPKDashboardTabProps> = ({
 
             <div className="space-y-3">
               {[
-                { label: 'Sangat Baik', count: stats.categoryCounts['Sangat Baik'], range: '90 – 100', color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50' },
-                { label: 'Baik', count: stats.categoryCounts['Baik'], range: '80 – 89.99', color: 'bg-blue-500', text: 'text-blue-700', bg: 'bg-blue-50' },
-                { label: 'Cukup', count: stats.categoryCounts['Cukup'], range: '70 – 79.99', color: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50' },
-                { label: 'Kurang', count: stats.categoryCounts['Kurang'], range: '60 – 69.99', color: 'bg-orange-500', text: 'text-orange-700', bg: 'bg-orange-50' },
-                { label: 'Sangat Kurang', count: stats.categoryCounts['Sangat Kurang'], range: '< 60', color: 'bg-rose-500', text: 'text-rose-700', bg: 'bg-rose-50' }
+                { label: 'Sangat Baik', count: stats?.categoryCounts?.['Sangat Baik'] ?? 0, range: '90 – 100', color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50' },
+                { label: 'Baik', count: stats?.categoryCounts?.['Baik'] ?? 0, range: '80 – 89.99', color: 'bg-blue-500', text: 'text-blue-700', bg: 'bg-blue-50' },
+                { label: 'Cukup', count: stats?.categoryCounts?.['Cukup'] ?? 0, range: '70 – 79.99', color: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50' },
+                { label: 'Kurang', count: stats?.categoryCounts?.['Kurang'] ?? 0, range: '60 – 69.99', color: 'bg-orange-500', text: 'text-orange-700', bg: 'bg-orange-50' },
+                { label: 'Sangat Kurang', count: stats?.categoryCounts?.['Sangat Kurang'] ?? 0, range: '< 60', color: 'bg-rose-500', text: 'text-rose-700', bg: 'bg-rose-50' }
               ].map((item) => {
-                const pct = stats.totalAssessed > 0 ? Math.round((item.count / stats.totalAssessed) * 100) : 0;
+                const totalAssessed = stats?.totalAssessed ?? 0;
+                const pct = totalAssessed > 0 ? Math.round((item.count / totalAssessed) * 100) : 0;
                 return (
                   <div key={item.label} className="flex items-center gap-3">
                     <span className={`w-28 text-xs font-bold ${item.text}`}>{item.label}</span>

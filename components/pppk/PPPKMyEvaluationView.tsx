@@ -25,6 +25,8 @@ import {
 import { getAtasanLangsung } from '../../services/strukturOrganisasiService';
 import { PPPKPeerSelectionModal } from './PPPKPeerSelectionModal';
 import PPPKBehaviorAssessmentModal from './PPPKBehaviorAssessmentModal';
+import PPPKDetailEvaluationModal from './PPPKDetailEvaluationModal';
+import { exportPPPKCompleteBundlePDF } from '../../services/pppkOfficialDocumentService';
 
 interface PPPKMyEvaluationViewProps {
   currentUser?: { nip?: string; nama?: string; role?: string };
@@ -56,6 +58,7 @@ export const PPPKMyEvaluationView: React.FC<PPPKMyEvaluationViewProps> = ({
   // Modals
   const [isPeerModalOpen, setIsPeerModalOpen] = useState(false);
   const [isAssessModalOpen, setIsAssessModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [activeAssessTarget, setActiveAssessTarget] = useState<EvaluationAssignment | null>(null);
 
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -896,7 +899,26 @@ export const PPPKMyEvaluationView: React.FC<PPPKMyEvaluationViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {evaluation && (
+              <>
+                <button
+                  onClick={() => setIsDetailModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl border border-blue-300 bg-blue-50 font-bold text-blue-700 hover:bg-blue-100 flex items-center gap-1.5 transition-colors shadow-xs"
+                >
+                  <i className="bi bi-file-earmark-ruled"></i>
+                  <span>Buka Dokumen Resmi Permenpan 6/2022</span>
+                </button>
+                <button
+                  onClick={() => exportPPPKCompleteBundlePDF(evaluation)}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-700 to-indigo-700 text-white font-bold hover:from-blue-800 hover:to-indigo-800 flex items-center gap-1.5 transition-colors shadow-xs"
+                  title="Unduh Berkas Lengkap 5 Halaman PDF"
+                >
+                  <i className="bi bi-file-earmark-pdf-fill text-rose-300"></i>
+                  <span>Unduh PDF Lengkap (5 Hal)</span>
+                </button>
+              </>
+            )}
             <button
               onClick={() => window.print()}
               className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 transition-colors"
@@ -907,6 +929,23 @@ export const PPPKMyEvaluationView: React.FC<PPPKMyEvaluationViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* MODAL DETAIL & DOKUMEN RESMI PPPK */}
+      {evaluation && isDetailModalOpen && (
+        <PPPKDetailEvaluationModal
+          evaluation={evaluation}
+          period={currentPeriod}
+          isOpen={isDetailModalOpen}
+          onClose={() => setIsDetailModalOpen(false)}
+          onRecalculate={handleRecalculate}
+          onFinalize={() => {}}
+          onRequestCorrection={() => {}}
+          onApproveCorrection={() => {}}
+          onOpenBehaviorAssessment={() => {}}
+          currentUserRole={currentUser?.role || 'user'}
+          onEvaluationUpdated={() => setRefreshTrigger(p => p + 1)}
+        />
+      )}
 
       {/* MODAL PILIH REKAN KERJA */}
       {currentSubject && (

@@ -976,7 +976,7 @@ export interface LivenessChallenge {
 // ============================================================
 
 export type PPPKSemester = 'I' | 'II';
-export type EvaluationPeriodStatus = 'DRAFT' | 'OPEN' | 'CLOSED';
+export type EvaluationPeriodStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'EVALUATION' | 'FINALIZED';
 export type PPPKEvaluationStatus = 'DRAFT' | 'IN_PROGRESS' | 'WAITING_REVIEW' | 'FINAL' | 'CORRECTION_REQUESTED';
 export type PPPKEvaluatorType = 'ATASAN' | 'REKAN_KERJA' | 'SELF' | 'BAWAHAN';
 export type PPPKRespondentType = PPPKEvaluatorType | 'REKAN' | 'LAINNYA';
@@ -1152,6 +1152,38 @@ export interface PPPKFinalSnapshot {
   finalizedBy: string;
 }
 
+export interface PPPKHasilKerjaItem {
+  no: number;
+  rencanaHasilKerja: string;
+  target: number;
+  realisasi: number;
+}
+
+export interface PPPKBerakhlakSubItem {
+  code: string;
+  pertanyaan: string;
+  skorPejabat: number;
+  skorRekanPns: number;
+  skorRekanPppk: number;
+}
+
+export interface PPPKBerakhlakAspectItem {
+  no: number;
+  aspek: string;
+  subItems: PPPKBerakhlakSubItem[];
+  rataRataPejabat: number;
+  rataRataRekan: number;
+  nilaiAkhirAspek: number;
+}
+
+export interface PPPKPejabatInfo {
+  nama: string;
+  nip: string;
+  pangkatGolRuang: string;
+  jabatan: string;
+  unitKerja: string;
+}
+
 export interface PPPKEvaluation {
   id: string;
   employeeId: string; // NIP PPPK (Subject)
@@ -1159,6 +1191,7 @@ export interface PPPKEvaluation {
   unitKerja: string;
   jabatan: string;
   jenisPegawai: 'PPPK'; // WAJIB PPPK
+  pangkatGolRuang?: string;
   periodId: string;
   year: number;
   semester: PPPKSemester;
@@ -1187,6 +1220,25 @@ export interface PPPKEvaluation {
   // References
   skpSourceId?: string;
   skpPredikat?: string;
+
+  // Official Permenpan RB 6 / 2022 & DJKI Form Fields
+  pejabatPenilai?: PPPKPejabatInfo;
+  atasanPejabatPenilai?: PPPKPejabatInfo;
+  ratingHasilKerja?: 'DIATAS EKSPEKTASI' | 'SESUAI EKSPEKTASI' | 'DIBAWAH EKSPEKTASI' | string;
+  ratingPerilakuKerja?: 'DIATAS EKSPEKTASI' | 'SESUAI EKSPEKTASI' | 'DIBAWAH EKSPEKTASI' | string;
+  predikatPenilaianKinerja?: 'SANGAT BAIK' | 'BAIK' | 'BUTUH PERBAIKAN' | 'KURANG' | 'SANGAT KURANG' | string;
+  rekomendasi?: 'PERPANJANGAN PERJANJIAN KINERJA' | 'PEMUTUSAN PERJANJIAN KINERJA' | string;
+  catatanKinerja?: ('DIPERTAHANKAN' | 'ROTASI' | 'PENGEMBANGAN KARIR' | 'BIMBINGAN KINERJA')[] | string;
+  catatanTambahan?: string;
+  kotaTtd?: string;
+  tanggalTtd?: string;
+  hasilKerjaList?: PPPKHasilKerjaItem[];
+  berakhlakList?: PPPKBerakhlakAspectItem[];
+  alfaCount?: number;
+  analisisKehadiranSkor?: number;
+  nilaiKehadiranBobot?: number;
+  totalNilaiPerilakuRataRata?: number;
+  jumlahPerilakuPlusKehadiran?: number;
 
   // Immutable Snapshot when isFinal === true
   finalSnapshot?: PPPKFinalSnapshot;
@@ -1316,6 +1368,426 @@ export interface PPPKConfigSettings {
   };
   allowAnonymous: boolean;
 }
+
+export interface PPPKKetuaTimKerja {
+  id: string;
+  nama: string;
+  nip: string;
+  pangkatGolRuang: string;
+  jabatan: string;
+  namaTimKerja: string;
+  unitKerja: string;
+  direktorat: string;
+  status: 'AKTIF' | 'NONAKTIF';
+  anggotaPppkNip: string[];
+  catatan?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PPPKBulkAttendanceRecord {
+  id: string;
+  employeeId: string; // NIP Pegawai PPPK
+  nama: string;
+  unitKerja: string;
+  jabatan: string;
+  timKerja?: string;
+  year: number;
+  semester: PPPKSemester;
+  totalHariKerja: number;
+  hadir: number;
+  izin: number;
+  sakit: number;
+  cuti: number;
+  alfa: number; // Kunci kriteria: Alfa > 8 = 1, 6-8 = 2, 3-5 = 3, 1-2 = 4, 0 = 5
+  terlambatMenit?: number;
+  pulangCepatMenit?: number;
+  skorAnalisis: number; // 1 s.d 5
+  kriteriaText: string;
+  nilaiKehadiranBobot: number; // skorAnalisis * 40% (misal 5 * 0.4 = 2.00)
+  attendanceScore100: number; // skorAnalisis * 20 (misal 5 * 20 = 100)
+  catatan?: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface PPPKSkpItem {
+  id: string;
+  no: number;
+  rencanaHasilKerja: string;
+  indikatorKinerja: string;
+  target: number;
+  satuan: string;
+  realisasi: number;
+  capaianPersen: number;
+  umpanBalikPenilai?: string;
+}
+
+export interface PPPKSkpSubmission {
+  id: string;
+  evaluationId?: string;
+  employeeId: string; // NIP Pegawai PPPK yang dinilai
+  namaPegawai: string;
+  nipPegawai: string;
+  jabatanPegawai: string;
+  unitKerja: string;
+  year: number;
+  semester: PPPKSemester;
+  
+  penilaiType: 'STRUKTURAL' | 'KETUA_TIM';
+  penilaiId?: string; // ID atau NIP penilai
+  penilaiNama: string;
+  penilaiNip: string;
+  penilaiJabatan: string;
+  penilaiPangkatGolRuang?: string;
+  penilaiUnitKerja?: string;
+  
+  status: 'DRAFT' | 'DIAJUKAN' | 'PERLU_REVISI' | 'DISETUJUI' | 'DINILAI';
+  tanggalPengajuan?: string;
+  tanggalPenilaian?: string;
+  
+  items: PPPKSkpItem[];
+  totalTarget: number;
+  totalRealisasi: number;
+  rataRataCapaianPersen: number;
+  ratingHasilKerja: 'DIATAS EKSPEKTASI' | 'SESUAI EKSPEKTASI' | 'DIBAWAH EKSPEKTASI';
+  catatanPenilai?: string;
+  catatanRevisi?: string;
+  
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  updatedBy: string;
+}
+
+export interface PPPKPeerAssignmentPair {
+  id: string;
+  evaluationId?: string;
+  subjectNip: string; // Pegawai PPPK yang dinilai
+  subjectNama: string;
+  unitKerja: string;
+  year: number;
+  semester: PPPKSemester;
+  
+  assignedByRole: 'ATASAN' | 'KETUA_TIM' | 'ADMIN';
+  assignedByName: string;
+  assignedByNip: string;
+  assignedAt: string;
+  
+  // 1. Rekan Kerja PNS
+  rekanPnsNip: string;
+  rekanPnsNama: string;
+  rekanPnsJabatan: string;
+  rekanPnsUnit: string;
+  rekanPnsStatus: 'PENDING' | 'COMPLETED';
+  rekanPnsScoreAvg?: number;
+  rekanPnsSubmittedAt?: string;
+  
+  // 2. Rekan Kerja PPPK
+  rekanPppkNip: string;
+  rekanPppkNama: string;
+  rekanPppkJabatan: string;
+  rekanPppkUnit: string;
+  rekanPppkStatus: 'PENDING' | 'COMPLETED';
+  rekanPppkScoreAvg?: number;
+  rekanPppkSubmittedAt?: string;
+  
+  status: 'DRAFT' | 'DITETAPKAN' | 'SELESAI';
+  updatedAt: string;
+}
+
+// ============================================================
+// === PENILAIAN KINERJA PPPK ENTERPRISE TYPES ===
+// ============================================================
+
+export type PPPKJenisPejabatPenilai = 'KETUA_TIM_KERJA' | 'PEJABAT_MANAJERIAL';
+
+export type PPPKPenugasanStatus =
+  | 'DRAFT'
+  | 'MENUNGGU_VERIFIKASI'
+  | 'DISETUJUI'
+  | 'DITOLAK'
+  | 'DALAM_PENILAIAN'
+  | 'SELESAI'
+  | 'FINAL';
+
+export interface PPPKPenugasanPenilai {
+  id: string;
+  periodeId: string;
+  year: number;
+  tahun?: number;
+  semester: PPPKSemester;
+  periodeNama?: string;
+  
+  // PPPK yang Dinilai
+  pppkDinilaiId: string; // NIP
+  pppkNama: string;
+  pppkNip: string;
+  pppkJabatan: string;
+  pppkUnitKerja: string;
+  pppkPangkat?: string;
+
+  // Pejabat Penilai Kinerja (diusulkan PPPK -> disetujui Admin)
+  jenisPejabatPenilai: PPPKJenisPejabatPenilai;
+  pejabatPenilaiId: string; // NIP
+  pejabatPenilaiNama: string;
+  pejabatPenilaiNip: string;
+  pejabatPenilaiJabatan: string;
+  pejabatPenilaiUnit: string;
+  pejabatPenilaiPangkat?: string;
+
+  // Atasan Pejabat Penilai (opsional / spesifik penugasan)
+  atasanPejabatPenilaiId?: string; // NIP
+  atasanPejabatPenilaiNama?: string;
+  atasanPejabatPenilaiNip?: string;
+  atasanPejabatPenilaiJabatan?: string;
+  atasanPejabatPenilaiPangkat?: string;
+  atasanPejabatPenilaiUnit?: string;
+
+  // Rekan Kerja PNS (ditetapkan oleh Pejabat Penilai)
+  rekanPnsId?: string; // NIP
+  rekanPnsNama?: string;
+  rekanPnsNip?: string;
+  rekanPnsJabatan?: string;
+  rekanPnsUnit?: string;
+
+  // Rekan Kerja PPPK (ditetapkan oleh Pejabat Penilai)
+  rekanPppkId?: string; // NIP
+  rekanPppkNama?: string;
+  rekanPppkNip?: string;
+  rekanPppkJabatan?: string;
+  rekanPppkUnit?: string;
+
+  status: PPPKPenugasanStatus;
+  catatanVerifikasiAdmin?: string;
+
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+  approvedAt?: string;
+  approvedBy?: string;
+}
+
+export interface PPPKBuktiDukung {
+  id: string;
+  nama: string;
+  url: string;
+  fileData?: string;
+  ukuran?: string;
+  tipe: string;
+  tanggalUpload: string;
+  uploader: string;
+}
+
+export interface PPPKRhkItem {
+  id: string;
+  no: number;
+  rencanaHasilKerja: string;
+  target: number;
+  satuan: string;
+  realisasi: number;
+  satuanRealisasi?: string;
+  buktiDukung: PPPKBuktiDukung[];
+  keterangan?: string;
+  ratingOtomatis: 'DIATAS EKSPEKTASI' | 'SESUAI EKSPEKTASI' | 'DIBAWAH EKSPEKTASI';
+  ratingManual?: 'DIATAS EKSPEKTASI' | 'SESUAI EKSPEKTASI' | 'DIBAWAH EKSPEKTASI';
+  alasanRatingManual?: string;
+  umpanBalikPenilai?: string;
+}
+
+export interface PPPKPenilaianHasilKerjaDoc {
+  id: string;
+  penugasanId: string;
+  periodeId: string;
+  pppkId: string; // NIP
+  items: PPPKRhkItem[];
+  ratingHasilKerjaFinal: 'DIATAS EKSPEKTASI' | 'SESUAI EKSPEKTASI' | 'DIBAWAH EKSPEKTASI';
+  catatanPenilai?: string;
+  status: 'DRAFT' | 'DIAJUKAN' | 'DINILAI' | 'FINAL';
+  submittedAt?: string;
+  gradedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PPPKMasterPertanyaanPerilaku {
+  id: string;
+  aspek:
+    | 'Berorientasi Pelayanan'
+    | 'Akuntabel'
+    | 'Kompeten'
+    | 'Harmonis'
+    | 'Loyal'
+    | 'Adaptif'
+    | 'Kolaboratif';
+  nomor: number; // 1 s.d 28
+  no?: number;
+  pertanyaan: string;
+  perilaku?: string;
+  indikator?: string;
+  aktif: boolean;
+  urutan: number;
+}
+
+export type PPPKRolePenilai = 'PEJABAT_PENILAI' | 'PNS_PENILAI' | 'PPPK_PENILAI';
+
+export interface PPPKPenilaianPerilakuDoc {
+  id: string;
+  penugasanId: string;
+  periodeId: string;
+  pppkId: string; // NIP yang dinilai
+  penilaiId: string; // NIP Penilai
+  penilaiNama: string;
+  rolePenilai: PPPKRolePenilai;
+  answers: Record<string, number>; // key: question id or number, value: 1..5
+  jawaban?: Record<string, number>; // alias for answers
+  catatan?: string;
+  status: 'DRAFT' | 'SUBMITTED';
+  totalScore?: number;
+  rataRataScore: number;
+  submittedAt?: string;
+  tanggalPenilaian?: string;
+  updatedAt: string;
+}
+
+export interface PPPKAbsensiImportHeader {
+  id: string;
+  periodeId: string;
+  namaFile: string;
+  fileUrl?: string;
+  fileData?: string;
+  tanggalImport: string;
+  importedBy: string;
+  status: 'PREVIEW' | 'TERVERIFIKASI' | 'BATAL';
+  totalData: number;
+  errorCount: number;
+  catatan?: string;
+}
+
+export interface PPPKAbsensiDetailRow {
+  id: string;
+  importId: string;
+  nip: string;
+  nama: string;
+  unitKerja: string;
+  jabatan?: string;
+  totalHariKerja?: number;
+  hariKerja?: number;
+  hadir: number;
+  terlambat: number;
+  pulangCepat: number;
+  alfa: number; // Kunci analisis alfa (0 = 5, 1-2 = 4, 3-5 = 3, 6-8 = 2, >8 = 1)
+  dinasLuar: number;
+  wfh: number;
+  cuti: number;
+  izin: number;
+  sakit: number;
+  skorAlfa?: number; // 1 s.d 5
+  nilaiKehadiran?: number;
+  kategoriAlfa?: 'Sangat Baik' | 'Baik' | 'Cukup' | 'Kurang' | 'Sangat Kurang';
+  keterangan?: string;
+}
+
+export type PPPKPresensiRow = PPPKAbsensiDetailRow;
+
+export type PPPKRatingKinerja = 'DIATAS EKSPEKTASI' | 'SESUAI EKSPEKTASI' | 'DIBAWAH EKSPEKTASI';
+
+export type PPPKPredikatKinerja = 'Sangat Baik' | 'Baik' | 'Butuh Perbaikan' | 'Kurang' | 'Sangat Kurang';
+
+export type PPPKRekomendasiKinerja =
+  | 'Perpanjangan Perjanjian Kinerja'
+  | 'Pemutusan Perjanjian Kinerja'
+  | 'Dipertahankan'
+  | 'Rotasi'
+  | 'Pengembangan Karir'
+  | 'Bimbingan Kinerja'
+  | string;
+
+export interface PPPKEvaluasiAkhirDoc {
+  id: string;
+  penugasanId: string;
+  periodeId: string;
+  pppkId: string; // NIP
+  
+  // Nilai Perilaku Breakdown
+  nilaiPejabat: number; // Skala 1..5
+  nilaiPns: number; // Skala 1..5
+  nilaiPppk: number; // Skala 1..5
+  nilaiPerilakuPejabat?: number; // convenience alias
+  nilaiPerilakuRekanPns?: number; // convenience alias
+  nilaiPerilakuRekanPppk?: number; // convenience alias
+  rataRataRekanKerja: number; // (PNS + PPPK) / 2
+  bobotPejabatNilai: number; // nilaiPejabat * 0.60
+  bobotRekanKerjaNilai: number; // rataRataRekanKerja * 0.40
+  nilaiPerilakuPenilai: number; // bobotPejabatNilai + bobotRekanKerjaNilai
+  
+  // Nilai Kehadiran Breakdown
+  alfaCount: number;
+  nilaiKehadiran: number; // 1..5
+  kategoriKehadiran: string;
+  
+  // Nilai Akhir Perilaku
+  bobotPerilakuMurni: number; // nilaiPerilakuPenilai * 0.60
+  bobotKehadiranMurni: number; // nilaiKehadiran * 0.40
+  nilaiAkhirPerilaku: number; // bobotPerilakuMurni + bobotKehadiranMurni
+  ratingPerilakuKerja: PPPKRatingKinerja;
+  ratingPerilaku?: PPPKRatingKinerja;
+  
+  // Hasil Kerja Breakdown
+  ratingHasilKerja: PPPKRatingKinerja;
+  
+  // Predikat & Rekomendasi
+  predikatKinerja: PPPKPredikatKinerja;
+  rekomendasi: PPPKRekomendasiKinerja[];
+  catatanRekomendasi?: string;
+  
+  // Pejabat & Atasan
+  pejabatPenilaiNama: string;
+  pejabatPenilaiNip: string;
+  pejabatPenilaiJabatan: string;
+  pejabatPenilaiPangkat?: string;
+  pejabatPenilaiUnit?: string;
+
+  atasanPejabatPenilaiNama?: string;
+  atasanPejabatPenilaiNip?: string;
+  atasanPejabatPenilaiJabatan?: string;
+  atasanPejabatPenilaiPangkat?: string;
+  atasanPejabatPenilaiUnit?: string;
+
+  isFinal: boolean;
+  finalizedAt?: string;
+  tanggalFinalisasi?: string;
+  finalizedBy?: string;
+  isUnlockedForCorrection?: boolean;
+  alasanBukaKembali?: string;
+  unlockedAt?: string;
+  unlockedBy?: string;
+  
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PPPKAuditLogRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole?: string;
+  action: string;
+  module: string;
+  recordId: string;
+  targetDoc?: string;
+  remarks?: string;
+  oldValue?: string;
+  newValue?: string;
+  timestamp: string;
+  ipAddress?: string;
+  userAgent?: string;
+  keterangan?: string;
+}
+
+export type PPPKAuditLogEntry = PPPKAuditLogRecord;
+
 
 
 
