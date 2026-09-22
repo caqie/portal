@@ -66,7 +66,17 @@ const PengembanganPage = () => {
   const monitoringData = useMemo(() => {
     return pegawaiList.map(p => {
       const perUser = riwayatList.filter(r => r.nip === p.nip && Number(r.tahun) === filterYear);
-      const totalJp = perUser.reduce((acc, curr) => acc + (Number(curr.jumlahJpl) || 0), 0);
+      const fromPengembanganTable = perUser.reduce((acc, curr) => acc + (Number(curr.jumlahJpl) || 0), 0);
+      
+      // Hitung juga dari Riwayat Pelatihan SIMPEG milik pegawai
+      const fromRiwayatPelatihan = (p.riwayatPelatihan || [])
+        .filter(pel => Number(pel.tahun) === filterYear)
+        .reduce((acc, curr) => {
+          const match = (curr.durasi || '').match(/(\d+)/);
+          return acc + (match ? parseInt(match[1]) : 0);
+        }, 0);
+
+      const totalJp = fromPengembanganTable + fromRiwayatPelatihan;
       const isPPPK = (p.jenisPegawai || '').toUpperCase().includes('PPPK');
       const targetJp = isPPPK ? 24 : 20;
       const progress = Math.min((totalJp / targetJp) * 100, 100);

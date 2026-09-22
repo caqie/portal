@@ -206,6 +206,20 @@ const PensiunPage = () => {
         }
       }
 
+      // Hitung gaji pokok terakhir dari riwayat gaji atau data pokok
+      let gajiPokokVal = 'Rp. 0';
+      if (p.riwayatGaji && p.riwayatGaji.length > 0) {
+        const sortedGaji = [...p.riwayatGaji].sort((a, b) => (b.tmtSk || b.tanggalSk || '').localeCompare(a.tmtSk || a.tanggalSk || ''));
+        const latest = sortedGaji[0];
+        if (latest && latest.gajiPokok) {
+          const num = typeof latest.gajiPokok === 'number' ? latest.gajiPokok : parseInt(String(latest.gajiPokok).replace(/\D/g, '')) || 0;
+          gajiPokokVal = `Rp. ${num.toLocaleString('id-ID')}`;
+        }
+      } else if (p.gajiPokok) {
+        const num = typeof p.gajiPokok === 'number' ? p.gajiPokok : parseInt(String(p.gajiPokok).replace(/\D/g, '')) || 0;
+        gajiPokokVal = `Rp. ${num.toLocaleString('id-ID')}`;
+      }
+
       setFormData({ 
         ...formData, 
         nip: p.nip, 
@@ -213,6 +227,7 @@ const PensiunPage = () => {
         pangkat: p.pangkat || '', 
         golRuang: p.golRuang || '',
         jabatan: p.jabatan || '',
+        gajiPokokTerakhir: gajiPokokVal,
         tempatLahir: p.tempatLahir || '',
         tanggalLahir: p.tanggalLahir || '',
         alamatSekarang: p.alamat || '',

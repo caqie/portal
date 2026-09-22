@@ -101,30 +101,84 @@ const KGBGeneratorPage = () => {
     const p = pegawaiList.find(x => x.nip === nip);
     if (p) {
       const mkParts = (p.masaKerja || '0').split(' ');
-      const years = parseInt(mkParts[0]) || 0;
-      const currentSalary = getGajiEstimasi(p.golRuang, years);
-      const nextSalary = getGajiEstimasi(p.golRuang, years + 2);
+      let years = parseInt(mkParts[0]) || 0;
+      let months = 0;
+      if (p.masaKerja) {
+        const mMatch = p.masaKerja.match(/(\d+)\s*Tahun\s*(\d+)\s*Bulan/i);
+        if (mMatch) {
+          years = parseInt(mMatch[1]) || years;
+          months = parseInt(mMatch[2]) || 0;
+        }
+      }
+
+      // 1. Ambil data Riwayat Gaji terbaru jika tersedia
+      let lastGaji = null;
+      if (p.riwayatGaji && p.riwayatGaji.length > 0) {
+        lastGaji = [...p.riwayatGaji].sort((a, b) => {
+          const tmtA = a.tmtSk || a.tanggalSk || '';
+          const tmtB = b.tmtSk || b.tanggalSk || '';
+          return tmtB.localeCompare(tmtA);
+        })[0];
+      }
+
+      // 2. Ambil data Riwayat Pangkat terbaru jika tersedia
+      let lastPangkat = null;
+      if (p.riwayatPangkat && p.riwayatPangkat.length > 0) {
+        lastPangkat = [...p.riwayatPangkat].sort((a, b) => {
+          const tmtA = a.tmtPangkat || a.tanggalSk || '';
+          const tmtB = b.tmtPangkat || b.tanggalSk || '';
+          return tmtB.localeCompare(tmtA);
+        })[0];
+      }
+
+      // Gaji Pokok Lama
+      let parsedGajiLama = 0;
+      if (lastGaji?.gajiPokok) {
+        parsedGajiLama = typeof lastGaji.gajiPokok === 'number'
+          ? lastGaji.gajiPokok 
+          : parseInt(String(lastGaji.gajiPokok).replace(/\D/g, '')) || 0;
+      }
+      if (!parsedGajiLama && p.gajiPokok) {
+        parsedGajiLama = typeof p.gajiPokok === 'number'
+          ? p.gajiPokok
+          : parseInt(String(p.gajiPokok).replace(/\D/g, '')) || 0;
+      }
+      const currentSalary = parsedGajiLama || getGajiEstimasi(p.golRuang, years);
+
+      const effectiveYears = lastGaji?.masaKerjaTahun ? Number(lastGaji.masaKerjaTahun) : years;
+      const effectiveMonths = lastGaji?.masaKerjaBulan ? Number(lastGaji.masaKerjaBulan) : months;
+      const nextSalary = getGajiEstimasi(p.golRuang, effectiveYears + 2);
       
       // Hitung estimasi TMT Baru (TMT Lama + 2 Tahun)
-      const tmtLamaDate = new Date(formatDateForInput(p.tmtPangkat || p.tmtCpns));
-      const tmtBaruDate = new Date(tmtLamaDate);
-      tmtBaruDate.setFullYear(tmtBaruDate.getFullYear() + 2);
-      const tmtBaruEstimasi = tmtBaruDate.toISOString().split('T')[0];
+      const tmtLamaRaw = lastGaji?.tmtSk || p.tmtPangkat || p.tmtCpns;
+      const tmtLamaFormatted = formatDateForInput(tmtLamaRaw);
+      let tmtBaruEstimasi = '';
+      if (tmtLamaFormatted) {
+        const tDate = new Date(tmtLamaFormatted);
+        if (!isNaN(tDate.getTime())) {
+          tDate.setFullYear(tDate.getFullYear() + 2);
+          tmtBaruEstimasi = tDate.toISOString().split('T')[0];
+        }
+      }
 
       setFormData({ 
         ...formData, 
         nip: p.nip, 
         namaPegawai: p.nama, 
-        pangkatGol: p.jenisPegawai === 'PPPK' ? `${p.golRuang} / ${p.jabatan}` : `${p.pangkat} - ${p.golRuang}`,
+        pangkatGol: p.jenisPegawai === 'PPPK' ? `${p.golRuang} / ${p.jabatan}` : `${p.pangkat || lastPangkat?.pangkat || ''} - ${p.golRuang || lastPangkat?.golRuang || ''}`,
         jabatan: p.jabatan,
         unitKerja: p.unitKerja,
         jenisPegawai: (p.jenisPegawai as any) === 'PPPK' ? 'PPPK' : 'PNS',
         gajiLama: currentSalary,
         gajiBaru: nextSalary,
-        tmtLama: formatDateForInput(p.tmtPangkat || p.tmtCpns),
-        tmtBaru: tmtBaruEstimasi, // Auto fill TMT Baru
-        masaKerjaBaru: `${years + 2} Tahun 0 Bulan`,
-        skTerakhirMasaKerja: `${years} Tahun 0 Bulan`,
+        tmtLama: tmtLamaFormatted,
+        tmtBaru: tmtBaruEstimasi, // Auto fill TMT Baru (+2 tahun dari SK sebelumnya)
+        masaKerjaBaru: `${effectiveYears + 2} Tahun ${effectiveMonths} Bulan`,
+        skTerakhirNomor: lastGaji?.nomorSk || lastPangkat?.nomorSk || formData.skTerakhirNomor || '',
+        skTerakhirTanggal: formatDateForInput(lastGaji?.tanggalSk || lastPangkat?.tanggalSk || ''),
+        skTerakhirPejabat: lastGaji?.pejabatPenetap || lastPangkat?.pejabatPenetap || 'Kepala Biro Sumber Daya Manusia',
+        skTerakhirTmt: formatDateForInput(lastGaji?.tmtSk || lastPangkat?.tmtPangkat || ''),
+        skTerakhirMasaKerja: `${effectiveYears} Tahun ${effectiveMonths} Bulan`,
         masaPerjanjianKerja: p.jenisPegawai === 'PPPK' ? '5 Tahun' : '',
       });
     }
