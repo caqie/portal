@@ -131,10 +131,16 @@ export interface SKPRecord {
 
 export interface RiwayatPendidikan {
   jenjang: string;
-  institusi: string;
+  angkatan?: string;
   jurusan: string;
+  namaSekolah?: string;
+  institusi: string; // nama sekolah / universitas
+  alamatSekolah?: string;
+  kepalaSekolah?: string;
+  nomorIjazah: string; // No STTB
+  tanggalIjazah?: string; // Tgl STTB
   tahunLulus: string;
-  nomorIjazah: string;
+  pemakaianIjazah?: string; // e.g. "Penyesuaian Ijazah"
   fileUrl?: string;
 }
 
@@ -144,24 +150,56 @@ export interface RiwayatJabatan {
   tmtJabatan: string;
   nomorSk: string;
   tanggalSk: string;
+  pejabatPenetap?: string;
+  eselon?: string;
+  tmtEselon?: string;
+  nomorPelantikan?: string;
+  tanggalPelantikan?: string;
   fileUrl?: string;
 }
 
 export interface RiwayatPangkat {
-  golRuang: string;
-  pangkat: string;
+  golRuang: string; // e.g. "II/a", "IV/d"
+  pangkat: string; // e.g. "Pengatur Muda", "Pembina Utama Madya"
   tmtPangkat: string;
   nomorSk: string;
   tanggalSk: string;
+  pejabatPenetap?: string;
+  jenisKp?: string; // "Reguler", "Penyesuaian Ijazah", "Pilihan (Struktural)"
+  angkaKredit?: string;
+  masaKerjaTahun?: string | number;
+  masaKerjaBulan?: string | number;
+  keterangan?: string; // "CPNS", "PNS", "KP"
+  fileUrl?: string;
+}
+
+export interface RiwayatGaji {
+  nomorSk: string;
+  tanggalSk: string;
+  tmtSk: string;
+  pangkat: string; // "II/a", "IV/d"
+  gajiPokok: string | number; // "2.022.200"
+  masaKerjaTahun?: string | number;
+  masaKerjaBulan?: string | number;
+  pejabatPenetap?: string;
+  jenisKenaikanGaji?: string; // "Kenaikan Pangkat" | "Gaji Berkala"
+  kppn?: string;
   fileUrl?: string;
 }
 
 export interface RiwayatPelatihan {
-  namaPelatihan: string;
-  penyelenggara: string;
+  jenisDiklat?: string; // "Struktural", "Teknis", "Fungsional", "Lainnya"
+  namaPelatihan: string; // nama / jenis diklat
+  angkatan?: string;
   tahun: string;
-  durasi: string;
-  nomorSertifikat: string;
+  tanggalMulai?: string;
+  tanggalSelesai?: string;
+  durasi?: string; // jumlah jam
+  tempat?: string;
+  penyelenggara: string;
+  nomorSertifikat: string; // No STTPP
+  tanggalSertifikat?: string; // Tgl STTPP
+  prestasi?: string;
   fileUrl?: string;
 }
 
@@ -170,7 +208,13 @@ export interface Keluarga {
   nama: string;
   tempatLahir?: string;
   tanggalLahir?: string;
+  jenisKelamin?: 'L' | 'P' | string;
   pekerjaan?: string;
+  statusPerkawinan?: string;
+  nik?: string;
+  noBpjs?: string;
+  keteranganTunjangan?: string; // "Dapat Tunjangan" | "Tidak Dapat"
+  fileUrl?: string;
 }
 
 export interface Pegawai { 
@@ -223,9 +267,11 @@ export interface Pegawai {
   keteranganPensiun?: string;
   statusPerkawinan?: string;
   kelasJabatan?: string;
+  gajiPokok?: string | number;
   riwayatPendidikan?: RiwayatPendidikan[];
   riwayatJabatan?: RiwayatJabatan[];
   riwayatPangkat?: RiwayatPangkat[];
+  riwayatGaji?: RiwayatGaji[];
   riwayatPelatihan?: RiwayatPelatihan[];
   keluarga?: Keluarga[];
 }

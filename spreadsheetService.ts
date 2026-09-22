@@ -990,6 +990,7 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       riwayatPendidikan: getJson('RIWAYATPENDIDIKAN'),
       riwayatJabatan: getJson('RIWAYATJABATAN'),
       riwayatPangkat: getJson('RIWAYATPANGKAT'),
+      riwayatGaji: getJson('RIWAYATGAJI'),
       riwayatPelatihan: getJson('RIWAYATPELATIHAN'),
       keluarga: getJson('KELUARGA')
     } as Pegawai;

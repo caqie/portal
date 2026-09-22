@@ -359,7 +359,7 @@ export const PPPKPenilaianHasilKerjaTab: React.FC<PPPKPenilaianHasilKerjaTabProp
                   
                   {/* RHK Text */}
                   <td className="py-3 px-4">
-                    {activeRole === 'PPPK_DINILAI' && !isLocked ? (
+                    {!isLocked ? (
                       <textarea
                         value={item.rencanaHasilKerja}
                         onChange={(e) => handleItemChange(item.id, 'rencanaHasilKerja', e.target.value)}
@@ -375,7 +375,7 @@ export const PPPKPenilaianHasilKerjaTab: React.FC<PPPKPenilaianHasilKerjaTabProp
 
                   {/* Target */}
                   <td className="py-3 px-3 text-center">
-                    {activeRole === 'PPPK_DINILAI' && !isLocked ? (
+                    {!isLocked ? (
                       <div className="space-y-1">
                         <input
                           type="number"
@@ -395,7 +395,7 @@ export const PPPKPenilaianHasilKerjaTab: React.FC<PPPKPenilaianHasilKerjaTabProp
 
                   {/* Realisasi */}
                   <td className="py-3 px-3 text-center">
-                    {activeRole === 'PPPK_DINILAI' && !isLocked ? (
+                    {!isLocked ? (
                       <div className="space-y-1">
                         <input
                           type="number"

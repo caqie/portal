@@ -157,6 +157,7 @@ export const PPPKPenilaianPerilakuTab: React.FC<PPPKPenilaianPerilakuTabProps> =
 
   // Selected aspect filter/tab
   const [activeAspek, setActiveAspek] = useState<string>('Berorientasi Pelayanan');
+  const [resetModalOpen, setResetModalOpen] = useState(false);
 
   // Sync if assignment or evaluatorRole changes
   React.useEffect(() => {
@@ -239,6 +240,45 @@ export const PPPKPenilaianPerilakuTab: React.FC<PPPKPenilaianPerilakuTabProps> =
     }
   };
 
+  // Re-open submitted assessment for Edit (Pejabat Penilai & Admin)
+  const handleReopenAssessment = () => {
+    if (!doc || !activeAssignment) return;
+    const docToSave: PPPKPenilaianPerilakuDoc = {
+      ...doc,
+      status: 'DRAFT'
+    };
+    try {
+      savePenilaianPerilakuDoc(docToSave, activePegawai?.nip || 'user', activePegawai?.nama || 'User');
+      setDoc(docToSave);
+      safeRefresh();
+      safeShowToast('Penilaian perilaku berhasil dibuka kembali ke mode DRAFT untuk diedit.', 'info');
+    } catch (err: any) {
+      safeShowToast(err.message || 'Gagal membuka kembali penilaian perilaku.', 'error');
+    }
+  };
+
+  // Confirm Reset/Delete all answers (Pejabat Penilai & Admin)
+  const handleConfirmReset = () => {
+    if (!doc || !activeAssignment) return;
+    const docToSave: PPPKPenilaianPerilakuDoc = {
+      ...doc,
+      jawaban: {},
+      totalScore: 0,
+      rataRataScore: 0,
+      status: 'DRAFT',
+      tanggalPenilaian: new Date().toLocaleDateString('id-ID')
+    };
+    try {
+      savePenilaianPerilakuDoc(docToSave, activePegawai?.nip || 'user', activePegawai?.nama || 'User');
+      setDoc(docToSave);
+      setResetModalOpen(false);
+      safeRefresh();
+      safeShowToast('Seluruh jawaban kuesioner perilaku berhasil direset/dikosongkan.', 'success');
+    } catch (err: any) {
+      safeShowToast(err.message || 'Gagal mereset penilaian perilaku.', 'error');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       
@@ -273,6 +313,32 @@ export const PPPKPenilaianPerilakuTab: React.FC<PPPKPenilaianPerilakuTabProps> =
                 </option>
               ))}
             </select>
+          )}
+
+          {/* Re-open / Edit button for Pejabat Penilai & Admin when document was already submitted */}
+          {(activeRole === 'PEJABAT_PENILAI' || activeRole === 'ADMIN') && doc?.status === 'SUBMITTED' && (
+            <button
+              type="button"
+              onClick={handleReopenAssessment}
+              className="px-3.5 py-2 rounded-xl bg-indigo-50 text-indigo-800 hover:bg-indigo-100 font-bold text-xs border border-indigo-200 flex items-center gap-1.5 transition-all"
+              title="Buka kembali penilaian untuk diubah/diedit"
+            >
+              <i className="bi bi-pencil-square"></i>
+              <span>Buka Kembali (Edit)</span>
+            </button>
+          )}
+
+          {/* Reset / Kosongkan button for Pejabat Penilai & Admin */}
+          {(activeRole === 'PEJABAT_PENILAI' || activeRole === 'ADMIN') && answeredCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setResetModalOpen(true)}
+              className="px-3 py-2 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 font-bold text-xs border border-rose-200 flex items-center gap-1.5 transition-all"
+              title="Hapus atau kosongkan seluruh jawaban"
+            >
+              <i className="bi bi-arrow-counterclockwise"></i>
+              <span>Reset Jawaban</span>
+            </button>
           )}
 
           {!isLocked && (
@@ -430,6 +496,54 @@ export const PPPKPenilaianPerilakuTab: React.FC<PPPKPenilaianPerilakuTabProps> =
           );
         })}
       </div>
+
+      {/* Reset Confirmation Modal */}
+      {resetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+                <i className="bi bi-arrow-counterclockwise text-lg"></i>
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-slate-900">
+                  Reset Jawaban Kuesioner Perilaku
+                </h4>
+                <p className="text-[11px] text-slate-500">Konfirmasi Penghapusan Nilai</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-1 text-slate-700 border border-slate-200">
+              <div>Pegawai: <strong>{activeAssignment?.pppkNama}</strong></div>
+              <div>Peran Penilai: <strong>{evaluatorRole}</strong></div>
+              <div className="text-[11px] text-rose-700 font-semibold pt-1">
+                Jumlah soal yang telah terjawab: {answeredCount} dari 28 pertanyaan
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Apakah Anda yakin ingin mengosongkan/menghapus seluruh jawaban kuesioner perilaku 360° ini? Nilai total dan rata-rata akan kembali ke 0 dan status dokumen kembali ke DRAFT.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setResetModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReset}
+                className="px-4 py-2 rounded-xl text-xs font-black text-white bg-rose-600 hover:bg-rose-700 shadow-md shadow-rose-900/20"
+              >
+                Ya, Reset / Kosongkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

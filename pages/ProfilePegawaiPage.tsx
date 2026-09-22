@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Pegawai, RiwayatPendidikan, RiwayatJabatan, RiwayatPangkat, RiwayatPelatihan, Keluarga, Dossier } from '../types';
+import { Pegawai, RiwayatPendidikan, RiwayatJabatan, RiwayatPangkat, RiwayatPelatihan, RiwayatGaji, Keluarga, Dossier } from '../types';
 import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, parseDateToYYYYMMDD } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
@@ -8,6 +8,7 @@ import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, BANK_LIST, formatPegawaiName, polishGelarDanNama, getJabatanClassification } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import AutocompleteInput from '../components/AutocompleteInput';
+import SimpegImportModal, { SimpegCategory } from '../components/SimpegImportModal';
 import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
 // @ts-ignore
 import html2canvas from 'html2canvas';
@@ -29,9 +30,18 @@ const ProfilePegawaiPage = () => {
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [tempPhotoFile, setTempPhotoFile] = useState<File | null>(null);
   const [tempPhotoPreview, setTempPhotoPreview] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'identitas' | 'keluarga' | 'pendidikan' | 'jabatan' | 'pangkat' | 'pelatihan' | 'dossier'>('identitas');
+  const [activeTab, setActiveTab] = useState<'identitas' | 'keluarga' | 'pendidikan' | 'jabatan' | 'pangkat' | 'gaji' | 'pelatihan' | 'dossier'>('identitas');
   
   const [isEditing, setIsEditing] = useState(false);
+  const [jabatanViewMode, setJabatanViewMode] = useState<'table' | 'card'>('table');
+  const [pangkatViewMode, setPangkatViewMode] = useState<'table' | 'card'>('table');
+  const [pendidikanViewMode, setPendidikanViewMode] = useState<'table' | 'card'>('table');
+  const [gajiViewMode, setGajiViewMode] = useState<'table' | 'card'>('table');
+  const [pelatihanViewMode, setPelatihanViewMode] = useState<'table' | 'card'>('table');
+  const [keluargaViewMode, setKeluargaViewMode] = useState<'table' | 'card'>('table');
+  
+  const [isSimpegImportOpen, setIsSimpegImportOpen] = useState(false);
+  const [simpegImportCategory, setSimpegImportCategory] = useState<SimpegCategory>('jabatan');
   
   const [isAddDossierOpen, setIsAddDossierOpen] = useState(false);
   const [dossierFormData, setDossierFormData] = useState<Partial<Dossier>>({ fileName: '', keterangan: '' });
@@ -102,6 +112,7 @@ const ProfilePegawaiPage = () => {
           riwayatPendidikan: found.riwayatPendidikan || [],
           riwayatJabatan: found.riwayatJabatan || [],
           riwayatPangkat: found.riwayatPangkat || [],
+          riwayatGaji: found.riwayatGaji || [],
           riwayatPelatihan: found.riwayatPelatihan || [],
           keluarga: found.keluarga || []
         };
@@ -234,7 +245,8 @@ const ProfilePegawaiPage = () => {
       if (latestJabatan) {
         updated.jabatan = latestJabatan.namaJabatan;
         updated.tmtJabatan = latestJabatan.tmtJabatan;
-        updated.unitKerja = latestJabatan.unitKerja;
+        if (latestJabatan.unitKerja) updated.unitKerja = latestJabatan.unitKerja;
+        if (latestJabatan.eselon && latestJabatan.eselon !== '-') updated.eselon = latestJabatan.eselon;
       }
     }
 
@@ -278,6 +290,18 @@ const ProfilePegawaiPage = () => {
       if (highest) {
         updated.pendidikan = highest.jenjang;
         updated.jurusan = highest.jurusan;
+      }
+    }
+
+    // 4. Sync Gaji (latest TMT / Tanggal SK)
+    if (p.riwayatGaji && p.riwayatGaji.length > 0) {
+      const latestGaji = [...p.riwayatGaji].sort((a, b) => {
+        const tmtA = a.tmtSk || a.tanggalSk || '';
+        const tmtB = b.tmtSk || b.tanggalSk || '';
+        return tmtB.localeCompare(tmtA);
+      })[0];
+      if (latestGaji && latestGaji.gajiPokok) {
+        updated.gajiPokok = latestGaji.gajiPokok;
       }
     }
 
@@ -506,21 +530,33 @@ const ProfilePegawaiPage = () => {
     setPegawai({ ...pegawai, [field]: value });
   };
 
-  const addHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatPelatihan' | 'keluarga') => {
+  const addHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'keluarga') => {
     if (!pegawai) return;
     const newItem = (() => {
       switch (field) {
-        case 'riwayatPendidikan': return { jenjang: '', institusi: '', jurusan: '', tahunLulus: '', nomorIjazah: '' };
-        case 'riwayatJabatan': return { namaJabatan: '', unitKerja: '', tmtJabatan: '', nomorSk: '', tanggalSk: '' };
-        case 'riwayatPangkat': return { golRuang: '', pangkat: '', tmtPangkat: '', nomorSk: '', tanggalSk: '' };
-        case 'riwayatPelatihan': return { namaPelatihan: '', penyelenggara: '', tahun: '', durasi: '', nomorSertifikat: '' };
-        case 'keluarga': return { hubungan: '', nama: '', tempatLahir: '', tanggalLahir: '', pekerjaan: '' };
+        case 'riwayatPendidikan': return { jenjang: '', institusi: '', jurusan: '', tahunLulus: '', nomorIjazah: '', namaSekolah: '', alamatSekolah: '', kepalaSekolah: '', tanggalIjazah: '', pemakaianIjazah: '-' };
+        case 'riwayatJabatan': return { 
+          namaJabatan: '', 
+          unitKerja: '', 
+          tmtJabatan: '', 
+          nomorSk: '', 
+          tanggalSk: '',
+          pejabatPenetap: '',
+          eselon: '',
+          tmtEselon: '',
+          nomorPelantikan: '',
+          tanggalPelantikan: ''
+        };
+        case 'riwayatPangkat': return { golRuang: '', pangkat: '', tmtPangkat: '', nomorSk: '', tanggalSk: '', pejabatPenetap: '', jenisKp: 'Reguler', masaKerjaTahun: '', masaKerjaBulan: '', keterangan: 'KP' };
+        case 'riwayatGaji': return { nomorSk: '', tanggalSk: '', tmtSk: '', pangkat: '', gajiPokok: '', masaKerjaTahun: '', masaKerjaBulan: '', pejabatPenetap: '', jenisKenaikanGaji: 'Gaji Berkala', kppn: '-' };
+        case 'riwayatPelatihan': return { jenisDiklat: 'Teknis', namaPelatihan: '', angkatan: '-', tahun: '', tanggalMulai: '', tanggalSelesai: '', durasi: '', tempat: '', penyelenggara: '', nomorSertifikat: '', tanggalSertifikat: '', prestasi: '-' };
+        case 'keluarga': return { hubungan: 'Anak', nama: '', tempatLahir: '', tanggalLahir: '', jenisKelamin: 'L', pekerjaan: '', nik: '', statusPerkawinan: '', keteranganTunjangan: 'Dapat Tunjangan' };
       }
     })();
     setPegawai({ ...pegawai, [field]: [...(pegawai[field] || []), newItem] });
   };
 
-  const updateHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatPelatihan' | 'keluarga', idx: number, subField: string, value: any) => {
+  const updateHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'keluarga', idx: number, subField: string, value: any) => {
     if (!pegawai) return;
     const list = [...(pegawai[field] || [])] as any[];
     list[idx] = { ...list[idx], [subField]: value };
@@ -528,7 +564,7 @@ const ProfilePegawaiPage = () => {
   };
 
   const handleUploadHistoryFile = async (
-    field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatPelatihan',
+    field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan',
     idx: number,
     file: File
   ) => {
@@ -559,7 +595,11 @@ const ProfilePegawaiPage = () => {
         }
         else if (field === 'riwayatPendidikan') {
           const item = currentItem as any;
-          dossierName = `Ijazah ${item?.jenjang || 'Baru'} - ${item?.institusi || ''}`;
+          dossierName = `Ijazah ${item?.jenjang || 'Baru'} - ${item?.institusi || item?.namaSekolah || ''}`;
+        }
+        else if (field === 'riwayatGaji') {
+          const item = currentItem as any;
+          dossierName = `SK KGB - ${item?.nomorSk || 'Baru'}`;
         }
         else if (field === 'riwayatPelatihan') {
           const item = currentItem as any;
@@ -603,10 +643,59 @@ const ProfilePegawaiPage = () => {
     reader.readAsDataURL(file);
   };
 
-  const removeHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatPelatihan' | 'keluarga', idx: number) => {
+  const removeHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'keluarga', idx: number) => {
     if (!pegawai) return;
     const list = (pegawai[field] || []).filter((_, i) => i !== idx);
     setPegawai({ ...pegawai, [field]: list });
+  };
+
+  const handleOpenSimpegImport = (category: SimpegCategory) => {
+    setSimpegImportCategory(category);
+    setIsSimpegImportOpen(true);
+  };
+
+  const handleApplySimpegData = (cat: SimpegCategory, mode: 'APPEND' | 'REPLACE', rows: any[]) => {
+    if (!pegawai) return;
+    let field: keyof Pegawai;
+    let catTitle = '';
+    switch (cat) {
+      case 'jabatan':
+        field = 'riwayatJabatan';
+        catTitle = 'Riwayat Jabatan';
+        break;
+      case 'pangkat':
+        field = 'riwayatPangkat';
+        catTitle = 'Riwayat Pangkat';
+        break;
+      case 'pendidikan':
+        field = 'riwayatPendidikan';
+        catTitle = 'Riwayat Pendidikan';
+        break;
+      case 'gaji':
+        field = 'riwayatGaji';
+        catTitle = 'Riwayat Gaji & KGB';
+        break;
+      case 'pelatihan':
+        field = 'riwayatPelatihan';
+        catTitle = 'Riwayat Pelatihan';
+        break;
+      case 'keluarga':
+        field = 'keluarga';
+        catTitle = 'Informasi Keluarga';
+        break;
+      default:
+        return;
+    }
+
+    const currentList = (pegawai[field] as any[]) || [];
+    const newList = mode === 'REPLACE' ? [...rows] : [...currentList, ...rows];
+    const updated = { ...pegawai, [field]: newList };
+    const synced = syncHistoryToDetail(updated);
+    setPegawai(synced);
+    setIsEditing(true);
+    setIsSimpegImportOpen(false);
+    setSuccessMsg(`Berhasil memuat ${rows.length} data untuk ${catTitle} dari SIMPEG. Silakan tinjau dan klik "Simpan Perubahan".`);
+    setShowSuccess(true);
   };
 
 
@@ -741,6 +830,7 @@ const ProfilePegawaiPage = () => {
               { id: 'pendidikan', label: 'Pendidikan', icon: 'bi-mortarboard-fill' },
               { id: 'jabatan', label: 'Jabatan', icon: 'bi-briefcase-fill' },
               { id: 'pangkat', label: 'Pangkat', icon: 'bi-award-fill' },
+              { id: 'gaji', label: 'Gaji & KGB', icon: 'bi-cash-stack' },
               { id: 'pelatihan', label: 'Pelatihan', icon: 'bi-journal-check' },
               { id: 'dossier', label: 'Dossier', icon: 'bi-folder-fill' },
             ].map(tab => (
@@ -1254,503 +1344,2036 @@ const ProfilePegawaiPage = () => {
 
             {activeTab === 'keluarga' && (
               <div className="space-y-6 md:space-y-8 animate-fadeIn">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-gray-100 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 md:h-12 md:w-12 bg-emerald-50 text-emerald-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-people-fill"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-emerald-50 text-emerald-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl shadow-sm">
+                      <i className="bi bi-people-fill"></i>
+                    </div>
                     <div>
-                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Informasi Keluarga</h4>
-                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Data pasangan dan anak</p>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Informasi Keluarga</h4>
+                        <span className="px-2.5 py-0.5 bg-emerald-100/70 text-emerald-700 rounded-full text-[9px] font-black uppercase tracking-wider">
+                          {(pegawai.keluarga || []).length} Anggota
+                        </span>
+                      </div>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                        Data Pasangan, Anak, dan Orang Tua Sesuai SIMPEG Kemenkumham
+                      </p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                    <button onClick={handleCetakDHCP} disabled={syncing} className="flex-1 sm:flex-none px-6 py-3 bg-gray-900 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-gray-100">
-                      {syncing ? <div className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>}
-                      Cetak DHCP Pensiun
+
+                  <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    {/* View Switcher */}
+                    <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-[9px] font-black uppercase">
+                      <button
+                        type="button"
+                        onClick={() => setKeluargaViewMode('table')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${keluargaViewMode === 'table' ? 'bg-white text-emerald-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-table"></i> Tabel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setKeluargaViewMode('card')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${keluargaViewMode === 'card' ? 'bg-white text-emerald-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-grid-fill"></i> Kartu
+                      </button>
+                    </div>
+
+                    {/* Quick Import SIMPEG Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSimpegImport('keluarga')}
+                      className="px-4 py-2 bg-gradient-to-r from-teal-50 to-emerald-50 text-emerald-700 border border-emerald-200 hover:border-emerald-300 rounded-xl font-black text-[9px] uppercase flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                      title="Salin dan tempel data keluarga langsung dari portal SIMPEG"
+                    >
+                      <i className="bi bi-file-earmark-spreadsheet-fill text-emerald-600"></i>
+                      <span>Import SIMPEG</span>
                     </button>
+
+                    {/* Cetak DHCP Pensiun */}
+                    <button
+                      type="button"
+                      onClick={handleCetakDHCP}
+                      disabled={syncing}
+                      className="px-4 py-2 bg-gray-900 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-gray-800 transition-all"
+                    >
+                      {syncing ? <div className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-file-earmark-pdf-fill"></i>}
+                      <span>Cetak DHCP</span>
+                    </button>
+
+                    {/* Tambah Anggota */}
                     {isEditing && (
-                      <button onClick={() => addHistoryItem('keluarga')} className="flex-1 sm:flex-none px-6 py-3 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-emerald-100">
-                        <i className="bi bi-plus-lg"></i> Tambah Anggota
+                      <button
+                        type="button"
+                        onClick={() => addHistoryItem('keluarga')}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-emerald-700 transition-all"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah
                       </button>
                     )}
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  {(pegawai.keluarga || []).map((k, idx) => (
-                    <div key={`${k.nama}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
-                      {isEditing && (
-                        <button onClick={() => removeHistoryItem('keluarga', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
-                          <i className="bi bi-trash3"></i>
-                        </button>
-                      )}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Hubungan</label>
-                          {isEditing ? (
-                            <select className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={k.hubungan} onChange={e => updateHistoryItem('keluarga', idx, 'hubungan', e.target.value)}>
-                              <option value="">Pilih</option>
-                              <option value="Suami">Suami</option>
-                              <option value="Istri">Istri</option>
-                              <option value="Anak">Anak</option>
-                              <option value="Ayah">Ayah</option>
-                              <option value="Ibu">Ibu</option>
-                            </select>
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.hubungan || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Lengkap</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.nama} onChange={e => updateHistoryItem('keluarga', idx, 'nama', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.nama || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tempat Lahir</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.tempatLahir} onChange={e => updateHistoryItem('keluarga', idx, 'tempatLahir', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.tempatLahir || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal Lahir</label>
-                          {isEditing ? (
-                            <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(k.tanggalLahir)} onChange={e => updateHistoryItem('keluarga', idx, 'tanggalLahir', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(k.tanggalLahir)}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pekerjaan</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.pekerjaan} onChange={e => updateHistoryItem('keluarga', idx, 'pekerjaan', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.pekerjaan || '-'}</div>
-                          )}
+                {/* TABLE VIEW */}
+                {keluargaViewMode === 'table' && (pegawai.keluarga || []).length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 text-[9px] font-black uppercase text-gray-500 tracking-wider">
+                            <th className="py-3 px-3 w-10 text-center">No</th>
+                            <th className="py-3 px-4">Hubungan</th>
+                            <th className="py-3 px-4">Nama Lengkap</th>
+                            <th className="py-3 px-4">Tempat Lahir</th>
+                            <th className="py-3 px-4 text-center">Tanggal Lahir</th>
+                            <th className="py-3 px-4">Pekerjaan</th>
+                            {isEditing && <th className="py-3 px-3 text-center w-14">Aksi</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-sans">
+                          {(pegawai.keluarga || []).map((k, idx) => (
+                            <tr key={`${k.nama}-${idx}`} className="hover:bg-emerald-50/30 transition-colors">
+                              <td className="py-3 px-3 text-center text-[10px] font-bold text-gray-400">{idx + 1}</td>
+                              <td className="py-3 px-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                  k.hubungan?.toLowerCase() === 'istri' || k.hubungan?.toLowerCase() === 'suami'
+                                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                    : k.hubungan?.toLowerCase() === 'anak'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {k.hubungan || '-'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-bold text-gray-900 uppercase text-[11px]">{k.nama || '-'}</td>
+                              <td className="py-3 px-4 text-gray-600 uppercase text-[11px]">{k.tempatLahir || '-'}</td>
+                              <td className="py-3 px-4 text-center text-gray-700 font-mono text-[10px]">{formatDateIndoDisplay(k.tanggalLahir)}</td>
+                              <td className="py-3 px-4 text-gray-600 uppercase text-[11px]">{k.pekerjaan || '-'}</td>
+                              {isEditing && (
+                                <td className="py-3 px-3 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeHistoryItem('keluarga', idx)}
+                                    className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white flex items-center justify-center transition-colors mx-auto text-xs"
+                                    title="Hapus anggota keluarga ini"
+                                  >
+                                    <i className="bi bi-trash3"></i>
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* CARD FORM VIEW */}
+                {keluargaViewMode === 'card' && (
+                  <div className="space-y-4">
+                    {(pegawai.keluarga || []).map((k, idx) => (
+                      <div key={`${k.nama}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
+                        {isEditing && (
+                          <button onClick={() => removeHistoryItem('keluarga', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
+                            <i className="bi bi-trash3"></i>
+                          </button>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Hubungan</label>
+                            {isEditing ? (
+                              <select className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={k.hubungan} onChange={e => updateHistoryItem('keluarga', idx, 'hubungan', e.target.value)}>
+                                <option value="">Pilih</option>
+                                <option value="Suami">Suami</option>
+                                <option value="Istri">Istri</option>
+                                <option value="Anak">Anak</option>
+                                <option value="Ayah">Ayah</option>
+                                <option value="Ibu">Ibu</option>
+                              </select>
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.hubungan || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Lengkap</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.nama} onChange={e => updateHistoryItem('keluarga', idx, 'nama', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.nama || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tempat Lahir</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.tempatLahir} onChange={e => updateHistoryItem('keluarga', idx, 'tempatLahir', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.tempatLahir || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal Lahir</label>
+                            {isEditing ? (
+                              <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(k.tanggalLahir)} onChange={e => updateHistoryItem('keluarga', idx, 'tanggalLahir', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(k.tanggalLahir)}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pekerjaan</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={k.pekerjaan} onChange={e => updateHistoryItem('keluarga', idx, 'pekerjaan', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{k.pekerjaan || '-'}</div>
+                            )}
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {(pegawai.keluarga || []).length === 0 && (
+                  <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-200 rounded-3xl md:rounded-[2.5rem] bg-gray-50/50 space-y-4">
+                    <div className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-xs">
+                      <i className="bi bi-people"></i>
                     </div>
-                  ))}
-                  {(pegawai.keluarga || []).length === 0 && (
-                    <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-100 rounded-3xl md:rounded-[2.5rem] text-gray-400 font-bold uppercase text-[9px] md:text-[10px] tracking-widest">Belum ada data keluarga</div>
-                  )}
-                </div>
+                    <div>
+                      <h5 className="font-black text-gray-900 uppercase text-sm tracking-tight">Belum Ada Data Keluarga</h5>
+                      <p className="text-gray-400 text-xs mt-1 max-w-md mx-auto">
+                        Anda dapat menambahkan data keluarga secara manual atau mengimpor data langsung dari tabel SIMPEG.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditing(true);
+                          addHistoryItem('keluarga');
+                        }}
+                        className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase shadow-md shadow-emerald-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah Manual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSimpegImport('keluarga')}
+                        className="px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-black text-[10px] uppercase hover:bg-emerald-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-file-earmark-spreadsheet"></i> Salin / Import dari SIMPEG
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'pendidikan' && (
               <div className="space-y-6 md:space-y-8 animate-fadeIn">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-gray-100 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 md:h-12 md:w-12 bg-indigo-50 text-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-mortarboard-fill"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-indigo-50 text-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl shadow-sm">
+                      <i className="bi bi-mortarboard-fill"></i>
+                    </div>
                     <div>
-                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pendidikan</h4>
-                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Pendidikan formal</p>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pendidikan</h4>
+                        <span className="px-2.5 py-0.5 bg-indigo-100/70 text-indigo-700 rounded-full text-[9px] font-black uppercase tracking-wider">
+                          {(pegawai.riwayatPendidikan || []).length} Riwayat
+                        </span>
+                      </div>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                        Pendidikan Formal Dari SD hingga Pascasarjana Sesuai SIMPEG Kemenkumham
+                      </p>
                     </div>
                   </div>
-                  {isEditing && (
-                    <button onClick={() => addHistoryItem('riwayatPendidikan')} className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-indigo-100">
-                      <i className="bi bi-plus-lg"></i> Tambah Pendidikan
+
+                  <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    {/* View Switcher */}
+                    <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-[9px] font-black uppercase">
+                      <button
+                        type="button"
+                        onClick={() => setPendidikanViewMode('table')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${pendidikanViewMode === 'table' ? 'bg-white text-indigo-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-table"></i> Tabel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendidikanViewMode('card')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${pendidikanViewMode === 'card' ? 'bg-white text-indigo-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-grid-fill"></i> Kartu
+                      </button>
+                    </div>
+
+                    {/* Quick Import SIMPEG Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSimpegImport('pendidikan')}
+                      className="px-4 py-2 bg-gradient-to-r from-teal-50 to-emerald-50 text-emerald-700 border border-emerald-200 hover:border-emerald-300 rounded-xl font-black text-[9px] uppercase flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                      title="Salin dan tempel data pendidikan langsung dari portal SIMPEG"
+                    >
+                      <i className="bi bi-file-earmark-spreadsheet-fill text-emerald-600"></i>
+                      <span>Import SIMPEG</span>
                     </button>
-                  )}
+
+                    {/* Tambah Pendidikan */}
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => addHistoryItem('riwayatPendidikan')}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-indigo-700 transition-all"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <div className="space-y-4">
-                  {(pegawai.riwayatPendidikan || []).map((p, idx) => (
-                    <div key={`${p.jenjang}-${p.institusi}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
-                      {isEditing && (
-                        <button onClick={() => removeHistoryItem('riwayatPendidikan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
-                          <i className="bi bi-trash3"></i>
-                        </button>
-                      )}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jenjang</label>
-                          {isEditing ? (
-                            <select className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.jenjang} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jenjang', e.target.value)}>
-                              <option value="">Pilih</option>
-                              <option value="SD">SD</option>
-                              <option value="SMP">SMP</option>
-                              <option value="SMA/SMK">SMA/SMK</option>
-                              <option value="D3">D3</option>
-                              <option value="D4/S1">D4/S1</option>
-                              <option value="S2">S2</option>
-                              <option value="S3">S3</option>
-                            </select>
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jenjang || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Sekolah / Universitas</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.institusi} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'institusi', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.institusi || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tahun Lulus</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahunLulus} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'tahunLulus', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tahunLulus || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jurusan</label>
-                          {isEditing ? (
-                            <AutocompleteInput
-                              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none"
-                              value={p.jurusan}
-                              onChange={val => updateHistoryItem('riwayatPendidikan', idx, 'jurusan', val)}
-                              options={JURUSAN_LIST}
-                              placeholder="Pencarian Program Studi / Jurusan..."
-                            />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jurusan || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Ijazah</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorIjazah} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'nomorIjazah', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorIjazah || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload Ijazah (PDF)</label>
-                           <div className="flex items-center gap-3">
-                              {p.fileUrl ? (
-                                 <div className="flex gap-2">
-                                    <button onClick={() => window.open(p.fileUrl || '', '_blank')} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all">Lihat PDF</button>
-                                    <button onClick={() => handleDownload(p.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
-                                       <i className="bi bi-download"></i> Unduh PDF
+                {/* TABLE VIEW */}
+                {pendidikanViewMode === 'table' && (pegawai.riwayatPendidikan || []).length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 text-[9px] font-black uppercase text-gray-500 tracking-wider">
+                            <th className="py-3 px-3 w-10 text-center">No</th>
+                            <th className="py-3 px-4">Jenjang</th>
+                            <th className="py-3 px-4">Sekolah / Perguruan Tinggi</th>
+                            <th className="py-3 px-4">Jurusan / Program Studi</th>
+                            <th className="py-3 px-3 text-center">Tahun</th>
+                            <th className="py-3 px-4">No Ijazah</th>
+                            <th className="py-3 px-3 text-center">Berkas</th>
+                            {isEditing && <th className="py-3 px-3 text-center w-14">Aksi</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-sans">
+                          {(pegawai.riwayatPendidikan || []).map((p, idx) => (
+                            <tr key={`${p.jenjang}-${p.institusi}-${idx}`} className="hover:bg-indigo-50/30 transition-colors">
+                              <td className="py-3 px-3 text-center text-[10px] font-bold text-gray-400">{idx + 1}</td>
+                              <td className="py-3 px-4">
+                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded font-black text-[9px] uppercase">
+                                  {p.jenjang || '-'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-bold text-gray-900 uppercase text-[11px]">{p.institusi || '-'}</td>
+                              <td className="py-3 px-4 text-gray-600 uppercase text-[11px]">{p.jurusan || '-'}</td>
+                              <td className="py-3 px-3 text-center font-mono font-bold text-gray-800 text-[10px]">{p.tahunLulus || '-'}</td>
+                              <td className="py-3 px-4 font-mono text-gray-600 text-[10px] uppercase">{p.nomorIjazah || '-'}</td>
+                              <td className="py-3 px-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {p.fileUrl ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => window.open(p.fileUrl || '', '_blank')}
+                                        className="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Lihat Ijazah"
+                                      >
+                                        <i className="bi bi-eye"></i>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownload(p.fileUrl || '')}
+                                        className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Unduh Ijazah"
+                                      >
+                                        <i className="bi bi-download"></i>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-[9px] text-gray-300 italic">-</span>
+                                  )}
+                                  {isEditing && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const input = document.createElement('input');
+                                        input.type = 'file';
+                                        input.accept = 'application/pdf';
+                                        input.onchange = (e: any) => {
+                                          const file = e.target.files[0];
+                                          if (file) handleUploadHistoryFile('riwayatPendidikan', idx, file);
+                                        };
+                                        input.click();
+                                      }}
+                                      className="h-7 w-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                      title="Unggah Berkas Ijazah (PDF)"
+                                    >
+                                      <i className="bi bi-upload"></i>
                                     </button>
-                                 </div>
-                              ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                                  )}
+                                </div>
+                              </td>
                               {isEditing && (
-                                 <button onClick={() => {
-                                    const input = document.createElement('input');
-                                    input.type = 'file';
-                                    input.accept = 'application/pdf';
-                                    input.onchange = (e: any) => {
-                                       const file = e.target.files[0];
-                                       if (file) handleUploadHistoryFile('riwayatPendidikan', idx, file);
-                                    };
-                                    input.click();
-                                 }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-indigo-600 hover:text-indigo-600 transition-all">Ganti File</button>
+                                <td className="py-3 px-3 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeHistoryItem('riwayatPendidikan', idx)}
+                                    className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white flex items-center justify-center transition-colors mx-auto text-xs"
+                                    title="Hapus riwayat pendidikan ini"
+                                  >
+                                    <i className="bi bi-trash3"></i>
+                                  </button>
+                                </td>
                               )}
-                           </div>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* CARD FORM VIEW */}
+                {pendidikanViewMode === 'card' && (
+                  <div className="space-y-4">
+                    {(pegawai.riwayatPendidikan || []).map((p, idx) => (
+                      <div key={`${p.jenjang}-${p.institusi}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
+                        {isEditing && (
+                          <button onClick={() => removeHistoryItem('riwayatPendidikan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
+                            <i className="bi bi-trash3"></i>
+                          </button>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jenjang</label>
+                            {isEditing ? (
+                              <select className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.jenjang} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jenjang', e.target.value)}>
+                                <option value="">Pilih</option>
+                                <option value="SD">SD</option>
+                                <option value="SMP">SMP</option>
+                                <option value="SMA/SMK">SMA/SMK</option>
+                                <option value="D3">D3</option>
+                                <option value="D4/S1">D4/S1</option>
+                                <option value="S2">S2</option>
+                                <option value="S3">S3</option>
+                              </select>
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jenjang || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Sekolah / Universitas</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.institusi} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'institusi', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.institusi || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tahun Lulus</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahunLulus} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'tahunLulus', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tahunLulus || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jurusan</label>
+                            {isEditing ? (
+                              <AutocompleteInput
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none"
+                                value={p.jurusan}
+                                onChange={val => updateHistoryItem('riwayatPendidikan', idx, 'jurusan', val)}
+                                options={JURUSAN_LIST}
+                                placeholder="Pencarian Program Studi / Jurusan..."
+                              />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jurusan || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Ijazah</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorIjazah} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'nomorIjazah', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorIjazah || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                             <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload Ijazah (PDF)</label>
+                             <div className="flex items-center gap-3">
+                                {p.fileUrl ? (
+                                   <div className="flex gap-2">
+                                      <button onClick={() => window.open(p.fileUrl || '', '_blank')} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[9px] font-black uppercase border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all">Lihat PDF</button>
+                                      <button onClick={() => handleDownload(p.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
+                                         <i className="bi bi-download"></i> Unduh PDF
+                                      </button>
+                                   </div>
+                                ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                                {isEditing && (
+                                   <button onClick={() => {
+                                      const input = document.createElement('input');
+                                      input.type = 'file';
+                                      input.accept = 'application/pdf';
+                                      input.onchange = (e: any) => {
+                                         const file = e.target.files[0];
+                                         if (file) handleUploadHistoryFile('riwayatPendidikan', idx, file);
+                                      };
+                                      input.click();
+                                   }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-indigo-600 hover:text-indigo-600 transition-all">Ganti File</button>
+                                )}
+                             </div>
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {(pegawai.riwayatPendidikan || []).length === 0 && (
+                  <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-200 rounded-3xl md:rounded-[2.5rem] bg-gray-50/50 space-y-4">
+                    <div className="h-16 w-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-xs">
+                      <i className="bi bi-mortarboard"></i>
                     </div>
-                  ))}
-                </div>
+                    <div>
+                      <h5 className="font-black text-gray-900 uppercase text-sm tracking-tight">Belum Ada Riwayat Pendidikan</h5>
+                      <p className="text-gray-400 text-xs mt-1 max-w-md mx-auto">
+                        Anda dapat menambahkan data pendidikan secara manual atau mengimpor data langsung dari SIMPEG.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditing(true);
+                          addHistoryItem('riwayatPendidikan');
+                        }}
+                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase shadow-md shadow-indigo-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah Manual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSimpegImport('pendidikan')}
+                        className="px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-black text-[10px] uppercase hover:bg-emerald-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-file-earmark-spreadsheet"></i> Salin / Import dari SIMPEG
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'jabatan' && (
               <div className="space-y-6 md:space-y-8 animate-fadeIn">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
+                {/* Header Section */}
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-gray-100 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 md:h-12 md:w-12 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-briefcase-fill"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl shadow-sm">
+                      <i className="bi bi-briefcase-fill"></i>
+                    </div>
                     <div>
-                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Jabatan</h4>
-                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Perjalanan karir</p>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Jabatan</h4>
+                        <span className="px-2.5 py-0.5 bg-blue-100/70 text-blue-700 rounded-full text-[9px] font-black uppercase tracking-wider">
+                          {(pegawai.riwayatJabatan || []).length} Riwayat
+                        </span>
+                      </div>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                        Perjalanan Karir, Mutasi & Promosi Sesuai SIMPEG Kemenkumham
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    {/* View Switcher */}
+                    <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-[9px] font-black uppercase">
+                      <button
+                        type="button"
+                        onClick={() => setJabatanViewMode('table')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${jabatanViewMode === 'table' ? 'bg-white text-blue-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-table"></i> Tabel SIMPEG
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setJabatanViewMode('card')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${jabatanViewMode === 'card' ? 'bg-white text-blue-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-grid-fill"></i> Kartu Form
+                      </button>
+                    </div>
+
+                    {/* Quick Import SIMPEG Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSimpegImport('jabatan')}
+                      className="px-4 py-2 bg-gradient-to-r from-teal-50 to-emerald-50 text-emerald-700 border border-emerald-200 hover:border-emerald-300 rounded-xl font-black text-[9px] uppercase flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                      title="Salin dan tempel data tabel langsung dari portal SIMPEG"
+                    >
+                      <i className="bi bi-file-earmark-spreadsheet-fill text-emerald-600"></i>
+                      <span>Import SIMPEG</span>
+                    </button>
+
+                    {/* Edit or Add Jabatan */}
+                    {canEditThisProfile && (
+                      !isEditing ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsEditing(true)}
+                          className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl font-black text-[9px] uppercase flex items-center gap-2 transition-all"
+                        >
+                          <i className="bi bi-pencil-square"></i> Edit Data
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => addHistoryItem('riwayatJabatan')}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-md shadow-blue-200 transition-all active:scale-95"
+                        >
+                          <i className="bi bi-plus-lg"></i> Tambah Jabatan
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Helper Banner */}
+                <div className="p-4 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 border border-blue-100 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-start gap-3">
+                    <div className="h-7 w-7 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 text-xs">
+                      <i className="bi bi-info-circle-fill"></i>
+                    </div>
+                    <div className="text-[10px] text-gray-600 leading-relaxed">
+                      <span className="font-black text-gray-900 uppercase">Petunjuk Input Riwayat Jabatan:</span> Data riwayat jabatan mencakup seluruh kolom standar SIMPEG (No SK, TMT, Pejabat Penetap, Eselon, Pelantikan). Jabatan dengan TMT paling mutakhir akan otomatis dijadikan Jabatan Utama pegawai. Anda juga dapat menggunakan tombol <strong className="text-emerald-700">"Import SIMPEG"</strong> untuk menyalin tabel secara otomatis.
                     </div>
                   </div>
                   {isEditing && (
-                    <button onClick={() => addHistoryItem('riwayatJabatan')} className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-blue-100">
-                      <i className="bi bi-plus-lg"></i> Tambah Jabatan
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={syncing}
+                      className="shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-sm flex items-center gap-2"
+                    >
+                      {syncing ? <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <i className="bi bi-cloud-check-fill"></i>}
+                      Simpan Perubahan
                     </button>
                   )}
                 </div>
-                <div className="space-y-4">
-                  {(pegawai.riwayatJabatan || []).map((j, idx) => (
-                    <div key={`${j.namaJabatan}-${j.tmtJabatan}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
-                      {isEditing && (
-                        <button onClick={() => removeHistoryItem('riwayatJabatan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
-                          <i className="bi bi-trash3"></i>
-                        </button>
-                      )}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Jabatan</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.namaJabatan} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'namaJabatan', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.namaJabatan || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Unit Kerja</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.unitKerja} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'unitKerja', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.unitKerja || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">TMT Jabatan</label>
-                          {isEditing ? (
-                            <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(j.tmtJabatan)} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tmtJabatan', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(j.tmtJabatan)}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={j.nomorSk} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'nomorSk', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.nomorSk || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal SK</label>
-                          {isEditing ? (
-                            <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(j.tanggalSk)} onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tanggalSk', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(j.tanggalSk)}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload SK Jabatan (PDF)</label>
-                           <div className="flex items-center gap-3">
-                              {j.fileUrl ? (
-                                 <div className="flex gap-2">
-                                    <button onClick={() => window.open(j.fileUrl || '', '_blank')} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase border border-blue-100 hover:bg-blue-600 hover:text-white transition-all">Lihat SK</button>
-                                    <button onClick={() => handleDownload(j.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
-                                       <i className="bi bi-download"></i> Unduh SK
+
+                {/* TABEL VIEW (Standard SIMPEG Table) */}
+                {jabatanViewMode === 'table' && (
+                  <div className="space-y-4">
+                    <div className="overflow-x-auto border border-gray-200 rounded-2xl bg-white shadow-sm">
+                      <table className="w-full text-left border-collapse text-[11px]">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-gray-200 text-slate-700 text-[9px] uppercase font-black tracking-wider divide-x divide-gray-200">
+                            <th className="py-3 px-3 text-center w-10">No</th>
+                            <th className="py-3 px-3 min-w-[150px]">No. SK</th>
+                            <th className="py-3 px-3 min-w-[95px] text-center">Tgl SK</th>
+                            <th className="py-3 px-4 min-w-[240px]">Nama Jabatan & Unit Kerja</th>
+                            <th className="py-3 px-3 min-w-[105px] text-center bg-blue-50/60 text-blue-950">TMT Jabatan</th>
+                            <th className="py-3 px-3 min-w-[160px]">Pejabat Penetap</th>
+                            <th className="py-3 px-2 text-center min-w-[70px]">Eselon</th>
+                            <th className="py-3 px-3 min-w-[95px] text-center">TMT Eselon</th>
+                            <th className="py-3 px-3 min-w-[130px]">No. Pelantikan</th>
+                            <th className="py-3 px-3 min-w-[95px] text-center">Tgl Pelantikan</th>
+                            <th className="py-3 px-3 text-center min-w-[90px]">Berkas SK</th>
+                            {isEditing && <th className="py-3 px-2 text-center w-12">Aksi</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-[11px]">
+                          {(pegawai.riwayatJabatan || []).map((j, idx) => (
+                            <tr key={`row-${idx}-${j.nomorSk || j.namaJabatan}`} className="hover:bg-blue-50/30 transition-colors divide-x divide-gray-100 group">
+                              {/* No */}
+                              <td className="py-3 px-3 text-center font-bold text-gray-400 text-[10px]">
+                                {idx + 1}
+                              </td>
+
+                              {/* No SK */}
+                              <td className="py-3 px-3 font-semibold text-gray-800">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    className="w-full px-2 py-1 bg-white border border-gray-200 rounded text-[11px] font-mono outline-none focus:border-blue-500 uppercase"
+                                    value={j.nomorSk || ''}
+                                    placeholder="No. SK"
+                                    onChange={e => updateHistoryItem('riwayatJabatan', idx, 'nomorSk', e.target.value)}
+                                  />
+                                ) : (
+                                  <span className="font-mono text-gray-900 select-all font-bold">{j.nomorSk || '-'}</span>
+                                )}
+                              </td>
+
+                              {/* Tgl SK */}
+                              <td className="py-3 px-3 text-center text-gray-600 whitespace-nowrap">
+                                {isEditing ? (
+                                  <input
+                                    type="date"
+                                    className="w-full px-1.5 py-1 bg-white border border-gray-200 rounded text-[10px] outline-none focus:border-blue-500"
+                                    value={formatDateForInput(j.tanggalSk)}
+                                    onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tanggalSk', e.target.value)}
+                                  />
+                                ) : (
+                                  formatDateIndoDisplay(j.tanggalSk)
+                                )}
+                              </td>
+
+                              {/* Nama Jabatan & Unit Kerja */}
+                              <td className="py-3 px-4">
+                                {isEditing ? (
+                                  <div className="space-y-1">
+                                    <input
+                                      type="text"
+                                      className="w-full px-2 py-1 bg-white border border-gray-200 rounded text-[11px] font-bold outline-none focus:border-blue-500 uppercase"
+                                      value={j.namaJabatan || ''}
+                                      placeholder="Nama Jabatan"
+                                      onChange={e => updateHistoryItem('riwayatJabatan', idx, 'namaJabatan', e.target.value)}
+                                    />
+                                    <input
+                                      type="text"
+                                      className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded text-[10px] outline-none focus:border-blue-500 uppercase"
+                                      value={j.unitKerja || ''}
+                                      placeholder="Unit Kerja / Satuan Kerja"
+                                      onChange={e => updateHistoryItem('riwayatJabatan', idx, 'unitKerja', e.target.value)}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div className="font-black text-gray-900 uppercase leading-snug">{j.namaJabatan || '-'}</div>
+                                    {j.unitKerja && (
+                                      <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wide mt-0.5">
+                                        <i className="bi bi-geo-alt-fill text-blue-500 mr-1"></i>
+                                        {j.unitKerja}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* TMT Jabatan */}
+                              <td className="py-3 px-3 text-center bg-blue-50/20 whitespace-nowrap">
+                                {isEditing ? (
+                                  <input
+                                    type="date"
+                                    className="w-full px-1.5 py-1 bg-white border border-blue-200 rounded text-[10px] font-bold text-blue-700 outline-none focus:border-blue-500"
+                                    value={formatDateForInput(j.tmtJabatan)}
+                                    onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tmtJabatan', e.target.value)}
+                                  />
+                                ) : (
+                                  <span className="inline-block px-2 py-0.5 bg-blue-100/70 text-blue-800 rounded font-black text-[10px]">
+                                    {formatDateIndoDisplay(j.tmtJabatan)}
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Pejabat Penetap */}
+                              <td className="py-3 px-3 text-gray-700">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    className="w-full px-2 py-1 bg-white border border-gray-200 rounded text-[10px] outline-none focus:border-blue-500"
+                                    value={j.pejabatPenetap || ''}
+                                    placeholder="Pejabat Penetap"
+                                    onChange={e => updateHistoryItem('riwayatJabatan', idx, 'pejabatPenetap', e.target.value)}
+                                  />
+                                ) : (
+                                  <span className="text-gray-700">{j.pejabatPenetap || '-'}</span>
+                                )}
+                              </td>
+
+                              {/* Eselon */}
+                              <td className="py-3 px-2 text-center whitespace-nowrap">
+                                {isEditing ? (
+                                  <select
+                                    className="w-full px-1 py-1 bg-white border border-gray-200 rounded text-[10px] font-bold outline-none focus:border-blue-500 uppercase"
+                                    value={j.eselon || ''}
+                                    onChange={e => updateHistoryItem('riwayatJabatan', idx, 'eselon', e.target.value)}
+                                  >
+                                    <option value="">-</option>
+                                    <option value="I.a">I.a</option>
+                                    <option value="I.b">I.b</option>
+                                    <option value="II.a">II.a</option>
+                                    <option value="II.b">II.b</option>
+                                    <option value="III.a">III.a</option>
+                                    <option value="III.b">III.b</option>
+                                    <option value="IV.a">IV.a</option>
+                                    <option value="IV.b">IV.b</option>
+                                    <option value="V">V</option>
+                                    <option value="Non-Eselon">Non-Eselon</option>
+                                  </select>
+                                ) : (
+                                  j.eselon && j.eselon !== '-' ? (
+                                    <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded font-black text-[9px] uppercase">
+                                      {j.eselon}
+                                    </span>
+                                  ) : <span className="text-gray-300">-</span>
+                                )}
+                              </td>
+
+                              {/* TMT Eselon */}
+                              <td className="py-3 px-3 text-center text-gray-600 whitespace-nowrap">
+                                {isEditing ? (
+                                  <input
+                                    type="date"
+                                    className="w-full px-1.5 py-1 bg-white border border-gray-200 rounded text-[10px] outline-none focus:border-blue-500"
+                                    value={formatDateForInput(j.tmtEselon)}
+                                    onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tmtEselon', e.target.value)}
+                                  />
+                                ) : (
+                                  formatDateIndoDisplay(j.tmtEselon)
+                                )}
+                              </td>
+
+                              {/* No Pelantikan */}
+                              <td className="py-3 px-3 text-gray-700 font-mono text-[10px]">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    className="w-full px-2 py-1 bg-white border border-gray-200 rounded text-[10px] font-mono outline-none focus:border-blue-500 uppercase"
+                                    value={j.nomorPelantikan || ''}
+                                    placeholder="No. Pelantikan"
+                                    onChange={e => updateHistoryItem('riwayatJabatan', idx, 'nomorPelantikan', e.target.value)}
+                                  />
+                                ) : (
+                                  <span>{j.nomorPelantikan || '-'}</span>
+                                )}
+                              </td>
+
+                              {/* Tgl Pelantikan */}
+                              <td className="py-3 px-3 text-center text-gray-600 whitespace-nowrap">
+                                {isEditing ? (
+                                  <input
+                                    type="date"
+                                    className="w-full px-1.5 py-1 bg-white border border-gray-200 rounded text-[10px] outline-none focus:border-blue-500"
+                                    value={formatDateForInput(j.tanggalPelantikan)}
+                                    onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tanggalPelantikan', e.target.value)}
+                                  />
+                                ) : (
+                                  formatDateIndoDisplay(j.tanggalPelantikan)
+                                )}
+                              </td>
+
+                              {/* Berkas SK */}
+                              <td className="py-3 px-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {j.fileUrl ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => window.open(j.fileUrl || '', '_blank')}
+                                        className="h-7 w-7 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Lihat SK"
+                                      >
+                                        <i className="bi bi-eye"></i>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownload(j.fileUrl || '')}
+                                        className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Unduh SK"
+                                      >
+                                        <i className="bi bi-download"></i>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-[9px] text-gray-300 italic">-</span>
+                                  )}
+                                  {isEditing && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const input = document.createElement('input');
+                                        input.type = 'file';
+                                        input.accept = 'application/pdf';
+                                        input.onchange = (e: any) => {
+                                          const file = e.target.files[0];
+                                          if (file) handleUploadHistoryFile('riwayatJabatan', idx, file);
+                                        };
+                                        input.click();
+                                      }}
+                                      className="h-7 w-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-blue-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                      title="Unggah / Ganti Berkas SK (PDF)"
+                                    >
+                                      <i className="bi bi-upload"></i>
                                     </button>
-                                 </div>
-                              ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Aksi Hapus (Only in Edit Mode) */}
                               {isEditing && (
-                                 <button onClick={() => {
+                                <td className="py-3 px-2 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeHistoryItem('riwayatJabatan', idx)}
+                                    className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white flex items-center justify-center transition-colors mx-auto text-xs"
+                                    title="Hapus Jabatan Ini"
+                                  >
+                                    <i className="bi bi-trash3"></i>
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* CARD FORM VIEW (Modern Detailed Cards) */}
+                {jabatanViewMode === 'card' && (
+                  <div className="space-y-4">
+                    {(pegawai.riwayatJabatan || []).map((j, idx) => (
+                      <div key={`${j.namaJabatan}-${j.tmtJabatan}-${idx}`} className="bg-gray-50/70 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-200 relative group transition-all hover:border-blue-200 hover:bg-white shadow-xs">
+                        <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="h-6 w-6 rounded-full bg-blue-600 text-white font-black text-[10px] flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <span className="text-[11px] font-black text-gray-800 uppercase tracking-tight">
+                              {j.namaJabatan || 'Jabatan Baru'}
+                            </span>
+                            {j.eselon && (
+                              <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded font-black text-[8px] uppercase">
+                                Eselon {j.eselon}
+                              </span>
+                            )}
+                          </div>
+                          {isEditing && (
+                            <button
+                              type="button"
+                              onClick={() => removeHistoryItem('riwayatJabatan', idx)}
+                              className="h-8 w-8 bg-white border border-rose-100 text-rose-500 rounded-lg flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-xs"
+                              title="Hapus riwayat ini"
+                            >
+                              <i className="bi bi-trash3 text-sm"></i>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          {/* Nama Jabatan */}
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Jabatan</label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500 uppercase"
+                                value={j.namaJabatan || ''}
+                                placeholder="Contoh: KEPALA KANIM KELAS II MADIUN"
+                                onChange={e => updateHistoryItem('riwayatJabatan', idx, 'namaJabatan', e.target.value)}
+                              />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.namaJabatan || '-'}</div>
+                            )}
+                          </div>
+
+                          {/* Unit Kerja */}
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Unit Kerja / Satker</label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500 uppercase"
+                                value={j.unitKerja || ''}
+                                placeholder="Contoh: KANIM KELAS II MADIUN"
+                                onChange={e => updateHistoryItem('riwayatJabatan', idx, 'unitKerja', e.target.value)}
+                              />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.unitKerja || '-'}</div>
+                            )}
+                          </div>
+
+                          {/* TMT Jabatan */}
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-blue-600 uppercase ml-2">TMT Jabatan</label>
+                            {isEditing ? (
+                              <input
+                                type="date"
+                                className="w-full px-4 py-2.5 bg-white border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 outline-none focus:border-blue-500"
+                                value={formatDateForInput(j.tmtJabatan)}
+                                onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tmtJabatan', e.target.value)}
+                              />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white border border-transparent rounded-xl text-[11px] font-black text-blue-700 select-all">{formatDateIndoDisplay(j.tmtJabatan)}</div>
+                            )}
+                          </div>
+
+                          {/* Nomor SK */}
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK</label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-mono outline-none focus:border-blue-500 uppercase"
+                                value={j.nomorSk || ''}
+                                placeholder="Contoh: M.HH-33.KP.03.03 TAHUN 2011"
+                                onChange={e => updateHistoryItem('riwayatJabatan', idx, 'nomorSk', e.target.value)}
+                              />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white border border-transparent rounded-xl text-[11px] font-mono font-bold text-gray-900 select-all">{j.nomorSk || '-'}</div>
+                            )}
+                          </div>
+
+                          {/* Tanggal SK */}
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal SK</label>
+                            {isEditing ? (
+                              <input
+                                type="date"
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500"
+                                value={formatDateForInput(j.tanggalSk)}
+                                onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tanggalSk', e.target.value)}
+                              />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(j.tanggalSk)}</div>
+                            )}
+                          </div>
+
+                          {/* Pejabat Penetap */}
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pejabat Penetap</label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500"
+                                value={j.pejabatPenetap || ''}
+                                placeholder="Contoh: Menteri Hukum dan Hak Asasi Manusia"
+                                onChange={e => updateHistoryItem('riwayatJabatan', idx, 'pejabatPenetap', e.target.value)}
+                              />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.pejabatPenetap || '-'}</div>
+                            )}
+                          </div>
+
+                          {/* Eselon */}
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Eselon</label>
+                            {isEditing ? (
+                              <select
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500 uppercase"
+                                value={j.eselon || ''}
+                                onChange={e => updateHistoryItem('riwayatJabatan', idx, 'eselon', e.target.value)}
+                              >
+                                <option value="">- Non-Eselon -</option>
+                                <option value="I.a">I.a</option>
+                                <option value="I.b">I.b</option>
+                                <option value="II.a">II.a</option>
+                                <option value="II.b">II.b</option>
+                                <option value="III.a">III.a</option>
+                                <option value="III.b">III.b</option>
+                                <option value="IV.a">IV.a</option>
+                                <option value="IV.b">IV.b</option>
+                                <option value="V">V</option>
+                              </select>
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{j.eselon || '-'}</div>
+                            )}
+                          </div>
+
+                          {/* TMT Eselon */}
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">TMT Eselon</label>
+                            {isEditing ? (
+                              <input
+                                type="date"
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500"
+                                value={formatDateForInput(j.tmtEselon)}
+                                onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tmtEselon', e.target.value)}
+                              />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(j.tmtEselon)}</div>
+                            )}
+                          </div>
+
+                          {/* Nomor Pelantikan */}
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Pelantikan</label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-mono outline-none focus:border-blue-500 uppercase"
+                                value={j.nomorPelantikan || ''}
+                                placeholder="Contoh: W10-KP.03.03-02"
+                                onChange={e => updateHistoryItem('riwayatJabatan', idx, 'nomorPelantikan', e.target.value)}
+                              />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white border border-transparent rounded-xl text-[11px] font-mono font-bold text-gray-900 select-all">{j.nomorPelantikan || '-'}</div>
+                            )}
+                          </div>
+
+                          {/* Tanggal Pelantikan */}
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal Pelantikan</label>
+                            {isEditing ? (
+                              <input
+                                type="date"
+                                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none focus:border-blue-500"
+                                value={formatDateForInput(j.tanggalPelantikan)}
+                                onChange={e => updateHistoryItem('riwayatJabatan', idx, 'tanggalPelantikan', e.target.value)}
+                              />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(j.tanggalPelantikan)}</div>
+                            )}
+                          </div>
+
+                          {/* Berkas SK PDF */}
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload SK Jabatan (PDF)</label>
+                            <div className="flex items-center gap-3">
+                              {j.fileUrl ? (
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => window.open(j.fileUrl || '', '_blank')}
+                                    className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase border border-blue-100 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-1.5"
+                                  >
+                                    <i className="bi bi-eye"></i> Lihat SK
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownload(j.fileUrl || '')}
+                                    className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-1.5 font-black"
+                                  >
+                                    <i className="bi bi-download"></i> Unduh SK
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file PDF</span>
+                              )}
+                              {isEditing && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
                                     const input = document.createElement('input');
                                     input.type = 'file';
                                     input.accept = 'application/pdf';
                                     input.onchange = (e: any) => {
-                                       const file = e.target.files[0];
-                                       if (file) handleUploadHistoryFile('riwayatJabatan', idx, file);
+                                      const file = e.target.files[0];
+                                      if (file) handleUploadHistoryFile('riwayatJabatan', idx, file);
                                     };
                                     input.click();
-                                 }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-blue-600 hover:text-blue-600 transition-all">Ganti File</button>
+                                  }}
+                                  className="px-4 py-2 bg-white border border-gray-200 text-gray-600 hover:border-blue-600 hover:text-blue-600 rounded-xl text-[9px] font-black uppercase transition-all flex items-center gap-1.5"
+                                >
+                                  <i className="bi bi-upload"></i> {j.fileUrl ? 'Ganti File' : 'Unggah File'}
+                                </button>
                               )}
-                           </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {(pegawai.riwayatJabatan || []).length === 0 && (
+                  <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-200 rounded-3xl md:rounded-[2.5rem] bg-gray-50/50 space-y-4">
+                    <div className="h-16 w-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-xs">
+                      <i className="bi bi-briefcase"></i>
                     </div>
-                  ))}
-                  {(pegawai.riwayatJabatan || []).length === 0 && (
-                    <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-100 rounded-3xl md:rounded-[2.5rem] text-gray-400 font-bold uppercase text-[9px] md:text-[10px] tracking-widest">Belum ada riwayat jabatan</div>
-                  )}
-                </div>
+                    <div>
+                      <h5 className="font-black text-gray-900 uppercase text-sm tracking-tight">Belum Ada Riwayat Jabatan</h5>
+                      <p className="text-gray-400 text-xs mt-1 max-w-md mx-auto">
+                        Anda dapat menambahkan data jabatan secara manual atau mengimpor data langsung dari SIMPEG.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditing(true);
+                          addHistoryItem('riwayatJabatan');
+                        }}
+                        className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase shadow-md shadow-blue-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah Manual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSimpegImport('jabatan')}
+                        className="px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-black text-[10px] uppercase hover:bg-emerald-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-file-earmark-spreadsheet"></i> Salin / Import dari SIMPEG
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'pangkat' && (
               <div className="space-y-6 md:space-y-8 animate-fadeIn">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-gray-100 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 md:h-12 md:w-12 bg-amber-50 text-amber-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-award-fill"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-amber-50 text-amber-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl shadow-sm">
+                      <i className="bi bi-award-fill"></i>
+                    </div>
                     <div>
-                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pangkat</h4>
-                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Kenaikan pangkat</p>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pangkat / Golongan</h4>
+                        <span className="px-2.5 py-0.5 bg-amber-100/70 text-amber-700 rounded-full text-[9px] font-black uppercase tracking-wider">
+                          {(pegawai.riwayatPangkat || []).length} Riwayat
+                        </span>
+                      </div>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                        Kenaikan Pangkat Reguler, Pilihan, & Penyesuaian Ijazah Sesuai SIMPEG Kemenkumham
+                      </p>
                     </div>
                   </div>
-                  {isEditing && (
-                    <button onClick={() => addHistoryItem('riwayatPangkat')} className="w-full sm:w-auto px-6 py-3 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-amber-100">
-                      <i className="bi bi-plus-lg"></i> Tambah Pangkat
+
+                  <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    {/* View Switcher */}
+                    <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-[9px] font-black uppercase">
+                      <button
+                        type="button"
+                        onClick={() => setPangkatViewMode('table')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${pangkatViewMode === 'table' ? 'bg-white text-amber-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-table"></i> Tabel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPangkatViewMode('card')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${pangkatViewMode === 'card' ? 'bg-white text-amber-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-grid-fill"></i> Kartu
+                      </button>
+                    </div>
+
+                    {/* Quick Import SIMPEG Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSimpegImport('pangkat')}
+                      className="px-4 py-2 bg-gradient-to-r from-teal-50 to-emerald-50 text-emerald-700 border border-emerald-200 hover:border-emerald-300 rounded-xl font-black text-[9px] uppercase flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                      title="Salin dan tempel data kepangkatan langsung dari portal SIMPEG"
+                    >
+                      <i className="bi bi-file-earmark-spreadsheet-fill text-emerald-600"></i>
+                      <span>Import SIMPEG</span>
                     </button>
-                  )}
+
+                    {/* Tambah Pangkat */}
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => addHistoryItem('riwayatPangkat')}
+                        className="px-4 py-2 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-amber-700 transition-all"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-4">
-                  {(pegawai.riwayatPangkat || []).map((p, idx) => (
-                    <div key={`${p.pangkat}-${p.tmtPangkat}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
-                      {isEditing && (
-                        <button onClick={() => removeHistoryItem('riwayatPangkat', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
-                          <i className="bi bi-trash3"></i>
-                        </button>
-                      )}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Gol. Ruang</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.golRuang} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'golRuang', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.golRuang || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pangkat</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.pangkat} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'pangkat', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.pangkat || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">TMT Pangkat</label>
-                          {isEditing ? (
-                            <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(p.tmtPangkat)} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tmtPangkat', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(p.tmtPangkat)}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSk} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'nomorSk', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSk || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal SK</label>
-                          {isEditing ? (
-                            <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(p.tanggalSk)} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tanggalSk', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(p.tanggalSk)}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload SK Pangkat (PDF)</label>
-                           <div className="flex items-center gap-3">
-                              {p.fileUrl ? (
-                                 <div className="flex gap-2">
-                                    <button onClick={() => window.open(p.fileUrl || '', '_blank')} className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase border border-amber-100 hover:bg-amber-600 hover:text-white transition-all">Lihat SK</button>
-                                    <button onClick={() => handleDownload(p.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
-                                       <i className="bi bi-download"></i> Unduh SK
+
+                {/* TABLE VIEW */}
+                {pangkatViewMode === 'table' && (pegawai.riwayatPangkat || []).length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 text-[9px] font-black uppercase text-gray-500 tracking-wider">
+                            <th className="py-3 px-3 w-10 text-center">No</th>
+                            <th className="py-3 px-4">Gol. Ruang</th>
+                            <th className="py-3 px-4">Pangkat</th>
+                            <th className="py-3 px-3 text-center">TMT Pangkat</th>
+                            <th className="py-3 px-4">Nomor SK</th>
+                            <th className="py-3 px-3 text-center">Tanggal SK</th>
+                            <th className="py-3 px-3 text-center">Berkas SK</th>
+                            {isEditing && <th className="py-3 px-3 text-center w-14">Aksi</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-sans">
+                          {(pegawai.riwayatPangkat || []).map((p, idx) => (
+                            <tr key={`${p.pangkat}-${p.tmtPangkat}-${idx}`} className="hover:bg-amber-50/30 transition-colors">
+                              <td className="py-3 px-3 text-center text-[10px] font-bold text-gray-400">{idx + 1}</td>
+                              <td className="py-3 px-4">
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded font-black text-[9px] uppercase font-mono">
+                                  {p.golRuang || '-'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-bold text-gray-900 uppercase text-[11px]">{p.pangkat || '-'}</td>
+                              <td className="py-3 px-3 text-center font-mono font-bold text-gray-800 text-[10px]">{formatDateIndoDisplay(p.tmtPangkat)}</td>
+                              <td className="py-3 px-4 font-mono text-gray-600 text-[10px] uppercase">{p.nomorSk || '-'}</td>
+                              <td className="py-3 px-3 text-center font-mono text-gray-600 text-[10px]">{formatDateIndoDisplay(p.tanggalSk)}</td>
+                              <td className="py-3 px-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {p.fileUrl ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => window.open(p.fileUrl || '', '_blank')}
+                                        className="h-7 w-7 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Lihat SK Pangkat"
+                                      >
+                                        <i className="bi bi-eye"></i>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownload(p.fileUrl || '')}
+                                        className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Unduh SK Pangkat"
+                                      >
+                                        <i className="bi bi-download"></i>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-[9px] text-gray-300 italic">-</span>
+                                  )}
+                                  {isEditing && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const input = document.createElement('input');
+                                        input.type = 'file';
+                                        input.accept = 'application/pdf';
+                                        input.onchange = (e: any) => {
+                                          const file = e.target.files[0];
+                                          if (file) handleUploadHistoryFile('riwayatPangkat', idx, file);
+                                        };
+                                        input.click();
+                                      }}
+                                      className="h-7 w-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-amber-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                      title="Unggah Berkas SK Pangkat (PDF)"
+                                    >
+                                      <i className="bi bi-upload"></i>
                                     </button>
-                                 </div>
-                              ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                                  )}
+                                </div>
+                              </td>
                               {isEditing && (
-                                 <button onClick={() => {
-                                    const input = document.createElement('input');
-                                    input.type = 'file';
-                                    input.accept = 'application/pdf';
-                                    input.onchange = (e: any) => {
-                                       const file = e.target.files[0];
-                                       if (file) handleUploadHistoryFile('riwayatPangkat', idx, file);
-                                    };
-                                    input.click();
-                                 }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-amber-600 hover:text-amber-600 transition-all">Ganti File</button>
+                                <td className="py-3 px-3 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeHistoryItem('riwayatPangkat', idx)}
+                                    className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white flex items-center justify-center transition-colors mx-auto text-xs"
+                                    title="Hapus riwayat pangkat ini"
+                                  >
+                                    <i className="bi bi-trash3"></i>
+                                  </button>
+                                </td>
                               )}
-                           </div>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* CARD FORM VIEW */}
+                {pangkatViewMode === 'card' && (
+                  <div className="space-y-4">
+                    {(pegawai.riwayatPangkat || []).map((p, idx) => (
+                      <div key={`${p.pangkat}-${p.tmtPangkat}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
+                        {isEditing && (
+                          <button onClick={() => removeHistoryItem('riwayatPangkat', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
+                            <i className="bi bi-trash3"></i>
+                          </button>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Gol. Ruang</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.golRuang} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'golRuang', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.golRuang || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pangkat</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.pangkat} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'pangkat', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.pangkat || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">TMT Pangkat</label>
+                            {isEditing ? (
+                              <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(p.tmtPangkat)} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tmtPangkat', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(p.tmtPangkat)}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSk} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'nomorSk', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSk || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal SK</label>
+                            {isEditing ? (
+                              <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(p.tanggalSk)} onChange={e => updateHistoryItem('riwayatPangkat', idx, 'tanggalSk', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(p.tanggalSk)}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                             <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload SK Pangkat (PDF)</label>
+                             <div className="flex items-center gap-3">
+                                {p.fileUrl ? (
+                                   <div className="flex gap-2">
+                                      <button onClick={() => window.open(p.fileUrl || '', '_blank')} className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase border border-amber-100 hover:bg-amber-600 hover:text-white transition-all">Lihat SK</button>
+                                      <button onClick={() => handleDownload(p.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
+                                         <i className="bi bi-download"></i> Unduh SK
+                                      </button>
+                                   </div>
+                                ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                                {isEditing && (
+                                   <button onClick={() => {
+                                      const input = document.createElement('input');
+                                      input.type = 'file';
+                                      input.accept = 'application/pdf';
+                                      input.onchange = (e: any) => {
+                                         const file = e.target.files[0];
+                                         if (file) handleUploadHistoryFile('riwayatPangkat', idx, file);
+                                      };
+                                      input.click();
+                                   }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-amber-600 hover:text-amber-600 transition-all">Ganti File</button>
+                                )}
+                             </div>
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {(pegawai.riwayatPangkat || []).length === 0 && (
+                  <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-200 rounded-3xl md:rounded-[2.5rem] bg-gray-50/50 space-y-4">
+                    <div className="h-16 w-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-xs">
+                      <i className="bi bi-award"></i>
                     </div>
-                  ))}
-                  {(pegawai.riwayatPangkat || []).length === 0 && (
-                    <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-100 rounded-3xl md:rounded-[2.5rem] text-gray-400 font-bold uppercase text-[9px] md:text-[10px] tracking-widest">Belum ada riwayat pangkat</div>
-                  )}
+                    <div>
+                      <h5 className="font-black text-gray-900 uppercase text-sm tracking-tight">Belum Ada Riwayat Pangkat</h5>
+                      <p className="text-gray-400 text-xs mt-1 max-w-md mx-auto">
+                        Anda dapat menambahkan data kepangkatan secara manual atau mengimpor data langsung dari SIMPEG.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditing(true);
+                          addHistoryItem('riwayatPangkat');
+                        }}
+                        className="px-5 py-2.5 bg-amber-600 text-white rounded-xl font-black text-[10px] uppercase shadow-md shadow-amber-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah Manual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSimpegImport('pangkat')}
+                        className="px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-black text-[10px] uppercase hover:bg-emerald-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-file-earmark-spreadsheet"></i> Salin / Import dari SIMPEG
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'gaji' && (
+              <div className="space-y-6 md:space-y-8 animate-fadeIn">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-gray-100 pb-6 gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-emerald-50 text-emerald-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl shadow-sm">
+                      <i className="bi bi-cash-stack"></i>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Gaji & KGB</h4>
+                        <span className="px-2.5 py-0.5 bg-emerald-100/70 text-emerald-700 rounded-full text-[9px] font-black uppercase tracking-wider">
+                          {(pegawai.riwayatGaji || []).length} Riwayat
+                        </span>
+                      </div>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                        Kenaikan Gaji Berkala (KGB) & SK Kenaikan Pangkat Sesuai SIMPEG Kemenkumham
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    {/* View Switcher */}
+                    <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-[9px] font-black uppercase">
+                      <button
+                        type="button"
+                        onClick={() => setGajiViewMode('table')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${gajiViewMode === 'table' ? 'bg-white text-emerald-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-table"></i> Tabel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGajiViewMode('card')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${gajiViewMode === 'card' ? 'bg-white text-emerald-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-grid-fill"></i> Kartu
+                      </button>
+                    </div>
+
+                    {/* Quick Import SIMPEG Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSimpegImport('gaji')}
+                      className="px-4 py-2 bg-gradient-to-r from-teal-50 to-emerald-50 text-emerald-700 border border-emerald-200 hover:border-emerald-300 rounded-xl font-black text-[9px] uppercase flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                      title="Salin dan tempel data kenaikan gaji langsung dari portal SIMPEG"
+                    >
+                      <i className="bi bi-file-earmark-spreadsheet-fill text-emerald-600"></i>
+                      <span>Import SIMPEG</span>
+                    </button>
+
+                    {/* Tambah Gaji / KGB */}
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => addHistoryItem('riwayatGaji')}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-emerald-700 transition-all"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {/* TABLE VIEW */}
+                {gajiViewMode === 'table' && (pegawai.riwayatGaji || []).length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 text-[9px] font-black uppercase text-gray-500 tracking-wider">
+                            <th className="py-3 px-3 w-10 text-center">No</th>
+                            <th className="py-3 px-3">Jenis Kenaikan</th>
+                            <th className="py-3 px-4 text-right">Gaji Pokok</th>
+                            <th className="py-3 px-3 text-center">TMT SK</th>
+                            <th className="py-3 px-4">Nomor SK</th>
+                            <th className="py-3 px-3 text-center">Tanggal SK</th>
+                            <th className="py-3 px-3 text-center">Masa Kerja</th>
+                            <th className="py-3 px-4">Pejabat Penetap</th>
+                            <th className="py-3 px-3 text-center">Berkas SK</th>
+                            {isEditing && <th className="py-3 px-3 text-center w-14">Aksi</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-sans">
+                          {(pegawai.riwayatGaji || []).map((g, idx) => (
+                            <tr key={`${g.nomorSk}-${g.tmtSk}-${idx}`} className="hover:bg-emerald-50/30 transition-colors">
+                              <td className="py-3 px-3 text-center text-[10px] font-bold text-gray-400">{idx + 1}</td>
+                              <td className="py-3 px-3">
+                                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-black text-[9px] uppercase whitespace-nowrap">
+                                  {g.jenisKenaikanGaji || 'KGB'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-emerald-800 text-[11px] whitespace-nowrap">
+                                {g.gajiPokok ? (
+                                  isNaN(Number(String(g.gajiPokok).replace(/\D/g, ''))) 
+                                    ? g.gajiPokok 
+                                    : `Rp ${Number(String(g.gajiPokok).replace(/\D/g, '')).toLocaleString('id-ID')}`
+                                ) : '-'}
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-bold text-gray-800 text-[10px] whitespace-nowrap">
+                                {formatDateIndoDisplay(g.tmtSk)}
+                              </td>
+                              <td className="py-3 px-4 font-mono text-gray-700 text-[10px] uppercase">
+                                {g.nomorSk || '-'}
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono text-gray-600 text-[10px] whitespace-nowrap">
+                                {formatDateIndoDisplay(g.tanggalSk)}
+                              </td>
+                              <td className="py-3 px-3 text-center text-[10px] text-gray-600 whitespace-nowrap">
+                                {g.masaKerjaTahun ? `${g.masaKerjaTahun} Th ${g.masaKerjaBulan ? `${g.masaKerjaBulan} Bln` : ''}` : '-'}
+                              </td>
+                              <td className="py-3 px-4 text-gray-600 uppercase text-[10px] truncate max-w-[150px]">
+                                {g.pejabatPenetap || '-'}
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {g.fileUrl ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => window.open(g.fileUrl || '', '_blank')}
+                                        className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Lihat SK KGB"
+                                      >
+                                        <i className="bi bi-eye"></i>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownload(g.fileUrl || '')}
+                                        className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Unduh SK KGB"
+                                      >
+                                        <i className="bi bi-download"></i>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-[9px] text-gray-300 italic">-</span>
+                                  )}
+                                  {isEditing && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const input = document.createElement('input');
+                                        input.type = 'file';
+                                        input.accept = 'application/pdf';
+                                        input.onchange = (e: any) => {
+                                          const file = e.target.files[0];
+                                          if (file) handleUploadHistoryFile('riwayatGaji', idx, file);
+                                        };
+                                        input.click();
+                                      }}
+                                      className="h-7 w-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                      title="Unggah Berkas SK KGB (PDF)"
+                                    >
+                                      <i className="bi bi-upload"></i>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                              {isEditing && (
+                                <td className="py-3 px-3 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeHistoryItem('riwayatGaji', idx)}
+                                    className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white flex items-center justify-center transition-colors mx-auto text-xs"
+                                    title="Hapus riwayat gaji ini"
+                                  >
+                                    <i className="bi bi-trash3"></i>
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* CARD FORM VIEW */}
+                {gajiViewMode === 'card' && (
+                  <div className="space-y-4">
+                    {(pegawai.riwayatGaji || []).map((g, idx) => (
+                      <div key={`${g.nomorSk}-${g.tmtSk}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
+                        {isEditing && (
+                          <button onClick={() => removeHistoryItem('riwayatGaji', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
+                            <i className="bi bi-trash3"></i>
+                          </button>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jenis Kenaikan</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={g.jenisKenaikanGaji || ''} placeholder="Kenaikan Gaji Berkala" onChange={e => updateHistoryItem('riwayatGaji', idx, 'jenisKenaikanGaji', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{g.jenisKenaikanGaji || 'KGB'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Gaji Pokok</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold font-mono outline-none" value={g.gajiPokok || ''} placeholder="Contoh: 3500000" onChange={e => updateHistoryItem('riwayatGaji', idx, 'gajiPokok', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold font-mono text-emerald-700 select-all">
+                                {g.gajiPokok ? (isNaN(Number(String(g.gajiPokok).replace(/\D/g, ''))) ? g.gajiPokok : `Rp ${Number(String(g.gajiPokok).replace(/\D/g, '')).toLocaleString('id-ID')}`) : '-'}
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">TMT SK Gaji</label>
+                            {isEditing ? (
+                              <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(g.tmtSk)} onChange={e => updateHistoryItem('riwayatGaji', idx, 'tmtSk', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(g.tmtSk)}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Masa Kerja (Th / Bln)</label>
+                            {isEditing ? (
+                              <div className="flex gap-2">
+                                <input type="text" className="w-1/2 px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" placeholder="Tahun" value={g.masaKerjaTahun || ''} onChange={e => updateHistoryItem('riwayatGaji', idx, 'masaKerjaTahun', e.target.value)} />
+                                <input type="text" className="w-1/2 px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" placeholder="Bulan" value={g.masaKerjaBulan || ''} onChange={e => updateHistoryItem('riwayatGaji', idx, 'masaKerjaBulan', e.target.value)} />
+                              </div>
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">
+                                {g.masaKerjaTahun ? `${g.masaKerjaTahun} Tahun ${g.masaKerjaBulan ? `${g.masaKerjaBulan} Bulan` : ''}` : '-'}
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor SK</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase font-mono" value={g.nomorSk || ''} onChange={e => updateHistoryItem('riwayatGaji', idx, 'nomorSk', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold font-mono text-gray-900 select-all">{g.nomorSk || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal SK</label>
+                            {isEditing ? (
+                              <input type="date" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={formatDateForInput(g.tanggalSk)} onChange={e => updateHistoryItem('riwayatGaji', idx, 'tanggalSk', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{formatDateIndoDisplay(g.tanggalSk)}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pejabat Penetap</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={g.pejabatPenetap || ''} onChange={e => updateHistoryItem('riwayatGaji', idx, 'pejabatPenetap', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{g.pejabatPenetap || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload SK KGB (PDF)</label>
+                            <div className="flex items-center gap-3">
+                              {g.fileUrl ? (
+                                <div className="flex gap-2">
+                                  <button onClick={() => window.open(g.fileUrl || '', '_blank')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all">Lihat SK</button>
+                                  <button onClick={() => handleDownload(g.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
+                                    <i className="bi bi-download"></i> Unduh SK
+                                  </button>
+                                </div>
+                              ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                              {isEditing && (
+                                <button onClick={() => {
+                                  const input = document.createElement('input');
+                                  input.type = 'file';
+                                  input.accept = 'application/pdf';
+                                  input.onchange = (e: any) => {
+                                    const file = e.target.files[0];
+                                    if (file) handleUploadHistoryFile('riwayatGaji', idx, file);
+                                  };
+                                  input.click();
+                                }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-emerald-600 hover:text-emerald-600 transition-all">Ganti File</button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {(pegawai.riwayatGaji || []).length === 0 && (
+                  <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-200 rounded-3xl md:rounded-[2.5rem] bg-gray-50/50 space-y-4">
+                    <div className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-xs">
+                      <i className="bi bi-cash-stack"></i>
+                    </div>
+                    <div>
+                      <h5 className="font-black text-gray-900 uppercase text-sm tracking-tight">Belum Ada Riwayat Gaji & KGB</h5>
+                      <p className="text-gray-400 text-xs mt-1 max-w-md mx-auto">
+                        Anda dapat menambahkan data kenaikan gaji secara manual atau mengimpor data langsung dari SIMPEG.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditing(true);
+                          addHistoryItem('riwayatGaji');
+                        }}
+                        className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase shadow-md shadow-emerald-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah Manual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSimpegImport('gaji')}
+                        className="px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-black text-[10px] uppercase hover:bg-emerald-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-file-earmark-spreadsheet"></i> Salin / Import dari SIMPEG
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {activeTab === 'pelatihan' && (
               <div className="space-y-6 md:space-y-8 animate-fadeIn">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-gray-100 pb-6 gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 md:h-12 md:w-12 bg-purple-50 text-purple-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl"><i className="bi bi-journal-check"></i></div>
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-purple-50 text-purple-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl shadow-sm">
+                      <i className="bi bi-journal-check"></i>
+                    </div>
                     <div>
-                      <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pelatihan</h4>
-                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Diklat & Workshop</p>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Pelatihan & Diklat</h4>
+                        <span className="px-2.5 py-0.5 bg-purple-100/70 text-purple-700 rounded-full text-[9px] font-black uppercase tracking-wider">
+                          {(pegawai.riwayatPelatihan || []).length} Riwayat
+                        </span>
+                      </div>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                        Diklat Kepemimpinan, Fungsional, & Teknis Sesuai SIMPEG Kemenkumham
+                      </p>
                     </div>
                   </div>
-                  {isEditing && (
-                    <button onClick={() => addHistoryItem('riwayatPelatihan')} className="w-full sm:w-auto px-6 py-3 bg-purple-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 shadow-lg shadow-purple-100">
-                      <i className="bi bi-plus-lg"></i> Tambah Pelatihan
+
+                  <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    {/* View Switcher */}
+                    <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-[9px] font-black uppercase">
+                      <button
+                        type="button"
+                        onClick={() => setPelatihanViewMode('table')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${pelatihanViewMode === 'table' ? 'bg-white text-purple-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-table"></i> Tabel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPelatihanViewMode('card')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${pelatihanViewMode === 'card' ? 'bg-white text-purple-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-grid-fill"></i> Kartu
+                      </button>
+                    </div>
+
+                    {/* Quick Import SIMPEG Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSimpegImport('pelatihan')}
+                      className="px-4 py-2 bg-gradient-to-r from-teal-50 to-emerald-50 text-emerald-700 border border-emerald-200 hover:border-emerald-300 rounded-xl font-black text-[9px] uppercase flex items-center gap-2 transition-all shadow-sm active:scale-95"
+                      title="Salin dan tempel data diklat / pelatihan langsung dari portal SIMPEG"
+                    >
+                      <i className="bi bi-file-earmark-spreadsheet-fill text-emerald-600"></i>
+                      <span>Import SIMPEG</span>
                     </button>
-                  )}
+
+                    {/* Tambah Pelatihan */}
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => addHistoryItem('riwayatPelatihan')}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-purple-700 transition-all"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-4">
-                  {(pegawai.riwayatPelatihan || []).map((p, idx) => (
-                    <div key={`${p.namaPelatihan}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
-                      {isEditing && (
-                        <button onClick={() => removeHistoryItem('riwayatPelatihan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
-                          <i className="bi bi-trash3"></i>
-                        </button>
-                      )}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Pelatihan</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.namaPelatihan} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'namaPelatihan', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.namaPelatihan || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Penyelenggara</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.penyelenggara} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'penyelenggara', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.penyelenggara || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tahun</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahun} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'tahun', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tahun || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Durasi</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.durasi} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'durasi', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.durasi || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                          <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Sertifikat</label>
-                          {isEditing ? (
-                            <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSertifikat} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'nomorSertifikat', e.target.value)} />
-                          ) : (
-                            <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSertifikat || '-'}</div>
-                          )}
-                        </div>
-                        <div className="space-y-1 md:col-span-2">
-                           <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload Sertifikat (PDF)</label>
-                           <div className="flex items-center gap-3">
-                              {p.fileUrl ? (
-                                 <div className="flex gap-2">
-                                    <button onClick={() => window.open(p.fileUrl || '', '_blank')} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-[9px] font-black uppercase border border-purple-100 hover:bg-purple-600 hover:text-white transition-all">Lihat Sertifikat</button>
-                                    <button onClick={() => handleDownload(p.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
-                                       <i className="bi bi-download"></i> Unduh PDF
+
+                {/* TABLE VIEW */}
+                {pelatihanViewMode === 'table' && (pegawai.riwayatPelatihan || []).length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200 text-[9px] font-black uppercase text-gray-500 tracking-wider">
+                            <th className="py-3 px-3 w-10 text-center">No</th>
+                            <th className="py-3 px-4">Nama Pelatihan / Diklat</th>
+                            <th className="py-3 px-4">Penyelenggara</th>
+                            <th className="py-3 px-3 text-center">Tahun</th>
+                            <th className="py-3 px-3 text-center">Durasi / Jam</th>
+                            <th className="py-3 px-4">Nomor Sertifikat</th>
+                            <th className="py-3 px-3 text-center">Sertifikat</th>
+                            {isEditing && <th className="py-3 px-3 text-center w-14">Aksi</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-sans">
+                          {(pegawai.riwayatPelatihan || []).map((p, idx) => (
+                            <tr key={`${p.namaPelatihan}-${idx}`} className="hover:bg-purple-50/30 transition-colors">
+                              <td className="py-3 px-3 text-center text-[10px] font-bold text-gray-400">{idx + 1}</td>
+                              <td className="py-3 px-4 font-bold text-gray-900 uppercase text-[11px]">
+                                {p.namaPelatihan || '-'}
+                                {p.jenisDiklat && p.jenisDiklat !== '-' && (
+                                  <span className="ml-2 px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded text-[8px] font-black uppercase">
+                                    {p.jenisDiklat}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-gray-700 uppercase text-[10px]">{p.penyelenggara || '-'}</td>
+                              <td className="py-3 px-3 text-center font-mono font-bold text-gray-800 text-[10px]">{p.tahun || '-'}</td>
+                              <td className="py-3 px-3 text-center font-mono text-gray-600 text-[10px]">{p.durasi || '-'}</td>
+                              <td className="py-3 px-4 font-mono text-gray-600 text-[10px] uppercase">{p.nomorSertifikat || '-'}</td>
+                              <td className="py-3 px-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {p.fileUrl ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => window.open(p.fileUrl || '', '_blank')}
+                                        className="h-7 w-7 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Lihat Sertifikat"
+                                      >
+                                        <i className="bi bi-eye"></i>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownload(p.fileUrl || '')}
+                                        className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Unduh Sertifikat"
+                                      >
+                                        <i className="bi bi-download"></i>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-[9px] text-gray-300 italic">-</span>
+                                  )}
+                                  {isEditing && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const input = document.createElement('input');
+                                        input.type = 'file';
+                                        input.accept = 'application/pdf';
+                                        input.onchange = (e: any) => {
+                                          const file = e.target.files[0];
+                                          if (file) handleUploadHistoryFile('riwayatPelatihan', idx, file);
+                                        };
+                                        input.click();
+                                      }}
+                                      className="h-7 w-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-purple-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                      title="Unggah Sertifikat (PDF)"
+                                    >
+                                      <i className="bi bi-upload"></i>
                                     </button>
-                                 </div>
-                              ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                                  )}
+                                </div>
+                              </td>
                               {isEditing && (
-                                 <button onClick={() => {
-                                    const input = document.createElement('input');
-                                    input.type = 'file';
-                                    input.accept = 'application/pdf';
-                                    input.onchange = (e: any) => {
-                                       const file = e.target.files[0];
-                                       if (file) handleUploadHistoryFile('riwayatPelatihan', idx, file);
-                                    };
-                                    input.click();
-                                 }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-purple-600 hover:text-purple-600 transition-all">Ganti File</button>
+                                <td className="py-3 px-3 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeHistoryItem('riwayatPelatihan', idx)}
+                                    className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white flex items-center justify-center transition-colors mx-auto text-xs"
+                                    title="Hapus riwayat pelatihan ini"
+                                  >
+                                    <i className="bi bi-trash3"></i>
+                                  </button>
+                                </td>
                               )}
-                           </div>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* CARD FORM VIEW */}
+                {pelatihanViewMode === 'card' && (
+                  <div className="space-y-4">
+                    {(pegawai.riwayatPelatihan || []).map((p, idx) => (
+                      <div key={`${p.namaPelatihan}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
+                        {isEditing && (
+                          <button onClick={() => removeHistoryItem('riwayatPelatihan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
+                            <i className="bi bi-trash3"></i>
+                          </button>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Pelatihan</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.namaPelatihan} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'namaPelatihan', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.namaPelatihan || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Penyelenggara</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.penyelenggara} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'penyelenggara', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.penyelenggara || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tahun</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahun} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'tahun', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.tahun || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Durasi</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.durasi} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'durasi', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.durasi || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor Sertifikat</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.nomorSertifikat} onChange={e => updateHistoryItem('riwayatPelatihan', idx, 'nomorSertifikat', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.nomorSertifikat || '-'}</div>
+                            )}
+                          </div>
+                          <div className="space-y-1 md:col-span-2">
+                             <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload Sertifikat (PDF)</label>
+                             <div className="flex items-center gap-3">
+                                {p.fileUrl ? (
+                                   <div className="flex gap-2">
+                                      <button onClick={() => window.open(p.fileUrl || '', '_blank')} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl text-[9px] font-black uppercase border border-purple-100 hover:bg-purple-600 hover:text-white transition-all">Lihat Sertifikat</button>
+                                      <button onClick={() => handleDownload(p.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black">
+                                         <i className="bi bi-download"></i> Unduh PDF
+                                      </button>
+                                   </div>
+                                ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                                {isEditing && (
+                                   <button onClick={() => {
+                                      const input = document.createElement('input');
+                                      input.type = 'file';
+                                      input.accept = 'application/pdf';
+                                      input.onchange = (e: any) => {
+                                         const file = e.target.files[0];
+                                         if (file) handleUploadHistoryFile('riwayatPelatihan', idx, file);
+                                      };
+                                      input.click();
+                                   }} className="px-4 py-2 bg-white border border-gray-200 text-gray-400 rounded-xl text-[9px] font-black uppercase hover:border-purple-600 hover:text-purple-600 transition-all">Ganti File</button>
+                                )}
+                             </div>
+                          </div>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {(pegawai.riwayatPelatihan || []).length === 0 && (
+                  <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-200 rounded-3xl md:rounded-[2.5rem] bg-gray-50/50 space-y-4">
+                    <div className="h-16 w-16 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-xs">
+                      <i className="bi bi-journal-check"></i>
                     </div>
-                  ))}
-                  {(pegawai.riwayatPelatihan || []).length === 0 && (
-                    <div className="py-16 md:py-20 text-center border-2 border-dashed border-gray-100 rounded-3xl md:rounded-[2.5rem] text-gray-400 font-bold uppercase text-[9px] md:text-[10px] tracking-widest">Belum ada riwayat pelatihan</div>
-                  )}
-                </div>
+                    <div>
+                      <h5 className="font-black text-gray-900 uppercase text-sm tracking-tight">Belum Ada Riwayat Pelatihan</h5>
+                      <p className="text-gray-400 text-xs mt-1 max-w-md mx-auto">
+                        Anda dapat menambahkan data diklat/pelatihan secara manual atau mengimpor data langsung dari SIMPEG.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditing(true);
+                          addHistoryItem('riwayatPelatihan');
+                        }}
+                        className="px-5 py-2.5 bg-purple-600 text-white rounded-xl font-black text-[10px] uppercase shadow-md shadow-purple-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah Manual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSimpegImport('pelatihan')}
+                        className="px-5 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-black text-[10px] uppercase hover:bg-emerald-100 flex items-center gap-2"
+                      >
+                        <i className="bi bi-file-earmark-spreadsheet"></i> Salin / Import dari SIMPEG
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2035,6 +3658,14 @@ const ProfilePegawaiPage = () => {
           </div>
         </div>
       )}
+
+      {/* SIMPEG Universal Quick Import Modal */}
+      <SimpegImportModal
+        isOpen={isSimpegImportOpen}
+        onClose={() => setIsSimpegImportOpen(false)}
+        initialCategory={simpegImportCategory}
+        onApply={handleApplySimpegData}
+      />
     </div>
   );
 };

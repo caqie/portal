@@ -826,6 +826,148 @@ export function tetapkanRekanKerjaGanda(
   return target;
 }
 
+/**
+ * Edit / Update Penugasan Penilai (Dapat dilakukan oleh Admin SDM atau Pejabat Penilai)
+ */
+export function updatePenugasanPenilai(
+  assignmentId: string,
+  updates: Partial<PPPKPenugasanPenilai>,
+  userId: string,
+  userName: string
+): PPPKPenugasanPenilai {
+  const list = getPenugasanPenilaiList();
+  const idx = list.findIndex(a => a.id === assignmentId);
+  if (idx === -1) throw new Error('Data penugasan penilai tidak ditemukan.');
+
+  const old = list[idx];
+  const updated: PPPKPenugasanPenilai = {
+    ...old,
+    ...updates,
+    id: old.id, // preserve immutable ID
+    updatedAt: new Date().toLocaleString('id-ID'),
+    updatedBy: userName
+  };
+
+  list[idx] = updated;
+  localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
+
+  recordAuditLog(
+    userId,
+    userName,
+    'UPDATE',
+    'Penetapan Penilai',
+    assignmentId,
+    JSON.stringify({ status: old.status, pejabat: old.pejabatPenilaiNama, pns: old.rekanPnsNama, pppk: old.rekanPppkNama }),
+    JSON.stringify({ status: updated.status, pejabat: updated.pejabatPenilaiNama, pns: updated.rekanPnsNama, pppk: updated.rekanPppkNama }),
+    `Memperbarui data penetapan penilai untuk ${updated.pppkNama}`
+  );
+
+  return updated;
+}
+
+/**
+ * Hapus Penugasan Penilai (Admin SDM)
+ */
+export function deletePenugasanPenilai(
+  assignmentId: string,
+  userId: string,
+  userName: string
+): boolean {
+  const list = getPenugasanPenilaiList();
+  const target = list.find(a => a.id === assignmentId);
+  if (!target) throw new Error('Data penugasan penilai tidak ditemukan.');
+
+  const filtered = list.filter(a => a.id !== assignmentId);
+  localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(filtered));
+
+  // Also clean up related hasil kerja and perilaku if present
+  try {
+    const rawHk = localStorage.getItem(PPPK_STORAGE.HASIL_KERJA);
+    if (rawHk) {
+      const hkDocs: PPPKPenilaianHasilKerjaDoc[] = JSON.parse(rawHk);
+      const filteredHk = hkDocs.filter(d => d.penugasanId !== assignmentId);
+      localStorage.setItem(PPPK_STORAGE.HASIL_KERJA, JSON.stringify(filteredHk));
+    }
+
+    const rawPerilaku = localStorage.getItem(PPPK_STORAGE.PERILAKU);
+    if (rawPerilaku) {
+      const perDocs: PPPKPenilaianPerilakuDoc[] = JSON.parse(rawPerilaku);
+      const filteredPer = perDocs.filter(d => d.penugasanId !== assignmentId);
+      localStorage.setItem(PPPK_STORAGE.PERILAKU, JSON.stringify(filteredPer));
+    }
+  } catch (err) {
+    console.warn('Cleanup error during penugasan deletion:', err);
+  }
+
+  recordAuditLog(
+    userId,
+    userName,
+    'DELETE',
+    'Penetapan Penilai',
+    assignmentId,
+    JSON.stringify(target),
+    undefined,
+    `Menghapus penugasan penilai PPPK: ${target.pppkNama} (${target.pppkNip})`
+  );
+
+  return true;
+}
+
+/**
+ * Reset Rekan Kerja Penilai (Pejabat Penilai / Admin)
+ * Mengosongkan rekan PNS & rekan PPPK dan mengembalikan status ke 'DISETUJUI'
+ */
+export function resetRekanKerja(
+  assignmentId: string,
+  userId: string,
+  userName: string
+): PPPKPenugasanPenilai {
+  const list = getPenugasanPenilaiList();
+  const target = list.find(a => a.id === assignmentId);
+  if (!target) throw new Error('Data penugasan penilai tidak ditemukan.');
+
+  const oldPns = target.rekanPnsNama;
+  const oldPppk = target.rekanPppkNama;
+
+  target.rekanPnsId = undefined;
+  target.rekanPnsNama = undefined;
+  target.rekanPnsNip = undefined;
+  target.rekanPnsJabatan = undefined;
+  target.rekanPnsUnit = undefined;
+
+  target.rekanPppkId = undefined;
+  target.rekanPppkNama = undefined;
+  target.rekanPppkNip = undefined;
+  target.rekanPppkJabatan = undefined;
+  target.rekanPppkUnit = undefined;
+
+  target.atasanPejabatPenilaiId = undefined;
+  target.atasanPejabatPenilaiNama = undefined;
+  target.atasanPejabatPenilaiNip = undefined;
+  target.atasanPejabatPenilaiJabatan = undefined;
+  target.atasanPejabatPenilaiPangkat = undefined;
+  target.atasanPejabatPenilaiUnit = undefined;
+
+  target.status = 'DISETUJUI';
+  target.updatedAt = new Date().toLocaleString('id-ID');
+  target.updatedBy = userName;
+
+  localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
+
+  recordAuditLog(
+    userId,
+    userName,
+    'RESET_PEERS',
+    'Penetapan Penilai',
+    assignmentId,
+    `PNS: ${oldPns}, PPPK: ${oldPppk}`,
+    'DISETUJUI (Rekan dikosongkan)',
+    `Mereset penunjukan rekan kerja penilai untuk ${target.pppkNama}`
+  );
+
+  return target;
+}
+
 // ============================================================
 // 6. PENILAIAN HASIL KERJA (RHK & SKP PPPK)
 // ============================================================
@@ -2094,3 +2236,60 @@ export function saveAbsensiDetailRows(
     console.error('Failed to save absensi rows:', err);
   }
 }
+
+export function updateAbsensiDetailRow(
+  rowIdOrRow: string | PPPKAbsensiDetailRow,
+  patchOrUserId?: Partial<PPPKAbsensiDetailRow> | string,
+  userIdOrUserName?: string,
+  maybeUserName?: string
+): PPPKAbsensiDetailRow[] {
+  try {
+    const raw = localStorage.getItem(PPPK_STORAGE.ABSENSI_DETAIL);
+    let rows: PPPKAbsensiDetailRow[] = raw ? JSON.parse(raw) : [];
+    if (typeof rowIdOrRow === 'string') {
+      const rowId = rowIdOrRow;
+      const patch = (patchOrUserId && typeof patchOrUserId === 'object') ? patchOrUserId : {};
+      const userId = userIdOrUserName || 'ADMIN';
+      const userName = maybeUserName || 'Admin SDM';
+      const idx = rows.findIndex(r => r.id === rowId);
+      if (idx !== -1) {
+        rows[idx] = { ...rows[idx], ...patch };
+      }
+      saveAbsensiDetailRows(rows, userId, userName);
+      return rows;
+    } else {
+      const updatedRow = rowIdOrRow;
+      const userId = (typeof patchOrUserId === 'string' ? patchOrUserId : undefined) || 'ADMIN';
+      const userName = userIdOrUserName || 'Admin SDM';
+      const idx = rows.findIndex(r => r.id === updatedRow.id);
+      if (idx !== -1) {
+        rows[idx] = updatedRow;
+      } else {
+        rows.unshift(updatedRow);
+      }
+      saveAbsensiDetailRows(rows, userId, userName);
+      return rows;
+    }
+  } catch (err) {
+    console.error('Failed to update single absensi row:', err);
+    return getAbsensiDetailRows();
+  }
+}
+
+export function deleteAbsensiDetailRow(
+  rowId: string,
+  userId: string = 'ADMIN',
+  userName: string = 'Admin SDM'
+): PPPKAbsensiDetailRow[] {
+  try {
+    const raw = localStorage.getItem(PPPK_STORAGE.ABSENSI_DETAIL);
+    const rows: PPPKAbsensiDetailRow[] = raw ? JSON.parse(raw) : [];
+    const filtered = rows.filter(r => r.id !== rowId);
+    saveAbsensiDetailRows(filtered, userId, userName);
+    return filtered;
+  } catch (err) {
+    console.error('Failed to delete absensi row:', err);
+    return getAbsensiDetailRows();
+  }
+}
+
