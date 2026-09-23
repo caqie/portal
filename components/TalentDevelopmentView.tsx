@@ -7,6 +7,11 @@ import {
   getKompetensiByJabatan,
   KompetensiItem
 } from '../kompetensiJabatanData';
+import {
+  getPegawaiCompetencyDetail,
+  getJenjangFromJabatan,
+  getStandarMinimumByJenjang
+} from '../kompetensiDashboardData';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, Tooltip } from 'recharts';
 
 interface Props {
@@ -196,6 +201,253 @@ const DEFAULT_JABATAN_LIST: JabatanHistoryItem[] = [
   }
 ];
 
+// Helper parsing date safely from standard formats
+function parseDateSafe(dateStr?: string): Date | null {
+  if (!dateStr) return null;
+  const clean = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+    const d = new Date(clean);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const parts = clean.split(/[-/.]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const day = parseInt(parts[0]);
+    const month = parseInt(parts[1]) - 1;
+    const year = parseInt(parts[2]);
+    const d = new Date(year, month, day);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(clean);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Format TMT with duration e.g. "1 April 2021 (4 tahun 2 bulan)"
+function formatTmtWithDuration(tmtStr?: string, fallbackDateStr?: string): string {
+  const str = tmtStr || fallbackDateStr;
+  if (!str) return '-';
+  if (str.includes('tahun') || str.includes('bulan')) return str;
+  const d = parseDateSafe(str);
+  if (!d) return str;
+  const now = new Date();
+  let years = now.getFullYear() - d.getFullYear();
+  let months = now.getMonth() - d.getMonth();
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+  const dateFormatted = d.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+  const durationParts: string[] = [];
+  if (years > 0) durationParts.push(`${years} tahun`);
+  if (months > 0 || years === 0) durationParts.push(`${months} bulan`);
+  return `${dateFormatted} (${durationParts.join(' ')})`;
+}
+
+const NEXT_PANGKAT_MAP: Record<string, { nextGol: string; nextPangkat: string }> = {
+  'I/a': { nextGol: 'I/b', nextPangkat: 'Juru Muda Tingkat I' },
+  'I/b': { nextGol: 'I/c', nextPangkat: 'Juru' },
+  'I/c': { nextGol: 'I/d', nextPangkat: 'Juru Tingkat I' },
+  'I/d': { nextGol: 'II/a', nextPangkat: 'Pengatur Muda' },
+  'II/a': { nextGol: 'II/b', nextPangkat: 'Pengatur Muda Tingkat I' },
+  'II/b': { nextGol: 'II/c', nextPangkat: 'Pengatur' },
+  'II/c': { nextGol: 'II/d', nextPangkat: 'Pengatur Tingkat I' },
+  'II/d': { nextGol: 'III/a', nextPangkat: 'Penata Muda' },
+  'III/a': { nextGol: 'III/b', nextPangkat: 'Penata Muda Tingkat I' },
+  'III/b': { nextGol: 'III/c', nextPangkat: 'Penata' },
+  'III/c': { nextGol: 'III/d', nextPangkat: 'Penata Tingkat I' },
+  'III/d': { nextGol: 'IV/a', nextPangkat: 'Pembina' },
+  'IV/a': { nextGol: 'IV/b', nextPangkat: 'Pembina Tingkat I' },
+  'IV/b': { nextGol: 'IV/c', nextPangkat: 'Pembina Utama Muda' },
+  'IV/c': { nextGol: 'IV/d', nextPangkat: 'Pembina Utama Madya' },
+  'IV/d': { nextGol: 'IV/e', nextPangkat: 'Pembina Utama' },
+  'IV/e': { nextGol: 'IV/e', nextPangkat: 'Pembina Utama' },
+};
+
+function getPromotablePangkat(golRuang?: string): { isPromotable: boolean; label: string } {
+  if (!golRuang) return { isPromotable: true, label: 'PROMOTABLE UNTUK PANGKAT BERIKUTNYA' };
+  const clean = golRuang.trim();
+  const next = NEXT_PANGKAT_MAP[clean];
+  if (next && next.nextGol !== clean) {
+    return {
+      isPromotable: true,
+      label: `PROMOTABLE UNTUK PANGKAT ${next.nextGol.toUpperCase()}`
+    };
+  }
+  return {
+    isPromotable: true,
+    label: `PROMOTABLE UNTUK PANGKAT ${clean.toUpperCase()}`
+  };
+}
+
+function getPromotableJabatan(jabatan?: string): { isPromotable: boolean; label: string } {
+  const j = (jabatan || '').toUpperCase();
+  if (j.includes('PERTAMA')) {
+    return { isPromotable: true, label: 'PROMOTABLE UNTUK AHLI MUDA' };
+  }
+  if (j.includes('MUDA')) {
+    return { isPromotable: false, label: 'NON PROMOTABLE UNTUK AHLI MADYA' };
+  }
+  if (j.includes('MADYA')) {
+    return { isPromotable: true, label: 'PROMOTABLE UNTUK AHLI UTAMA' };
+  }
+  if (j.includes('KASUBAG') || j.includes('SUBKOORDINATOR') || j.includes('PENGAWAS')) {
+    return { isPromotable: true, label: 'PROMOTABLE UNTUK ADMINISTRATOR' };
+  }
+  if (j.includes('KABAG') || j.includes('KASUBDIT') || j.includes('ADMINISTRATOR')) {
+    return { isPromotable: true, label: 'PROMOTABLE UNTUK JPT PRATAMA' };
+  }
+  if (j.includes('PELAKSANA') || j.includes('PENGOLAH') || j.includes('PENGADMINISTRASI')) {
+    return { isPromotable: true, label: 'PROMOTABLE UNTUK JF AHLI PERTAMA' };
+  }
+  return { isPromotable: true, label: 'PROMOTABLE UNTUK JENJANG BERIKUTNYA' };
+}
+
+export function generateDefaultProfileDataForPegawai(pegawai: Pegawai): TalentProfileData {
+  const compDetail = getPegawaiCompetencyDetail(pegawai);
+  const pRank = getPromotablePangkat(pegawai.golRuang);
+  const pJab = getPromotableJabatan(pegawai.jabatan);
+
+  // TMT Pangkat
+  const latestRiwayatPangkat = pegawai.riwayatPangkat && pegawai.riwayatPangkat.length > 0
+    ? pegawai.riwayatPangkat[0]
+    : null;
+  const tmtPangkatRaw = pegawai.tmtPangkat || latestRiwayatPangkat?.tmtPangkat || latestRiwayatPangkat?.tanggalSk;
+  const tmtPangkatFormatted = formatTmtWithDuration(tmtPangkatRaw, '2021-04-01');
+
+  // TMT Jabatan
+  const latestRiwayatJabatan = pegawai.riwayatJabatan && pegawai.riwayatJabatan.length > 0
+    ? pegawai.riwayatJabatan[0]
+    : null;
+  const tmtJabatanRaw = pegawai.tmtJabatan || latestRiwayatJabatan?.tmtJabatan || latestRiwayatJabatan?.tanggalSk;
+  const tmtJabatanFormatted = formatTmtWithDuration(tmtJabatanRaw, '2023-11-01');
+
+  // TMT SP/SPMT
+  const tmtSpSpmtFormatted = formatTmtWithDuration(pegawai.tmtCpns || tmtJabatanRaw, '2023-11-15');
+
+  const jenjang = getJenjangFromJabatan(pegawai.jabatan);
+  const minScore = getStandarMinimumByJenjang(jenjang);
+  const roundedMin = Math.max(1, Math.min(4, Math.round(minScore)));
+
+  const mScores = compDetail.manajerialScores || {
+    M01: 3, M02: 3, M03: 3, M04: 3, M05: 2, M06: 3, M07: 2, M08: 2
+  };
+
+  const p360 = compDetail.perilaku360Scores || {
+    pelayanan: 88, komitmen: 92, inisiatif: 86, kerjasama: 84, kepemimpinan: 95
+  };
+
+  const nameFormatted = formatPegawaiName(pegawai.nama);
+  const unitFormatted = pegawai.unitKerja || 'Direktorat Jenderal Kekayaan Intelektual';
+  const jabFormatted = pegawai.jabatan || 'Aparatur Sipil Negara';
+
+  return {
+    summary: `${nameFormatted} adalah Aparatur Sipil Negara pada ${unitFormatted} yang mengemban amanah tugas sebagai ${jabFormatted}. Berdedikasi tinggi dengan fokus pada efektivitas kerja, peningkatan mutu pelayanan publik di lingkungan DJKI, serta menjunjung tinggi profesionalisme aparatur.`,
+    minat: `Pengembangan kompetensi teknis di bidang ${jabFormatted}, tata kelola manajemen aparatur berbasis meritokrasi, analisis data kinerja organisasi, pemanfaatan sistem informasi kepegawaian modern, serta penguatan pelayanan prima kepada masyarakat pemohon kekayaan intelektual.`,
+    visiNilai: "Menjunjung tinggi nilai BerAKHLAK (Berorientasi Pelayanan, Akuntabel, Kompeten, Harmonis, Loyal, Adaptif, dan Kolaboratif). Berkomitmen memberikan kontribusi nyata dalam mewujudkan ekosistem kekayaan intelektual nasional yang berdaya saing global.",
+    kelebihanKekurangan: "Kelebihan: Memiliki komitmen integritas yang tinggi, adaptif terhadap perubahan sistem kerja, cermat dalam penyelesaian tugas, dan berkolaborasi secara solid dalam tim kerja. Area Pengembangan: Terus meningkatkan kapasitas teknis lanjutan serta kepemimpinan strategis dalam pemecahan masalah kompleks.",
+    asessmentTerakhir: "22 April 2023",
+    asessmentSelanjutnya: "22 April 2025",
+    tmtPangkatTerakhir: tmtPangkatFormatted,
+    tmtJabatanTerakhir: tmtJabatanFormatted,
+    tmtSpSpmtTerakhir: tmtSpSpmtFormatted,
+    isPromotablePangkat: compDetail.isPromotablePangkat ?? pRank.isPromotable,
+    promotablePangkatLabel: pRank.label,
+    isPromotableJabatan: compDetail.isPromotableJabatan ?? pJab.isPromotable,
+    promotableJabatanLabel: pJab.label,
+    manajerialScore2023: mScores,
+    manajerialScore2021: {
+      M01: Math.max(1, mScores.M01 - 1),
+      M02: Math.max(1, mScores.M02 - 1),
+      M03: Math.max(1, mScores.M03 - 1),
+      M04: Math.max(1, mScores.M04 - 1),
+      M05: Math.max(1, mScores.M05),
+      M06: Math.max(1, mScores.M06 - 1),
+      M07: Math.max(1, mScores.M07),
+      M08: Math.max(1, mScores.M08 - 1),
+    },
+    manajerialMinimum: {
+      M01: roundedMin,
+      M02: Math.max(1, roundedMin - 1),
+      M03: Math.max(1, roundedMin - 1),
+      M04: roundedMin,
+      M05: roundedMin,
+      M06: Math.max(1, roundedMin - 1),
+      M07: Math.max(1, roundedMin - 1),
+      M08: roundedMin
+    },
+    rekomendasiManajerial: compDetail.rekomendasiBangkom || "Mengikuti kegiatan pengembangan kompetensi untuk meningkatkan aspek manajerial dan kepemimpinan agar melampaui standar minimum jabatan.",
+    perilaku360Radar: {
+      k01: p360.pelayanan,
+      k02: p360.komitmen,
+      k03: p360.inisiatif,
+      k04: p360.kerjasama,
+      k05: p360.kepemimpinan
+    },
+    perilaku360MultiRater: {
+      atasan: { y2015: 86.4, y2016: 88.0, y2017: 89.2, y2018: 90.1, y2019: 91.5, y2020: 92.0, y2021: 92.8, y2022: p360.pelayanan, skor: p360.pelayanan },
+      bawahan: { y2015: 84.0, y2016: 85.5, y2017: 87.0, y2018: 88.5, y2019: 90.0, y2020: 91.2, y2021: 92.0, y2022: p360.komitmen, skor: p360.komitmen },
+      rekan: { y2015: 85.2, y2016: 87.1, y2017: 88.0, y2018: 89.4, y2019: 90.8, y2020: 91.5, y2021: 92.2, y2022: p360.kerjasama, skor: p360.kerjasama },
+      diriSendiri: { y2015: 87.0, y2016: 88.5, y2017: 89.0, y2018: 90.0, y2019: 91.0, y2020: 92.0, y2021: 93.0, y2022: p360.inisiatif, skor: p360.inisiatif }
+    },
+    rekomendasi360: "Tingkatkan konsistensi perilaku kerja BerAKHLAK dan pertahankan hubungan kerja harmonis antar lini organisasi.",
+    perilaku360Scores: {
+      teknis: Math.min(10, Math.round((mScores.M04 || 3) * 2.5)),
+      produktivitas: Math.min(10, Math.round((mScores.M01 || 3) * 2.5)),
+      kualitas: Math.min(10, Math.round((mScores.M06 || 3) * 2.6))
+    },
+    gapCompetencyPercentage: compDetail.persenPemenuhan || 75
+  };
+}
+
+export function generateDefaultJabatanListForPegawai(pegawai: Pegawai): JabatanHistoryItem[] {
+  if (pegawai.riwayatJabatan && pegawai.riwayatJabatan.length > 0) {
+    return pegawai.riwayatJabatan.map((rj, idx) => ({
+      id: `jab-${idx}`,
+      jenisJabatan: (rj.namaJabatan || '').toLowerCase().includes('ahli') || (rj.namaJabatan || '').toLowerCase().includes('pemeriksa') 
+        ? 'Fungsional' 
+        : ((rj.namaJabatan || '').toLowerCase().includes('kepala') || (rj.namaJabatan || '').toLowerCase().includes('direktur') ? 'Struktural' : 'Pelaksana'),
+      namaJabatan: rj.namaJabatan || 'Jabatan ASN',
+      unitKerja: rj.unitKerja || pegawai.unitKerja || 'Direktorat Jenderal Kekayaan Intelektual',
+      unitEselon2: pegawai.unitKerja || 'Sekretariat DJKI',
+      unitEselon3: pegawai.subBagian || '-',
+      unitEselon4: '-',
+      periodeTeks: rj.tmtJabatan ? `${rj.tmtJabatan} - ${idx === 0 ? 'Sekarang' : 'Selesai'}` : (idx === 0 ? 'Sekarang' : 'Sebelumnya'),
+      durasi: idx === 0 ? formatTmtWithDuration(rj.tmtJabatan) : '-',
+      noSk: rj.nomorSk || '-',
+      tanggalSk: rj.tanggalSk || rj.tmtJabatan || '-',
+      noPelantikan: rj.nomorPelantikan || '',
+      tanggalPelantikan: rj.tanggalPelantikan || '',
+      rolePeran: rj.namaJabatan || 'ASN',
+      isCurrent: idx === 0
+    }));
+  }
+
+  return [
+    {
+      id: 'jab-active',
+      jenisJabatan: pegawai.jenisPegawai || ((pegawai.jabatan || '').toLowerCase().includes('ahli') ? 'Fungsional' : 'Pelaksana'),
+      namaJabatan: pegawai.jabatan || 'Aparatur Sipil Negara',
+      unitKerja: `${pegawai.subBagian || 'Sekretariat'}, ${pegawai.unitKerja || 'Direktorat Jenderal Kekayaan Intelektual'}`,
+      unitEselon2: pegawai.unitKerja || 'Sekretariat DJKI',
+      unitEselon3: pegawai.subBagian || pegawai.bagian || '-',
+      unitEselon4: '-',
+      periodeTeks: `${pegawai.tmtJabatan || 'Aktif'} - Sekarang`,
+      durasi: formatTmtWithDuration(pegawai.tmtJabatan),
+      noSk: 'SEK-KP.03.03',
+      tanggalSk: pegawai.tmtJabatan || '-',
+      rolePeran: pegawai.jabatan || 'ASN',
+      isCurrent: true
+    }
+  ];
+}
+
 export const TalentDevelopmentView: React.FC<Props> = ({
   pegawaiList,
   riwayatPelatihanList,
@@ -296,10 +548,57 @@ export const TalentDevelopmentView: React.FC<Props> = ({
     });
   }, [kompetensiForSelectedJabatan, skjJenisFilter, skjSearch]);
 
-  // Employee's actual completed trainings for this NIP
+  // Combined employee completed trainings (from Portal SDM & SIMPEG / Spreadsheet)
   const employeeTrainings = useMemo(() => {
-    return riwayatPelatihanList.filter(r => r.nip === activePegawai.nip);
-  }, [riwayatPelatihanList, activePegawai.nip]);
+    const list: Array<{
+      id: string;
+      namaKegiatan: string;
+      kategori?: string;
+      jenisPengembangan?: string;
+      jumlahJpl?: number;
+      tahun?: number | string;
+      fileSertifikatUrl?: string;
+    }> = [];
+    const seen = new Set<string>();
+
+    // From riwayatPelatihanList (Portal SDM Pengembangan)
+    riwayatPelatihanList.filter(r => r.nip === activePegawai.nip).forEach(r => {
+      const key = (r.namaKegiatan || '').toLowerCase().trim();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        list.push({
+          id: r.id,
+          namaKegiatan: r.namaKegiatan,
+          kategori: r.kategori,
+          jenisPengembangan: r.jenisPengembangan,
+          jumlahJpl: Number(r.jumlahJpl) || 0,
+          tahun: r.tahun,
+          fileSertifikatUrl: r.fileSertifikatUrl
+        });
+      }
+    });
+
+    // From activePegawai.riwayatPelatihan (SIMPEG / Spreadsheet)
+    (activePegawai.riwayatPelatihan || []).forEach((rp, idx) => {
+      const key = (rp.namaPelatihan || '').toLowerCase().trim();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        const matchDurasi = (rp.durasi || '').match(/(\d+)/);
+        const jpl = matchDurasi ? parseInt(matchDurasi[1]) : 0;
+        list.push({
+          id: `simpeg-pel-${idx}`,
+          namaKegiatan: rp.namaPelatihan,
+          kategori: rp.jenisDiklat || 'Pelatihan Teknis',
+          jenisPengembangan: 'Pelatihan Teknis',
+          jumlahJpl: jpl,
+          tahun: rp.tahun || '',
+          fileSertifikatUrl: rp.fileUrl
+        });
+      }
+    });
+
+    return list;
+  }, [riwayatPelatihanList, activePegawai.nip, activePegawai.riwayatPelatihan]);
 
   // User-toggled fulfillment state in local storage
   const storageKeyFulfilled = `talent_fulfilled_${activePegawai.nip}_${selectedJabatanTarget.replace(/[^a-zA-Z0-9]/g, '_')}`;
@@ -367,41 +666,105 @@ export const TalentDevelopmentView: React.FC<Props> = ({
   // Local storage profile data
   const storageKeyProfile = `talent_profile_${activePegawai.nip}`;
   const [profileData, setProfileData] = useState<TalentProfileData>(() => {
+    const defaultData = generateDefaultProfileDataForPegawai(activePegawai);
     try {
       const saved = localStorage.getItem(storageKeyProfile);
-      return saved ? { ...DEFAULT_PROFILE_DATA, ...JSON.parse(saved) } : DEFAULT_PROFILE_DATA;
+      return saved ? { ...defaultData, ...JSON.parse(saved) } : defaultData;
     } catch {
-      return DEFAULT_PROFILE_DATA;
+      return defaultData;
     }
   });
 
   // Local storage for Riwayat Jabatan
   const storageKeyJabatan = `talent_jabatan_${activePegawai.nip}`;
   const [jabatanList, setJabatanList] = useState<JabatanHistoryItem[]>(() => {
+    const defaultJab = generateDefaultJabatanListForPegawai(activePegawai);
     try {
       const saved = localStorage.getItem(storageKeyJabatan);
-      return saved ? JSON.parse(saved) : DEFAULT_JABATAN_LIST;
+      return saved ? JSON.parse(saved) : defaultJab;
     } catch {
-      return DEFAULT_JABATAN_LIST;
+      return defaultJab;
     }
   });
 
   // Keep state updated when activePegawai changes
   useEffect(() => {
+    const defaultData = generateDefaultProfileDataForPegawai(activePegawai);
     try {
-      const savedProfile = localStorage.getItem(storageKeyProfile);
-      setProfileData(savedProfile ? { ...DEFAULT_PROFILE_DATA, ...JSON.parse(savedProfile) } : DEFAULT_PROFILE_DATA);
+      const savedProfileStr = localStorage.getItem(storageKeyProfile);
+      if (savedProfileStr) {
+        const saved = JSON.parse(savedProfileStr);
+        // If saved profile had old generic template text, replace with personalized data
+        const isOldGenericTemplate = (saved.summary && saved.summary.includes('keahlian di bidang analisis kekayaan intelektual, pengelolaan sumber daya manusia aparatur')) &&
+          !(activePegawai.jabatan?.toLowerCase().includes('analis kekayaan intelektual') && activePegawai.unitKerja?.toLowerCase().includes('program'));
+        
+        setProfileData({
+          ...defaultData,
+          ...saved,
+          tmtPangkatTerakhir: isOldGenericTemplate || !saved.tmtPangkatTerakhir || saved.tmtPangkatTerakhir === DEFAULT_PROFILE_DATA.tmtPangkatTerakhir
+            ? defaultData.tmtPangkatTerakhir
+            : saved.tmtPangkatTerakhir,
+          tmtJabatanTerakhir: isOldGenericTemplate || !saved.tmtJabatanTerakhir || saved.tmtJabatanTerakhir === DEFAULT_PROFILE_DATA.tmtJabatanTerakhir
+            ? defaultData.tmtJabatanTerakhir
+            : saved.tmtJabatanTerakhir,
+          tmtSpSpmtTerakhir: isOldGenericTemplate || !saved.tmtSpSpmtTerakhir || saved.tmtSpSpmtTerakhir === DEFAULT_PROFILE_DATA.tmtSpSpmtTerakhir
+            ? defaultData.tmtSpSpmtTerakhir
+            : saved.tmtSpSpmtTerakhir,
+          promotablePangkatLabel: isOldGenericTemplate || saved.promotablePangkatLabel === DEFAULT_PROFILE_DATA.promotablePangkatLabel
+            ? defaultData.promotablePangkatLabel
+            : saved.promotablePangkatLabel,
+          promotableJabatanLabel: isOldGenericTemplate || saved.promotableJabatanLabel === DEFAULT_PROFILE_DATA.promotableJabatanLabel
+            ? defaultData.promotableJabatanLabel
+            : saved.promotableJabatanLabel,
+          summary: isOldGenericTemplate ? defaultData.summary : (saved.summary || defaultData.summary),
+          minat: isOldGenericTemplate ? defaultData.minat : (saved.minat || defaultData.minat)
+        });
+      } else {
+        setProfileData(defaultData);
+      }
     } catch {
-      setProfileData(DEFAULT_PROFILE_DATA);
+      setProfileData(defaultData);
     }
 
+    const defaultJab = generateDefaultJabatanListForPegawai(activePegawai);
     try {
-      const savedJabatan = localStorage.getItem(storageKeyJabatan);
-      setJabatanList(savedJabatan ? JSON.parse(savedJabatan) : DEFAULT_JABATAN_LIST);
+      const savedJabatanStr = localStorage.getItem(storageKeyJabatan);
+      if (savedJabatanStr) {
+        const savedJab = JSON.parse(savedJabatanStr);
+        const isOldDefaultJabatan = Array.isArray(savedJab) && savedJab.length === 3 &&
+          savedJab[0].namaJabatan === 'Analis Kekayaan Intelektual Ahli Pertama' &&
+          savedJab[1].namaJabatan === 'Analis Kekayaan Intelektual Ahli Pertama' &&
+          (!activePegawai.jabatan?.toLowerCase().includes('analis kekayaan intelektual') || activePegawai.riwayatJabatan?.length);
+        if (isOldDefaultJabatan) {
+          setJabatanList(defaultJab);
+        } else {
+          setJabatanList(savedJab);
+        }
+      } else {
+        setJabatanList(defaultJab);
+      }
     } catch {
-      setJabatanList(DEFAULT_JABATAN_LIST);
+      setJabatanList(defaultJab);
     }
-  }, [storageKeyProfile, storageKeyJabatan]);
+  }, [activePegawai.nip, activePegawai.jabatan, activePegawai.golRuang, activePegawai.tmtPangkat, activePegawai.tmtJabatan, storageKeyProfile, storageKeyJabatan]);
+
+  const handleResyncProfileData = () => {
+    const defaultData = generateDefaultProfileDataForPegawai(activePegawai);
+    setProfileData(defaultData);
+    try {
+      localStorage.setItem(storageKeyProfile, JSON.stringify(defaultData));
+    } catch (e) {
+      console.error(e);
+    }
+
+    const defaultJab = generateDefaultJabatanListForPegawai(activePegawai);
+    setJabatanList(defaultJab);
+    try {
+      localStorage.setItem(storageKeyJabatan, JSON.stringify(defaultJab));
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Edit "Tentang Saya" Modal State
   const [isEditTentangOpen, setIsEditTentangOpen] = useState(false);
@@ -631,6 +994,13 @@ export const TalentDevelopmentView: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleResyncProfileData}
+            title="Sinkronkan ulang profil dan riwayat asesmen dengan database spreadsheet pegawai terbaru"
+            className="text-[9px] font-black uppercase text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl border border-indigo-100 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+          >
+            <i className="bi bi-arrow-repeat"></i> Sinkron Database
+          </button>
           <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 flex items-center gap-1.5">
             <i className="bi bi-check-circle-fill"></i> Data Talenta Terverifikasi
           </span>
@@ -1951,34 +2321,41 @@ export const TalentDevelopmentView: React.FC<Props> = ({
             </div>
           )}
 
-          {/* SECTION 9: PELATIHAN (INTEGRATED WITH PENGEMBANGAN LOGS) */}
+          {/* SECTION 9: PELATIHAN (INTEGRATED WITH PENGEMBANGAN LOGS & SIMPEG) */}
           {activeSection === 'pelatihan' && (
             <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 md:p-8 space-y-6 animate-fadeIn">
-              <div className="border-b border-gray-100 pb-5">
-                <h3 className="text-xl md:text-2xl font-black text-gray-950 uppercase tracking-tight">
-                  Riwayat Pelatihan & Diklat
-                </h3>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
-                  Log Bangkom Terdaftar di Portal SDM DJKI
-                </p>
+              <div className="border-b border-gray-100 pb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-black text-gray-950 uppercase tracking-tight">
+                    Riwayat Pelatihan & Diklat
+                  </h3>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+                    Tersinkronisasi dari Portal SDM & SIMPEG DJKI
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded-lg">
+                    Total {employeeTrainings.length} Pelatihan Terdata
+                  </span>
+                </div>
               </div>
 
-              {riwayatPelatihanList.filter(r => r.nip === activePegawai.nip).length > 0 ? (
+              {employeeTrainings.length > 0 ? (
                 <div className="space-y-3">
-                  {riwayatPelatihanList.filter(r => r.nip === activePegawai.nip).map(r => (
-                    <div key={r.id} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-between">
+                  {employeeTrainings.map((r, idx) => (
+                    <div key={r.id || idx} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div>
                         <h5 className="text-xs font-black text-gray-900 uppercase">{r.namaKegiatan}</h5>
                         <p className="text-[10px] text-gray-500 mt-0.5 font-bold">
-                          {r.kategori} • {r.jenisPengembangan} • {r.jumlahJpl} JP • Tahun {r.tahun}
+                          {r.kategori || 'Pelatihan Teknis'} {r.jenisPengembangan ? `• ${r.jenisPengembangan}` : ''} {r.jumlahJpl ? `• ${r.jumlahJpl} JP` : ''} {r.tahun ? `• Tahun ${r.tahun}` : ''}
                         </p>
                       </div>
                       {r.fileSertifikatUrl && (
                         <button
                           onClick={() => window.open(r.fileSertifikatUrl, '_blank')}
-                          className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase border border-blue-100"
+                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[10px] font-black uppercase border border-blue-100 flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
                         >
-                          Sertifikat
+                          <i className="bi bi-file-earmark-pdf-fill"></i> Sertifikat
                         </button>
                       )}
                     </div>
@@ -1986,7 +2363,7 @@ export const TalentDevelopmentView: React.FC<Props> = ({
                 </div>
               ) : (
                 <div className="p-8 text-center bg-gray-50 rounded-2xl border border-gray-100 text-gray-400 text-xs">
-                  Belum ada catatan pelatihan spesifik untuk NIP ini. Gunakan tombol &quot;+ Catat Pelatihan&quot; di tab Monitoring untuk menambahkan.
+                  Belum ada catatan pelatihan untuk NIP ini. Gunakan tombol &quot;+ Catat Pelatihan&quot; di tab Monitoring untuk menambahkan atau perbarui data riwayat pelatihan SIMPEG.
                 </div>
               )}
             </div>
@@ -2014,15 +2391,41 @@ export const TalentDevelopmentView: React.FC<Props> = ({
                 <h3 className="text-xl md:text-2xl font-black text-gray-950 uppercase tracking-tight">
                   Pendidikan Formal
                 </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+                  Riwayat Pendidikan Terverifikasi Database Kepegawaian
+                </p>
               </div>
               <div className="space-y-3">
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center">
-                  <div>
-                    <h5 className="text-xs font-black text-gray-900 uppercase">S1 - Ilmu Administrasi Negara / Publik</h5>
-                    <p className="text-[11px] text-gray-600">Universitas Terkemuka • Lulus Tahun 2017</p>
+                {activePegawai.riwayatPendidikan && activePegawai.riwayatPendidikan.length > 0 ? (
+                  activePegawai.riwayatPendidikan.map((rp, idx) => (
+                    <div key={`pend-${idx}`} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                      <div>
+                        <h5 className="text-xs font-black text-gray-900 uppercase">
+                          {rp.jenjang ? `${rp.jenjang} - ` : ''}{rp.jurusan || 'Pendidikan'}
+                        </h5>
+                        <p className="text-[11px] text-gray-600">
+                          {rp.institusi || rp.namaSekolah || 'Perguruan Tinggi'} {rp.tahunLulus ? `• Lulus Tahun ${rp.tahunLulus}` : ''}
+                          {rp.nomorIjazah ? ` • No. Ijazah: ${rp.nomorIjazah}` : ''}
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-black rounded-lg shrink-0">
+                        Ijazah Terverifikasi
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div>
+                      <h5 className="text-xs font-black text-gray-900 uppercase">
+                        {activePegawai.pendidikan || 'S1'} {activePegawai.jurusan ? `- ${activePegawai.jurusan}` : ''}
+                      </h5>
+                      <p className="text-[11px] text-gray-600">Pendidikan Terakhir Terdaftar di SIMPEG DJKI</p>
+                    </div>
+                    <span className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-black rounded-lg shrink-0">
+                      Ijazah Terverifikasi
+                    </span>
                   </div>
-                  <span className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-black rounded-lg">Ijazah Terverifikasi</span>
-                </div>
+                )}
               </div>
             </div>
           )}

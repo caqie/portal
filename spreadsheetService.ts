@@ -440,11 +440,21 @@ export const applyLocalCacheUpdate = (moduleName: string, action: 'SAVE' | 'DELE
           itemToSave.roles = rolesList;
           itemToSave.role = itemToSave.role || rolesList[0] || 'Viewer';
         }
-        const index = parsed.findIndex((item: any) => 
-          (item.id && itemToSave.id && String(item.id) === String(itemToSave.id)) || 
-          (item.nip && itemToSave.nip && String(item.nip) === String(itemToSave.nip)) ||
-          (item.noPeserta && itemToSave.noPeserta && String(item.noPeserta) === String(itemToSave.noPeserta))
-        );
+        const cleanDigits = (val: any) => String(val || '').replace(/\D/g, '');
+        const isPegawai = moduleName.toUpperCase().trim() === 'PEGAWAI';
+
+        const index = parsed.findIndex((item: any) => {
+          if (isPegawai) {
+            const itemNip = cleanDigits(item.nip);
+            const saveNip = cleanDigits(itemToSave.nip);
+            if (itemNip && saveNip && itemNip === saveNip) return true;
+          }
+          return (
+            (item.id && itemToSave.id && String(item.id) === String(itemToSave.id)) || 
+            (item.nip && itemToSave.nip && cleanDigits(item.nip) === cleanDigits(itemToSave.nip)) ||
+            (item.noPeserta && itemToSave.noPeserta && String(item.noPeserta) === String(itemToSave.noPeserta))
+          );
+        });
         if (index !== -1) {
           parsed[index] = { ...parsed[index], ...itemToSave };
         } else {
@@ -452,11 +462,21 @@ export const applyLocalCacheUpdate = (moduleName: string, action: 'SAVE' | 'DELE
         }
         localStorage.setItem(key, JSON.stringify(parsed));
       } else if (action === 'DELETE') {
-        const filtered = parsed.filter((item: any) => 
-          !(item.id && data.id && String(item.id) === String(data.id)) && 
-          !(item.nip && data.nip && String(item.nip) === String(data.nip)) &&
-          !(item.noPeserta && data.noPeserta && String(item.noPeserta) === String(data.noPeserta))
-        );
+        const cleanDigits = (val: any) => String(val || '').replace(/\D/g, '');
+        const isPegawai = moduleName.toUpperCase().trim() === 'PEGAWAI';
+
+        const filtered = parsed.filter((item: any) => {
+          if (isPegawai) {
+            const itemNip = cleanDigits(item.nip);
+            const delNip = cleanDigits(data.nip);
+            if (itemNip && delNip && itemNip === delNip) return false;
+          }
+          return !(
+            (item.id && data.id && String(item.id) === String(data.id)) || 
+            (item.nip && data.nip && cleanDigits(item.nip) === cleanDigits(data.nip)) ||
+            (item.noPeserta && data.noPeserta && String(item.noPeserta) === String(data.noPeserta))
+          );
+        });
         localStorage.setItem(key, JSON.stringify(filtered));
       }
     }

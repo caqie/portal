@@ -100,8 +100,8 @@ const ProfilePegawaiPage = () => {
         }
       }
 
-      // Safe fallback if still not found and in portal view or generic profile
-      if (!found && pData.length > 0 && (isGenericProfile || isUserPortalView)) {
+      // Safe fallback ONLY when in generic profile route ('/profile' or '/me') and no user NIP matched
+      if (!found && pData.length > 0 && isGenericProfile) {
         found = pData[0];
       }
 
@@ -687,14 +687,37 @@ const ProfilePegawaiPage = () => {
         return;
     }
 
+    // Ensure completely fresh deep clones of each row object to avoid any shared reference mutation
+    const clonedRows = JSON.parse(JSON.stringify(rows));
     const currentList = (pegawai[field] as any[]) || [];
-    const newList = mode === 'REPLACE' ? [...rows] : [...currentList, ...rows];
+    const newList = mode === 'REPLACE' ? clonedRows : [...currentList, ...clonedRows];
     const updated = { ...pegawai, [field]: newList };
     const synced = syncHistoryToDetail(updated);
     setPegawai(synced);
     setIsEditing(true);
     setIsSimpegImportOpen(false);
     setSuccessMsg(`Berhasil memuat ${rows.length} data untuk ${catTitle} dari SIMPEG. Silakan tinjau dan klik "Simpan Perubahan".`);
+    setShowSuccess(true);
+  };
+
+  const handleClearHistory = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'keluarga') => {
+    if (!pegawai) return;
+    const labels: Record<string, string> = {
+      riwayatJabatan: 'Riwayat Jabatan',
+      riwayatPangkat: 'Riwayat Pangkat',
+      riwayatPendidikan: 'Riwayat Pendidikan',
+      riwayatGaji: 'Riwayat Gaji & KGB',
+      riwayatPelatihan: 'Riwayat Pelatihan',
+      keluarga: 'Informasi Keluarga'
+    };
+    const title = labels[field] || 'riwayat ini';
+    if (!window.confirm(`PERINGATAN:\nApakah Anda yakin ingin MENGOSONGKAN seluruh baris ${title} untuk ${pegawai.nama}?\n\nTindakan ini akan menghapus seluruh entri pada daftar saat ini.`)) {
+      return;
+    }
+    const updated = { ...pegawai, [field]: [] };
+    const synced = syncHistoryToDetail(updated);
+    setPegawai(synced);
+    setSuccessMsg(`Seluruh ${title} berhasil dikosongkan. Klik "Simpan Perubahan" untuk menerapkan.`);
     setShowSuccess(true);
   };
 
@@ -1405,13 +1428,25 @@ const ProfilePegawaiPage = () => {
 
                     {/* Tambah Anggota */}
                     {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => addHistoryItem('keluarga')}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-emerald-700 transition-all"
-                      >
-                        <i className="bi bi-plus-lg"></i> Tambah
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addHistoryItem('keluarga')}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-emerald-700 transition-all cursor-pointer"
+                        >
+                          <i className="bi bi-plus-lg"></i> Tambah
+                        </button>
+                        {(pegawai.keluarga || []).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleClearHistory('keluarga')}
+                            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all cursor-pointer"
+                            title="Kosongkan seluruh data keluarga pegawai ini"
+                          >
+                            <i className="bi bi-trash3"></i> Kosongkan
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1623,13 +1658,25 @@ const ProfilePegawaiPage = () => {
 
                     {/* Tambah Pendidikan */}
                     {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => addHistoryItem('riwayatPendidikan')}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-indigo-700 transition-all"
-                      >
-                        <i className="bi bi-plus-lg"></i> Tambah
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addHistoryItem('riwayatPendidikan')}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-indigo-700 transition-all cursor-pointer"
+                        >
+                          <i className="bi bi-plus-lg"></i> Tambah
+                        </button>
+                        {(pegawai.riwayatPendidikan || []).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleClearHistory('riwayatPendidikan')}
+                            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all cursor-pointer"
+                            title="Kosongkan seluruh riwayat pendidikan pegawai ini"
+                          >
+                            <i className="bi bi-trash3"></i> Kosongkan
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1919,18 +1966,30 @@ const ProfilePegawaiPage = () => {
                         <button
                           type="button"
                           onClick={() => setIsEditing(true)}
-                          className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl font-black text-[9px] uppercase flex items-center gap-2 transition-all"
+                          className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl font-black text-[9px] uppercase flex items-center gap-2 transition-all cursor-pointer"
                         >
                           <i className="bi bi-pencil-square"></i> Edit Data
                         </button>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => addHistoryItem('riwayatJabatan')}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-md shadow-blue-200 transition-all active:scale-95"
-                        >
-                          <i className="bi bi-plus-lg"></i> Tambah Jabatan
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => addHistoryItem('riwayatJabatan')}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-md shadow-blue-200 transition-all active:scale-95 cursor-pointer"
+                          >
+                            <i className="bi bi-plus-lg"></i> Tambah Jabatan
+                          </button>
+                          {(pegawai.riwayatJabatan || []).length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleClearHistory('riwayatJabatan')}
+                              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all cursor-pointer"
+                              title="Kosongkan seluruh riwayat jabatan pegawai ini"
+                            >
+                              <i className="bi bi-trash3"></i> Kosongkan
+                            </button>
+                          )}
+                        </div>
                       )
                     )}
                   </div>
@@ -1982,7 +2041,7 @@ const ProfilePegawaiPage = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-[11px]">
                           {(pegawai.riwayatJabatan || []).map((j, idx) => (
-                            <tr key={`row-${idx}-${j.nomorSk || j.namaJabatan}`} className="hover:bg-blue-50/30 transition-colors divide-x divide-gray-100 group">
+                            <tr key={`hist-jab-tbl-${idx}`} className="hover:bg-blue-50/30 transition-colors divide-x divide-gray-100 group">
                               {/* No */}
                               <td className="py-3 px-3 text-center font-bold text-gray-400 text-[10px]">
                                 {idx + 1}
@@ -2555,13 +2614,25 @@ const ProfilePegawaiPage = () => {
 
                     {/* Tambah Pangkat */}
                     {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => addHistoryItem('riwayatPangkat')}
-                        className="px-4 py-2 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-amber-700 transition-all"
-                      >
-                        <i className="bi bi-plus-lg"></i> Tambah
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addHistoryItem('riwayatPangkat')}
+                          className="px-4 py-2 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-amber-700 transition-all cursor-pointer"
+                        >
+                          <i className="bi bi-plus-lg"></i> Tambah
+                        </button>
+                        {(pegawai.riwayatPangkat || []).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleClearHistory('riwayatPangkat')}
+                            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all cursor-pointer"
+                            title="Kosongkan seluruh riwayat pangkat pegawai ini"
+                          >
+                            <i className="bi bi-trash3"></i> Kosongkan
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2831,13 +2902,25 @@ const ProfilePegawaiPage = () => {
 
                     {/* Tambah Gaji / KGB */}
                     {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => addHistoryItem('riwayatGaji')}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-emerald-700 transition-all"
-                      >
-                        <i className="bi bi-plus-lg"></i> Tambah
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addHistoryItem('riwayatGaji')}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-emerald-700 transition-all cursor-pointer"
+                        >
+                          <i className="bi bi-plus-lg"></i> Tambah
+                        </button>
+                        {(pegawai.riwayatGaji || []).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleClearHistory('riwayatGaji')}
+                            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all cursor-pointer"
+                            title="Kosongkan seluruh riwayat gaji pegawai ini"
+                          >
+                            <i className="bi bi-trash3"></i> Kosongkan
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -3150,13 +3233,25 @@ const ProfilePegawaiPage = () => {
 
                     {/* Tambah Pelatihan */}
                     {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => addHistoryItem('riwayatPelatihan')}
-                        className="px-4 py-2 bg-purple-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-purple-700 transition-all"
-                      >
-                        <i className="bi bi-plus-lg"></i> Tambah
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addHistoryItem('riwayatPelatihan')}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-purple-700 transition-all cursor-pointer"
+                        >
+                          <i className="bi bi-plus-lg"></i> Tambah
+                        </button>
+                        {(pegawai.riwayatPelatihan || []).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleClearHistory('riwayatPelatihan')}
+                            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all cursor-pointer"
+                            title="Kosongkan seluruh riwayat pelatihan pegawai ini"
+                          >
+                            <i className="bi bi-trash3"></i> Kosongkan
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -3665,6 +3760,8 @@ const ProfilePegawaiPage = () => {
         onClose={() => setIsSimpegImportOpen(false)}
         initialCategory={simpegImportCategory}
         onApply={handleApplySimpegData}
+        targetPegawaiName={pegawai?.nama}
+        targetPegawaiNip={pegawai?.nip}
       />
     </div>
   );

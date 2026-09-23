@@ -196,21 +196,34 @@ function handleSave(ss, moduleName, payload) {
     var targetKey = "";
     var isNipMatching = false;
 
-    if (payload.id) {
+    if (moduleName === 'PEGAWAI' && payload.nip) {
+       targetKey = payload.nip.toString().replace(/\D/g, '').trim();
+       isNipMatching = true;
+       for (var h = 0; h < headers.length; h++) {
+          var hName = headers[h] ? headers[h].toString().toLowerCase().replace(/[\s_]/g, '') : '';
+          if (hName === 'nip') {
+            keyIndex = h;
+            break;
+          }
+       }
+    } else if (payload.id) {
        targetKey = payload.id.toString().trim();
+       for (var h = 0; h < headers.length; h++) {
+          var hName = headers[h] ? headers[h].toString().toLowerCase().replace(/[\s_]/g, '') : '';
+          if (hName === 'id') {
+            keyIndex = h;
+            break; 
+          }
+       }
     } else if (payload.nip) {
        targetKey = payload.nip.toString().replace(/\D/g, '').trim();
        isNipMatching = true;
-    }
-    
-    for (var h = 0; h < headers.length; h++) {
-       var hName = headers[h] ? headers[h].toString().toLowerCase().replace(/[\s_]/g, '') : '';
-       if (hName === 'id') {
-         keyIndex = h;
-         if (payload.id) break; 
-       }
-       if (hName === 'nip' && keyIndex === -1) {
-         keyIndex = h;
+       for (var h = 0; h < headers.length; h++) {
+          var hName = headers[h] ? headers[h].toString().toLowerCase().replace(/[\s_]/g, '') : '';
+          if (hName === 'nip') {
+            keyIndex = h;
+            break;
+          }
        }
     }
 
