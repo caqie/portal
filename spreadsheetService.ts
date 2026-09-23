@@ -152,6 +152,19 @@ export const parseDateToYYYYMMDD = (val: any): string => {
 
   // 2. If contains 'T', ISO format
   if (str.includes('T')) {
+    try {
+      const parsedDate = new Date(str);
+      if (!isNaN(parsedDate.getTime())) {
+        const formatter = new Intl.DateTimeFormat('en-CA', { 
+          timeZone: 'Asia/Jakarta', 
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit' 
+        });
+        const parts = formatter.format(parsedDate);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(parts)) return parts;
+      }
+    } catch (e) {}
     const part = str.split('T')[0];
     if (/^\d{4}-\d{2}-\d{2}$/.test(part)) return part;
   }

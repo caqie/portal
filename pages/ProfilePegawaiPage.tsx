@@ -182,18 +182,121 @@ const ProfilePegawaiPage = () => {
           }
         }
 
-        // Persist healed jabatan back to localStorage if corrected
-        if (jabatanWasRepaired) {
+        // Sanitize corrupted identity/kepegawaian fields caused by previous shifted imports or sorting bugs
+        const isDatePatternOrIso = (val?: string) => {
+          if (!val) return false;
+          const s = val.trim();
+          return s.includes('T') || /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(s);
+        };
+        const eselonPattern = /^(I|II|III|IV)\.[a-e]$/i;
+
+        let identitasRepaired = false;
+
+        // Clean corrupted Eselon (e.g. ISO string "2014-01-15T17:00:00.000Z")
+        if (found.eselon && (isDatePatternOrIso(found.eselon) || !eselonPattern.test(found.eselon.trim()))) {
+          found.eselon = '-';
+          identitasRepaired = true;
+        }
+
+        // Clean corrupted Unit Kerja (e.g. ISO string or date)
+        if (isDatePatternOrIso(found.unitKerja)) {
+          found.unitKerja = 'Direktorat Jenderal Kekayaan Intelektual';
+          identitasRepaired = true;
+        }
+
+        // Clean corrupted TMT Jabatan (e.g. "Sekretaris Jenderal")
+        if (found.tmtJabatan && !parseDateToYYYYMMDD(found.tmtJabatan)) {
+          found.tmtJabatan = '';
+          identitasRepaired = true;
+        }
+
+        // Clean corrupted TMT Pangkat (e.g. SK number like "SEK.2-588.KP.04.03 TAHUN 2019")
+        if (found.tmtPangkat && (found.tmtPangkat.includes('KP.') || found.tmtPangkat.includes('TAHUN') || found.tmtPangkat.length > 15)) {
+          found.tmtPangkat = '';
+          identitasRepaired = true;
+        }
+
+        // Specific verified identity restoration for Dr. ANDRIEANSJAH
+        if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+          const isShiftedOldJabatan = !found.jabatan || 
+            found.jabatan.toUpperCase().includes('KERJA SAMA LUAR NEGERI') || 
+            found.jabatan.toUpperCase().includes('KLASIFIKASI') ||
+            found.jabatan.toUpperCase().includes('REGIONAL');
+
+          if (isShiftedOldJabatan) {
+            found.jabatan = 'Direktur Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+            found.unitKerja = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+            found.bagian = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+            found.subBagian = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+            found.eselon = 'II.a';
+            found.tmtJabatan = '2026-01-08';
+            found.jenisJabatan = 'Pimpinan Tinggi';
+            found.klasifikasiJabatan = 'JPT';
+            identitasRepaired = true;
+          }
+
+          if (!found.eselon || found.eselon === '-' || isDatePatternOrIso(found.eselon)) {
+            found.eselon = 'II.a';
+            identitasRepaired = true;
+          }
+          if (!found.tmtJabatan || !parseDateToYYYYMMDD(found.tmtJabatan)) {
+            found.tmtJabatan = '2026-01-08';
+            identitasRepaired = true;
+          }
+          if (!found.pangkat || found.pangkat === '-') {
+            found.pangkat = 'Pembina Utama Muda';
+            identitasRepaired = true;
+          }
+          if (!found.golRuang || found.golRuang === '-') {
+            found.golRuang = 'IV/c';
+            identitasRepaired = true;
+          }
+          if (!found.tmtPangkat || !parseDateToYYYYMMDD(found.tmtPangkat)) {
+            found.tmtPangkat = '2019-10-01';
+            identitasRepaired = true;
+          }
+          if (!found.unitKerja || isDatePatternOrIso(found.unitKerja)) {
+            found.unitKerja = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+            identitasRepaired = true;
+          }
+          // Ensure canonical TMT CPNS 01-03-2000 (1 Maret 2000)
+          const currentCpns = parseDateToYYYYMMDD(found.tmtCpns);
+          if (currentCpns !== '2000-03-01') {
+            found.tmtCpns = '2000-03-01';
+            identitasRepaired = true;
+          }
+        }
+
+        // Automatic NIP-based validation for all PNS TMT CPNS
+        const cleanNip = (found.nip || '').replace(/\D/g, '');
+        if (cleanNip.length === 18 && (found.jenisPegawai === 'PNS' || !found.jenisPegawai)) {
+          const cpnsYear = cleanNip.slice(8, 12);
+          const cpnsMonth = cleanNip.slice(12, 14);
+          const officialTmtCpns = `${cpnsYear}-${cpnsMonth}-01`;
+          const currentTmt = parseDateToYYYYMMDD(found.tmtCpns);
+          if (currentTmt !== officialTmtCpns) {
+            found.tmtCpns = officialTmtCpns;
+            identitasRepaired = true;
+          }
+        }
+
+        // Persist healed data back to localStorage if corrected
+        if (jabatanWasRepaired || identitasRepaired) {
           try {
-            const rawDb = localStorage.getItem('portal_sdm_pegawai_db');
-            if (rawDb) {
-              const allPeg = JSON.parse(rawDb);
-              const pIdx = allPeg.findIndex((p: any) => p.id === found!.id || (p.nip && p.nip === found!.nip));
-              if (pIdx >= 0) {
-                allPeg[pIdx].riwayatJabatan = ANDRIEANSJAH_JABATAN_DATA;
-                localStorage.setItem('portal_sdm_pegawai_db', JSON.stringify(allPeg));
+            ['portal_pegawai_db', 'portal_sdm_pegawai_db'].forEach(key => {
+              const rawDb = localStorage.getItem(key);
+              if (rawDb) {
+                const allPeg = JSON.parse(rawDb);
+                const pIdx = allPeg.findIndex((p: any) => p.id === found!.id || (p.nip && p.nip === found!.nip));
+                if (pIdx >= 0) {
+                  if (jabatanWasRepaired) allPeg[pIdx].riwayatJabatan = sanitizedJabatan;
+                  if (identitasRepaired) {
+                    allPeg[pIdx] = { ...allPeg[pIdx], ...found };
+                  }
+                  localStorage.setItem(key, JSON.stringify(allPeg));
+                }
               }
-            }
+            });
           } catch (e) {}
         }
 
@@ -325,32 +428,58 @@ const ProfilePegawaiPage = () => {
       updated.pendidikan = polished.pendidikan;
     }
 
-    // 1. Sync Jabatan (latest TMT)
+    // 1. Sync Jabatan (latest valid TMT timestamp)
     if (p.riwayatJabatan && p.riwayatJabatan.length > 0) {
-      const latestJabatan = [...p.riwayatJabatan].sort((a, b) => {
-        const tmtA = a.tmtJabatan || '';
-        const tmtB = b.tmtJabatan || '';
-        return tmtB.localeCompare(tmtA);
-      })[0];
-      if (latestJabatan) {
+      const isDatePatternOrIso = (val?: string) => {
+        if (!val) return false;
+        const s = val.trim();
+        return s.includes('T') || /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(s);
+      };
+      const eselonPattern = /^(I|II|III|IV)\.[a-e]$/i;
+
+      // Filter and sort by real timestamp, ignoring corrupted rows where TMT is text like "Sekretaris Jenderal"
+      const sortedJabatan = [...p.riwayatJabatan].sort((a, b) => {
+        const parsedA = parseDateToYYYYMMDD(a.tmtJabatan) || parseDateToYYYYMMDD(a.tanggalSk);
+        const parsedB = parseDateToYYYYMMDD(b.tmtJabatan) || parseDateToYYYYMMDD(b.tanggalSk);
+        const timeA = parsedA ? new Date(parsedA).getTime() : 0;
+        const timeB = parsedB ? new Date(parsedB).getTime() : 0;
+        return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+      });
+
+      const latestJabatan = sortedJabatan[0];
+      if (latestJabatan && latestJabatan.namaJabatan) {
         updated.jabatan = latestJabatan.namaJabatan;
-        updated.tmtJabatan = latestJabatan.tmtJabatan;
-        if (latestJabatan.unitKerja) updated.unitKerja = latestJabatan.unitKerja;
-        if (latestJabatan.eselon && latestJabatan.eselon !== '-') updated.eselon = latestJabatan.eselon;
+        const parsedTmt = parseDateToYYYYMMDD(latestJabatan.tmtJabatan);
+        if (parsedTmt) {
+          updated.tmtJabatan = parsedTmt;
+        }
+        if (latestJabatan.unitKerja && !isDatePatternOrIso(latestJabatan.unitKerja)) {
+          updated.unitKerja = latestJabatan.unitKerja;
+        }
+        if (latestJabatan.eselon && eselonPattern.test(latestJabatan.eselon.trim())) {
+          updated.eselon = latestJabatan.eselon.trim();
+        }
       }
     }
 
-    // 2. Sync Pangkat (latest TMT)
+    // 2. Sync Pangkat (latest valid TMT timestamp)
     if (p.riwayatPangkat && p.riwayatPangkat.length > 0) {
-      const latestPangkat = [...p.riwayatPangkat].sort((a, b) => {
-        const tmtA = a.tmtPangkat || '';
-        const tmtB = b.tmtPangkat || '';
-        return tmtB.localeCompare(tmtA);
-      })[0];
+      const sortedPangkat = [...p.riwayatPangkat].sort((a, b) => {
+        const parsedA = parseDateToYYYYMMDD(a.tmtPangkat) || parseDateToYYYYMMDD(a.tanggalSk);
+        const parsedB = parseDateToYYYYMMDD(b.tmtPangkat) || parseDateToYYYYMMDD(b.tanggalSk);
+        const timeA = parsedA ? new Date(parsedA).getTime() : 0;
+        const timeB = parsedB ? new Date(parsedB).getTime() : 0;
+        return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+      });
+
+      const latestPangkat = sortedPangkat[0];
       if (latestPangkat) {
-        updated.pangkat = latestPangkat.pangkat;
-        updated.golRuang = latestPangkat.golRuang;
-        updated.tmtPangkat = latestPangkat.tmtPangkat;
+        if (latestPangkat.pangkat) updated.pangkat = latestPangkat.pangkat;
+        if (latestPangkat.golRuang) updated.golRuang = latestPangkat.golRuang;
+        const parsedTmt = parseDateToYYYYMMDD(latestPangkat.tmtPangkat);
+        if (parsedTmt) {
+          updated.tmtPangkat = parsedTmt;
+        }
       }
     }
 
@@ -845,6 +974,74 @@ const ProfilePegawaiPage = () => {
     await handleApplySimpegData('jabatan', 'REPLACE', fixed);
   };
 
+  const hasShiftedIdentitas = useMemo(() => {
+    if (!pegawai) return false;
+    const isIsoOrDate = (val?: string) => !val ? false : (val.includes('T') && val.includes('Z')) || /^\d{2}[-/]\d{2}[-/]\d{4}$/.test(val.trim());
+    const isEselonShifted = isIsoOrDate(pegawai.eselon) || (pegawai.eselon && !/^(I|II|III|IV)\.[a-e]$/i.test(pegawai.eselon.trim()) && pegawai.eselon !== '-');
+    const isUnitShifted = isIsoOrDate(pegawai.unitKerja);
+    const isTmtJabatanNotDate = Boolean(pegawai.tmtJabatan && !parseDateToYYYYMMDD(pegawai.tmtJabatan));
+    const isTmtPangkatSk = Boolean(pegawai.tmtPangkat && (pegawai.tmtPangkat.includes('KP.') || pegawai.tmtPangkat.includes('TAHUN')));
+    const isAndrieOld = Boolean(pegawai.nama.toUpperCase().includes('ANDRIEANSJAH') && (pegawai.jabatan || '').toUpperCase().includes('KERJA SAMA LUAR NEGERI'));
+    
+    // Check if TMT CPNS matches NIP for PNS
+    const cleanNip = (pegawai.nip || '').replace(/\D/g, '');
+    let isCpnsShifted = false;
+    if (cleanNip.length === 18 && (pegawai.jenisPegawai === 'PNS' || !pegawai.jenisPegawai)) {
+      const expectedCpns = `${cleanNip.slice(8, 12)}-${cleanNip.slice(12, 14)}-01`;
+      const currentCpns = parseDateToYYYYMMDD(pegawai.tmtCpns);
+      if (currentCpns !== expectedCpns) {
+        isCpnsShifted = true;
+      }
+    }
+
+    return Boolean(isEselonShifted || isUnitShifted || isTmtJabatanNotDate || isTmtPangkatSk || isAndrieOld || isCpnsShifted);
+  }, [pegawai]);
+
+  const handleHealIdentitas = async () => {
+    if (!pegawai) return;
+    setSyncing(true);
+    let updated = { ...pegawai };
+    const cleanNip = (updated.nip || '').replace(/\D/g, '');
+
+    if (updated.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+      updated.jabatan = 'Direktur Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+      updated.unitKerja = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+      updated.bagian = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+      updated.subBagian = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+      updated.eselon = 'II.a';
+      updated.tmtJabatan = '2026-01-08';
+      updated.pangkat = 'Pembina Utama Muda';
+      updated.golRuang = 'IV/c';
+      updated.tmtPangkat = '2019-10-01';
+      updated.tmtCpns = '2000-03-01';
+      updated.jenisJabatan = 'Pimpinan Tinggi';
+      updated.klasifikasiJabatan = 'JPT';
+    } else {
+      updated = syncHistoryToDetail(updated);
+      if (cleanNip.length === 18 && (updated.jenisPegawai === 'PNS' || !updated.jenisPegawai)) {
+        updated.tmtCpns = `${cleanNip.slice(8, 12)}-${cleanNip.slice(12, 14)}-01`;
+      }
+    }
+    setPegawai(updated);
+    await savePegawai(updated);
+    try {
+      ['portal_pegawai_db', 'portal_sdm_pegawai_db'].forEach(key => {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const list = JSON.parse(raw);
+          const idx = list.findIndex((p: any) => p.id === updated.id || (p.nip && p.nip === updated.nip));
+          if (idx >= 0) {
+            list[idx] = { ...list[idx], ...updated };
+            localStorage.setItem(key, JSON.stringify(list));
+          }
+        }
+      });
+    } catch (e) {}
+    setSyncing(false);
+    setSuccessMsg('Data identitas dan kepegawaian berhasil dipulihkan!');
+    setShowSuccess(true);
+  };
+
   const handleClearHistory = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'keluarga') => {
     if (!pegawai) return;
     const labels: Record<string, string> = {
@@ -1147,6 +1344,29 @@ const ProfilePegawaiPage = () => {
                     </div>
                 </div>
 
+                {hasShiftedIdentitas && (
+                  <div className="p-4 md:p-5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 text-base shadow-sm">
+                        <i className="bi bi-exclamation-triangle-fill"></i>
+                      </div>
+                      <div>
+                        <h5 className="text-[12px] md:text-[13px] font-black text-amber-950 uppercase tracking-tight">Terdeteksi Data Tergeser pada Identitas/Kepegawaian</h5>
+                        <p className="text-[9px] md:text-[10px] text-amber-800 font-medium">Nilai Eselon, TMT Jabatan, Unit Kerja, atau TMT Pangkat tergeser akibat sinkronisasi kolom sebelumnya.</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleHealIdentitas}
+                      disabled={syncing}
+                      className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-[10px] md:text-[11px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shrink-0 shadow-sm disabled:bg-gray-300"
+                    >
+                      <i className="bi bi-arrow-repeat"></i>
+                      <span>Pulihkan Data Sekarang</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* B. Data Kepegawaian */}
                 <div className="space-y-4 md:space-y-6">
                   <div className="flex items-center gap-4 border-b border-gray-50 pb-4">
@@ -1339,7 +1559,11 @@ const ProfilePegawaiPage = () => {
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>TMT CPNS</label>
-                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-100 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateIndoDisplay(pegawai.tmtCpns)}</div>
+                      {isEditing ? (
+                        <input type="date" className={inputNoCapsClass} value={formatDateForInput(pegawai.tmtCpns)} onChange={e => updateField('tmtCpns', e.target.value)} />
+                      ) : (
+                        <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateIndoDisplay(pegawai.tmtCpns)}</div>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className={labelClass}>Masa Kerja (Thn Bln)</label>
