@@ -834,3 +834,214 @@ export const SIMPEG_JABATAN_DATA: RiwayatJabatan[] = [
     tanggalPelantikan: '2025-11-28'
   }
 ];
+
+export const ANDRIEANSJAH_JABATAN_DATA: RiwayatJabatan[] = [
+  {
+    nomorSk: 'M.HH-40.KP.03.03 TAHUN 2010',
+    tanggalSk: '2010-08-31',
+    namaJabatan: 'KASI KERJASAMA REGIONAL DITJEN HKI',
+    unitKerja: 'Direktorat Jenderal Hak Kekayaan Intelektual',
+    tmtJabatan: '2010-08-31',
+    pejabatPenetap: 'Menteri Hukum dan Hak Asasi Manusia',
+    eselon: 'IV.a',
+    tmtEselon: '2010-08-31',
+    nomorPelantikan: '-',
+    tanggalPelantikan: ''
+  },
+  {
+    nomorSk: 'NOMOR SK KOSONG',
+    tanggalSk: '2017-12-31',
+    namaJabatan: 'KEPALA SEKSI KLASIFIKASI DAN PENELUSURAN',
+    unitKerja: 'Direktorat Jenderal Kekayaan Intelektual',
+    tmtJabatan: '2012-03-26',
+    pejabatPenetap: 'Menteri Hukum dan Hak Asasi Manusia',
+    eselon: 'IV.a',
+    tmtEselon: '',
+    nomorPelantikan: '-',
+    tanggalPelantikan: ''
+  },
+  {
+    nomorSk: 'SEK-03.KP.03.03 TAHUN 2014',
+    tanggalSk: '2014-01-16',
+    namaJabatan: 'KEPALA SUBDIT KERJA SAMA LUAR NEGERI',
+    unitKerja: 'Direktorat Jenderal Kekayaan Intelektual',
+    tmtJabatan: '2014-01-16',
+    pejabatPenetap: 'Sekretaris Jenderal',
+    eselon: 'III.a',
+    tmtEselon: '2014-01-16',
+    nomorPelantikan: '-',
+    tanggalPelantikan: ''
+  },
+  {
+    nomorSk: 'M.HH-79.KP.03.03 TAHUN 2015',
+    tanggalSk: '2015-01-18',
+    namaJabatan: 'KEPALA SUBDIREKTORAT KERJA SAMA LUAR NEGERI DIREKTORAT KERJA SAMA DAN PEMBERDAYAAN KEKAYAAN INTELEKTUAL',
+    unitKerja: 'DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL - DIREKTORAT KERJA SAMA DAN PEMBERDAYAAN KEKAYAAN INTELEKTUAL - KOORDINATOR KERJA SAMA LUAR NEGERI',
+    tmtJabatan: '2015-12-21',
+    pejabatPenetap: 'Menteri Hukum dan Hak Asasi Manusia',
+    eselon: 'III.a',
+    tmtEselon: '2014-01-16',
+    nomorPelantikan: '-',
+    tanggalPelantikan: '2015-12-21'
+  },
+  {
+    nomorSk: 'SEK-14.KP.03.03',
+    tanggalSk: '2020-01-29',
+    namaJabatan: 'KEPALA BAGIAN PROGRAM DAN PELAPORAN SEKRETARIAT DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL',
+    unitKerja: 'DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL - SEKRETARIAT DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL - BAGIAN PROGRAM DAN PELAPORAN',
+    tmtJabatan: '2020-03-02',
+    pejabatPenetap: 'Sekretaris Jenderal',
+    eselon: 'III.a',
+    tmtEselon: '',
+    nomorPelantikan: 'HKI.1-KP.04.05-56',
+    tanggalPelantikan: '2020-03-02'
+  },
+  {
+    nomorSk: 'M.HH-28.KP.03.03 TAHUN 2023',
+    tanggalSk: '2023-09-22',
+    namaJabatan: 'KEPALA DIVISI PELAYANAN HUKUM DAN HAM KANWIL KEMENTERIAN HUKUM DAN HAM BENGKULU',
+    unitKerja: 'BENGKULU - KANWIL KEMENTERIAN HUKUM DAN HAM BENGKULU - DIVISI PELAYANAN HUKUM DAN HAM',
+    tmtJabatan: '2023-10-02',
+    pejabatPenetap: 'Menteri Hukum dan Hak Asasi Manusia',
+    eselon: 'II.b',
+    tmtEselon: '',
+    nomorPelantikan: 'W.8-KP.03.03-1563',
+    tanggalPelantikan: '2023-09-25'
+  },
+  {
+    nomorSk: 'M.HH-27.KP.03.03 TAHUN 2024',
+    tanggalSk: '2024-08-13',
+    namaJabatan: 'KEPALA DIVISI PELAYANAN HUKUM DAN HAK ASASI MANUSIA KANTOR WILAYAH KEMENTERIAN HUKUM DAN HAK ASASI MANUSIA JAWA BARAT',
+    unitKerja: 'JAWA BARAT - KANWIL KEMENTERIAN HUKUM DAN HAM JAWA BARAT - DIVISI PELAYANAN HUKUM DAN HAM',
+    tmtJabatan: '2024-08-27',
+    pejabatPenetap: 'Menteri Hukum dan Hak Asasi Manusia',
+    eselon: 'II.b',
+    tmtEselon: '',
+    nomorPelantikan: 'M.HH-KP.03.03-438',
+    tanggalPelantikan: '2024-08-14'
+  },
+  {
+    nomorSk: 'M.HH-80.KP.03.03 TAHUN 2024',
+    tanggalSk: '2024-11-15',
+    namaJabatan: 'Sekretaris Direktorat Jenderal Kekayaan Intelektual',
+    unitKerja: 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Sekretariat Direktorat Jenderal Kekayaan Intelektual',
+    tmtJabatan: '2024-12-16',
+    pejabatPenetap: 'Menteri Hukum dan Hak Asasi Manusia',
+    eselon: 'II.a',
+    tmtEselon: '',
+    nomorPelantikan: 'M.HH-KP.03.03-267',
+    tanggalPelantikan: '2024-11-18'
+  },
+  {
+    nomorSk: 'M.HH-80.KP.03.03 TAHUN 2024',
+    tanggalSk: '2024-11-15',
+    namaJabatan: 'Sekretaris Direktorat Jenderal Kekayaan Intelektual',
+    unitKerja: 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Sekretariat Direktorat Jenderal Kekayaan Intelektual',
+    tmtJabatan: '2024-12-16',
+    pejabatPenetap: 'Menteri Hukum dan Hak Asasi Manusia',
+    eselon: 'II.a',
+    tmtEselon: '',
+    nomorPelantikan: 'M.HH-KP.03.03-267',
+    tanggalPelantikan: '2024-11-18'
+  },
+  {
+    nomorSk: 'M.HH-1.KP.03.03TAHUN2026',
+    tanggalSk: '2026-01-06',
+    namaJabatan: 'Direktur Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang',
+    unitKerja: 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang',
+    tmtJabatan: '2026-01-08',
+    pejabatPenetap: 'Menteri Hukum dan Hak Asasi Manusia',
+    eselon: 'II.a',
+    tmtEselon: '',
+    nomorPelantikan: 'M.HH-KP.12-43',
+    tanggalPelantikan: '2026-01-08'
+  }
+];
+
+export const ANDRIEANSJAH_PELATIHAN_DATA: RiwayatPelatihan[] = [
+  {
+    jenisDiklat: 'Prajabatan',
+    namaPelatihan: 'Prajabatan Umum Tingkat III',
+    angkatan: 'VI',
+    tahun: '2000',
+    tanggalMulai: '2000-07-14',
+    tanggalSelesai: '2000-08-12',
+    durasi: '182 Jam',
+    tempat: 'LAN',
+    penyelenggara: 'LAN',
+    nomorSertifikat: '09-0006/PRAJAB III/I/LAN/2000',
+    tanggalSertifikat: '2000-08-12',
+    prestasi: '-'
+  },
+  {
+    jenisDiklat: 'Struktural (Diklatpim IV)',
+    namaPelatihan: 'Adum / Sepala / Diklatpim IV',
+    angkatan: 'CXLV',
+    tahun: '2009',
+    tanggalMulai: '2009-03-18',
+    tanggalSelesai: '2009-04-23',
+    durasi: '245 Jam',
+    tempat: 'BPSDM KEMENKUMHAM',
+    penyelenggara: 'BPSDM KEMENKUMHAM',
+    nomorSertifikat: '1.054/II.26/DIKLATPIM K. IV/LAN/2009',
+    tanggalSertifikat: '2009-04-23',
+    prestasi: '-'
+  },
+  {
+    jenisDiklat: 'Struktural (Diklatpim III)',
+    namaPelatihan: 'Spama / Sepadya / Diklatpim III',
+    angkatan: 'Gel. 1',
+    tahun: '2015',
+    tanggalMulai: '2015-02-09',
+    tanggalSelesai: '2015-05-21',
+    durasi: '825 Jam',
+    tempat: 'Cinere - Depok',
+    penyelenggara: 'BPSDM Hukum dan HAM',
+    nomorSertifikat: '-',
+    tanggalSertifikat: '2015-05-21',
+    prestasi: '-'
+  },
+  {
+    jenisDiklat: 'Struktural (Diklatpim II)',
+    namaPelatihan: 'Spamen / Diklatpim II (PKN Tk. II)',
+    angkatan: 'XXIV',
+    tahun: '2021',
+    tanggalMulai: '2021-08-19',
+    tanggalSelesai: '2021-12-11',
+    durasi: '887 Jam',
+    tempat: 'BPSDM Hukum dan HAM',
+    penyelenggara: 'LAN RI',
+    nomorSertifikat: '00001551/PKN TK. II/3004/016/LAN-KEMENKUMHAM/2021',
+    tanggalSertifikat: '2021-12-20',
+    prestasi: '-'
+  },
+  {
+    jenisDiklat: 'Struktural (Diklatpim I)',
+    namaPelatihan: 'Sespa / Spati / Diklatpim I (PKN Tk. I)',
+    angkatan: 'LXVIII',
+    tahun: '2026',
+    tanggalMulai: '2026-06-29',
+    tanggalSelesai: '2026-11-19',
+    durasi: '935 Jam',
+    tempat: 'Jakarta',
+    penyelenggara: 'Lembaga Administrasi Negara',
+    nomorSertifikat: '-',
+    tanggalSertifikat: '-',
+    prestasi: '-'
+  },
+  {
+    jenisDiklat: 'Teknis',
+    namaPelatihan: 'Training Anti Bribery Management System Based on ISO 37001:2016',
+    angkatan: 'DJKI',
+    tahun: '2022',
+    tanggalMulai: '2022-06-27',
+    tanggalSelesai: '2022-06-28',
+    durasi: '16 Jam',
+    tempat: 'DJKI',
+    penyelenggara: 'DJKI',
+    nomorSertifikat: '-',
+    tanggalSertifikat: '2022-06-28',
+    prestasi: '-'
+  }
+];
+
