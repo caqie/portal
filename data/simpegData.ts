@@ -1045,3 +1045,276 @@ export const ANDRIEANSJAH_PELATIHAN_DATA: RiwayatPelatihan[] = [
   }
 ];
 
+export const TESSA_HARUMDILA_JABATAN_DATA: RiwayatJabatan[] = [
+  {
+    nomorSk: 'SEK-302.KP.04.01 TH 2012',
+    tanggalSk: '2012-08-10',
+    namaJabatan: 'ATASE IMIGRASI',
+    unitKerja: 'Direktorat Jenderal Imigrasi',
+    tmtJabatan: '2012-08-10',
+    pejabatPenetap: 'Sekretaris Jenderal',
+    eselon: '-',
+    tmtEselon: '',
+    nomorPelantikan: '-',
+    tanggalPelantikan: ''
+  },
+  {
+    nomorSk: 'SEK-06.KP.03.03 TAHUN 2016',
+    tanggalSk: '2016-04-15',
+    namaJabatan: 'KEPALA SUBBAGIAN KEPROTOKOLAN BIRO UMUM',
+    unitKerja: 'SEKRETARIAT JENDERAL - BIRO UMUM - BAGIAN PROTOKOL DAN PENGAMANAN - SUBBAGIAN KEPROTOKOLAN',
+    tmtJabatan: '2016-04-15',
+    pejabatPenetap: 'Sekretaris Jenderal',
+    eselon: 'IV.a',
+    tmtEselon: '2016-04-15',
+    nomorPelantikan: '-',
+    tanggalPelantikan: ''
+  },
+  {
+    nomorSk: 'SEK-47.KP.03.03',
+    tanggalSk: '2019-12-27',
+    namaJabatan: 'KEPALA BIDANG INTELIJEN DAN PENINDAKAN KEIMIGRASIAN KANIM KELAS I KHUSUS NON TPI JAKARTA BARAT',
+    unitKerja: 'DKI JAKARTA - KANIM KELAS I KHUSUS NON TPI JAKARTA BARAT',
+    tmtJabatan: '2020-01-13',
+    pejabatPenetap: 'Menteri Hukum dan HAM',
+    eselon: 'III.b',
+    tmtEselon: '',
+    nomorPelantikan: 'W.10-KP.03.03-228',
+    tanggalPelantikan: '2020-01-08'
+  },
+  {
+    nomorSk: 'M.HH-16.KP.03.03 TAHUN 2021',
+    tanggalSk: '2021-01-22',
+    namaJabatan: 'KEPALA BIDANG TEKNOLOGI INFORMASI DAN KOMUNIKASI KEIMIGRASIAN KANIM KELAS I KHUSUS TPI BATAM',
+    unitKerja: 'KEPULAUAN RIAU - KANIM KELAS I KHUSUS TPI BATAM - BIDANG TEKNOLOGI INFORMASI DAN KOMUNIKASI KEIMIGRASIAN',
+    tmtJabatan: '2021-02-09',
+    pejabatPenetap: 'Menteri Hukum dan HAM',
+    eselon: 'III.b',
+    tmtEselon: '',
+    nomorPelantikan: 'W.32.KP.03.03-1037',
+    tanggalPelantikan: '2021-02-09'
+  },
+  {
+    nomorSk: 'SEK-02.KP.03.03 TAHUN 2023',
+    tanggalSk: '2023-01-04',
+    namaJabatan: 'KEPALA BIDANG INTELIJEN DAN PENINDAKAN KEIMIGRASIAN KANTOR WILAYAH KEMENTERIAN HUKUM DAN HAK ASASI MANUSIA BANTEN',
+    unitKerja: 'BANTEN - KANWIL KEMENTERIAN HUKUM DAN HAM BANTEN - DIVISI KEIMIGRASIAN - BIDANG INTELIJEN DAN PENINDAKAN KEIMIGRASIAN',
+    tmtJabatan: '2023-01-24',
+    pejabatPenetap: 'Menteri Hukum dan HAM',
+    eselon: 'III.a',
+    tmtEselon: '',
+    nomorPelantikan: 'W12.KP.04.01-71',
+    tanggalPelantikan: '2023-01-10'
+  },
+  {
+    nomorSk: 'M.HH-30.KP.03.03 TAHUN 2023',
+    tanggalSk: '2023-10-06',
+    namaJabatan: 'KEPALA BAGIAN PROTOKOL DAN PENGAMANAN BIRO UMUM',
+    unitKerja: 'SEKRETARIAT JENDERAL - BIRO UMUM - BAGIAN PROTOKOL DAN PENGAMANAN',
+    tmtJabatan: '2023-10-26',
+    pejabatPenetap: 'Menteri Hukum dan HAM',
+    eselon: 'III.a',
+    tmtEselon: '',
+    nomorPelantikan: 'SEK.6-KP.03.03-04',
+    tanggalPelantikan: '2023-10-26'
+  },
+  {
+    nomorSk: 'M.HH-85.KP.03.03 TAHUN 2024',
+    tanggalSk: '2024-12-04',
+    namaJabatan: 'KEPALA DIVISI PERATURAN PERUNDANG-UNDANGAN DAN PEMBINAAN HUKUM KANTOR WILAYAH KEMENTERIAN HUKUM DAERAH KHUSUS JAKARTA',
+    unitKerja: 'Kementerian Hukum - Kantor Wilayah Kementerian Hukum Daerah Khusus Jakarta - Divisi Peraturan Perundang-undangan dan Pembinaan Hukum',
+    tmtJabatan: '2025-01-02',
+    pejabatPenetap: 'Menteri Hukum dan HAM',
+    eselon: 'II.b',
+    tmtEselon: '',
+    nomorPelantikan: 'M.HH-KP.03.03-391',
+    tanggalPelantikan: '2024-12-04'
+  },
+  {
+    nomorSk: 'M.HH-1 .KP.03.03 TAHUN 2026',
+    tanggalSk: '2026-01-06',
+    namaJabatan: 'SEKRETARIS DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL',
+    unitKerja: 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Sekretariat Direktorat Jenderal Kekayaan Intelektual',
+    tmtJabatan: '2026-01-08',
+    pejabatPenetap: 'Menteri Hukum dan HAM',
+    eselon: 'II.a',
+    tmtEselon: '',
+    nomorPelantikan: 'M.HH-KP.12-41',
+    tanggalPelantikan: '2026-01-08'
+  }
+];
+
+export const ANDRIEANSJAH_PANGKAT_DATA: RiwayatPangkat[] = [
+  {
+    golRuang: 'III/a',
+    pangkat: 'Penata Muda',
+    tmtPangkat: '2000-03-01',
+    nomorSk: 'H.3-KP.04.01 Tahun 2000',
+    tanggalSk: '2000-07-17',
+    pejabatPenetap: 'Direktur Jenderal Hak Kekayaan Intelektual',
+    jenisKp: 'Reguler',
+    masaKerjaTahun: 0,
+    masaKerjaBulan: 0,
+    keterangan: 'CPNS'
+  },
+  {
+    golRuang: 'III/a',
+    pangkat: 'Penata Muda',
+    tmtPangkat: '2001-11-01',
+    nomorSk: 'H.3-KP.04.02 TAHUN 2001',
+    tanggalSk: '2001-10-11',
+    pejabatPenetap: 'Direktur Jenderal Hak Kekayaan Intelektual',
+    jenisKp: 'Reguler',
+    masaKerjaTahun: 1,
+    masaKerjaBulan: 4,
+    keterangan: 'PNS'
+  },
+  {
+    golRuang: 'III/b',
+    pangkat: 'Penata Muda Tingkat I',
+    tmtPangkat: '2004-04-01',
+    nomorSk: 'H.19-KP.04.05 TAHUN 2004',
+    tanggalSk: '2004-03-29',
+    pejabatPenetap: 'Direktur Jenderal Hak Kekayaan Intelektual',
+    jenisKp: 'Reguler',
+    masaKerjaTahun: 4,
+    masaKerjaBulan: 1,
+    keterangan: 'KP'
+  },
+  {
+    golRuang: 'III/c',
+    pangkat: 'Penata',
+    tmtPangkat: '2008-04-01',
+    nomorSk: 'HKI.68-KP.04.04 TAHUN 2008',
+    tanggalSk: '2008-05-29',
+    pejabatPenetap: 'Direktur Jenderal Hak Kekayaan Intelektual',
+    jenisKp: 'Reguler',
+    masaKerjaTahun: 8,
+    masaKerjaBulan: 1,
+    keterangan: 'KP'
+  },
+  {
+    golRuang: 'III/d',
+    pangkat: 'Penata Tingkat I',
+    tmtPangkat: '2012-04-01',
+    nomorSk: 'HKI1.03.KP.04.04 TAHUN 2012',
+    tanggalSk: '2012-03-30',
+    pejabatPenetap: 'Direktur Jenderal Hak Kekayaan Intelektual',
+    jenisKp: 'Reguler',
+    masaKerjaTahun: 12,
+    masaKerjaBulan: 1,
+    keterangan: 'KP'
+  },
+  {
+    golRuang: 'IV/a',
+    pangkat: 'Pembina',
+    tmtPangkat: '2015-04-01',
+    nomorSk: 'M.HH-323.KP.04.04 TAHUN 2015',
+    tanggalSk: '2015-03-31',
+    pejabatPenetap: 'Kepala Biro Kepegawaian',
+    jenisKp: 'Pilihan (Struktural)',
+    masaKerjaTahun: 15,
+    masaKerjaBulan: 1,
+    keterangan: 'KP'
+  },
+  {
+    golRuang: 'IV/b',
+    pangkat: 'Pembina Tingkat I',
+    tmtPangkat: '2019-04-01',
+    nomorSk: 'SEK.2-588.KP.04.05 TAHUN 2019',
+    tanggalSk: '2019-03-27',
+    pejabatPenetap: 'a.n. Menteri Hukum dan HAM RI',
+    jenisKp: 'Reguler',
+    masaKerjaTahun: 19,
+    masaKerjaBulan: 1,
+    keterangan: 'KP WS'
+  },
+  {
+    golRuang: 'IV/c',
+    pangkat: 'Pembina Utama Muda',
+    tmtPangkat: '2024-04-01',
+    nomorSk: '00108/KEP/AA/15001/24',
+    tanggalSk: '2024-02-29',
+    pejabatPenetap: 'Kepala BKN',
+    jenisKp: 'Pilihan (Struktural)',
+    masaKerjaTahun: 24,
+    masaKerjaBulan: 1,
+    keterangan: 'KP SIASN'
+  }
+];
+
+export const ANDRIEANSJAH_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
+  {
+    jenjang: 'SD',
+    institusi: '-',
+    namaSekolah: '-',
+    jurusan: '-',
+    tahunLulus: '-',
+    nomorIjazah: '-',
+    tanggalIjazah: '',
+    pemakaianIjazah: '-'
+  },
+  {
+    jenjang: 'SLTP',
+    institusi: '-',
+    namaSekolah: '-',
+    jurusan: '-',
+    tahunLulus: '-',
+    nomorIjazah: '-',
+    tanggalIjazah: '',
+    pemakaianIjazah: '-'
+  },
+  {
+    jenjang: 'SLTA',
+    institusi: '-',
+    namaSekolah: '-',
+    jurusan: '-',
+    tahunLulus: '-',
+    nomorIjazah: '-',
+    tanggalIjazah: '',
+    pemakaianIjazah: '-'
+  },
+  {
+    jenjang: 'S1',
+    institusi: '-',
+    namaSekolah: '-',
+    jurusan: 'TEKNIK',
+    tahunLulus: '-',
+    nomorIjazah: '-',
+    tanggalIjazah: '',
+    pemakaianIjazah: '-'
+  },
+  {
+    jenjang: 'S1',
+    institusi: 'UNIVERSITAS 17 AGUSTUS 1945',
+    namaSekolah: 'UNIVERSITAS 17 AGUSTUS 1945',
+    jurusan: 'ILMU HUKUM',
+    tahunLulus: '2010',
+    nomorIjazah: '1030035',
+    tanggalIjazah: '2010-05-07',
+    pemakaianIjazah: 'Pertama'
+  },
+  {
+    jenjang: 'S2',
+    institusi: 'UNIVERSITAS TRISAKTI',
+    namaSekolah: 'UNIVERSITAS TRISAKTI',
+    jurusan: 'MANAJEMEN',
+    tahunLulus: '2004',
+    nomorIjazah: '0086/MM/S2/IX/2004',
+    tanggalIjazah: '2004-09-29',
+    pemakaianIjazah: 'Pertama'
+  },
+  {
+    jenjang: 'S3',
+    institusi: 'UNIVERSITAS PADJADJARAN',
+    namaSekolah: 'UNIVERSITAS PADJADJARAN',
+    jurusan: 'ILMU HUKUM',
+    tahunLulus: '2013',
+    nomorIjazah: 'UN6.0002847/A30.000542',
+    tanggalIjazah: '2013-02-22',
+    pemakaianIjazah: 'Pertama'
+  }
+];
+
+
+

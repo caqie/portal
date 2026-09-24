@@ -5,12 +5,12 @@ import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFrom
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
-import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, BANK_LIST, formatPegawaiName, polishGelarDanNama, getJabatanClassification } from '../constants';
+import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, getPangkatFromGol, BANK_LIST, formatPegawaiName, polishGelarDanNama, getJabatanClassification } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import AutocompleteInput from '../components/AutocompleteInput';
 import SimpegImportModal, { SimpegCategory } from '../components/SimpegImportModal';
 import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
-import { ANDRIEANSJAH_JABATAN_DATA, ANDRIEANSJAH_PELATIHAN_DATA } from '../data/simpegData';
+import { ANDRIEANSJAH_JABATAN_DATA, ANDRIEANSJAH_PELATIHAN_DATA, ANDRIEANSJAH_PANGKAT_DATA, ANDRIEANSJAH_PENDIDIKAN_DATA, TESSA_HARUMDILA_JABATAN_DATA } from '../data/simpegData';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -151,16 +151,41 @@ const ProfilePegawaiPage = () => {
             item.pejabatPenetap = 'Menteri Hukum dan Hak Asasi Manusia';
           }
 
-          // Ensure unitKerja is not empty
-          if (!item.unitKerja) {
-            const upName = (item.namaJabatan || '').toUpperCase();
-            if (upName.includes('DITJEN HKI') || upName.includes('HAK KEKAYAAN')) {
+          // Ensure unitKerja is accurate
+          const upName = (item.namaJabatan || '').toUpperCase();
+          const upUnit = (item.unitKerja || '').toUpperCase();
+          if (
+            !item.unitKerja || 
+            upUnit === 'DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL' || 
+            upUnit === '-' ||
+            upUnit.includes('KP.') ||
+            /^\d{2}[-/]\d{2}[-/]\d{4}$/.test(upUnit)
+          ) {
+            if (upName.includes('JAKARTA BARAT') || upName.includes('NON TPI JAKARTA')) {
+              item.unitKerja = 'DKI JAKARTA - KANIM KELAS I KHUSUS NON TPI JAKARTA BARAT';
+            } else if (upName.includes('BATAM') || upName.includes('TPI BATAM')) {
+              item.unitKerja = 'KEPULAUAN RIAU - KANIM KELAS I KHUSUS TPI BATAM - BIDANG TEKNOLOGI INFORMASI DAN KOMUNIKASI KEIMIGRASIAN';
+            } else if (upName.includes('ATASE IMIGRASI')) {
+              item.unitKerja = 'Direktorat Jenderal Imigrasi';
+            } else if (upName.includes('BANTEN')) {
+              item.unitKerja = 'BANTEN - KANWIL KEMENTERIAN HUKUM DAN HAM BANTEN - DIVISI KEIMIGRASIAN - BIDANG INTELIJEN DAN PENINDAKAN KEIMIGRASIAN';
+            } else if (upName.includes('KEPROTOKOLAN BIRO UMUM') || (upName.includes('PROTOKOL') && upName.includes('BIRO UMUM'))) {
+              if (upName.includes('SUBBAGIAN') || upName.includes('KASUBBAG')) {
+                item.unitKerja = 'SEKRETARIAT JENDERAL - BIRO UMUM - BAGIAN PROTOKOL DAN PENGAMANAN - SUBBAGIAN KEPROTOKOLAN';
+              } else {
+                item.unitKerja = 'SEKRETARIAT JENDERAL - BIRO UMUM - BAGIAN PROTOKOL DAN PENGAMANAN';
+              }
+            } else if (upName.includes('DIVISI PERATURAN PERUNDANG-UNDANGAN')) {
+              item.unitKerja = 'Kementerian Hukum - Kantor Wilayah Kementerian Hukum Daerah Khusus Jakarta - Divisi Peraturan Perundang-undangan dan Pembinaan Hukum';
+            } else if (upName.includes('SEKRETARIS DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL')) {
+              item.unitKerja = 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+            } else if (upName.includes('DITJEN HKI') || upName.includes('HAK KEKAYAAN')) {
               item.unitKerja = 'Direktorat Jenderal Hak Kekayaan Intelektual';
             } else if (upName.includes('BENGKULU')) {
               item.unitKerja = 'Kanwil Kemenkumham Bengkulu';
             } else if (upName.includes('JAWA BARAT')) {
               item.unitKerja = 'Kanwil Kemenkumham Jawa Barat';
-            } else {
+            } else if (!item.unitKerja || item.unitKerja === '-') {
               item.unitKerja = 'Direktorat Jenderal Kekayaan Intelektual';
             }
           }
@@ -180,6 +205,94 @@ const ProfilePegawaiPage = () => {
             sanitizedJabatan = ANDRIEANSJAH_JABATAN_DATA;
             jabatanWasRepaired = true;
           }
+        } else if (found.nama.toUpperCase().includes('TESSA') || found.nama.toUpperCase().includes('HARUMDILA')) {
+          const isWrongUnit = sanitizedJabatan.some(j => {
+            const uj = (j.namaJabatan || '').toUpperCase();
+            return (uj.includes('JAKARTA BARAT') || uj.includes('BATAM')) && (j.unitKerja || '').toUpperCase().includes('KEKAYAAN INTELEKTUAL');
+          });
+          if (isWrongUnit || sanitizedJabatan.length < 8) {
+            sanitizedJabatan = TESSA_HARUMDILA_JABATAN_DATA;
+            jabatanWasRepaired = true;
+          }
+        }
+
+        // Sanitize & auto-heal riwayatPangkat columns (detect shifted TMT in pangkat, No SK in tmtPangkat, etc.)
+        let pangkatWasRepaired = false;
+        let sanitizedPangkat = (found.riwayatPangkat || []).map(p => {
+          const item = { ...p };
+          const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
+          
+          const isPangkatDate = datePattern.test((item.pangkat || '').trim());
+          const isTmtPangkatSk = (item.tmtPangkat || '').includes('KP') || (item.tmtPangkat || '').includes('TAHUN') || (item.tmtPangkat || '').includes('/');
+
+          if (isPangkatDate || isTmtPangkatSk) {
+            pangkatWasRepaired = true;
+            const actualTmtPangkat = isPangkatDate ? item.pangkat : '';
+            const actualNomorSk = item.tmtPangkat;
+            const actualTanggalSk = item.nomorSk;
+            const actualPejabat = item.tanggalSk && !datePattern.test(item.tanggalSk) ? item.tanggalSk : (item.pejabatPenetap || 'Direktur Jenderal Hak Kekayaan Intelektual');
+
+            item.tmtPangkat = actualTmtPangkat ? (parseDateToYYYYMMDD(actualTmtPangkat) || actualTmtPangkat) : item.tmtPangkat;
+            item.nomorSk = actualNomorSk;
+            item.tanggalSk = actualTanggalSk ? (parseDateToYYYYMMDD(actualTanggalSk) || actualTanggalSk) : item.tanggalSk;
+            item.pejabatPenetap = actualPejabat;
+            item.pangkat = getPangkatFromGol(item.golRuang) || 'Penata Muda';
+          }
+
+          if (!item.pangkat || item.pangkat === '-' || datePattern.test(item.pangkat)) {
+            item.pangkat = getPangkatFromGol(item.golRuang) || 'Penata Muda';
+            pangkatWasRepaired = true;
+          }
+
+          return item;
+        });
+
+        if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+          if (!sanitizedPangkat || sanitizedPangkat.length < 8) {
+            sanitizedPangkat = ANDRIEANSJAH_PANGKAT_DATA;
+            pangkatWasRepaired = true;
+          }
+        }
+
+        if (pangkatWasRepaired) {
+          found.riwayatPangkat = sanitizedPangkat;
+        }
+
+        // Sanitize & auto-heal riwayatPendidikan
+        let pendidikanWasRepaired = false;
+        let sanitizedPendidikan = [...(found.riwayatPendidikan || [])];
+        if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+          const isPendidikanCorrupted = sanitizedPendidikan.some(p => 
+            /^\d{2}[-/]\d{2}[-/]\d{4}$/.test((p.tahunLulus || '').trim()) ||
+            ((p.institusi === '-' || !p.institusi) && p.jurusan && p.jurusan.toUpperCase().includes('HUKUM'))
+          );
+          if (isPendidikanCorrupted || sanitizedPendidikan.length < 7) {
+            sanitizedPendidikan = ANDRIEANSJAH_PENDIDIKAN_DATA;
+            pendidikanWasRepaired = true;
+          }
+        } else {
+          sanitizedPendidikan = sanitizedPendidikan.map(p => {
+            const clone = { ...p };
+            const dateRegex = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
+            if (dateRegex.test((clone.tahunLulus || '').trim())) {
+              const dt = parseDateToYYYYMMDD(clone.tahunLulus) || clone.tahunLulus;
+              clone.tanggalIjazah = clone.tanggalIjazah || dt;
+              clone.tahunLulus = dt.slice(0, 4);
+              pendidikanWasRepaired = true;
+            }
+            if ((!clone.institusi || clone.institusi === '-') && clone.namaSekolah && clone.namaSekolah !== '-') {
+              clone.institusi = clone.namaSekolah;
+              pendidikanWasRepaired = true;
+            } else if ((!clone.namaSekolah || clone.namaSekolah === '-') && clone.institusi && clone.institusi !== '-') {
+              clone.namaSekolah = clone.institusi;
+              pendidikanWasRepaired = true;
+            }
+            return clone;
+          });
+        }
+
+        if (pendidikanWasRepaired) {
+          found.riwayatPendidikan = sanitizedPendidikan;
         }
 
         // Sanitize corrupted identity/kepegawaian fields caused by previous shifted imports or sorting bugs
@@ -251,8 +364,8 @@ const ProfilePegawaiPage = () => {
             found.golRuang = 'IV/c';
             identitasRepaired = true;
           }
-          if (!found.tmtPangkat || !parseDateToYYYYMMDD(found.tmtPangkat)) {
-            found.tmtPangkat = '2019-10-01';
+          if (!found.tmtPangkat || !parseDateToYYYYMMDD(found.tmtPangkat) || found.tmtPangkat === '2019-10-01' || found.tmtPangkat === '2019-04-01') {
+            found.tmtPangkat = '2024-04-01';
             identitasRepaired = true;
           }
           if (!found.unitKerja || isDatePatternOrIso(found.unitKerja)) {
@@ -265,6 +378,22 @@ const ProfilePegawaiPage = () => {
             found.tmtCpns = '2000-03-01';
             identitasRepaired = true;
           }
+        }
+
+        // Specific verified identity restoration for Tessa Harumdila
+        if (found.nama.toUpperCase().includes('TESSA') || found.nama.toUpperCase().includes('HARUMDILA')) {
+          found.jabatan = 'Sekretaris Direktorat Jenderal Kekayaan Intelektual';
+          found.unitKerja = 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+          found.bagian = 'Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+          found.subBagian = 'Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+          found.eselon = 'II.a';
+          found.tmtJabatan = '2026-01-08';
+          found.pangkat = 'Pembina Tingkat I';
+          found.golRuang = 'IV/b';
+          found.statusPegawai = 'Aktif';
+          found.jenisJabatan = 'Pimpinan Tinggi';
+          found.klasifikasiJabatan = 'JPT';
+          identitasRepaired = true;
         }
 
         // Automatic NIP-based validation for all PNS TMT CPNS
@@ -281,7 +410,7 @@ const ProfilePegawaiPage = () => {
         }
 
         // Persist healed data back to localStorage if corrected
-        if (jabatanWasRepaired || identitasRepaired) {
+        if (jabatanWasRepaired || identitasRepaired || pangkatWasRepaired || pendidikanWasRepaired) {
           try {
             ['portal_pegawai_db', 'portal_sdm_pegawai_db'].forEach(key => {
               const rawDb = localStorage.getItem(key);
@@ -290,6 +419,8 @@ const ProfilePegawaiPage = () => {
                 const pIdx = allPeg.findIndex((p: any) => p.id === found!.id || (p.nip && p.nip === found!.nip));
                 if (pIdx >= 0) {
                   if (jabatanWasRepaired) allPeg[pIdx].riwayatJabatan = sanitizedJabatan;
+                  if (pangkatWasRepaired) allPeg[pIdx].riwayatPangkat = sanitizedPangkat;
+                  if (pendidikanWasRepaired) allPeg[pIdx].riwayatPendidikan = sanitizedPendidikan;
                   if (identitasRepaired) {
                     allPeg[pIdx] = { ...allPeg[pIdx], ...found };
                   }
@@ -957,9 +1088,17 @@ const ProfilePegawaiPage = () => {
         }
         clone.pejabatPenetap = 'Menteri Hukum dan Hak Asasi Manusia';
       }
-      if (!clone.unitKerja) {
+      if (!clone.unitKerja || clone.unitKerja === 'Direktorat Jenderal Kekayaan Intelektual') {
         const upName = (clone.namaJabatan || '').toUpperCase();
-        if (upName.includes('DITJEN HKI') || upName.includes('HAK KEKAYAAN')) {
+        if (upName.includes('JAKARTA BARAT') || upName.includes('NON TPI JAKARTA')) {
+          clone.unitKerja = 'DKI JAKARTA - KANIM KELAS I KHUSUS NON TPI JAKARTA BARAT';
+        } else if (upName.includes('BATAM') || upName.includes('TPI BATAM')) {
+          clone.unitKerja = 'KEPULAUAN RIAU - KANIM KELAS I KHUSUS TPI BATAM - BIDANG TEKNOLOGI INFORMASI DAN KOMUNIKASI KEIMIGRASIAN';
+        } else if (upName.includes('ATASE IMIGRASI')) {
+          clone.unitKerja = 'Direktorat Jenderal Imigrasi';
+        } else if (upName.includes('BANTEN')) {
+          clone.unitKerja = 'BANTEN - KANWIL KEMENTERIAN HUKUM DAN HAM BANTEN - DIVISI KEIMIGRASIAN - BIDANG INTELIJEN DAN PENINDAKAN KEIMIGRASIAN';
+        } else if (upName.includes('DITJEN HKI') || upName.includes('HAK KEKAYAAN')) {
           clone.unitKerja = 'Direktorat Jenderal Hak Kekayaan Intelektual';
         } else if (upName.includes('BENGKULU')) {
           clone.unitKerja = 'Kanwil Kemenkumham Bengkulu';
@@ -974,6 +1113,92 @@ const ProfilePegawaiPage = () => {
     await handleApplySimpegData('jabatan', 'REPLACE', fixed);
   };
 
+  const hasShiftedPangkat = useMemo(() => {
+    return (pegawai?.riwayatPangkat || []).some(p => {
+      const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
+      const isPangkatDate = datePattern.test((p.pangkat || '').trim());
+      const isTmtPangkatSk = (p.tmtPangkat || '').includes('KP') || (p.tmtPangkat || '').includes('TAHUN') || (p.tmtPangkat || '').includes('/');
+      return isPangkatDate || isTmtPangkatSk;
+    });
+  }, [pegawai?.riwayatPangkat]);
+
+  const handleHealShiftedPangkat = async () => {
+    if (!pegawai) return;
+    setSyncing(true);
+    if (pegawai.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+      await handleApplySimpegData('pangkat', 'REPLACE', ANDRIEANSJAH_PANGKAT_DATA);
+      setSyncing(false);
+      setSuccessMsg('Riwayat Pangkat Dr. ANDRIEANSJAH berhasil dipulihkan sesuai data otentik SIMPEG!');
+      setShowSuccess(true);
+      return;
+    }
+    const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
+    const fixed = (pegawai.riwayatPangkat || []).map(p => {
+      const clone = { ...p };
+      const isPangkatDate = datePattern.test((clone.pangkat || '').trim());
+      const isTmtPangkatSk = (clone.tmtPangkat || '').includes('KP') || (clone.tmtPangkat || '').includes('TAHUN') || (clone.tmtPangkat || '').includes('/');
+
+      if (isPangkatDate || isTmtPangkatSk) {
+        const actualTmtPangkat = isPangkatDate ? clone.pangkat : '';
+        const actualNomorSk = clone.tmtPangkat;
+        const actualTanggalSk = clone.nomorSk;
+        const actualPejabat = clone.tanggalSk && !datePattern.test(clone.tanggalSk) ? clone.tanggalSk : (clone.pejabatPenetap || 'Direktur Jenderal Hak Kekayaan Intelektual');
+
+        clone.tmtPangkat = actualTmtPangkat ? (parseDateToYYYYMMDD(actualTmtPangkat) || actualTmtPangkat) : clone.tmtPangkat;
+        clone.nomorSk = actualNomorSk;
+        clone.tanggalSk = actualTanggalSk ? (parseDateToYYYYMMDD(actualTanggalSk) || actualTanggalSk) : clone.tanggalSk;
+        clone.pejabatPenetap = actualPejabat;
+      }
+      clone.pangkat = getPangkatFromGol(clone.golRuang) || 'Penata Muda';
+      return clone;
+    });
+
+    await handleApplySimpegData('pangkat', 'REPLACE', fixed);
+    setSyncing(false);
+    setSuccessMsg('Riwayat Pangkat berhasil diperbaiki dan diselaraskan!');
+    setShowSuccess(true);
+  };
+
+  const hasShiftedPendidikan = useMemo(() => {
+    return (pegawai?.riwayatPendidikan || []).some(p => {
+      const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
+      const isTahunDate = datePattern.test((p.tahunLulus || '').trim());
+      const isMissingInstitusiWithMajor = (p.institusi === '-' || !p.institusi) && p.jurusan && p.jurusan !== '-' && (p.jurusan.toUpperCase().includes('HUKUM') || p.jurusan.toUpperCase().includes('MANAJEMEN'));
+      return isTahunDate || isMissingInstitusiWithMajor;
+    });
+  }, [pegawai?.riwayatPendidikan]);
+
+  const handleHealShiftedPendidikan = async () => {
+    if (!pegawai) return;
+    setSyncing(true);
+    if (pegawai.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+      await handleApplySimpegData('pendidikan', 'REPLACE', ANDRIEANSJAH_PENDIDIKAN_DATA);
+      setSyncing(false);
+      setSuccessMsg('Riwayat Pendidikan Dr. ANDRIEANSJAH berhasil dipulihkan sesuai data otentik SIMPEG!');
+      setShowSuccess(true);
+      return;
+    }
+    const fixed = (pegawai.riwayatPendidikan || []).map(p => {
+      const clone = { ...p };
+      const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
+      if (datePattern.test((clone.tahunLulus || '').trim())) {
+        const parsed = parseDateToYYYYMMDD(clone.tahunLulus) || clone.tahunLulus;
+        clone.tanggalIjazah = clone.tanggalIjazah || parsed;
+        clone.tahunLulus = parsed.slice(0, 4);
+      }
+      if ((!clone.institusi || clone.institusi === '-') && clone.namaSekolah && clone.namaSekolah !== '-') {
+        clone.institusi = clone.namaSekolah;
+      } else if ((!clone.namaSekolah || clone.namaSekolah === '-') && clone.institusi && clone.institusi !== '-') {
+        clone.namaSekolah = clone.institusi;
+      }
+      return clone;
+    });
+    await handleApplySimpegData('pendidikan', 'REPLACE', fixed);
+    setSyncing(false);
+    setSuccessMsg('Riwayat Pendidikan berhasil diperbaiki dan diselaraskan!');
+    setShowSuccess(true);
+  };
+
   const hasShiftedIdentitas = useMemo(() => {
     if (!pegawai) return false;
     const isIsoOrDate = (val?: string) => !val ? false : (val.includes('T') && val.includes('Z')) || /^\d{2}[-/]\d{2}[-/]\d{4}$/.test(val.trim());
@@ -982,7 +1207,12 @@ const ProfilePegawaiPage = () => {
     const isTmtJabatanNotDate = Boolean(pegawai.tmtJabatan && !parseDateToYYYYMMDD(pegawai.tmtJabatan));
     const isTmtPangkatSk = Boolean(pegawai.tmtPangkat && (pegawai.tmtPangkat.includes('KP.') || pegawai.tmtPangkat.includes('TAHUN')));
     const isAndrieOld = Boolean(pegawai.nama.toUpperCase().includes('ANDRIEANSJAH') && (pegawai.jabatan || '').toUpperCase().includes('KERJA SAMA LUAR NEGERI'));
-    
+    const isTessaWrong = (pegawai.nama.toUpperCase().includes('TESSA') || pegawai.nama.toUpperCase().includes('HARUMDILA')) && 
+      (pegawai.riwayatJabatan || []).some(j => {
+        const uj = (j.namaJabatan || '').toUpperCase();
+        return (uj.includes('JAKARTA BARAT') || uj.includes('BATAM')) && (j.unitKerja || '').toUpperCase().includes('KEKAYAAN INTELEKTUAL');
+      });
+
     // Check if TMT CPNS matches NIP for PNS
     const cleanNip = (pegawai.nip || '').replace(/\D/g, '');
     let isCpnsShifted = false;
@@ -994,7 +1224,7 @@ const ProfilePegawaiPage = () => {
       }
     }
 
-    return Boolean(isEselonShifted || isUnitShifted || isTmtJabatanNotDate || isTmtPangkatSk || isAndrieOld || isCpnsShifted);
+    return Boolean(isEselonShifted || isUnitShifted || isTmtJabatanNotDate || isTmtPangkatSk || isAndrieOld || isCpnsShifted || isTessaWrong);
   }, [pegawai]);
 
   const handleHealIdentitas = async () => {
@@ -1014,6 +1244,19 @@ const ProfilePegawaiPage = () => {
       updated.golRuang = 'IV/c';
       updated.tmtPangkat = '2019-10-01';
       updated.tmtCpns = '2000-03-01';
+      updated.jenisJabatan = 'Pimpinan Tinggi';
+      updated.klasifikasiJabatan = 'JPT';
+    } else if (updated.nama.toUpperCase().includes('TESSA') || updated.nama.toUpperCase().includes('HARUMDILA')) {
+      updated.riwayatJabatan = TESSA_HARUMDILA_JABATAN_DATA;
+      updated.jabatan = 'Sekretaris Direktorat Jenderal Kekayaan Intelektual';
+      updated.unitKerja = 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+      updated.bagian = 'Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+      updated.subBagian = 'Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+      updated.eselon = 'II.a';
+      updated.tmtJabatan = '2026-01-08';
+      updated.pangkat = 'Pembina Tingkat I';
+      updated.golRuang = 'IV/b';
+      updated.statusPegawai = 'Aktif';
       updated.jenisJabatan = 'Pimpinan Tinggi';
       updated.klasifikasiJabatan = 'JPT';
     } else {
@@ -2025,6 +2268,23 @@ const ProfilePegawaiPage = () => {
                       <span>Import SIMPEG</span>
                     </button>
 
+                    {/* Quick Button for Dr. Andrieansjah SIMPEG Records */}
+                    {pegawai.nama.toUpperCase().includes('ANDRIEANSJAH') && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm("Pasang 7 data riwayat pendidikan otentik SIMPEG Kemenkumham (SD s.d. S3 Doktor Ilmu Hukum UNPAD) untuk Dr. ANDRIEANSJAH?")) {
+                            await handleApplySimpegData('pendidikan', 'REPLACE', ANDRIEANSJAH_PENDIDIKAN_DATA);
+                          }
+                        }}
+                        className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                        title="Pasang 7 Riwayat Pendidikan SIMPEG Dr. Andrieansjah"
+                      >
+                        <i className="bi bi-lightning-charge-fill text-yellow-200"></i>
+                        <span>Muat 7 Riwayat SIMPEG</span>
+                      </button>
+                    )}
+
                     {/* Tambah Pendidikan */}
                     {isEditing && (
                       <div className="flex items-center gap-1.5">
@@ -2049,6 +2309,31 @@ const ProfilePegawaiPage = () => {
                     )}
                   </div>
                 </div>
+
+                {/* AUTO-HEAL WARNING BANNER IF SHIFTED PENDIDIKAN IS DETECTED */}
+                {hasShiftedPendidikan && (
+                  <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-950 shadow-sm animate-fadeIn">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg font-bold shrink-0 shadow-xs">
+                        <i className="bi bi-exclamation-triangle-fill"></i>
+                      </div>
+                      <div>
+                        <div className="font-black text-[11px] uppercase tracking-wide text-amber-950">Kolom Riwayat Pendidikan Perlu Penyelarasan (Format SIMPEG)</div>
+                        <div className="text-[10px] text-amber-800 mt-0.5">
+                          Terdeteksi tanggal lengkap tertukar masuk ke kolom Tahun Kelulusan atau nama instansi/sekolah belum terisi dari salinan SIMPEG.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleHealShiftedPendidikan}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl font-black text-[10px] uppercase shrink-0 transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                    >
+                      <i className="bi bi-magic text-yellow-200"></i>
+                      <span>Perbaiki Kolom Sekarang</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* TABLE VIEW */}
                 {pendidikanViewMode === 'table' && (pegawai.riwayatPendidikan || []).length > 0 && (
@@ -2076,9 +2361,9 @@ const ProfilePegawaiPage = () => {
                                   {p.jenjang || '-'}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 font-bold text-gray-900 uppercase text-[11px]">{p.institusi || '-'}</td>
+                              <td className="py-3 px-4 font-bold text-gray-900 uppercase text-[11px]">{p.institusi || p.namaSekolah || '-'}</td>
                               <td className="py-3 px-4 text-gray-600 uppercase text-[11px]">{p.jurusan || '-'}</td>
-                              <td className="py-3 px-3 text-center font-mono font-bold text-gray-800 text-[10px]">{p.tahunLulus || '-'}</td>
+                              <td className="py-3 px-3 text-center font-mono font-bold text-gray-800 text-[10px]">{p.tahunLulus?.includes('/') || p.tahunLulus?.includes('-') ? (parseDateToYYYYMMDD(p.tahunLulus) || p.tahunLulus).slice(0, 4) : (p.tahunLulus || '-')}</td>
                               <td className="py-3 px-4 font-mono text-gray-600 text-[10px] uppercase">{p.nomorIjazah || '-'}</td>
                               <td className="py-3 px-3 text-center">
                                 <div className="flex items-center justify-center gap-1">
@@ -2272,6 +2557,19 @@ const ProfilePegawaiPage = () => {
                       >
                         <i className="bi bi-file-earmark-spreadsheet"></i> Salin / Import dari SIMPEG
                       </button>
+                      {pegawai.nama.toUpperCase().includes('ANDRIEANSJAH') && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (window.confirm("Pasang 7 data riwayat pendidikan otentik SIMPEG Kemenkumham (SD s.d. S3 Doktor Ilmu Hukum UNPAD) untuk Dr. ANDRIEANSJAH?")) {
+                              await handleApplySimpegData('pendidikan', 'REPLACE', ANDRIEANSJAH_PENDIDIKAN_DATA);
+                            }
+                          }}
+                          className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-black text-[10px] uppercase shadow-md shadow-indigo-200 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+                        >
+                          <i className="bi bi-lightning-charge-fill text-yellow-200"></i> Muat 7 Riwayat SIMPEG Dr. Andrieansjah
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2343,6 +2641,23 @@ const ProfilePegawaiPage = () => {
                       >
                         <i className="bi bi-lightning-charge-fill text-yellow-200"></i>
                         <span>Muat 10 Riwayat SIMPEG</span>
+                      </button>
+                    )}
+
+                    {/* Quick Button for Tessa Harumdila SIMPEG Records */}
+                    {(pegawai.nama.toUpperCase().includes('TESSA') || pegawai.nama.toUpperCase().includes('HARUMDILA')) && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm("Pasang 8 data riwayat jabatan otentik SIMPEG Kemenkumham (2012 s.d. Sesditjen KI 2026) untuk TESSA HARUMDILA?")) {
+                            await handleApplySimpegData('jabatan', 'REPLACE', TESSA_HARUMDILA_JABATAN_DATA);
+                          }
+                        }}
+                        className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                        title="Pasang 8 Riwayat Jabatan SIMPEG Tessa Harumdila"
+                      >
+                        <i className="bi bi-lightning-charge-fill text-yellow-200"></i>
+                        <span>Muat 8 Riwayat SIMPEG</span>
                       </button>
                     )}
 
@@ -3036,6 +3351,23 @@ const ProfilePegawaiPage = () => {
                       <span>Import SIMPEG</span>
                     </button>
 
+                    {/* Quick Button for Dr. Andrieansjah SIMPEG Records */}
+                    {pegawai.nama.toUpperCase().includes('ANDRIEANSJAH') && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm("Pasang 8 data riwayat pangkat otentik SIMPEG Kemenkumham (III/a CPNS 2000 s.d. IV/c 2024) untuk Dr. ANDRIEANSJAH?")) {
+                            await handleApplySimpegData('pangkat', 'REPLACE', ANDRIEANSJAH_PANGKAT_DATA);
+                          }
+                        }}
+                        className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                        title="Pasang 8 Riwayat Pangkat SIMPEG Dr. Andrieansjah"
+                      >
+                        <i className="bi bi-lightning-charge-fill text-yellow-200"></i>
+                        <span>Muat 8 Riwayat SIMPEG</span>
+                      </button>
+                    )}
+
                     {/* Tambah Pangkat */}
                     {isEditing && (
                       <div className="flex items-center gap-1.5">
@@ -3060,6 +3392,31 @@ const ProfilePegawaiPage = () => {
                     )}
                   </div>
                 </div>
+
+                {/* AUTO-HEAL WARNING BANNER IF SHIFTED PANGKAT IS DETECTED */}
+                {hasShiftedPangkat && (
+                  <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-950 shadow-sm animate-fadeIn">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg font-bold shrink-0 shadow-xs">
+                        <i className="bi bi-exclamation-triangle-fill"></i>
+                      </div>
+                      <div>
+                        <div className="font-black text-[11px] uppercase tracking-wide text-amber-950">Kolom Riwayat Pangkat Tergeser (Format SIMPEG)</div>
+                        <div className="text-[10px] text-amber-800 mt-0.5">
+                          Format salinan tabel SIMPEG menyebabkan tanggal TMT tertukar masuk ke kolom Nama Pangkat, Nomor SK ke TMT Pangkat, dan Pejabat ke Tanggal SK.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleHealShiftedPangkat}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl font-black text-[10px] uppercase shrink-0 transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                    >
+                      <i className="bi bi-magic text-yellow-200"></i>
+                      <span>Perbaiki Kolom Sekarang</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* TABLE VIEW */}
                 {pangkatViewMode === 'table' && (pegawai.riwayatPangkat || []).length > 0 && (
@@ -3268,6 +3625,19 @@ const ProfilePegawaiPage = () => {
                       >
                         <i className="bi bi-file-earmark-spreadsheet"></i> Salin / Import dari SIMPEG
                       </button>
+                      {pegawai.nama.toUpperCase().includes('ANDRIEANSJAH') && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (window.confirm("Pasang 8 data riwayat pangkat otentik SIMPEG Kemenkumham (III/a CPNS 2000 s.d. IV/c 2024) untuk Dr. ANDRIEANSJAH?")) {
+                              await handleApplySimpegData('pangkat', 'REPLACE', ANDRIEANSJAH_PANGKAT_DATA);
+                            }
+                          }}
+                          className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl font-black text-[10px] uppercase shadow-md shadow-amber-200 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+                        >
+                          <i className="bi bi-lightning-charge-fill text-yellow-200"></i> Muat 8 Riwayat SIMPEG Dr. Andrieansjah
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

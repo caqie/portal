@@ -231,6 +231,7 @@ export interface Pegawai {
   golRuang: string; 
   jenisPegawai: string; 
   status: string; 
+  statusPegawai?: string;
   pangkat?: string; 
   foto?: string; 
   tmtPangkat?: string; 
