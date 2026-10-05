@@ -1316,5 +1316,68 @@ export const ANDRIEANSJAH_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
   }
 ];
 
+export const YASMON_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
+  {
+    jenjang: 'SD',
+    institusi: 'SD Negeri 1',
+    namaSekolah: 'SD Negeri 1',
+    jurusan: '-',
+    alamatSekolah: 'Saningbakar',
+    kepalaSekolah: 'Nursal Saleh',
+    nomorIjazah: '08 OA oa 009606',
+    tanggalIjazah: '1981-05-16',
+    tahunLulus: '1981',
+    pemakaianIjazah: 'Pertama'
+  },
+  {
+    jenjang: 'SLTP',
+    institusi: 'SMP Negeri 1',
+    namaSekolah: 'SMP Negeri 1',
+    jurusan: '-',
+    alamatSekolah: 'Solok',
+    kepalaSekolah: 'Anizar',
+    nomorIjazah: '08 OB ob 0485761',
+    tanggalIjazah: '1984-05-17',
+    tahunLulus: '1984',
+    pemakaianIjazah: 'Pertama'
+  },
+  {
+    jenjang: 'SLTA',
+    institusi: 'SMA Negeri 1',
+    namaSekolah: 'SMA Negeri 1',
+    jurusan: 'A1 (Fisika)',
+    alamatSekolah: 'Solok',
+    kepalaSekolah: 'Drs. Nazir Bustami',
+    nomorIjazah: '08 OC oh 0043707',
+    tanggalIjazah: '1987-06-02',
+    tahunLulus: '1987',
+    pemakaianIjazah: 'Pertama'
+  },
+  {
+    jenjang: 'S1',
+    institusi: 'Universitas Andalas',
+    namaSekolah: 'Universitas Andalas',
+    jurusan: 'Bahasa dan Sastra Inggris',
+    alamatSekolah: 'Padang',
+    kepalaSekolah: 'Prof. Dr. Ir. H. Jurnalis Kamil',
+    nomorIjazah: '13377/0122/F.01/S1/1991',
+    tanggalIjazah: '1991-12-14',
+    tahunLulus: '1991',
+    pemakaianIjazah: 'Penerimaan CPNS'
+  },
+  {
+    jenjang: 'S2',
+    institusi: 'Faculty of Law, Univ. of Technology Sydney',
+    namaSekolah: 'Faculty of Law, Univ. of Technology Sydney',
+    jurusan: 'Intellectual & Industrial Property Law',
+    alamatSekolah: 'Australia',
+    kepalaSekolah: 'Prof. AJD Blake',
+    nomorIjazah: '-',
+    tanggalIjazah: '1999-09-30',
+    tahunLulus: '1999',
+    pemakaianIjazah: 'Pertama'
+  }
+];
+
 
 

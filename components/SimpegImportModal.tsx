@@ -8,7 +8,8 @@ import {
   SIMPEG_JABATAN_DATA,
   ANDRIEANSJAH_JABATAN_DATA,
   ANDRIEANSJAH_PELATIHAN_DATA,
-  TESSA_HARUMDILA_JABATAN_DATA 
+  TESSA_HARUMDILA_JABATAN_DATA,
+  YASMON_PENDIDIKAN_DATA
 } from '../data/simpegData';
 import { parseDateToYYYYMMDD } from '../spreadsheetService';
 
@@ -311,6 +312,8 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
     if (v.includes('D-II') || v.includes('D2') || v.includes('DII')) return 'D2';
     if (v.includes('D-I') || v.includes('D1') || v.includes('DI')) return 'D1';
     if (v.includes('SMK')) return 'SMK';
+    if (v === 'SLTA') return 'SLTA';
+    if (v === 'SLTP') return 'SLTP';
     if (v.includes('SMA') || v.includes('SLTA') || v.includes('ALIYAH')) return 'SMA';
     if (v.includes('SMP') || v.includes('SLTP') || v.includes('TSANAWIYAH')) return 'SMP';
     if (v.includes('SD') || v.includes('IBTIDAIYAH')) return 'SD';
@@ -320,146 +323,253 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
   const isJenjangToken = (val: string): boolean => {
     const v = (val || '').toUpperCase().trim();
     if (!v) return false;
-    return /^(SD|SMP|SMA|SMK|SLTA|SLTP|D-?I|D-?II|D-?III|D-?IV|S-?1|S-?2|S-?3|D[1-4]|S[1-3]|SARJANA|MAGISTER|DOKTOR)$/i.test(v) ||
-           v.startsWith('S-1') || v.startsWith('S-2') || v.startsWith('S-3') ||
-           v.startsWith('D-III') || v.startsWith('D-IV') || v.startsWith('SMA') || v.startsWith('SLTA');
+    // Disqualify school names, full phrases, and locations
+    if (
+      v.includes('NEGERI') || 
+      v.includes('SWASTA') || 
+      v.includes('UNIVERSITAS') || 
+      v.includes('INSTITUT') ||
+      v.includes('SEKOLAH') || 
+      v.includes('FACULTY') ||
+      v.includes('POLITEKNIK') ||
+      v.length > 12
+    ) {
+      return false;
+    }
+    return /^(SD|SMP|SMA|SMK|SLTA|SLTP|D-?I|D-?II|D-?III|D-?IV|S-?1|S-?2|S-?3|D[1-4]|S[1-3]|SARJANA|MAGISTER|DOKTOR|PASCA\s*SARJANA)$/i.test(v) ||
+           /^(S-?1|S-?2|S-?3|D-?[1-4])\b/i.test(v);
   };
 
   const isSchoolName = (val: string): boolean => {
     const up = (val || '').toUpperCase().trim();
     if (!up || up === '-') return false;
-    return /^(UNIVERSITAS|INSTITUT|SEKOLAH TINGGI|POLITEKNIK|AKADEMI|UNIV|SMA|SMK|SMP|SD|MTS|MAN|IAIN|UIN|STMIK|STIE|STIA|SEKOLAH)\b/i.test(up) ||
+    if (isPersonNameOrTitle(val)) return false;
+    return /^(UNIVERSITAS|INSTITUT|SEKOLAH TINGGI|POLITEKNIK|AKADEMI|UNIV|SMA|SMK|SMP|SD|MTS|MAN|IAIN|UIN|STMIK|STIE|STIA|SEKOLAH|FACULTY|COLLEGE)\b/i.test(up) ||
            up.includes('UNIVERSITAS') || up.includes('INSTITUT') || up.includes('POLITEKNIK') ||
            up.includes('SEKOLAH TINGGI') || up.includes('PADJADJARAN') || up.includes('TRISAKTI') ||
            up.includes('AGUSTUS') || up.includes('INDONESIA') || up.includes('GAJAH MADA') ||
+           up.includes('ANDALAS') || up.includes('SYDNEY') || up.includes('FACULTY') ||
+           up.includes('COLLEGE') || up.includes('UNIV') || up.includes('SCHOOL') ||
            up.includes('NEGERI ') || up.includes('SWASTA ');
   };
 
   const isMajorName = (val: string): boolean => {
     const up = (val || '').toUpperCase().trim();
     if (!up || up === '-') return false;
-    return /^(TEKNIK|ILMU|HUKUM|MANAJEMEN|AKUNTANSI|EKONOMI|KEDOKTERAN|INFORMATIKA|KOMUNIKASI|ADMINISTRASI|PSIKOLOGI|SASTRA|HUBUNGAN INTERNASIONAL|PENDIDIKAN|FARMASI|KIMIA|BIOLOGI|FISIKA|MATEMATIKA|IPA|IPS|AGAMA|SYARIAH|KEPERAWATAN|KEBIDANAN)\b/i.test(up) ||
+    return /^(TEKNIK|ILMU|HUKUM|MANAJEMEN|AKUNTANSI|EKONOMI|KEDOKTERAN|INFORMATIKA|KOMUNIKASI|ADMINISTRASI|PSIKOLOGI|SASTRA|BAHASA|HUBUNGAN INTERNASIONAL|PENDIDIKAN|FARMASI|KIMIA|BIOLOGI|FISIKA|MATEMATIKA|IPA|IPS|A1|A2|A3|AGAMA|SYARIAH|KEPERAWATAN|KEBIDANAN|INTELLECTUAL|LAW)\b/i.test(up) ||
            up.includes('HUKUM') || up.includes('MANAJEMEN') || up.includes('TEKNIK') || up.includes('AKUNTANSI') ||
-           up.includes('EKONOMI') || up.includes('INFORMATIKA') || up.includes('ADMINISTRASI') || up.includes('SOSIAL');
+           up.includes('EKONOMI') || up.includes('INFORMATIKA') || up.includes('ADMINISTRASI') || up.includes('SOSIAL') ||
+           up.includes('SASTRA') || up.includes('BAHASA') || up.includes('FISIKA') || up.includes('BIOLOGI') ||
+           up.includes('KIMIA') || up.includes('MATEMATIKA') || up.includes('PROPERTY') || up.includes('LAW') ||
+           up.includes('INTELLECTUAL') || up.includes('INGGRIS') || (up.includes('INDONESIA') && !up.includes('UNIVERSITAS'));
+  };
+
+  const isPersonNameOrTitle = (val: string): boolean => {
+    const up = (val || '').toUpperCase().trim();
+    if (!up || up === '-') return false;
+    return /^(PROF|DR|DRS|DRA|IR|HJ?|K\.H|MR|MS|MRS)\b/i.test(up) ||
+           up.includes('PROF.') || up.includes('DR.') || up.includes('DRS.') || up.includes('DRA.') ||
+           up.includes('IR.') || up.includes('H.') || up.includes('HJ.') ||
+           up.includes('S.H.') || up.includes('M.H.') || up.includes('M.SI') || up.includes('M.L.S.') ||
+           up.includes('PH.D') || up.includes('LL.M') || up.includes('S.PD') || up.includes('M.PD') ||
+           up.includes('NURSAL SALEH') || up.includes('ANIZAR') || up.includes('NAZIR BUSTAMI') ||
+           up.includes('JURNALIS KAMIL') || up.includes('BLAKE');
   };
 
   const parsePendidikanBlock = (rawSlice: string[], dateRe: RegExp) => {
-    // Standard SIMPEG 10-line vertical format when cells are on separate lines:
-    // [0]: Jenjang (SD, SLTP, SLTA, S1, S2, S3)
-    // [1]: Angkatan
-    // [2]: Jurusan (TEKNIK, ILMU HUKUM, MANAJEMEN)
-    // [3]: Nama Sekolah (UNIVERSITAS 17 AGUSTUS 1945, UNIVERSITAS TRISAKTI)
-    // [4]: Alamat Sekolah
-    // [5]: Kepala Sekolah
-    // [6]: No STTB (1030035, 0086/MM/S2/IX/2004, UN6.0002847/A30.000542)
-    // [7]: Tgl STTB (07/05/2010, 29/09/2004, 22/02/2013)
-    // [8]: Tahun Kelulusan (2010, 2004)
-    // [9]: Pemakaian Ijazah
-    if (rawSlice.length >= 8) {
-      const jenjang = normalizeJenjang(rawSlice[0] || 'S1');
-      let jurusan = rawSlice[2]?.trim() || '';
-      let namaSekolah = rawSlice[3]?.trim() || '';
+    if (!rawSlice || rawSlice.length === 0) return null;
 
-      // Auto swap if jurusan and namaSekolah are swapped
-      if (isSchoolName(jurusan) && !isSchoolName(namaSekolah)) {
-        const tmp = namaSekolah;
-        namaSekolah = jurusan;
-        jurusan = tmp;
-      } else if (isMajorName(namaSekolah) && !isMajorName(jurusan)) {
-        const tmp = namaSekolah;
-        namaSekolah = jurusan;
-        jurusan = tmp;
+    const jenjangRaw = rawSlice[0]?.trim() || 'S1';
+    const jenjang = normalizeJenjang(jenjangRaw);
+
+    // Extract non-empty, clean tokens excluding the jenjang token itself
+    const rawTokens = rawSlice.slice(1).map(c => (c || '').trim()).filter(c => c.length > 0);
+
+    // 1. Locate dates: DD/MM/YYYY or YYYY-MM-DD
+    const dateIndices: number[] = [];
+    rawTokens.forEach((tok, idx) => {
+      if (dateRe.test(tok)) {
+        dateIndices.push(idx);
       }
+    });
 
-      let nomorIjazah = rawSlice[6]?.trim() || '';
-      const tglRaw = rawSlice[7]?.trim() || '';
-      let tanggalIjazah = dateRe.test(tglRaw) ? (parseDateToYYYYMMDD(tglRaw) || tglRaw) : '';
-      let tahunLulus = rawSlice[8]?.trim() || '';
-      if (!/^\d{4}$/.test(tahunLulus)) {
-        tahunLulus = tanggalIjazah ? tanggalIjazah.slice(0, 4) : '';
-      }
-      let pemakaianIjazah = rawSlice[9]?.trim() || 'Pertama';
-
-      // If nomorIjazah is empty or '-', check if any other slot has it
-      if (!nomorIjazah || nomorIjazah === '-') {
-        for (let idx = 4; idx < rawSlice.length; idx++) {
-          const item = rawSlice[idx]?.trim() || '';
-          if (item && item !== '-' && !dateRe.test(item) && !/^\d{4}$/.test(item) && item.length > 2) {
-            nomorIjazah = item;
-            break;
-          }
-        }
-      }
-
-      return {
-        jenjang,
-        institusi: namaSekolah || '-',
-        namaSekolah: namaSekolah || '-',
-        jurusan: jurusan || '-',
-        nomorIjazah: nomorIjazah || '-',
-        tanggalIjazah,
-        tahunLulus,
-        pemakaianIjazah: pemakaianIjazah || 'Pertama'
-      };
-    }
-
-    // Dynamic / Filtered Fallback when lines were filtered or collapsed
-    const r = rawSlice.map(c => c.trim()).filter(c => c.length > 0);
-    const jenjang = normalizeJenjang(r[0] || 'S1');
-    const dates: string[] = [];
-    for (const item of r) {
-      if (dateRe.test(item)) {
-        dates.push(parseDateToYYYYMMDD(item) || item);
-      }
-    }
-    const tanggalIjazah = dates[0] || '';
-
+    let tanggalIjazah = '';
     let tahunLulus = '';
-    for (const item of r) {
-      if (/^\d{4}$/.test(item)) {
-        tahunLulus = item;
-        break;
+    let dateIdx = -1;
+
+    if (dateIndices.length > 0) {
+      dateIdx = dateIndices[0];
+      const rawDate = rawTokens[dateIdx];
+      tanggalIjazah = parseDateToYYYYMMDD(rawDate) || rawDate;
+    }
+
+    // 2. Scan items AFTER dateIdx for Tahun Kelulusan and Pemakaian Ijazah
+    let pemakaianIjazah = 'Pertama';
+    const postDateTokens = dateIdx >= 0 ? rawTokens.slice(dateIdx + 1) : [];
+
+    for (const tok of postDateTokens) {
+      if (/^\d{4}$/.test(tok) && !tahunLulus) {
+        tahunLulus = tok;
+      } else if (
+        tok.toUpperCase().includes('CPNS') ||
+        tok.toUpperCase().includes('PNS') ||
+        tok.toUpperCase().includes('PERTAMA') ||
+        tok.toUpperCase().includes('PENINGKATAN') ||
+        tok.toUpperCase().includes('PENYESUAIAN') ||
+        (tok !== '-' && !/^\d+$/.test(tok) && tok.length > 2)
+      ) {
+        pemakaianIjazah = tok;
+      }
+    }
+
+    // If tahunLulus not explicitly found after date, check all tokens or derive from tanggalIjazah
+    if (!tahunLulus) {
+      for (const tok of rawTokens) {
+        if (/^\d{4}$/.test(tok) && tok !== tanggalIjazah) {
+          tahunLulus = tok;
+          break;
+        }
       }
     }
     if (!tahunLulus && tanggalIjazah) {
       tahunLulus = tanggalIjazah.slice(0, 4);
     }
 
+    // 3. Process tokens BEFORE dateIdx
+    // These represent in SIMPEG: [Angkatan]?, [Jurusan]?, [Nama Sekolah], [Alamat Sekolah]?, [Kepala Sekolah]?, [No STTB]?
+    const preDateTokens = (dateIdx >= 0 ? rawTokens.slice(0, dateIdx) : rawTokens.filter(t => !dateRe.test(t) && t !== tahunLulus && t !== pemakaianIjazah));
+
+    const items = [...preDateTokens];
+
+    let nomorIjazah = '-';
+    let kepalaSekolah = '';
+    let alamatSekolah = '';
     let namaSekolah = '';
-    let jurusan = '';
-    let nomorIjazah = '';
-    let pemakaianIjazah = 'Pertama';
+    let jurusan = '-';
 
-    // First pass: detect known types
-    for (let k = 1; k < r.length; k++) {
-      const item = r[k];
-      if (dateRe.test(item) || item === tahunLulus) continue;
-      const up = item.toUpperCase();
-
-      if (up.includes('PERTAMA') || up.includes('PENINGKATAN') || up.includes('PENYESUAIAN')) {
-        pemakaianIjazah = item;
-      } else if (!namaSekolah && isSchoolName(item)) {
-        namaSekolah = item;
-      } else if (!jurusan && isMajorName(item)) {
-        jurusan = item;
-      } else if (!nomorIjazah && (item.includes('/') || item.includes('.') || /^\d{5,}$/.test(item) || /[A-Z0-9]{5,}/i.test(item))) {
-        nomorIjazah = item;
+    // A. Check if the last item before date is No STTB
+    // In SIMPEG, No STTB has digits (e.g. "08 OA oa 009606", "13377/0122/F.01/S1/1991", "1030035")
+    // and is NOT a person's name or title (e.g. not "Prof. AJD Blake")
+    if (items.length > 0) {
+      const last = items[items.length - 1];
+      if (last === '-') {
+        items.pop();
+        nomorIjazah = '-';
+      } else if (/\d/.test(last) && !isPersonNameOrTitle(last)) {
+        nomorIjazah = items.pop()!;
       }
     }
 
-    // Second pass: fill remaining empty fields from unused items
-    for (let k = 1; k < r.length; k++) {
-      const item = r[k];
-      if (dateRe.test(item) || item === tahunLulus || item === pemakaianIjazah) continue;
-      if (item === namaSekolah || item === jurusan || item === nomorIjazah) continue;
+    // B. Check if the next item from right is Kepala Sekolah / Dekan / Rektor
+    if (items.length >= 3 || (items.length >= 1 && isPersonNameOrTitle(items[items.length - 1]))) {
+      kepalaSekolah = items.pop()!;
+    }
 
-      if (!namaSekolah && !isMajorName(item)) {
-        namaSekolah = item;
-      } else if (!jurusan) {
-        jurusan = item;
-      } else if (!nomorIjazah && item !== '-') {
-        nomorIjazah = item;
+    // C. Check if the next item from right is Alamat Sekolah (City / Province / Country)
+    if (items.length >= 2 && !isSchoolName(items[items.length - 1])) {
+      alamatSekolah = items.pop()!;
+    }
+
+    // D. Now evaluate the remaining items (Nama Sekolah, or [Jurusan, Nama Sekolah] / [Nama Sekolah, Jurusan])
+    if (items.length === 1) {
+      namaSekolah = items[0];
+      jurusan = '-';
+    } else if (items.length === 2) {
+      const [first, second] = items;
+      if (isSchoolName(second) && !isSchoolName(first)) {
+        namaSekolah = second;
+        jurusan = first;
+      } else if (isSchoolName(first) && !isSchoolName(second)) {
+        namaSekolah = first;
+        jurusan = second;
+      } else if (isMajorName(first) && !isMajorName(second)) {
+        jurusan = first;
+        namaSekolah = second;
+      } else if (isMajorName(second) && !isMajorName(first)) {
+        jurusan = second;
+        namaSekolah = first;
+      } else {
+        // Standard SIMPEG column order: Jurusan (col 2) comes before Nama Sekolah (col 3)
+        jurusan = first;
+        namaSekolah = second;
       }
+    } else if (items.length >= 3) {
+      // Handle potential [Angkatan, Jurusan, Nama Sekolah]
+      if (/^(angkatan|\d+|[IVXLCDM]+)$/i.test(items[0]) || items[0].length <= 5) {
+        items.shift();
+      }
+      if (items.length === 1) {
+        namaSekolah = items[0];
+      } else if (items.length >= 2) {
+        if (isSchoolName(items[1])) {
+          jurusan = items[0];
+          namaSekolah = items[1];
+        } else if (isSchoolName(items[0])) {
+          namaSekolah = items[0];
+          jurusan = items[1];
+        } else {
+          jurusan = items[0];
+          namaSekolah = items[1];
+        }
+      }
+    }
+
+    // Safety check: if namaSekolah was mistakenly assigned a person's name
+    if (isPersonNameOrTitle(namaSekolah)) {
+      if (!kepalaSekolah || kepalaSekolah === '-') {
+        kepalaSekolah = namaSekolah;
+      }
+      if (isSchoolName(jurusan)) {
+        namaSekolah = jurusan;
+        jurusan = '-';
+      } else if (isSchoolName(alamatSekolah)) {
+        namaSekolah = alamatSekolah;
+        alamatSekolah = '';
+      } else {
+        namaSekolah = '-';
+      }
+    }
+
+    // If kepalaSekolah holds a school name, swap
+    if (isSchoolName(kepalaSekolah) && (!namaSekolah || namaSekolah === '-' || isPersonNameOrTitle(namaSekolah))) {
+      const tmp = namaSekolah;
+      namaSekolah = kepalaSekolah;
+      kepalaSekolah = isPersonNameOrTitle(tmp) ? tmp : '-';
+    }
+
+    // Final sanity adjustments:
+    // If Jenjang is SD or SMP/SLTP, it never has a Jurusan in Indonesia
+    const jNorm = jenjang.toUpperCase();
+    if (jNorm === 'SD' || jNorm === 'SMP' || jNorm === 'SLTP') {
+      if (jurusan && jurusan !== '-' && !isMajorName(jurusan)) {
+        if (!alamatSekolah) alamatSekolah = jurusan;
+        jurusan = '-';
+      } else {
+        jurusan = '-';
+      }
+    }
+
+    // If namaSekolah was somehow empty, but alamatSekolah or jurusan holds a school name
+    if (!namaSekolah || namaSekolah === '-') {
+      if (isSchoolName(jurusan)) {
+        namaSekolah = jurusan;
+        jurusan = '-';
+      }
+    }
+
+    // If tahunLulus holds a date
+    if (tahunLulus && (tahunLulus.includes('/') || tahunLulus.includes('-'))) {
+      if (!tanggalIjazah) {
+        tanggalIjazah = parseDateToYYYYMMDD(tahunLulus) || tahunLulus;
+      }
+      const ymd = parseDateToYYYYMMDD(tahunLulus);
+      tahunLulus = ymd ? ymd.slice(0, 4) : tahunLulus.slice(-4);
+    }
+
+    // If nomorIjazah is accidentally a 4-digit year
+    if (/^\d{4}$/.test((nomorIjazah || '').trim()) && (!tahunLulus || tahunLulus === '-')) {
+      tahunLulus = nomorIjazah.trim();
+      nomorIjazah = '-';
     }
 
     return {
@@ -467,10 +577,12 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
       institusi: namaSekolah || '-',
       namaSekolah: namaSekolah || '-',
       jurusan: jurusan || '-',
+      alamatSekolah: alamatSekolah || '-',
+      kepalaSekolah: kepalaSekolah || '-',
       nomorIjazah: nomorIjazah || '-',
       tanggalIjazah,
       tahunLulus,
-      pemakaianIjazah
+      pemakaianIjazah: pemakaianIjazah || 'Pertama'
     };
   };
 
@@ -953,13 +1065,16 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
         else if ((c.includes('ms kerja') || c.includes('masa kerja')) && (c.includes('bl') || c.includes('bulan')) || c === 'mk bulan' || c === 'bln mk' || c === 'bln') { colMap['masaKerjaBulan'] = idx; matchCount++; }
         else if (c.includes('ket') || c.includes('keterangan')) { colMap['keterangan'] = idx; matchCount++; }
       } else if (category === 'pendidikan') {
-        if (c.includes('jenjang') || c.includes('tingkat') || c === 'pendidikan') { colMap['jenjang'] = idx; matchCount++; }
-        else if (c.includes('sekolah') || c.includes('institusi') || c.includes('universitas') || c.includes('lembaga') || c.includes('kampus') || c.includes('nama sekolah')) { colMap['namaSekolah'] = idx; matchCount++; }
+        if (c.includes('angkatan')) { colMap['angkatan'] = idx; matchCount++; }
+        else if (c.includes('alamat')) { colMap['alamatSekolah'] = idx; matchCount++; }
+        else if (c.includes('kepala') || c.includes('rektor') || c.includes('dekan')) { colMap['kepalaSekolah'] = idx; matchCount++; }
+        else if (c.includes('jenjang') || c.includes('tingkat') || c === 'pendidikan') { colMap['jenjang'] = idx; matchCount++; }
         else if (c.includes('jurusan') || c.includes('prodi') || c.includes('program studi')) { colMap['jurusan'] = idx; matchCount++; }
         else if ((c.includes('no') || c.includes('nomor')) && (c.includes('ijazah') || c.includes('sttb')) || c === 'no ijazah' || c === 'no sttb') { colMap['nomorIjazah'] = idx; matchCount++; }
         else if ((c.includes('tgl') || c.includes('tanggal')) && (c.includes('ijazah') || c.includes('sttb')) || c === 'tgl ijazah' || c === 'tgl sttb') { colMap['tanggalIjazah'] = idx; matchCount++; }
         else if (c.includes('tahun lulus') || c.includes('thn lulus') || c === 'lulus' || (c.includes('tahun') && !c.includes('ijazah')) || c.includes('tahun kelulusan')) { colMap['tahunLulus'] = idx; matchCount++; }
         else if (c.includes('pemakaian') || c.includes('status ijazah')) { colMap['pemakaianIjazah'] = idx; matchCount++; }
+        else if (!c.includes('alamat') && !c.includes('kepala') && (c.includes('nama sekolah') || c === 'sekolah' || c.includes('institusi') || c.includes('universitas') || c.includes('lembaga') || c.includes('kampus') || c.includes('sekolah'))) { colMap['namaSekolah'] = idx; matchCount++; }
       } else if (category === 'gaji') {
         if ((c.includes('no') || c.includes('nomor')) && c.includes('sk') || c === 'no sk' || c === 'nomor sk') { colMap['nomorSk'] = idx; matchCount++; }
         else if ((c.includes('tgl') || c.includes('tanggal')) && c.includes('sk') || c === 'tgl sk' || c === 'tanggal sk') { colMap['tanggalSk'] = idx; matchCount++; }
@@ -1044,6 +1159,10 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
         last.includes('terdetect') || 
         last.includes('terdeteksi') || 
         last.includes('masih') ||
+        last.includes('parhser') ||
+        last.includes('parser') ||
+        last.includes('perbaiki') ||
+        last.includes('salah') ||
         last.length === 0
       ) {
         rawLines.pop();
@@ -1175,38 +1294,43 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
             keterangan
           });
         } else if (activeCategory === 'pendidikan') {
-          const jenjangRaw = (dynamicColMap['jenjang'] !== undefined && cols[dynamicColMap['jenjang']]) || 'S1';
-          const jenjang = normalizeJenjang(jenjangRaw);
-          let namaSekolah = (dynamicColMap['namaSekolah'] !== undefined && cols[dynamicColMap['namaSekolah']]) || '';
-          let jurusan = (dynamicColMap['jurusan'] !== undefined && cols[dynamicColMap['jurusan']]) || '-';
-          if (isSchoolName(jurusan) && !isSchoolName(namaSekolah)) {
-            const tmp = namaSekolah;
-            namaSekolah = jurusan;
-            jurusan = tmp;
-          } else if (isMajorName(namaSekolah) && !isMajorName(jurusan)) {
-            const tmp = namaSekolah;
-            namaSekolah = jurusan;
-            jurusan = tmp;
+          // Strip leading row index if present (e.g. 1, 2, 3...)
+          let c = [...cols];
+          if (/^\d+$/.test(c[0]) && c.length > 2) {
+            c.shift();
           }
-          const nomorIjazah = (dynamicColMap['nomorIjazah'] !== undefined && cols[dynamicColMap['nomorIjazah']]) || '-';
-          const tanggalIjazah = (dynamicColMap['tanggalIjazah'] !== undefined && cols[dynamicColMap['tanggalIjazah']]) || '';
-          let tahunLulus = (dynamicColMap['tahunLulus'] !== undefined && cols[dynamicColMap['tahunLulus']]) || '';
-          if (!tahunLulus && tanggalIjazah) {
-            const parsed = parseDateToYYYYMMDD(tanggalIjazah);
-            if (parsed) tahunLulus = parsed.slice(0, 4);
-          }
-          const pemakaianIjazah = (dynamicColMap['pemakaianIjazah'] !== undefined && cols[dynamicColMap['pemakaianIjazah']]) || 'Pertama';
 
-          results.push({
-            jenjang,
-            institusi: namaSekolah || '-',
-            namaSekolah: namaSekolah || '-',
-            jurusan: jurusan || '-',
-            nomorIjazah: nomorIjazah || '-',
-            tanggalIjazah: parseDateToYYYYMMDD(tanggalIjazah) || tanggalIjazah,
-            tahunLulus: tahunLulus || (tanggalIjazah ? tanggalIjazah.slice(-4) : ''),
-            pemakaianIjazah
-          });
+          // Use smart content-aware block parsing to prevent shifted columns
+          const parsed = parsePendidikanBlock(c, dateRe);
+          if (parsed) {
+            results.push(parsed);
+          } else {
+            const jenjangRaw = (dynamicColMap['jenjang'] !== undefined && cols[dynamicColMap['jenjang']]) || 'S1';
+            const jenjang = normalizeJenjang(jenjangRaw);
+            let namaSekolah = (dynamicColMap['namaSekolah'] !== undefined && cols[dynamicColMap['namaSekolah']]) || '';
+            let jurusan = (dynamicColMap['jurusan'] !== undefined && cols[dynamicColMap['jurusan']]) || '-';
+            const alamatSekolah = (dynamicColMap['alamatSekolah'] !== undefined && cols[dynamicColMap['alamatSekolah']]) || '';
+            const kepalaSekolah = (dynamicColMap['kepalaSekolah'] !== undefined && cols[dynamicColMap['kepalaSekolah']]) || '';
+            const nomorIjazah = (dynamicColMap['nomorIjazah'] !== undefined && cols[dynamicColMap['nomorIjazah']]) || '-';
+            const tanggalIjazah = (dynamicColMap['tanggalIjazah'] !== undefined && cols[dynamicColMap['tanggalIjazah']]) || '';
+            let tahunLulus = (dynamicColMap['tahunLulus'] !== undefined && cols[dynamicColMap['tahunLulus']]) || '';
+            if (!tahunLulus && tanggalIjazah) {
+              const pDate = parseDateToYYYYMMDD(tanggalIjazah);
+              if (pDate) tahunLulus = pDate.slice(0, 4);
+            }
+            results.push({
+              jenjang,
+              institusi: namaSekolah || '-',
+              namaSekolah: namaSekolah || '-',
+              jurusan: jurusan || '-',
+              alamatSekolah: alamatSekolah || '-',
+              kepalaSekolah: kepalaSekolah || '-',
+              nomorIjazah: nomorIjazah || '-',
+              tanggalIjazah: parseDateToYYYYMMDD(tanggalIjazah) || tanggalIjazah,
+              tahunLulus: tahunLulus || (tanggalIjazah ? tanggalIjazah.slice(-4) : ''),
+              pemakaianIjazah: (dynamicColMap['pemakaianIjazah'] !== undefined && cols[dynamicColMap['pemakaianIjazah']]) || 'Pertama'
+            });
+          }
         } else if (activeCategory === 'gaji') {
           const nomorSk = (dynamicColMap['nomorSk'] !== undefined && cols[dynamicColMap['nomorSk']]) || '';
           const tanggalSk = (dynamicColMap['tanggalSk'] !== undefined && cols[dynamicColMap['tanggalSk']]) || '';
@@ -2067,6 +2191,37 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
           </div>
         )}
 
+        {/* ONE-CLICK DRS. YASMON PENDIDIKAN BANNER */}
+        {activeCategory === 'pendidikan' && (targetPegawaiName || '').toUpperCase().includes('YASMON') && (
+          <div className="mx-5 sm:mx-6 mt-3 p-3.5 bg-gradient-to-r from-indigo-50 via-blue-50 to-indigo-50 border border-indigo-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                <i className="bi bi-mortarboard-fill"></i>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h6 className="text-[11px] font-black text-indigo-950 uppercase tracking-tight">5 Riwayat Pendidikan SIMPEG Drs. YASMON, M.L.S. Siap Dipasang</h6>
+                  <span className="px-2 py-0.5 bg-indigo-200/80 text-indigo-900 rounded-full font-mono text-[9px] font-black">5 Data (1981 - 1999)</span>
+                </div>
+                <p className="text-[9px] text-indigo-800 mt-0.5">
+                  SD Negeri 1 Saningbakar, SMPN 1 Solok, SMAN 1 Solok (A1 Fisika), S1 Sastra Inggris Unand, S2 UTS Australia.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onApply('pendidikan', 'REPLACE', YASMON_PENDIDIKAN_DATA);
+                onClose();
+              }}
+              className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl text-[10px] font-black uppercase whitespace-nowrap shadow-sm cursor-pointer transition-all active:scale-95 shrink-0 flex items-center justify-center gap-2"
+            >
+              <i className="bi bi-lightning-charge-fill text-yellow-300"></i>
+              <span>Pasang 5 Riwayat Langsung</span>
+            </button>
+          </div>
+        )}
+
         {/* INPUT MODE SWITCHER: SALIN-TEMPEL VS INPUT FORMULIR MANUAL */}
         <div className="px-5 sm:px-6 py-2.5 bg-white border-b border-gray-100 flex items-center justify-between gap-3">
           <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-[10px] font-black uppercase">
@@ -2184,7 +2339,7 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
                       <thead>
                         <tr className="bg-blue-50/80 border-b border-blue-200 text-blue-900 font-bold uppercase text-[9px] divide-x divide-blue-200">
                           <th className="py-2 px-2 text-center w-8">#</th>
-                          {currentConfig.columns.slice(0, 5).map((colName, cIdx) => (
+                          {currentConfig.columns.map((colName, cIdx) => (
                             <th key={cIdx} className="py-2 px-3">{colName}</th>
                           ))}
                         </tr>
@@ -2193,7 +2348,7 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
                         {parsedRows.map((r, i) => (
                           <tr key={i} className="hover:bg-blue-50/30 divide-x divide-gray-100">
                             <td className="py-2 px-2 text-center font-bold text-gray-400">{i + 1}</td>
-                            {currentConfig.fieldKeys.slice(0, 5).map((fKey, vIdx) => (
+                            {currentConfig.fieldKeys.map((fKey, vIdx) => (
                               <td key={vIdx} className="py-2 px-3 font-medium text-gray-800 truncate max-w-[150px]">
                                 {String((r as any)[fKey] || '-')}
                               </td>

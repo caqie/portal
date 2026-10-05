@@ -10,7 +10,7 @@ import SuccessModal from '../components/SuccessModal';
 import AutocompleteInput from '../components/AutocompleteInput';
 import SimpegImportModal, { SimpegCategory } from '../components/SimpegImportModal';
 import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
-import { ANDRIEANSJAH_JABATAN_DATA, ANDRIEANSJAH_PELATIHAN_DATA, ANDRIEANSJAH_PANGKAT_DATA, ANDRIEANSJAH_PENDIDIKAN_DATA, TESSA_HARUMDILA_JABATAN_DATA } from '../data/simpegData';
+import { ANDRIEANSJAH_JABATAN_DATA, ANDRIEANSJAH_PELATIHAN_DATA, ANDRIEANSJAH_PANGKAT_DATA, ANDRIEANSJAH_PENDIDIKAN_DATA, TESSA_HARUMDILA_JABATAN_DATA, YASMON_PENDIDIKAN_DATA } from '../data/simpegData';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -268,6 +268,20 @@ const ProfilePegawaiPage = () => {
           );
           if (isPendidikanCorrupted || sanitizedPendidikan.length < 7) {
             sanitizedPendidikan = ANDRIEANSJAH_PENDIDIKAN_DATA;
+            pendidikanWasRepaired = true;
+          }
+        } else if (found.nama.toUpperCase().includes('YASMON')) {
+          const isYasmonCorrupted = sanitizedPendidikan.length !== 5 || sanitizedPendidikan.some(p => 
+            (p.institusi || '').toUpperCase().includes('NURSAL SALEH') ||
+            (p.institusi || '').toUpperCase().includes('ANIZAR') ||
+            (p.institusi || '').toUpperCase().includes('JURNALIS KAMIL') ||
+            (p.institusi || '').toUpperCase().includes('BLAKE') ||
+            (p.institusi || '').toUpperCase().includes('NAZIR BUSTAMI') ||
+            (p.institusi || '').length > 40 ||
+            (p.nomorIjazah || '').length > 35
+          );
+          if (isYasmonCorrupted || sanitizedPendidikan.length === 0) {
+            sanitizedPendidikan = YASMON_PENDIDIKAN_DATA;
             pendidikanWasRepaired = true;
           }
         } else {
@@ -1038,7 +1052,20 @@ const ProfilePegawaiPage = () => {
     }
 
     // Ensure completely fresh deep clones of each row object to avoid any shared reference mutation
-    const clonedRows = JSON.parse(JSON.stringify(rows));
+    let clonedRows = JSON.parse(JSON.stringify(rows));
+    if (cat === 'pendidikan') {
+      if (pegawai.nama.toUpperCase().includes('YASMON')) {
+        const isCorrupted = clonedRows.length !== 5 || clonedRows.some((p: any) =>
+          ['NURSAL SALEH', 'ANIZAR', 'NAZIR BUSTAMI', 'JURNALIS KAMIL', 'BLAKE'].some(k => (p.institusi || '').toUpperCase().includes(k)) ||
+          (p.tahunLulus || '').includes('/') ||
+          (p.institusi || '').trim() === '-' ||
+          (p.institusi || '').length > 40
+        );
+        if (isCorrupted) {
+          clonedRows = YASMON_PENDIDIKAN_DATA;
+        }
+      }
+    }
     const currentList = (pegawai[field] as any[]) || [];
     const newList = mode === 'REPLACE' ? clonedRows : [...currentList, ...clonedRows];
     const updated = { ...pegawai, [field]: newList };
@@ -1163,8 +1190,12 @@ const ProfilePegawaiPage = () => {
     return (pegawai?.riwayatPendidikan || []).some(p => {
       const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
       const isTahunDate = datePattern.test((p.tahunLulus || '').trim());
+      const isNomorIjazahDate = datePattern.test((p.nomorIjazah || '').trim());
       const isMissingInstitusiWithMajor = (p.institusi === '-' || !p.institusi) && p.jurusan && p.jurusan !== '-' && (p.jurusan.toUpperCase().includes('HUKUM') || p.jurusan.toUpperCase().includes('MANAJEMEN'));
-      return isTahunDate || isMissingInstitusiWithMajor;
+      const isSdOrSmpWithAddressAsMajor = ['SD', 'SMP', 'SLTP'].includes((p.jenjang || '').toUpperCase().trim()) && p.jurusan && p.jurusan !== '-' && ['SANINGBAKAR', 'SOLOK', 'PADANG', 'JAKARTA', 'DUMAI'].includes(p.jurusan.toUpperCase().trim());
+      const isKepalaSekolahAsInstitusi = ['NURSAL SALEH', 'ANIZAR', 'NAZIR BUSTAMI', 'JURNALIS KAMIL', 'BLAKE'].some(k => (p.institusi || '').toUpperCase().includes(k));
+      const isCorruptedLongText = (p.institusi || '').length > 40 || (p.nomorIjazah || '').length > 35;
+      return isTahunDate || isNomorIjazahDate || isMissingInstitusiWithMajor || isSdOrSmpWithAddressAsMajor || isKepalaSekolahAsInstitusi || isCorruptedLongText;
     });
   }, [pegawai?.riwayatPendidikan]);
 
@@ -1178,14 +1209,44 @@ const ProfilePegawaiPage = () => {
       setShowSuccess(true);
       return;
     }
+    if (pegawai.nama.toUpperCase().includes('YASMON')) {
+      await handleApplySimpegData('pendidikan', 'REPLACE', YASMON_PENDIDIKAN_DATA);
+      setSyncing(false);
+      setSuccessMsg('Riwayat Pendidikan Drs. YASMON, M.L.S. berhasil dipulihkan sesuai data otentik SIMPEG!');
+      setShowSuccess(true);
+      return;
+    }
     const fixed = (pegawai.riwayatPendidikan || []).map(p => {
       const clone = { ...p };
       const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
+      
+      // If tahunLulus contains a full date or invalid text
       if (datePattern.test((clone.tahunLulus || '').trim())) {
         const parsed = parseDateToYYYYMMDD(clone.tahunLulus) || clone.tahunLulus;
         clone.tanggalIjazah = clone.tanggalIjazah || parsed;
         clone.tahunLulus = parsed.slice(0, 4);
+      } else if (!/^\d{4}$/.test((clone.tahunLulus || '').trim()) && clone.tanggalIjazah) {
+        const parsed = parseDateToYYYYMMDD(clone.tanggalIjazah);
+        if (parsed) clone.tahunLulus = parsed.slice(0, 4);
       }
+
+      // If nomorIjazah contains a date
+      if (datePattern.test((clone.nomorIjazah || '').trim())) {
+        if (!clone.tanggalIjazah) {
+          clone.tanggalIjazah = parseDateToYYYYMMDD(clone.nomorIjazah) || clone.nomorIjazah;
+        }
+        clone.nomorIjazah = '-';
+      }
+
+      // SD and SMP/SLTP should not have a city as jurusan
+      const jNorm = (clone.jenjang || '').toUpperCase().trim();
+      if (['SD', 'SMP', 'SLTP'].includes(jNorm)) {
+        if (clone.jurusan && clone.jurusan !== '-' && !clone.jurusan.toUpperCase().includes('HUKUM') && !clone.jurusan.toUpperCase().includes('TEKNIK')) {
+          if (!clone.alamatSekolah) clone.alamatSekolah = clone.jurusan;
+          clone.jurusan = '-';
+        }
+      }
+
       if ((!clone.institusi || clone.institusi === '-') && clone.namaSekolah && clone.namaSekolah !== '-') {
         clone.institusi = clone.namaSekolah;
       } else if ((!clone.namaSekolah || clone.namaSekolah === '-') && clone.institusi && clone.institusi !== '-') {
@@ -1198,6 +1259,12 @@ const ProfilePegawaiPage = () => {
     setSuccessMsg('Riwayat Pendidikan berhasil diperbaiki dan diselaraskan!');
     setShowSuccess(true);
   };
+
+  useEffect(() => {
+    if (pegawai && hasShiftedPendidikan && !syncing) {
+      handleHealShiftedPendidikan();
+    }
+  }, [hasShiftedPendidikan, pegawai?.id]);
 
   const hasShiftedIdentitas = useMemo(() => {
     if (!pegawai) return false;
@@ -2282,6 +2349,23 @@ const ProfilePegawaiPage = () => {
                       >
                         <i className="bi bi-lightning-charge-fill text-yellow-200"></i>
                         <span>Muat 7 Riwayat SIMPEG</span>
+                      </button>
+                    )}
+
+                    {/* Quick Button for Drs. Yasmon, M.L.S. SIMPEG Records */}
+                    {pegawai.nama.toUpperCase().includes('YASMON') && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm("Pasang 5 data riwayat pendidikan otentik SIMPEG Kemenkumham (SD Negeri 1, SMPN 1 Solok, SMAN 1 Solok A1 Fisika, S1 Unand, S2 UTS Australia) untuk Drs. YASMON, M.L.S.?")) {
+                            await handleApplySimpegData('pendidikan', 'REPLACE', YASMON_PENDIDIKAN_DATA);
+                          }
+                        }}
+                        className="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                        title="Pasang 5 Riwayat Pendidikan SIMPEG Drs. Yasmon, M.L.S."
+                      >
+                        <i className="bi bi-lightning-charge-fill text-yellow-200"></i>
+                        <span>Muat 5 Riwayat SIMPEG</span>
                       </button>
                     )}
 
