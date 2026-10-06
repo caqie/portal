@@ -1379,5 +1379,75 @@ export const YASMON_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
   }
 ];
 
+export const SIMPEG_PENGHARGAAN_DATA: any[] = [
+  {
+    namaPenghargaan: 'Satyalancana Karya Satya XX Tahun',
+    jenisPenghargaan: 'Tanda Kehormatan RI',
+    pemberiPenghargaan: 'Presiden Republik Indonesia',
+    nomorSk: '64/TK/TAHUN 2020',
+    tanggalSk: '2020-08-04',
+    tahun: '2020',
+    keterangan: 'Penganugerahan Tanda Kehormatan Satyalancana Karya Satya Pengabdian 20 Tahun'
+  },
+  {
+    namaPenghargaan: 'Satyalancana Karya Satya X Tahun',
+    jenisPenghargaan: 'Tanda Kehormatan RI',
+    pemberiPenghargaan: 'Presiden Republik Indonesia',
+    nomorSk: '39/TK/TAHUN 2010',
+    tanggalSk: '2010-08-05',
+    tahun: '2010',
+    keterangan: 'Penganugerahan Tanda Kehormatan Satyalancana Karya Satya Pengabdian 10 Tahun'
+  },
+  {
+    namaPenghargaan: 'Piagam Penghargaan Pegawai Berprestasi Kementerian Hukum dan HAM',
+    jenisPenghargaan: 'Kementerian Hukum',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia RI',
+    nomorSk: 'M.HH-01.KP.07.05 TAHUN 2022',
+    tanggalSk: '2022-10-30',
+    tahun: '2022',
+    keterangan: 'Peringatan Hari Pengayoman atas Inovasi Layanan Publik DJKI'
+  },
+  {
+    namaPenghargaan: 'Penghargaan Pembangunan Zona Integritas Menuju WBK/WBBM',
+    jenisPenghargaan: 'Direktorat Jenderal KI',
+    pemberiPenghargaan: 'Direktur Jenderal Kekayaan Intelektual',
+    nomorSk: 'HKI-03.KP.08.01 TAHUN 2023',
+    tanggalSk: '2023-11-15',
+    tahun: '2023',
+    keterangan: 'Apresiasi Tim Pokja Pelayanan Publik dan Transformasi Digital DJKI'
+  }
+];
+
+export const ANDRIEANSJAH_PENGHARGAAN_DATA: any[] = [
+  {
+    namaPenghargaan: 'Satyalancana Karya Satya XX Tahun',
+    jenisPenghargaan: 'Tanda Kehormatan RI',
+    pemberiPenghargaan: 'Presiden Republik Indonesia',
+    nomorSk: '64/TK/TAHUN 2020',
+    tanggalSk: '2020-08-04',
+    tahun: '2020',
+    keterangan: 'Penganugerahan Tanda Kehormatan Satyalancana Karya Satya atas Pengabdian 20 Tahun'
+  },
+  {
+    namaPenghargaan: 'Satyalancana Karya Satya X Tahun',
+    jenisPenghargaan: 'Tanda Kehormatan RI',
+    pemberiPenghargaan: 'Presiden Republik Indonesia',
+    nomorSk: '39/TK/TAHUN 2010',
+    tanggalSk: '2010-08-05',
+    tahun: '2010',
+    keterangan: 'Penganugerahan Tanda Kehormatan Satyalancana Karya Satya atas Pengabdian 10 Tahun'
+  },
+  {
+    namaPenghargaan: 'Piagam Penghargaan Kontribusi Aksesi Traktat Paten Internasional (PCT)',
+    jenisPenghargaan: 'Kementerian Hukum',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia RI',
+    nomorSk: 'M.HH-04.KP.07.01 TAHUN 2021',
+    tanggalSk: '2021-12-10',
+    tahun: '2021',
+    keterangan: 'Dedikasi atas Peningkatan Sistem Permohonan Paten Nasional dan Internasional'
+  }
+];
+
+
 
 

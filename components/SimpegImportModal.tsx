@@ -9,11 +9,12 @@ import {
   ANDRIEANSJAH_JABATAN_DATA,
   ANDRIEANSJAH_PELATIHAN_DATA,
   TESSA_HARUMDILA_JABATAN_DATA,
-  YASMON_PENDIDIKAN_DATA
+  YASMON_PENDIDIKAN_DATA,
+  SIMPEG_PENGHARGAAN_DATA
 } from '../data/simpegData';
 import { parseDateToYYYYMMDD } from '../spreadsheetService';
 
-export type SimpegCategory = 'jabatan' | 'pangkat' | 'pendidikan' | 'gaji' | 'pelatihan' | 'keluarga';
+export type SimpegCategory = 'jabatan' | 'pangkat' | 'pendidikan' | 'gaji' | 'pelatihan' | 'penghargaan' | 'keluarga';
 
 interface SimpegImportModalProps {
   isOpen: boolean;
@@ -107,6 +108,18 @@ const CATEGORY_CONFIG: Record<SimpegCategory, {
     sampleData: SIMPEG_KELUARGA_DATA,
     columns: ['Hubungan', 'Nama Lengkap', 'Tempat Lahir', 'Tgl Lahir', 'L/P', 'Pekerjaan', 'NIK', 'Status Perkawinan', 'Tunjangan'],
     fieldKeys: ['hubungan', 'nama', 'tempatLahir', 'tanggalLahir', 'jenisKelamin', 'pekerjaan', 'nik', 'statusPerkawinan', 'keteranganTunjangan']
+  },
+  penghargaan: {
+    title: 'Riwayat Penghargaan',
+    subtitle: 'Tanda Kehormatan RI, Satyalancana, Piagam Prestasi & Penghargaan Resmi',
+    icon: 'bi-trophy-fill',
+    colorClass: 'text-amber-600',
+    badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
+    sampleCount: SIMPEG_PENGHARGAAN_DATA.length,
+    sampleDescription: '4 riwayat tanda jasa dan penghargaan resmi SIMPEG (Satyalancana Karya Satya XX, X, Pegawai Berprestasi, WBK)',
+    sampleData: SIMPEG_PENGHARGAAN_DATA,
+    columns: ['Nama Penghargaan', 'Tahun', 'Pemberi Penghargaan', 'Jenis Penghargaan', 'No. SK / Piagam', 'Tgl SK', 'Keterangan'],
+    fieldKeys: ['namaPenghargaan', 'tahun', 'pemberiPenghargaan', 'jenisPenghargaan', 'nomorSk', 'tanggalSk', 'keterangan']
   }
 };
 
@@ -183,6 +196,15 @@ const DEFAULT_MANUAL_STATE: Record<SimpegCategory, any> = {
     nik: '',
     statusPerkawinan: 'Belum Kawin',
     keteranganTunjangan: 'Dapat Tunjangan'
+  },
+  penghargaan: {
+    namaPenghargaan: '',
+    tahun: new Date().getFullYear().toString(),
+    pemberiPenghargaan: 'Presiden Republik Indonesia',
+    jenisPenghargaan: 'Tanda Kehormatan RI',
+    nomorSk: '',
+    tanggalSk: '',
+    keterangan: ''
   }
 };
 
@@ -1020,6 +1042,104 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
     };
   };
 
+  const parsePenghargaanBlock = (rawBlock: string[], dateRegex: RegExp): any => {
+    const r = rawBlock.map(x => x.trim()).filter(x => x.length > 0);
+    if (r.length === 0) return null;
+
+    let tahun = '';
+    let namaPenghargaan = '';
+    let nomorSk = '-';
+    let tanggalSk = '';
+    let pemberiPenghargaan = 'Presiden Republik Indonesia';
+    let jenisPenghargaan = 'Tanda Kehormatan RI';
+    let keterangan = '';
+
+    // 1. Identify if first line is a 4-digit year (e.g. 2016, 2022)
+    const hasYearAtStart = /^(19|20)\d{2}$/.test(r[0]);
+    if (hasYearAtStart) {
+      tahun = r[0];
+    }
+
+    // 2. Identify date
+    const dateIdx = r.findIndex((it, idx) => idx > 0 && dateRegex.test(it));
+    if (dateIdx !== -1) {
+      tanggalSk = parseDateToYYYYMMDD(r[dateIdx]) || r[dateIdx];
+    }
+
+    // 3. Nama Penghargaan & Nomor SK
+    if (hasYearAtStart) {
+      namaPenghargaan = r[1] || '';
+      if (dateIdx > 2) {
+        const skLines = r.slice(2, dateIdx).filter(l => l !== '-');
+        if (skLines.length > 0) nomorSk = skLines.join(' / ');
+      } else if (dateIdx === 2) {
+        nomorSk = '-';
+      }
+    } else {
+      // First line is award title (e.g. "SATYA LENCANA KARYA SATYA XX (PERAK)")
+      namaPenghargaan = r[0];
+      if (dateIdx > 1) {
+        const skLines = r.slice(1, dateIdx).filter(l => l !== '-');
+        if (skLines.length > 0) nomorSk = skLines.join(' / ');
+      } else if (dateIdx === 1) {
+        nomorSk = '-';
+      }
+    }
+
+    // 4. Lines after Date (Pemberi & Keterangan)
+    if (dateIdx !== -1 && dateIdx + 1 < r.length) {
+      pemberiPenghargaan = r[dateIdx + 1];
+      if (dateIdx + 2 < r.length) {
+        keterangan = r.slice(dateIdx + 2).join(' ');
+      }
+    }
+
+    // Fallbacks if not structured strictly:
+    if (!tahun) {
+      for (const item of r) {
+        if (/^(19|20)\d{2}$/.test(item)) {
+          tahun = item;
+          break;
+        }
+      }
+      if (!tahun && tanggalSk) tahun = tanggalSk.slice(0, 4);
+      if (!tahun) {
+        const skYearMatch = (nomorSk || '').match(/(19|20)\d{2}/);
+        if (skYearMatch) tahun = skYearMatch[0];
+      }
+      if (!tahun) tahun = new Date().getFullYear().toString();
+    }
+
+    if (!namaPenghargaan) {
+      namaPenghargaan = r.find(x => x.length > 3 && !dateRegex.test(x) && !/^\d+$/.test(x)) || 'Penghargaan';
+    }
+
+    // Refine jenisPenghargaan based on namaPenghargaan or pemberi
+    const upName = namaPenghargaan.toUpperCase();
+    const upPemberi = pemberiPenghargaan.toUpperCase();
+    if (upName.includes('SATYA') || upName.includes('LENCANA') || upName.includes('LANCANA') || upName.includes('BINTANG') || upName.includes('WIRA KARYA')) {
+      jenisPenghargaan = 'Tanda Kehormatan RI';
+    } else if (upPemberi.includes('PRESIDEN')) {
+      jenisPenghargaan = 'Tanda Kehormatan RI';
+    } else if (upPemberi.includes('MENTERI') || upName.includes('KEMENKUMHAM') || upName.includes('PENGAYOMAN')) {
+      jenisPenghargaan = 'Kementerian Hukum';
+    } else if (upPemberi.includes('DIREKTUR JENDERAL') || upName.includes('DJKI') || upName.includes('KEKAYAAN INTELEKTUAL')) {
+      jenisPenghargaan = 'Direktorat Jenderal KI';
+    } else {
+      jenisPenghargaan = 'Instansi Pemerintah Lain';
+    }
+
+    return {
+      namaPenghargaan,
+      tahun,
+      pemberiPenghargaan,
+      jenisPenghargaan,
+      nomorSk,
+      tanggalSk,
+      keterangan
+    };
+  };
+
   // Helper to split any delimited line (tab, pipe, semicolon, or multi-space)
   const splitLineIntoCols = (line: string): string[] => {
     if (line.includes('\t')) {
@@ -1109,6 +1229,14 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
         else if (c.includes('nik')) { colMap['nik'] = idx; matchCount++; }
         else if (c.includes('status') || c.includes('kawin')) { colMap['statusPerkawinan'] = idx; matchCount++; }
         else if (c.includes('tunjangan')) { colMap['keteranganTunjangan'] = idx; matchCount++; }
+      } else if (category === 'penghargaan') {
+        if (c.includes('nama') || c.includes('penghargaan') || c.includes('tanda jasa') || c.includes('kehormatan')) { colMap['namaPenghargaan'] = idx; matchCount++; }
+        else if (c.includes('tahun') || c === 'thn') { colMap['tahun'] = idx; matchCount++; }
+        else if (c.includes('pemberi') || c.includes('oleh') || c.includes('asal')) { colMap['pemberiPenghargaan'] = idx; matchCount++; }
+        else if (c.includes('jenis') || c.includes('kategori') || c.includes('tingkat')) { colMap['jenisPenghargaan'] = idx; matchCount++; }
+        else if ((c.includes('no') || c.includes('nomor')) && (c.includes('sk') || c.includes('piagam') || c.includes('keppres') || c.includes('surat'))) { colMap['nomorSk'] = idx; matchCount++; }
+        else if ((c.includes('tgl') || c.includes('tanggal')) && (c.includes('sk') || c.includes('piagam') || c.includes('keppres'))) { colMap['tanggalSk'] = idx; matchCount++; }
+        else if (c.includes('ket') || c.includes('keterangan') || c.includes('catatan')) { colMap['keterangan'] = idx; matchCount++; }
       }
     });
 
@@ -1408,6 +1536,26 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
             statusPerkawinan,
             keteranganTunjangan
           });
+        } else if (activeCategory === 'penghargaan') {
+          const namaPenghargaan = (dynamicColMap['namaPenghargaan'] !== undefined && cols[dynamicColMap['namaPenghargaan']]) || cols[0] || '';
+          const tahun = (dynamicColMap['tahun'] !== undefined && cols[dynamicColMap['tahun']]) || cols[1] || '';
+          const pemberiPenghargaan = (dynamicColMap['pemberiPenghargaan'] !== undefined && cols[dynamicColMap['pemberiPenghargaan']]) || cols[2] || 'Presiden Republik Indonesia';
+          const jenisPenghargaan = (dynamicColMap['jenisPenghargaan'] !== undefined && cols[dynamicColMap['jenisPenghargaan']]) || cols[3] || 'Tanda Kehormatan RI';
+          const nomorSk = (dynamicColMap['nomorSk'] !== undefined && cols[dynamicColMap['nomorSk']]) || cols[4] || '-';
+          const tanggalSk = (dynamicColMap['tanggalSk'] !== undefined && cols[dynamicColMap['tanggalSk']]) || cols[5] || '';
+          const keterangan = (dynamicColMap['keterangan'] !== undefined && cols[dynamicColMap['keterangan']]) || cols[6] || '';
+
+          if (namaPenghargaan && namaPenghargaan !== '-') {
+            results.push({
+              namaPenghargaan,
+              tahun,
+              pemberiPenghargaan,
+              jenisPenghargaan,
+              nomorSk,
+              tanggalSk: parseDateToYYYYMMDD(tanggalSk) || tanggalSk,
+              keterangan
+            });
+          }
         }
       }
     }
@@ -1658,6 +1806,33 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
           keteranganTunjangan: r[8] || 'Dapat Tunjangan'
         });
       }
+    } else if (activeCategory === 'penghargaan') {
+      const startIndices: number[] = [];
+      for (let k = 0; k < contentLines.length; k++) {
+        const cur = contentLines[k].trim();
+        const isYear = /^(19|20)\d{2}$/.test(cur);
+        const isAwardKeyword = /^(SATYA\s*L[AE]NCANA|BINTANG|PENGHARGAAN|PIAGAM|TANDA\s*KEHORMATAN|MEDALI)/i.test(cur);
+        
+        if (k === 0) {
+          startIndices.push(0);
+        } else if (isYear) {
+          startIndices.push(k);
+        } else if (isAwardKeyword) {
+          const prev = contentLines[k - 1].trim();
+          if (!/^(19|20)\d{2}$/.test(prev)) {
+            startIndices.push(k);
+          }
+        }
+      }
+      for (let i = 0; i < startIndices.length; i++) {
+        const sIdx = startIndices[i];
+        const eIdx = i + 1 < startIndices.length ? startIndices[i + 1] : contentLines.length;
+        const rawSlice = contentLines.slice(sIdx, eIdx);
+        const parsed = parsePenghargaanBlock(rawSlice, dateRe);
+        if (parsed && (parsed.namaPenghargaan || parsed.nomorSk !== '-')) {
+          results.push(parsed);
+        }
+      }
     }
 
     // =========================================================================
@@ -1864,6 +2039,16 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
               statusPerkawinan: c[7] || 'Belum Kawin',
               keteranganTunjangan: c[8] || 'Dapat Tunjangan'
             });
+          } else if (activeCategory === 'penghargaan') {
+            results.push({
+              namaPenghargaan: c[0] || '',
+              tahun: c[1] || '',
+              pemberiPenghargaan: c[2] || 'Presiden Republik Indonesia',
+              jenisPenghargaan: c[3] || 'Tanda Kehormatan RI',
+              nomorSk: c[4] || '-',
+              tanggalSk: parseDateToYYYYMMDD(c[5]) || c[5] || '',
+              keterangan: c[6] || ''
+            });
           }
         }
       }
@@ -1968,6 +2153,16 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
           tanggalSertifikat: parseDateToYYYYMMDD(kvMap.tanggalsertifikat || kvMap.tglsttpp || ''),
           prestasi: kvMap.prestasi || kvMap.predikat || '-'
         });
+      } else if (activeCategory === 'penghargaan' && (kvMap.namapenghargaan || kvMap.penghargaan || kvMap.tandajasa || kvMap.kehormatan || kvMap.nomorsk || kvMap.nosk || kvMap.tahun)) {
+        results.push({
+          namaPenghargaan: kvMap.namapenghargaan || kvMap.penghargaan || kvMap.tandajasa || kvMap.kehormatan || 'Penghargaan',
+          tahun: kvMap.tahun || kvMap.thn || new Date().getFullYear().toString(),
+          pemberiPenghargaan: kvMap.pemberipenghargaan || kvMap.pemberi || 'Presiden Republik Indonesia',
+          jenisPenghargaan: kvMap.jenispenghargaan || kvMap.jenis || 'Tanda Kehormatan RI',
+          nomorSk: kvMap.nomorsk || kvMap.nosk || kvMap.keppres || '-',
+          tanggalSk: parseDateToYYYYMMDD(kvMap.tanggalsk || kvMap.tglsk || ''),
+          keterangan: kvMap.keterangan || kvMap.ket || ''
+        });
       }
     }
 
@@ -2045,6 +2240,10 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
       alert("Harap isi 'Nama Lengkap Anggota Keluarga' terlebih dahulu.");
       return;
     }
+    if (activeCategory === 'penghargaan' && !manualForm.namaPenghargaan) {
+      alert("Harap isi 'Nama Penghargaan' terlebih dahulu.");
+      return;
+    }
 
     const rowToSave = { ...manualForm };
     onApply(activeCategory, 'APPEND', [rowToSave]);
@@ -2108,7 +2307,7 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
 
         {/* CATEGORY SWITCHER TABS */}
         <div className="px-5 sm:px-6 pt-3 pb-2 bg-gray-50/70 border-b border-gray-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {(['jabatan', 'pangkat', 'pendidikan', 'gaji', 'pelatihan', 'keluarga'] as SimpegCategory[]).map(catKey => {
+          {(['jabatan', 'pangkat', 'pendidikan', 'gaji', 'pelatihan', 'penghargaan', 'keluarga'] as SimpegCategory[]).map(catKey => {
             const cfg = CATEGORY_CONFIG[catKey];
             const isActive = activeCategory === catKey;
             return (
@@ -2288,6 +2487,8 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
                     ? 'Teknis\tDiklat Pemeriksa Paten\tVIII\t2022\t2022-01-15\t2022-03-14\t120\tJAKARTA\tBPSDM\t000043\t2022-03-14\t-'
                     : activeCategory === 'keluarga'
                     ? 'Istri\tNAMA PASANGAN\tJAKARTA\t1985-04-14\tP\tWIRASWASTA\t3175000000000001\tKawin\tDapat Tunjangan'
+                    : activeCategory === 'penghargaan'
+                    ? '2015\nSATYA LENCANA KARYA SATYA XX (PERAK)\n55/TK/TAHUN 2015\n16/06/2015\nPresiden Republik Indonesia'
                     : 'SK-123/KP/2023\t2023-11-01\tPemeriksa Paten Ahli Madya\tDirektorat Paten, DTLST dan RD\t2023-11-01\tMenteri Hukum dan HAM\t-\t-\t-\t-'
                 }`}
                 className="w-full px-4 py-3 bg-gray-50/70 border border-gray-200 rounded-2xl text-[10px] font-mono outline-none focus:border-blue-500 focus:bg-white transition-all shadow-inner"
@@ -2837,6 +3038,94 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
                       value={manualForm.nik || ''}
                       onChange={e => setManualForm({ ...manualForm, nik: e.target.value })}
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-blue-500 focus:bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* PENGHARGAAN FORM */}
+              {activeCategory === 'penghargaan' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="md:col-span-2">
+                    <label className="block text-[9px] font-black text-gray-500 uppercase mb-1">
+                      Nama Penghargaan / Tanda Kehormatan <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: SATYA LENCANA KARYA SATYA XX (PERAK) / PENGHARGAAN LAIN"
+                      value={manualForm.namaPenghargaan || ''}
+                      onChange={e => setManualForm({ ...manualForm, namaPenghargaan: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-black text-gray-500 uppercase mb-1">Tahun Perolehan</label>
+                    <input
+                      type="number"
+                      placeholder="Contoh: 2022"
+                      value={manualForm.tahun || ''}
+                      onChange={e => setManualForm({ ...manualForm, tahun: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-black text-gray-500 uppercase mb-1">Jenis Penghargaan</label>
+                    <select
+                      value={manualForm.jenisPenghargaan || 'Tanda Kehormatan RI'}
+                      onChange={e => setManualForm({ ...manualForm, jenisPenghargaan: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-amber-500 focus:bg-white"
+                    >
+                      <option value="Tanda Kehormatan RI">Tanda Kehormatan RI (Presiden)</option>
+                      <option value="Kementerian Hukum">Kementerian Hukum</option>
+                      <option value="Direktorat Jenderal KI">Direktorat Jenderal KI</option>
+                      <option value="Instansi Pemerintah Lain">Instansi Pemerintah Lain</option>
+                      <option value="Internasional">Internasional</option>
+                      <option value="Lainnya">Lainnya</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-black text-gray-500 uppercase mb-1">Pemberi Penghargaan</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Presiden Republik Indonesia / Menteri Hukum dan HAM"
+                      value={manualForm.pemberiPenghargaan || ''}
+                      onChange={e => setManualForm({ ...manualForm, pemberiPenghargaan: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-black text-gray-500 uppercase mb-1">Nomor SK / Keppres / Piagam</label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 55/TK/TAHUN 2015"
+                      value={manualForm.nomorSk || ''}
+                      onChange={e => setManualForm({ ...manualForm, nomorSk: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[9px] font-black text-gray-500 uppercase mb-1">Tanggal SK / Piagam</label>
+                    <input
+                      type="date"
+                      value={manualForm.tanggalSk || ''}
+                      onChange={e => setManualForm({ ...manualForm, tanggalSk: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-[9px] font-black text-gray-500 uppercase mb-1">Keterangan / Uraian</label>
+                    <input
+                      type="text"
+                      placeholder="Catatan / Uraian Penghargaan"
+                      value={manualForm.keterangan || ''}
+                      onChange={e => setManualForm({ ...manualForm, keterangan: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-amber-500 focus:bg-white"
                     />
                   </div>
                 </div>

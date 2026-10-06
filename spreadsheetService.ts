@@ -59,7 +59,7 @@ export const EXPECTED_COLUMNS_SCHEMA = {
     'MASA KERJA', 'MASA KERJA GOLONGAN', 'STATUS PERKAWINAN',
     'FOTO', 'BUP', 'USIA', 'TGL PENSIUN', 'TMT PENSIUN', 'TMT PENSIUN DISPLAY', 'SISA MASA KERJA',
     'KETERANGAN PENSIUN', 'USIA PENSIUN', 'MASA KERJA PENSIUN', 'GAJI POKOK', 'RIWAYAT PENDIDIKAN',
-    'RIWAYAT JABATAN', 'RIWAYAT PANGKAT', 'RIWAYAT GAJI', 'RIWAYAT PELATIHAN', 'KELUARGA'
+    'RIWAYAT JABATAN', 'RIWAYAT PANGKAT', 'RIWAYAT GAJI', 'RIWAYAT PELATIHAN', 'RIWAYAT PENGHARGAAN', 'KELUARGA'
   ],
   DOSSIER: ['ID', 'NIP', 'NAMAPEGAWAI', 'FILENAME', 'FILEURL'],
   SKP: ['ID', 'NIP', 'NAMAPEGAWAI', 'TAHUN', 'PREDIKATKINERJA'],
@@ -1026,6 +1026,7 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       riwayatPangkat: getJson('RIWAYATPANGKAT'),
       riwayatGaji: getJson('RIWAYATGAJI'),
       riwayatPelatihan: getJson('RIWAYATPELATIHAN'),
+      riwayatPenghargaan: getJson('RIWAYATPENGHARGAAN'),
       keluarga: getJson('KELUARGA')
     } as Pegawai;
 

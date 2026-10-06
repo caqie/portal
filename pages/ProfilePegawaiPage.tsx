@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Pegawai, RiwayatPendidikan, RiwayatJabatan, RiwayatPangkat, RiwayatPelatihan, RiwayatGaji, Keluarga, Dossier } from '../types';
+import { Pegawai, RiwayatPendidikan, RiwayatJabatan, RiwayatPangkat, RiwayatPelatihan, RiwayatGaji, RiwayatPenghargaan, Keluarga, Dossier } from '../types';
 import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, parseDateToYYYYMMDD } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
@@ -10,19 +10,510 @@ import SuccessModal from '../components/SuccessModal';
 import AutocompleteInput from '../components/AutocompleteInput';
 import SimpegImportModal, { SimpegCategory } from '../components/SimpegImportModal';
 import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
-import { ANDRIEANSJAH_JABATAN_DATA, ANDRIEANSJAH_PELATIHAN_DATA, ANDRIEANSJAH_PANGKAT_DATA, ANDRIEANSJAH_PENDIDIKAN_DATA, TESSA_HARUMDILA_JABATAN_DATA, YASMON_PENDIDIKAN_DATA } from '../data/simpegData';
+import { ANDRIEANSJAH_JABATAN_DATA, ANDRIEANSJAH_PELATIHAN_DATA, ANDRIEANSJAH_PANGKAT_DATA, ANDRIEANSJAH_PENDIDIKAN_DATA, ANDRIEANSJAH_PENGHARGAAN_DATA, TESSA_HARUMDILA_JABATAN_DATA, YASMON_PENDIDIKAN_DATA, SIMPEG_PENGHARGAAN_DATA } from '../data/simpegData';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
 import { jsPDF } from 'jspdf';
 
+// Pure helper functions for instantaneous cache lookup and data enrichment
+const findTargetPegawai = (pData: Pegawai[], nipParam?: string, currentUser?: any): Pegawai | undefined => {
+  const cleanParamNip = (nipParam || '').replace(/\D/g, '');
+  const cleanUserNip = (currentUser?.nip || '').replace(/\D/g, '');
+  const isGenericProfile = !cleanParamNip || nipParam === 'profile' || nipParam === 'me' || nipParam === 'data-diri';
+
+  let found: Pegawai | undefined;
+
+  if (isGenericProfile) {
+    if (cleanUserNip) {
+      found = pData.find(p => (p.nip || '').replace(/\D/g, '') === cleanUserNip);
+    }
+    if (!found && currentUser?.name) {
+      found = pData.find(p => (p.nama || '').toLowerCase().trim() === currentUser.name.toLowerCase().trim());
+    }
+    if (!found && currentUser?.name) {
+      found = pData.find(p => (p.nama || '').toLowerCase().includes(currentUser.name.toLowerCase().trim()));
+    }
+    if (!found && pData.length > 0) {
+      found = pData[0];
+    }
+  } else {
+    found = pData.find(p => (p.nip || '').replace(/\D/g, '') === cleanParamNip);
+    if (!found && cleanUserNip && cleanParamNip === cleanUserNip && currentUser?.name) {
+      found = pData.find(p => (p.nama || '').toLowerCase().includes(currentUser.name.toLowerCase().trim()));
+    }
+  }
+
+  return found;
+};
+
+const enrichPegawaiData = (found: Pegawai): Pegawai => {
+  // Enrich data & sanitize accidental headers
+  let sanitizedPelatihan = (found.riwayatPelatihan || []).filter(item => {
+    const np = (item.namaPelatihan || '').trim().toUpperCase();
+    const jd = (item.jenisDiklat || '').trim().toUpperCase();
+    const py = (item.penyelenggara || '').trim().toUpperCase();
+    if (np === 'ANGKATAN' || jd === 'JENIS DIKLAT' || py === 'NO. STTPP' || np.includes('JENIS DIKLAT')) {
+      return false;
+    }
+    return true;
+  });
+
+  if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+    const isCorrupted = sanitizedPelatihan.some(p => 
+      (p.penyelenggara || '').includes('09-0006') || 
+      (p.penyelenggara || '').includes('1.054') ||
+      (p.tahun || '').includes('/') ||
+      (p.namaPelatihan || '').toUpperCase() === 'VI' ||
+      (p.namaPelatihan || '').toUpperCase() === 'CXLV'
+    );
+    if (isCorrupted || sanitizedPelatihan.length === 0) {
+      sanitizedPelatihan = ANDRIEANSJAH_PELATIHAN_DATA;
+    }
+  }
+
+  // Sanitize & auto-heal riwayatJabatan columns (detect shifted TMT in unitKerja and Eselon in pejabatPenetap)
+  let sanitizedJabatan = (found.riwayatJabatan || []).map(j => {
+    const item = { ...j };
+    const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
+    const eselonPattern = /^(I|II|III|IV)\.[a-e]$/i;
+
+    // If unitKerja contains a date and tmtJabatan is empty or '-'
+    if (datePattern.test((item.unitKerja || '').trim()) && (!item.tmtJabatan || item.tmtJabatan === '-')) {
+      item.tmtJabatan = parseDateToYYYYMMDD(item.unitKerja) || item.unitKerja;
+      item.unitKerja = '';
+    }
+
+    // If pejabatPenetap was accidentally assigned an eselon (e.g. IV.a, III.a, II.b)
+    if (eselonPattern.test((item.pejabatPenetap || '').trim())) {
+      if (!item.eselon || item.eselon === '-') {
+        item.eselon = item.pejabatPenetap;
+      }
+      item.pejabatPenetap = 'Menteri Hukum dan Hak Asasi Manusia';
+    }
+
+    // Ensure unitKerja is accurate
+    const upName = (item.namaJabatan || '').toUpperCase();
+    const upUnit = (item.unitKerja || '').toUpperCase();
+    if (
+      !item.unitKerja || 
+      upUnit === 'DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL' || 
+      upUnit === '-' ||
+      upUnit.includes('KP.') ||
+      /^\d{2}[-/]\d{2}[-/]\d{4}$/.test(upUnit)
+    ) {
+      if (upName.includes('JAKARTA BARAT') || upName.includes('NON TPI JAKARTA')) {
+        item.unitKerja = 'DKI JAKARTA - KANIM KELAS I KHUSUS NON TPI JAKARTA BARAT';
+      } else if (upName.includes('BATAM') || upName.includes('TPI BATAM')) {
+        item.unitKerja = 'KEPULAUAN RIAU - KANIM KELAS I KHUSUS TPI BATAM - BIDANG TEKNOLOGI INFORMASI DAN KOMUNIKASI KEIMIGRASIAN';
+      } else if (upName.includes('ATASE IMIGRASI')) {
+        item.unitKerja = 'Direktorat Jenderal Imigrasi';
+      } else if (upName.includes('BANTEN')) {
+        item.unitKerja = 'BANTEN - KANWIL KEMENTERIAN HUKUM DAN HAM BANTEN - DIVISI KEIMIGRASIAN - BIDANG INTELIJEN DAN PENINDAKAN KEIMIGRASIAN';
+      } else if (upName.includes('KEPROTOKOLAN BIRO UMUM') || (upName.includes('PROTOKOL') && upName.includes('BIRO UMUM'))) {
+        if (upName.includes('SUBBAGIAN') || upName.includes('KASUBBAG')) {
+          item.unitKerja = 'SEKRETARIAT JENDERAL - BIRO UMUM - BAGIAN PROTOKOL DAN PENGAMANAN - SUBBAGIAN KEPROTOKOLAN';
+        } else {
+          item.unitKerja = 'SEKRETARIAT JENDERAL - BIRO UMUM - BAGIAN PROTOKOL DAN PENGAMANAN';
+        }
+      } else if (upName.includes('DIVISI PERATURAN PERUNDANG-UNDANGAN')) {
+        item.unitKerja = 'Kementerian Hukum - Kantor Wilayah Kementerian Hukum Daerah Khusus Jakarta - Divisi Peraturan Perundang-undangan dan Pembinaan Hukum';
+      } else if (upName.includes('SEKRETARIS DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL')) {
+        item.unitKerja = 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+      } else if (upName.includes('DITJEN HKI') || upName.includes('HAK KEKAYAAN')) {
+        item.unitKerja = 'Direktorat Jenderal Hak Kekayaan Intelektual';
+      } else if (upName.includes('BENGKULU')) {
+        item.unitKerja = 'Kanwil Kemenkumham Bengkulu';
+      } else if (upName.includes('JAWA BARAT')) {
+        item.unitKerja = 'Kanwil Kemenkumham Jawa Barat';
+      } else if (!item.unitKerja || item.unitKerja === '-') {
+        item.unitKerja = 'Direktorat Jenderal Kekayaan Intelektual';
+      }
+    }
+
+    return item;
+  });
+
+  let jabatanWasRepaired = false;
+  if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+    const isCorrupted = sanitizedJabatan.some(j => 
+      !j.tmtJabatan || 
+      j.tmtJabatan === '-' || 
+      /^\d{2}[-/]\d{2}[-/]\d{4}$/.test((j.unitKerja || '').trim()) ||
+      /^(I|II|III|IV)\.[a-e]$/i.test((j.pejabatPenetap || '').trim())
+    );
+    if (isCorrupted || sanitizedJabatan.length < 10) {
+      sanitizedJabatan = ANDRIEANSJAH_JABATAN_DATA;
+      jabatanWasRepaired = true;
+    }
+  } else if (found.nama.toUpperCase().includes('TESSA') || found.nama.toUpperCase().includes('HARUMDILA')) {
+    const isWrongUnit = sanitizedJabatan.some(j => {
+      const uj = (j.namaJabatan || '').toUpperCase();
+      return (uj.includes('JAKARTA BARAT') || uj.includes('BATAM')) && (j.unitKerja || '').toUpperCase().includes('KEKAYAAN INTELEKTUAL');
+    });
+    if (isWrongUnit || sanitizedJabatan.length < 8) {
+      sanitizedJabatan = TESSA_HARUMDILA_JABATAN_DATA;
+      jabatanWasRepaired = true;
+    }
+  }
+
+  // Sanitize & auto-heal riwayatPangkat columns (detect shifted TMT in pangkat, No SK in tmtPangkat, etc.)
+  let pangkatWasRepaired = false;
+  let sanitizedPangkat = (found.riwayatPangkat || []).map(p => {
+    const item = { ...p };
+    const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
+    
+    const isPangkatDate = datePattern.test((item.pangkat || '').trim());
+    const isTmtPangkatSk = (item.tmtPangkat || '').includes('KP') || (item.tmtPangkat || '').includes('TAHUN') || (item.tmtPangkat || '').includes('/');
+
+    if (isPangkatDate || isTmtPangkatSk) {
+      pangkatWasRepaired = true;
+      const actualTmtPangkat = isPangkatDate ? item.pangkat : '';
+      const actualNomorSk = item.tmtPangkat;
+      const actualTanggalSk = item.nomorSk;
+      const actualPejabat = item.tanggalSk && !datePattern.test(item.tanggalSk) ? item.tanggalSk : (item.pejabatPenetap || 'Direktur Jenderal Hak Kekayaan Intelektual');
+
+      item.tmtPangkat = actualTmtPangkat ? (parseDateToYYYYMMDD(actualTmtPangkat) || actualTmtPangkat) : item.tmtPangkat;
+      item.nomorSk = actualNomorSk;
+      item.tanggalSk = actualTanggalSk ? (parseDateToYYYYMMDD(actualTanggalSk) || actualTanggalSk) : item.tanggalSk;
+      item.pejabatPenetap = actualPejabat;
+      item.pangkat = getPangkatFromGol(item.golRuang) || 'Penata Muda';
+    }
+
+    if (!item.pangkat || item.pangkat === '-' || datePattern.test(item.pangkat)) {
+      item.pangkat = getPangkatFromGol(item.golRuang) || 'Penata Muda';
+      pangkatWasRepaired = true;
+    }
+
+    return item;
+  });
+
+  if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+    if (!sanitizedPangkat || sanitizedPangkat.length < 8) {
+      sanitizedPangkat = ANDRIEANSJAH_PANGKAT_DATA;
+      pangkatWasRepaired = true;
+    }
+  }
+
+  // Sanitize & auto-heal riwayatPendidikan
+  let pendidikanWasRepaired = false;
+  let sanitizedPendidikan = [...(found.riwayatPendidikan || [])];
+  if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+    const isPendidikanCorrupted = sanitizedPendidikan.some(p => 
+      /^\d{2}[-/]\d{2}[-/]\d{4}$/.test((p.tahunLulus || '').trim()) ||
+      ((p.institusi === '-' || !p.institusi) && p.jurusan && p.jurusan.toUpperCase().includes('HUKUM'))
+    );
+    if (isPendidikanCorrupted || sanitizedPendidikan.length < 7) {
+      sanitizedPendidikan = ANDRIEANSJAH_PENDIDIKAN_DATA;
+      pendidikanWasRepaired = true;
+    }
+  } else if (found.nama.toUpperCase().includes('YASMON')) {
+    const isYasmonCorrupted = sanitizedPendidikan.length !== 5 || sanitizedPendidikan.some(p => 
+      (p.institusi || '').toUpperCase().includes('NURSAL SALEH') ||
+      (p.institusi || '').toUpperCase().includes('ANIZAR') ||
+      (p.institusi || '').toUpperCase().includes('JURNALIS KAMIL') ||
+      (p.institusi || '').toUpperCase().includes('BLAKE') ||
+      (p.institusi || '').toUpperCase().includes('NAZIR BUSTAMI') ||
+      (p.institusi || '').length > 40 ||
+      (p.nomorIjazah || '').length > 35
+    );
+    if (isYasmonCorrupted || sanitizedPendidikan.length === 0) {
+      sanitizedPendidikan = YASMON_PENDIDIKAN_DATA;
+      pendidikanWasRepaired = true;
+    }
+  } else {
+    sanitizedPendidikan = sanitizedPendidikan.map(p => {
+      const clone = { ...p };
+      const dateRegex = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
+      if (dateRegex.test((clone.tahunLulus || '').trim())) {
+        const dt = parseDateToYYYYMMDD(clone.tahunLulus) || clone.tahunLulus;
+        clone.tanggalIjazah = clone.tanggalIjazah || dt;
+        clone.tahunLulus = dt.slice(0, 4);
+        pendidikanWasRepaired = true;
+      }
+      if ((!clone.institusi || clone.institusi === '-') && clone.namaSekolah && clone.namaSekolah !== '-') {
+        clone.institusi = clone.namaSekolah;
+        pendidikanWasRepaired = true;
+      } else if ((!clone.namaSekolah || clone.namaSekolah === '-') && clone.institusi && clone.institusi !== '-') {
+        clone.namaSekolah = clone.institusi;
+        pendidikanWasRepaired = true;
+      }
+      return clone;
+    });
+  }
+
+  // Sanitize corrupted identity/kepegawaian fields
+  const isDatePatternOrIso = (val?: string) => {
+    if (!val) return false;
+    const s = val.trim();
+    return s.includes('T') || /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(s);
+  };
+  const eselonPattern = /^(I|II|III|IV)\.[a-e]$/i;
+
+  let identitasRepaired = false;
+  const cloned = { ...found };
+
+  if (cloned.eselon && (isDatePatternOrIso(cloned.eselon) || !eselonPattern.test(cloned.eselon.trim()))) {
+    cloned.eselon = '-';
+    identitasRepaired = true;
+  }
+
+  if (isDatePatternOrIso(cloned.unitKerja)) {
+    cloned.unitKerja = 'Direktorat Jenderal Kekayaan Intelektual';
+    identitasRepaired = true;
+  }
+
+  if (cloned.tmtJabatan && !parseDateToYYYYMMDD(cloned.tmtJabatan)) {
+    cloned.tmtJabatan = '';
+    identitasRepaired = true;
+  }
+
+  if (cloned.tmtPangkat && (cloned.tmtPangkat.includes('KP.') || cloned.tmtPangkat.includes('TAHUN') || cloned.tmtPangkat.length > 15)) {
+    cloned.tmtPangkat = '';
+    identitasRepaired = true;
+  }
+
+  if (cloned.nama.toUpperCase().includes('ANDRIEANSJAH')) {
+    const isShiftedOldJabatan = !cloned.jabatan || 
+      cloned.jabatan.toUpperCase().includes('KERJA SAMA LUAR NEGERI') || 
+      cloned.jabatan.toUpperCase().includes('KLASIFIKASI') ||
+      cloned.jabatan.toUpperCase().includes('REGIONAL');
+
+    if (isShiftedOldJabatan) {
+      cloned.jabatan = 'Direktur Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+      cloned.unitKerja = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+      cloned.bagian = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+      cloned.subBagian = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+      cloned.eselon = 'II.a';
+      cloned.tmtJabatan = '2026-01-08';
+      cloned.jenisJabatan = 'Pimpinan Tinggi';
+      cloned.klasifikasiJabatan = 'JPT';
+      identitasRepaired = true;
+    }
+
+    if (!cloned.eselon || cloned.eselon === '-' || isDatePatternOrIso(cloned.eselon)) {
+      cloned.eselon = 'II.a';
+      identitasRepaired = true;
+    }
+    if (!cloned.tmtJabatan || !parseDateToYYYYMMDD(cloned.tmtJabatan)) {
+      cloned.tmtJabatan = '2026-01-08';
+      identitasRepaired = true;
+    }
+    if (!cloned.pangkat || cloned.pangkat === '-') {
+      cloned.pangkat = 'Pembina Utama Muda';
+      identitasRepaired = true;
+    }
+    if (!cloned.golRuang || cloned.golRuang === '-') {
+      cloned.golRuang = 'IV/c';
+      identitasRepaired = true;
+    }
+    if (!cloned.tmtPangkat || !parseDateToYYYYMMDD(cloned.tmtPangkat) || cloned.tmtPangkat === '2019-10-01' || cloned.tmtPangkat === '2019-04-01') {
+      cloned.tmtPangkat = '2024-04-01';
+      identitasRepaired = true;
+    }
+    if (!cloned.unitKerja || isDatePatternOrIso(cloned.unitKerja)) {
+      cloned.unitKerja = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
+      identitasRepaired = true;
+    }
+    const currentCpns = parseDateToYYYYMMDD(cloned.tmtCpns);
+    if (currentCpns !== '2000-03-01') {
+      cloned.tmtCpns = '2000-03-01';
+      identitasRepaired = true;
+    }
+  }
+
+  if (cloned.nama.toUpperCase().includes('TESSA') || cloned.nama.toUpperCase().includes('HARUMDILA')) {
+    cloned.jabatan = 'Sekretaris Direktorat Jenderal Kekayaan Intelektual';
+    cloned.unitKerja = 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+    cloned.bagian = 'Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+    cloned.subBagian = 'Sekretariat Direktorat Jenderal Kekayaan Intelektual';
+    cloned.eselon = 'II.a';
+    cloned.tmtJabatan = '2026-01-08';
+    cloned.pangkat = 'Pembina Tingkat I';
+    cloned.golRuang = 'IV/b';
+    cloned.statusPegawai = 'Aktif';
+    cloned.jenisJabatan = 'Pimpinan Tinggi';
+    cloned.klasifikasiJabatan = 'JPT';
+    identitasRepaired = true;
+  }
+
+  const cleanNip = (cloned.nip || '').replace(/\D/g, '');
+  if (cleanNip.length === 18 && (cloned.jenisPegawai === 'PNS' || !cloned.jenisPegawai)) {
+    const cpnsYear = cleanNip.slice(8, 12);
+    const cpnsMonth = cleanNip.slice(12, 14);
+    const officialTmtCpns = `${cpnsYear}-${cpnsMonth}-01`;
+    const currentTmt = parseDateToYYYYMMDD(cloned.tmtCpns);
+    if (currentTmt !== officialTmtCpns) {
+      cloned.tmtCpns = officialTmtCpns;
+      identitasRepaired = true;
+    }
+  }
+
+  if (jabatanWasRepaired || identitasRepaired || pangkatWasRepaired || pendidikanWasRepaired) {
+    try {
+      ['portal_pegawai_db', 'portal_sdm_pegawai_db'].forEach(key => {
+        const rawDb = localStorage.getItem(key);
+        if (rawDb) {
+          const allPeg = JSON.parse(rawDb);
+          const pIdx = allPeg.findIndex((p: any) => p.id === cloned.id || (p.nip && p.nip === cloned.nip));
+          if (pIdx >= 0) {
+            if (jabatanWasRepaired) allPeg[pIdx].riwayatJabatan = sanitizedJabatan;
+            if (pangkatWasRepaired) allPeg[pIdx].riwayatPangkat = sanitizedPangkat;
+            if (pendidikanWasRepaired) allPeg[pIdx].riwayatPendidikan = sanitizedPendidikan;
+            if (identitasRepaired) {
+              allPeg[pIdx] = { ...allPeg[pIdx], ...cloned };
+            }
+            localStorage.setItem(key, JSON.stringify(allPeg));
+          }
+        }
+      });
+    } catch (e) {}
+  }
+
+  const enriched: Pegawai = {
+    ...cloned,
+    riwayatPendidikan: sanitizedPendidikan,
+    riwayatJabatan: sanitizedJabatan,
+    riwayatPangkat: sanitizedPangkat,
+    riwayatGaji: cloned.riwayatGaji || [],
+    riwayatPelatihan: sanitizedPelatihan,
+    riwayatPenghargaan: cloned.riwayatPenghargaan || [],
+    keluarga: cloned.keluarga || []
+  };
+
+  const getDiffYMD = (dateStr: string) => {
+    if (!dateStr) return null;
+    const start = new Date(dateStr);
+    if (isNaN(start.getTime())) return null;
+    const today = new Date();
+    let years = today.getFullYear() - start.getFullYear();
+    let months = today.getMonth() - start.getMonth();
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+    return { years, months };
+  };
+
+  if ((!enriched.usia || enriched.usia === '-') && enriched.tanggalLahir) {
+    const diff = getDiffYMD(parseDateToYYYYMMDD(enriched.tanggalLahir));
+    if (diff) enriched.usia = `${diff.years} Thn ${diff.months} Bln`;
+  }
+
+  if ((!enriched.masaKerjaGolongan || enriched.masaKerjaGolongan === '-') && enriched.tmtPangkat) {
+    const diff = getDiffYMD(parseDateToYYYYMMDD(enriched.tmtPangkat));
+    if (diff) enriched.masaKerjaGolongan = `${diff.years} Thn ${diff.months} Bln`;
+  }
+
+  if ((!enriched.masaKerjaPensiun || enriched.masaKerjaPensiun === '-') && enriched.tmtCpns) {
+    const diff = getDiffYMD(parseDateToYYYYMMDD(enriched.tmtCpns));
+    if (diff) enriched.masaKerjaPensiun = `${diff.years} Thn ${diff.months} Bln`;
+  }
+
+  if (!enriched.jenisJabatan || enriched.jenisJabatan === '-') {
+    enriched.jenisJabatan = getJabatanClassification(enriched);
+  }
+  if (!enriched.klasifikasiJabatan || enriched.klasifikasiJabatan === '-') {
+    enriched.klasifikasiJabatan = enriched.jenisJabatan;
+  }
+
+  if (!enriched.bup || enriched.bup === '-') {
+    const isHighLevel = enriched.eselon && enriched.eselon !== '-' && enriched.eselon !== '';
+    const isFungsionalAhli = enriched.jabatan?.toUpperCase().includes('MADYA') || enriched.jabatan?.toUpperCase().includes('UTAMA');
+    enriched.bup = (isHighLevel || isFungsionalAhli) ? '60' : '58';
+  }
+  
+  if (!enriched.usiaPensiun || enriched.usiaPensiun === '-') {
+    enriched.usiaPensiun = enriched.bup;
+  }
+
+  if (enriched.tanggalLahir && enriched.bup) {
+    try {
+      const birth = new Date(parseDateToYYYYMMDD(enriched.tanggalLahir));
+      if (!isNaN(birth.getTime())) {
+        const bupYears = parseInt(enriched.bup);
+        const retirementDate = new Date(birth.getFullYear() + bupYears, birth.getMonth() + 1, 1);
+        
+        if (!enriched.tglPensiun || enriched.tglPensiun === '-') {
+          enriched.tglPensiun = retirementDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        }
+        
+        if (!enriched.tmtPensiun || enriched.tmtPensiun === '-') {
+          enriched.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
+        }
+        
+        const today = new Date();
+        let checkDate = retirementDate;
+        if (enriched.tmtPensiun && enriched.tmtPensiun !== '-') {
+          const tmtDate = new Date(parseDateToYYYYMMDD(enriched.tmtPensiun));
+          if (!isNaN(tmtDate.getTime())) {
+            checkDate = tmtDate;
+          }
+        }
+
+        let diffYears = checkDate.getFullYear() - today.getFullYear();
+        let diffMonths = checkDate.getMonth() - today.getMonth();
+        if (diffMonths < 0) {
+          diffYears--;
+          diffMonths += 12;
+        }
+        
+        if (diffYears >= 0 && (diffYears > 0 || diffMonths >= 0)) {
+          enriched.sisaMasaKerja = `${diffYears} Thn ${diffMonths} Bln`;
+        } else {
+          enriched.sisaMasaKerja = 'Pensiun';
+        }
+      }
+    } catch (e) {}
+  }
+
+  return enriched;
+};
+
 const ProfilePegawaiPage = () => {
   const { nip } = useParams<{ nip: string }>();
   const navigate = useNavigate();
   const { logActivity, canEdit, isSuperadmin, user, isUserPortalView } = useAuth();
-  const [pegawai, setPegawai] = useState<Pegawai | null>(null);
-  const [dossiers, setDossiers] = useState<Dossier[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Instant Cache Initialization (0ms profile render!)
+  const [pegawai, setPegawai] = useState<Pegawai | null>(() => {
+    try {
+      const rawP = localStorage.getItem('portal_pegawai_db') || localStorage.getItem('portal_sdm_pegawai_db');
+      if (rawP) {
+        const pList: Pegawai[] = JSON.parse(rawP);
+        const match = findTargetPegawai(pList, nip, user);
+        if (match) {
+          return enrichPegawaiData(match);
+        }
+      }
+    } catch (e) {}
+    return null;
+  });
+
+  const [dossiers, setDossiers] = useState<Dossier[]>(() => {
+    try {
+      const rawD = localStorage.getItem('portal_dossiers_db');
+      const cleanParam = (nip || '').replace(/\D/g, '');
+      if (rawD && cleanParam) {
+        const allD: Dossier[] = JSON.parse(rawD);
+        return allD.filter(d => (d.nip || '').replace(/\D/g, '') === cleanParam)
+          .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  const [loading, setLoading] = useState<boolean>(() => {
+    try {
+      const rawP = localStorage.getItem('portal_pegawai_db') || localStorage.getItem('portal_sdm_pegawai_db');
+      if (rawP) {
+        const pList: Pegawai[] = JSON.parse(rawP);
+        const match = findTargetPegawai(pList, nip, user);
+        if (match) return false;
+      }
+    } catch (e) {}
+    return true;
+  });
   const [syncing, setSyncing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -31,7 +522,7 @@ const ProfilePegawaiPage = () => {
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [tempPhotoFile, setTempPhotoFile] = useState<File | null>(null);
   const [tempPhotoPreview, setTempPhotoPreview] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'identitas' | 'keluarga' | 'pendidikan' | 'jabatan' | 'pangkat' | 'gaji' | 'pelatihan' | 'dossier'>('identitas');
+  const [activeTab, setActiveTab] = useState<'identitas' | 'keluarga' | 'pendidikan' | 'jabatan' | 'pangkat' | 'gaji' | 'pelatihan' | 'penghargaan' | 'dossier'>('identitas');
   
   const [isEditing, setIsEditing] = useState(false);
   const [jabatanViewMode, setJabatanViewMode] = useState<'table' | 'card'>('table');
@@ -39,6 +530,7 @@ const ProfilePegawaiPage = () => {
   const [pendidikanViewMode, setPendidikanViewMode] = useState<'table' | 'card'>('table');
   const [gajiViewMode, setGajiViewMode] = useState<'table' | 'card'>('table');
   const [pelatihanViewMode, setPelatihanViewMode] = useState<'table' | 'card'>('table');
+  const [penghargaanViewMode, setPenghargaanViewMode] = useState<'table' | 'card'>('table');
   const [keluargaViewMode, setKeluargaViewMode] = useState<'table' | 'card'>('table');
   
   const [isSimpegImportOpen, setIsSimpegImportOpen] = useState(false);
@@ -70,491 +562,51 @@ const ProfilePegawaiPage = () => {
     return dateStr;
   };
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (forceNetwork = false) => {
+    // 1. Instant Cache Reader: If employee data is in localStorage, render IMMEDIATELY (0ms load time)
     try {
-      const [pData, dData] = await Promise.all([
-        fetchPegawaiFromSheets(), 
-        fetchDossiersFromSheets(true)
-      ]);
-
-      const cleanParamNip = (nip || '').replace(/\D/g, '');
-      const cleanUserNip = (user?.nip || '').replace(/\D/g, '');
-      const isGenericProfile = !cleanParamNip || nip === 'profile' || nip === 'me' || nip === 'data-diri';
-
-      let found: Pegawai | undefined;
-
-      if (isGenericProfile) {
-        if (cleanUserNip) {
-          found = pData.find(p => (p.nip || '').replace(/\D/g, '') === cleanUserNip);
-        }
-        if (!found && user?.name) {
-          found = pData.find(p => (p.nama || '').toLowerCase().trim() === user.name.toLowerCase().trim());
-        }
-        if (!found && user?.name) {
-          found = pData.find(p => (p.nama || '').toLowerCase().includes(user.name.toLowerCase().trim()));
+      const rawP = localStorage.getItem('portal_pegawai_db') || localStorage.getItem('portal_sdm_pegawai_db');
+      const rawD = localStorage.getItem('portal_dossiers_db');
+      if (rawP) {
+        const pList: Pegawai[] = JSON.parse(rawP);
+        const match = findTargetPegawai(pList, nip, user);
+        if (match) {
+          const enriched = enrichPegawaiData(match);
+          setPegawai(enriched);
+          if (rawD) {
+            const allD: Dossier[] = JSON.parse(rawD);
+            const filtered = allD.filter(d => (d.nip || '').replace(/\D/g, '') === (match.nip || '').replace(/\D/g, ''))
+              .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+            setDossiers(filtered);
+          }
+          setLoading(false); // Display immediately without waiting for sheets
+        } else {
+          setLoading(true);
         }
       } else {
-        found = pData.find(p => (p.nip || '').replace(/\D/g, '') === cleanParamNip);
-        if (!found && cleanUserNip && cleanParamNip === cleanUserNip && user?.name) {
-          found = pData.find(p => (p.nama || '').toLowerCase().includes(user.name.toLowerCase().trim()));
-        }
+        setLoading(true);
       }
+    } catch (e) {
+      setLoading(true);
+    }
 
-      // Safe fallback ONLY when in generic profile route ('/profile' or '/me') and no user NIP matched
-      if (!found && pData.length > 0 && isGenericProfile) {
-        found = pData[0];
-      }
+    // 2. Background Sync (Silent): verify updates against remote Google Sheets without blocking UI
+    try {
+      const [pData, dData] = await Promise.all([
+        fetchPegawaiFromSheets(forceNetwork), 
+        fetchDossiersFromSheets(forceNetwork)
+      ]);
 
+      const found = findTargetPegawai(pData, nip, user);
       if (found) {
-        // Enrich data & sanitize accidental headers
-        let sanitizedPelatihan = (found.riwayatPelatihan || []).filter(item => {
-          const np = (item.namaPelatihan || '').trim().toUpperCase();
-          const jd = (item.jenisDiklat || '').trim().toUpperCase();
-          const py = (item.penyelenggara || '').trim().toUpperCase();
-          if (np === 'ANGKATAN' || jd === 'JENIS DIKLAT' || py === 'NO. STTPP' || np.includes('JENIS DIKLAT')) {
-            return false;
-          }
-          return true;
-        });
-
-        if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
-          const isCorrupted = sanitizedPelatihan.some(p => 
-            (p.penyelenggara || '').includes('09-0006') || 
-            (p.penyelenggara || '').includes('1.054') ||
-            (p.tahun || '').includes('/') ||
-            (p.namaPelatihan || '').toUpperCase() === 'VI' ||
-            (p.namaPelatihan || '').toUpperCase() === 'CXLV'
-          );
-          if (isCorrupted || sanitizedPelatihan.length === 0) {
-            sanitizedPelatihan = ANDRIEANSJAH_PELATIHAN_DATA;
-          }
-        }
-
-        // Sanitize & auto-heal riwayatJabatan columns (detect shifted TMT in unitKerja and Eselon in pejabatPenetap)
-        let sanitizedJabatan = (found.riwayatJabatan || []).map(j => {
-          const item = { ...j };
-          const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
-          const eselonPattern = /^(I|II|III|IV)\.[a-e]$/i;
-
-          // If unitKerja contains a date and tmtJabatan is empty or '-'
-          if (datePattern.test((item.unitKerja || '').trim()) && (!item.tmtJabatan || item.tmtJabatan === '-')) {
-            item.tmtJabatan = parseDateToYYYYMMDD(item.unitKerja) || item.unitKerja;
-            item.unitKerja = '';
-          }
-
-          // If pejabatPenetap was accidentally assigned an eselon (e.g. IV.a, III.a, II.b)
-          if (eselonPattern.test((item.pejabatPenetap || '').trim())) {
-            if (!item.eselon || item.eselon === '-') {
-              item.eselon = item.pejabatPenetap;
-            }
-            item.pejabatPenetap = 'Menteri Hukum dan Hak Asasi Manusia';
-          }
-
-          // Ensure unitKerja is accurate
-          const upName = (item.namaJabatan || '').toUpperCase();
-          const upUnit = (item.unitKerja || '').toUpperCase();
-          if (
-            !item.unitKerja || 
-            upUnit === 'DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL' || 
-            upUnit === '-' ||
-            upUnit.includes('KP.') ||
-            /^\d{2}[-/]\d{2}[-/]\d{4}$/.test(upUnit)
-          ) {
-            if (upName.includes('JAKARTA BARAT') || upName.includes('NON TPI JAKARTA')) {
-              item.unitKerja = 'DKI JAKARTA - KANIM KELAS I KHUSUS NON TPI JAKARTA BARAT';
-            } else if (upName.includes('BATAM') || upName.includes('TPI BATAM')) {
-              item.unitKerja = 'KEPULAUAN RIAU - KANIM KELAS I KHUSUS TPI BATAM - BIDANG TEKNOLOGI INFORMASI DAN KOMUNIKASI KEIMIGRASIAN';
-            } else if (upName.includes('ATASE IMIGRASI')) {
-              item.unitKerja = 'Direktorat Jenderal Imigrasi';
-            } else if (upName.includes('BANTEN')) {
-              item.unitKerja = 'BANTEN - KANWIL KEMENTERIAN HUKUM DAN HAM BANTEN - DIVISI KEIMIGRASIAN - BIDANG INTELIJEN DAN PENINDAKAN KEIMIGRASIAN';
-            } else if (upName.includes('KEPROTOKOLAN BIRO UMUM') || (upName.includes('PROTOKOL') && upName.includes('BIRO UMUM'))) {
-              if (upName.includes('SUBBAGIAN') || upName.includes('KASUBBAG')) {
-                item.unitKerja = 'SEKRETARIAT JENDERAL - BIRO UMUM - BAGIAN PROTOKOL DAN PENGAMANAN - SUBBAGIAN KEPROTOKOLAN';
-              } else {
-                item.unitKerja = 'SEKRETARIAT JENDERAL - BIRO UMUM - BAGIAN PROTOKOL DAN PENGAMANAN';
-              }
-            } else if (upName.includes('DIVISI PERATURAN PERUNDANG-UNDANGAN')) {
-              item.unitKerja = 'Kementerian Hukum - Kantor Wilayah Kementerian Hukum Daerah Khusus Jakarta - Divisi Peraturan Perundang-undangan dan Pembinaan Hukum';
-            } else if (upName.includes('SEKRETARIS DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL')) {
-              item.unitKerja = 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Sekretariat Direktorat Jenderal Kekayaan Intelektual';
-            } else if (upName.includes('DITJEN HKI') || upName.includes('HAK KEKAYAAN')) {
-              item.unitKerja = 'Direktorat Jenderal Hak Kekayaan Intelektual';
-            } else if (upName.includes('BENGKULU')) {
-              item.unitKerja = 'Kanwil Kemenkumham Bengkulu';
-            } else if (upName.includes('JAWA BARAT')) {
-              item.unitKerja = 'Kanwil Kemenkumham Jawa Barat';
-            } else if (!item.unitKerja || item.unitKerja === '-') {
-              item.unitKerja = 'Direktorat Jenderal Kekayaan Intelektual';
-            }
-          }
-
-          return item;
-        });
-
-        let jabatanWasRepaired = false;
-        if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
-          const isCorrupted = sanitizedJabatan.some(j => 
-            !j.tmtJabatan || 
-            j.tmtJabatan === '-' || 
-            /^\d{2}[-/]\d{2}[-/]\d{4}$/.test((j.unitKerja || '').trim()) ||
-            /^(I|II|III|IV)\.[a-e]$/i.test((j.pejabatPenetap || '').trim())
-          );
-          if (isCorrupted || sanitizedJabatan.length < 10) {
-            sanitizedJabatan = ANDRIEANSJAH_JABATAN_DATA;
-            jabatanWasRepaired = true;
-          }
-        } else if (found.nama.toUpperCase().includes('TESSA') || found.nama.toUpperCase().includes('HARUMDILA')) {
-          const isWrongUnit = sanitizedJabatan.some(j => {
-            const uj = (j.namaJabatan || '').toUpperCase();
-            return (uj.includes('JAKARTA BARAT') || uj.includes('BATAM')) && (j.unitKerja || '').toUpperCase().includes('KEKAYAAN INTELEKTUAL');
-          });
-          if (isWrongUnit || sanitizedJabatan.length < 8) {
-            sanitizedJabatan = TESSA_HARUMDILA_JABATAN_DATA;
-            jabatanWasRepaired = true;
-          }
-        }
-
-        // Sanitize & auto-heal riwayatPangkat columns (detect shifted TMT in pangkat, No SK in tmtPangkat, etc.)
-        let pangkatWasRepaired = false;
-        let sanitizedPangkat = (found.riwayatPangkat || []).map(p => {
-          const item = { ...p };
-          const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
-          
-          const isPangkatDate = datePattern.test((item.pangkat || '').trim());
-          const isTmtPangkatSk = (item.tmtPangkat || '').includes('KP') || (item.tmtPangkat || '').includes('TAHUN') || (item.tmtPangkat || '').includes('/');
-
-          if (isPangkatDate || isTmtPangkatSk) {
-            pangkatWasRepaired = true;
-            const actualTmtPangkat = isPangkatDate ? item.pangkat : '';
-            const actualNomorSk = item.tmtPangkat;
-            const actualTanggalSk = item.nomorSk;
-            const actualPejabat = item.tanggalSk && !datePattern.test(item.tanggalSk) ? item.tanggalSk : (item.pejabatPenetap || 'Direktur Jenderal Hak Kekayaan Intelektual');
-
-            item.tmtPangkat = actualTmtPangkat ? (parseDateToYYYYMMDD(actualTmtPangkat) || actualTmtPangkat) : item.tmtPangkat;
-            item.nomorSk = actualNomorSk;
-            item.tanggalSk = actualTanggalSk ? (parseDateToYYYYMMDD(actualTanggalSk) || actualTanggalSk) : item.tanggalSk;
-            item.pejabatPenetap = actualPejabat;
-            item.pangkat = getPangkatFromGol(item.golRuang) || 'Penata Muda';
-          }
-
-          if (!item.pangkat || item.pangkat === '-' || datePattern.test(item.pangkat)) {
-            item.pangkat = getPangkatFromGol(item.golRuang) || 'Penata Muda';
-            pangkatWasRepaired = true;
-          }
-
-          return item;
-        });
-
-        if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
-          if (!sanitizedPangkat || sanitizedPangkat.length < 8) {
-            sanitizedPangkat = ANDRIEANSJAH_PANGKAT_DATA;
-            pangkatWasRepaired = true;
-          }
-        }
-
-        if (pangkatWasRepaired) {
-          found.riwayatPangkat = sanitizedPangkat;
-        }
-
-        // Sanitize & auto-heal riwayatPendidikan
-        let pendidikanWasRepaired = false;
-        let sanitizedPendidikan = [...(found.riwayatPendidikan || [])];
-        if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
-          const isPendidikanCorrupted = sanitizedPendidikan.some(p => 
-            /^\d{2}[-/]\d{2}[-/]\d{4}$/.test((p.tahunLulus || '').trim()) ||
-            ((p.institusi === '-' || !p.institusi) && p.jurusan && p.jurusan.toUpperCase().includes('HUKUM'))
-          );
-          if (isPendidikanCorrupted || sanitizedPendidikan.length < 7) {
-            sanitizedPendidikan = ANDRIEANSJAH_PENDIDIKAN_DATA;
-            pendidikanWasRepaired = true;
-          }
-        } else if (found.nama.toUpperCase().includes('YASMON')) {
-          const isYasmonCorrupted = sanitizedPendidikan.length !== 5 || sanitizedPendidikan.some(p => 
-            (p.institusi || '').toUpperCase().includes('NURSAL SALEH') ||
-            (p.institusi || '').toUpperCase().includes('ANIZAR') ||
-            (p.institusi || '').toUpperCase().includes('JURNALIS KAMIL') ||
-            (p.institusi || '').toUpperCase().includes('BLAKE') ||
-            (p.institusi || '').toUpperCase().includes('NAZIR BUSTAMI') ||
-            (p.institusi || '').length > 40 ||
-            (p.nomorIjazah || '').length > 35
-          );
-          if (isYasmonCorrupted || sanitizedPendidikan.length === 0) {
-            sanitizedPendidikan = YASMON_PENDIDIKAN_DATA;
-            pendidikanWasRepaired = true;
-          }
-        } else {
-          sanitizedPendidikan = sanitizedPendidikan.map(p => {
-            const clone = { ...p };
-            const dateRegex = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
-            if (dateRegex.test((clone.tahunLulus || '').trim())) {
-              const dt = parseDateToYYYYMMDD(clone.tahunLulus) || clone.tahunLulus;
-              clone.tanggalIjazah = clone.tanggalIjazah || dt;
-              clone.tahunLulus = dt.slice(0, 4);
-              pendidikanWasRepaired = true;
-            }
-            if ((!clone.institusi || clone.institusi === '-') && clone.namaSekolah && clone.namaSekolah !== '-') {
-              clone.institusi = clone.namaSekolah;
-              pendidikanWasRepaired = true;
-            } else if ((!clone.namaSekolah || clone.namaSekolah === '-') && clone.institusi && clone.institusi !== '-') {
-              clone.namaSekolah = clone.institusi;
-              pendidikanWasRepaired = true;
-            }
-            return clone;
-          });
-        }
-
-        if (pendidikanWasRepaired) {
-          found.riwayatPendidikan = sanitizedPendidikan;
-        }
-
-        // Sanitize corrupted identity/kepegawaian fields caused by previous shifted imports or sorting bugs
-        const isDatePatternOrIso = (val?: string) => {
-          if (!val) return false;
-          const s = val.trim();
-          return s.includes('T') || /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(s);
-        };
-        const eselonPattern = /^(I|II|III|IV)\.[a-e]$/i;
-
-        let identitasRepaired = false;
-
-        // Clean corrupted Eselon (e.g. ISO string "2014-01-15T17:00:00.000Z")
-        if (found.eselon && (isDatePatternOrIso(found.eselon) || !eselonPattern.test(found.eselon.trim()))) {
-          found.eselon = '-';
-          identitasRepaired = true;
-        }
-
-        // Clean corrupted Unit Kerja (e.g. ISO string or date)
-        if (isDatePatternOrIso(found.unitKerja)) {
-          found.unitKerja = 'Direktorat Jenderal Kekayaan Intelektual';
-          identitasRepaired = true;
-        }
-
-        // Clean corrupted TMT Jabatan (e.g. "Sekretaris Jenderal")
-        if (found.tmtJabatan && !parseDateToYYYYMMDD(found.tmtJabatan)) {
-          found.tmtJabatan = '';
-          identitasRepaired = true;
-        }
-
-        // Clean corrupted TMT Pangkat (e.g. SK number like "SEK.2-588.KP.04.03 TAHUN 2019")
-        if (found.tmtPangkat && (found.tmtPangkat.includes('KP.') || found.tmtPangkat.includes('TAHUN') || found.tmtPangkat.length > 15)) {
-          found.tmtPangkat = '';
-          identitasRepaired = true;
-        }
-
-        // Specific verified identity restoration for Dr. ANDRIEANSJAH
-        if (found.nama.toUpperCase().includes('ANDRIEANSJAH')) {
-          const isShiftedOldJabatan = !found.jabatan || 
-            found.jabatan.toUpperCase().includes('KERJA SAMA LUAR NEGERI') || 
-            found.jabatan.toUpperCase().includes('KLASIFIKASI') ||
-            found.jabatan.toUpperCase().includes('REGIONAL');
-
-          if (isShiftedOldJabatan) {
-            found.jabatan = 'Direktur Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
-            found.unitKerja = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
-            found.bagian = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
-            found.subBagian = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
-            found.eselon = 'II.a';
-            found.tmtJabatan = '2026-01-08';
-            found.jenisJabatan = 'Pimpinan Tinggi';
-            found.klasifikasiJabatan = 'JPT';
-            identitasRepaired = true;
-          }
-
-          if (!found.eselon || found.eselon === '-' || isDatePatternOrIso(found.eselon)) {
-            found.eselon = 'II.a';
-            identitasRepaired = true;
-          }
-          if (!found.tmtJabatan || !parseDateToYYYYMMDD(found.tmtJabatan)) {
-            found.tmtJabatan = '2026-01-08';
-            identitasRepaired = true;
-          }
-          if (!found.pangkat || found.pangkat === '-') {
-            found.pangkat = 'Pembina Utama Muda';
-            identitasRepaired = true;
-          }
-          if (!found.golRuang || found.golRuang === '-') {
-            found.golRuang = 'IV/c';
-            identitasRepaired = true;
-          }
-          if (!found.tmtPangkat || !parseDateToYYYYMMDD(found.tmtPangkat) || found.tmtPangkat === '2019-10-01' || found.tmtPangkat === '2019-04-01') {
-            found.tmtPangkat = '2024-04-01';
-            identitasRepaired = true;
-          }
-          if (!found.unitKerja || isDatePatternOrIso(found.unitKerja)) {
-            found.unitKerja = 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang';
-            identitasRepaired = true;
-          }
-          // Ensure canonical TMT CPNS 01-03-2000 (1 Maret 2000)
-          const currentCpns = parseDateToYYYYMMDD(found.tmtCpns);
-          if (currentCpns !== '2000-03-01') {
-            found.tmtCpns = '2000-03-01';
-            identitasRepaired = true;
-          }
-        }
-
-        // Specific verified identity restoration for Tessa Harumdila
-        if (found.nama.toUpperCase().includes('TESSA') || found.nama.toUpperCase().includes('HARUMDILA')) {
-          found.jabatan = 'Sekretaris Direktorat Jenderal Kekayaan Intelektual';
-          found.unitKerja = 'Kementerian Hukum - Direktorat Jenderal Kekayaan Intelektual - Sekretariat Direktorat Jenderal Kekayaan Intelektual';
-          found.bagian = 'Sekretariat Direktorat Jenderal Kekayaan Intelektual';
-          found.subBagian = 'Sekretariat Direktorat Jenderal Kekayaan Intelektual';
-          found.eselon = 'II.a';
-          found.tmtJabatan = '2026-01-08';
-          found.pangkat = 'Pembina Tingkat I';
-          found.golRuang = 'IV/b';
-          found.statusPegawai = 'Aktif';
-          found.jenisJabatan = 'Pimpinan Tinggi';
-          found.klasifikasiJabatan = 'JPT';
-          identitasRepaired = true;
-        }
-
-        // Automatic NIP-based validation for all PNS TMT CPNS
-        const cleanNip = (found.nip || '').replace(/\D/g, '');
-        if (cleanNip.length === 18 && (found.jenisPegawai === 'PNS' || !found.jenisPegawai)) {
-          const cpnsYear = cleanNip.slice(8, 12);
-          const cpnsMonth = cleanNip.slice(12, 14);
-          const officialTmtCpns = `${cpnsYear}-${cpnsMonth}-01`;
-          const currentTmt = parseDateToYYYYMMDD(found.tmtCpns);
-          if (currentTmt !== officialTmtCpns) {
-            found.tmtCpns = officialTmtCpns;
-            identitasRepaired = true;
-          }
-        }
-
-        // Persist healed data back to localStorage if corrected
-        if (jabatanWasRepaired || identitasRepaired || pangkatWasRepaired || pendidikanWasRepaired) {
-          try {
-            ['portal_pegawai_db', 'portal_sdm_pegawai_db'].forEach(key => {
-              const rawDb = localStorage.getItem(key);
-              if (rawDb) {
-                const allPeg = JSON.parse(rawDb);
-                const pIdx = allPeg.findIndex((p: any) => p.id === found!.id || (p.nip && p.nip === found!.nip));
-                if (pIdx >= 0) {
-                  if (jabatanWasRepaired) allPeg[pIdx].riwayatJabatan = sanitizedJabatan;
-                  if (pangkatWasRepaired) allPeg[pIdx].riwayatPangkat = sanitizedPangkat;
-                  if (pendidikanWasRepaired) allPeg[pIdx].riwayatPendidikan = sanitizedPendidikan;
-                  if (identitasRepaired) {
-                    allPeg[pIdx] = { ...allPeg[pIdx], ...found };
-                  }
-                  localStorage.setItem(key, JSON.stringify(allPeg));
-                }
-              }
-            });
-          } catch (e) {}
-        }
-
-        const enriched: Pegawai = {
-          ...found,
-          riwayatPendidikan: found.riwayatPendidikan || [],
-          riwayatJabatan: sanitizedJabatan,
-          riwayatPangkat: found.riwayatPangkat || [],
-          riwayatGaji: found.riwayatGaji || [],
-          riwayatPelatihan: sanitizedPelatihan,
-          keluarga: found.keluarga || []
-        };
-
-        // Helper for calculating years and months
-        const getDiffYMD = (dateStr: string) => {
-          if (!dateStr) return null;
-          const start = new Date(dateStr);
-          if (isNaN(start.getTime())) return null;
-          const today = new Date();
-          let years = today.getFullYear() - start.getFullYear();
-          let months = today.getMonth() - start.getMonth();
-          if (months < 0) {
-            years--;
-            months += 12;
-          }
-          return { years, months };
-        };
-
-        // 1. Calculate Age (Usia)
-        if ((!enriched.usia || enriched.usia === '-') && enriched.tanggalLahir) {
-          const diff = getDiffYMD(formatDateForInput(enriched.tanggalLahir));
-          if (diff) enriched.usia = `${diff.years} Thn ${diff.months} Bln`;
-        }
-
-        // 2. Calculate MK Golongan
-        if ((!enriched.masaKerjaGolongan || enriched.masaKerjaGolongan === '-') && enriched.tmtPangkat) {
-          const diff = getDiffYMD(formatDateForInput(enriched.tmtPangkat));
-          if (diff) enriched.masaKerjaGolongan = `${diff.years} Thn ${diff.months} Bln`;
-        }
-
-        // 3. Calculate MK Pensiun / Masa Kerja Total
-        if ((!enriched.masaKerjaPensiun || enriched.masaKerjaPensiun === '-') && enriched.tmtCpns) {
-          const diff = getDiffYMD(formatDateForInput(enriched.tmtCpns));
-          if (diff) enriched.masaKerjaPensiun = `${diff.years} Thn ${diff.months} Bln`;
-        }
-
-        // 4. Ensure classification fallback only if missing
-        if (!enriched.jenisJabatan || enriched.jenisJabatan === '-') {
-          enriched.jenisJabatan = getJabatanClassification(enriched);
-        }
-        if (!enriched.klasifikasiJabatan || enriched.klasifikasiJabatan === '-') {
-          enriched.klasifikasiJabatan = enriched.jenisJabatan;
-        }
-
-        // 5. Retirement Info (BUP, Usia Pensiun, Tgl Pensiun)
-        if (!enriched.bup || enriched.bup === '-') {
-          const isHighLevel = enriched.eselon && enriched.eselon !== '-' && enriched.eselon !== '';
-          const isFungsionalAhli = enriched.jabatan?.toUpperCase().includes('MADYA') || enriched.jabatan?.toUpperCase().includes('UTAMA');
-          enriched.bup = (isHighLevel || isFungsionalAhli) ? '60' : '58';
-        }
-        
-        if (!enriched.usiaPensiun || enriched.usiaPensiun === '-') {
-          enriched.usiaPensiun = enriched.bup;
-        }
-
-        if (enriched.tanggalLahir && enriched.bup) {
-          try {
-            const birth = new Date(formatDateForInput(enriched.tanggalLahir));
-            if (!isNaN(birth.getTime())) {
-              const bupYears = parseInt(enriched.bup);
-              const retirementDate = new Date(birth.getFullYear() + bupYears, birth.getMonth() + 1, 1);
-              
-              if (!enriched.tglPensiun || enriched.tglPensiun === '-') {
-                enriched.tglPensiun = retirementDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-              }
-              
-              if (!enriched.tmtPensiun || enriched.tmtPensiun === '-') {
-                enriched.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
-              }
-              
-              // Calculate Sisa Masa Kerja
-              const today = new Date();
-              let checkDate = retirementDate;
-              if (enriched.tmtPensiun && enriched.tmtPensiun !== '-') {
-                const tmtDate = new Date(formatDateForInput(enriched.tmtPensiun));
-                if (!isNaN(tmtDate.getTime())) {
-                  checkDate = tmtDate;
-                }
-              }
-
-              let diffYears = checkDate.getFullYear() - today.getFullYear();
-              let diffMonths = checkDate.getMonth() - today.getMonth();
-              if (diffMonths < 0) {
-                diffYears--;
-                diffMonths += 12;
-              }
-              
-              if (diffYears >= 0 && (diffYears > 0 || diffMonths >= 0)) {
-                enriched.sisaMasaKerja = `${diffYears} Thn ${diffMonths} Bln`;
-              } else {
-                enriched.sisaMasaKerja = 'Pensiun';
-              }
-            }
-          } catch (e) {}
-        }
-
+        const enriched = enrichPegawaiData(found);
         setPegawai(enriched);
         const filteredDossiers = dData.filter(d => (d.nip || '').replace(/\D/g, '') === (found.nip || '').replace(/\D/g, ''))
           .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
         setDossiers(filteredDossiers);
       }
     } catch (e) {
-      console.error(e);
+      console.warn("Background sheet sync notice:", e);
     } finally {
       setLoading(false);
     }
@@ -894,7 +946,7 @@ const ProfilePegawaiPage = () => {
     setPegawai({ ...pegawai, [field]: value });
   };
 
-  const addHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'keluarga') => {
+  const addHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'riwayatPenghargaan' | 'keluarga') => {
     if (!pegawai) return;
     const newItem = (() => {
       switch (field) {
@@ -914,13 +966,23 @@ const ProfilePegawaiPage = () => {
         case 'riwayatPangkat': return { golRuang: '', pangkat: '', tmtPangkat: '', nomorSk: '', tanggalSk: '', pejabatPenetap: '', jenisKp: 'Reguler', masaKerjaTahun: '', masaKerjaBulan: '', keterangan: 'KP' };
         case 'riwayatGaji': return { nomorSk: '', tanggalSk: '', tmtSk: '', pangkat: '', gajiPokok: '', masaKerjaTahun: '', masaKerjaBulan: '', pejabatPenetap: '', jenisKenaikanGaji: 'Gaji Berkala', kppn: '-' };
         case 'riwayatPelatihan': return { jenisDiklat: 'Teknis', namaPelatihan: '', angkatan: '-', tahun: '', tanggalMulai: '', tanggalSelesai: '', durasi: '', tempat: '', penyelenggara: '', nomorSertifikat: '', tanggalSertifikat: '', prestasi: '-' };
+        case 'riwayatPenghargaan': return {
+          namaPenghargaan: '',
+          tahun: new Date().getFullYear().toString(),
+          pemberiPenghargaan: 'Presiden Republik Indonesia',
+          jenisPenghargaan: 'Tanda Kehormatan RI',
+          nomorSk: '',
+          tanggalSk: '',
+          keterangan: '',
+          fileUrl: ''
+        };
         case 'keluarga': return { hubungan: 'Anak', nama: '', tempatLahir: '', tanggalLahir: '', jenisKelamin: 'L', pekerjaan: '', nik: '', statusPerkawinan: '', keteranganTunjangan: 'Dapat Tunjangan' };
       }
     })();
     setPegawai({ ...pegawai, [field]: [...(pegawai[field] || []), newItem] });
   };
 
-  const updateHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'keluarga', idx: number, subField: string, value: any) => {
+  const updateHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'riwayatPenghargaan' | 'keluarga', idx: number, subField: string, value: any) => {
     if (!pegawai) return;
     const list = [...(pegawai[field] || [])] as any[];
     list[idx] = { ...list[idx], [subField]: value };
@@ -928,7 +990,7 @@ const ProfilePegawaiPage = () => {
   };
 
   const handleUploadHistoryFile = async (
-    field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan',
+    field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'riwayatPenghargaan',
     idx: number,
     file: File
   ) => {
@@ -969,6 +1031,10 @@ const ProfilePegawaiPage = () => {
           const item = currentItem as any;
           dossierName = `Sertifikat ${item?.namaPelatihan || 'Baru'}`;
         }
+        else if (field === 'riwayatPenghargaan') {
+          const item = currentItem as any;
+          dossierName = `Piagam / SK - ${item?.namaPenghargaan || 'Penghargaan'}`;
+        }
         
         const dossierPayload: Dossier = {
           id: `DOS-AUTO-${Date.now()}`,
@@ -1007,7 +1073,7 @@ const ProfilePegawaiPage = () => {
     reader.readAsDataURL(file);
   };
 
-  const removeHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'keluarga', idx: number) => {
+  const removeHistoryItem = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'riwayatPenghargaan' | 'keluarga', idx: number) => {
     if (!pegawai) return;
     const list = (pegawai[field] || []).filter((_, i) => i !== idx);
     setPegawai({ ...pegawai, [field]: list });
@@ -1042,6 +1108,10 @@ const ProfilePegawaiPage = () => {
       case 'pelatihan':
         field = 'riwayatPelatihan';
         catTitle = 'Riwayat Pelatihan';
+        break;
+      case 'penghargaan':
+        field = 'riwayatPenghargaan';
+        catTitle = 'Riwayat Penghargaan';
         break;
       case 'keluarga':
         field = 'keluarga';
@@ -1352,7 +1422,7 @@ const ProfilePegawaiPage = () => {
     setShowSuccess(true);
   };
 
-  const handleClearHistory = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'keluarga') => {
+  const handleClearHistory = (field: 'riwayatPendidikan' | 'riwayatJabatan' | 'riwayatPangkat' | 'riwayatGaji' | 'riwayatPelatihan' | 'riwayatPenghargaan' | 'keluarga') => {
     if (!pegawai) return;
     const labels: Record<string, string> = {
       riwayatJabatan: 'Riwayat Jabatan',
@@ -1360,6 +1430,7 @@ const ProfilePegawaiPage = () => {
       riwayatPendidikan: 'Riwayat Pendidikan',
       riwayatGaji: 'Riwayat Gaji & KGB',
       riwayatPelatihan: 'Riwayat Pelatihan',
+      riwayatPenghargaan: 'Riwayat Penghargaan',
       keluarga: 'Informasi Keluarga'
     };
     const title = labels[field] || 'riwayat ini';
@@ -1501,13 +1572,14 @@ const ProfilePegawaiPage = () => {
           <nav className="bg-white p-2 md:p-4 rounded-2xl md:rounded-[2rem] border border-gray-100 shadow-sm flex lg:flex-col overflow-x-auto lg:overflow-x-visible no-scrollbar gap-1">
             {[
               { id: 'identitas', label: 'Identitas', icon: 'bi-person-fill' },
-              { id: 'keluarga', label: 'Keluarga', icon: 'bi-people-fill' },
               { id: 'pendidikan', label: 'Pendidikan', icon: 'bi-mortarboard-fill' },
-              { id: 'jabatan', label: 'Jabatan', icon: 'bi-briefcase-fill' },
               { id: 'pangkat', label: 'Pangkat', icon: 'bi-award-fill' },
-              { id: 'gaji', label: 'Gaji & KGB', icon: 'bi-cash-stack' },
+              { id: 'jabatan', label: 'Jabatan', icon: 'bi-briefcase-fill' },
               { id: 'pelatihan', label: 'Pelatihan', icon: 'bi-journal-check' },
+              { id: 'penghargaan', label: 'Penghargaan', icon: 'bi-trophy-fill' },
               { id: 'dossier', label: 'Dossier', icon: 'bi-folder-fill' },
+              { id: 'gaji', label: 'Gaji & KGB', icon: 'bi-cash-stack' },
+              { id: 'keluarga', label: 'Keluarga', icon: 'bi-people-fill' },
             ].map(tab => (
               <button 
                 key={tab.id} 
@@ -4422,6 +4494,466 @@ const ProfilePegawaiPage = () => {
               </div>
             )}
 
+            {activeTab === 'penghargaan' && (
+              <div className="space-y-6 md:space-y-8 animate-fadeIn">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-gray-100 pb-6 gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 md:h-12 md:w-12 bg-amber-50 text-amber-600 rounded-xl md:rounded-2xl flex items-center justify-center text-lg md:text-xl shadow-sm">
+                      <i className="bi bi-trophy-fill"></i>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight">Riwayat Penghargaan & Tanda Jasa</h4>
+                        <span className="px-2.5 py-0.5 bg-amber-100/70 text-amber-800 rounded-full text-[9px] font-black uppercase tracking-wider">
+                          {(pegawai.riwayatPenghargaan || []).length} Penghargaan
+                        </span>
+                      </div>
+                      <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                        Tanda Kehormatan RI, Satyalancana Karya Satya & Piagam Penghargaan SIMPEG
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    {/* View Switcher */}
+                    <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-[9px] font-black uppercase">
+                      <button
+                        type="button"
+                        onClick={() => setPenghargaanViewMode('table')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${penghargaanViewMode === 'table' ? 'bg-white text-amber-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-table"></i> Tabel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPenghargaanViewMode('card')}
+                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${penghargaanViewMode === 'card' ? 'bg-white text-amber-700 shadow-sm font-black' : 'text-gray-500 hover:text-gray-900'}`}
+                      >
+                        <i className="bi bi-grid-fill"></i> Kartu
+                      </button>
+                    </div>
+
+                    {/* Quick Button for Dr. Andrieansjah Pelatihan / Penghargaan Records */}
+                    {pegawai.nama.toUpperCase().includes('ANDRIEANSJAH') && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm("Pasang data riwayat tanda kehormatan otentik SIMPEG Kemenkumham (Satyalancana Karya Satya XX Tahun, X Tahun, dan Piagam Prestasi) untuk Dr. ANDRIEANSJAH?")) {
+                            await handleApplySimpegData('penghargaan', 'REPLACE', ANDRIEANSJAH_PENGHARGAAN_DATA);
+                          }
+                        }}
+                        className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                        title="Pasang Tanda Kehormatan SIMPEG Dr. Andrieansjah"
+                      >
+                        <i className="bi bi-lightning-charge-fill text-yellow-200"></i>
+                        <span>Muat Penghargaan SIMPEG</span>
+                      </button>
+                    )}
+
+                    {/* Quick Import SIMPEG Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSimpegImport('penghargaan')}
+                      className="px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border border-amber-200 hover:border-amber-300 rounded-xl font-black text-[9px] uppercase flex items-center gap-2 transition-all shadow-sm active:scale-95 cursor-pointer"
+                      title="Salin dan tempel data penghargaan langsung dari portal SIMPEG"
+                    >
+                      <i className="bi bi-file-earmark-spreadsheet-fill text-amber-600"></i>
+                      <span>Import SIMPEG</span>
+                    </button>
+
+                    {/* Tambah Penghargaan */}
+                    {isEditing && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => addHistoryItem('riwayatPenghargaan')}
+                          className="px-4 py-2 bg-amber-600 text-white rounded-xl font-black text-[9px] uppercase flex items-center gap-2 shadow-sm hover:bg-amber-700 transition-all cursor-pointer"
+                        >
+                          <i className="bi bi-plus-lg"></i> Tambah
+                        </button>
+                        {(pegawai.riwayatPenghargaan || []).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleClearHistory('riwayatPenghargaan')}
+                            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-black text-[9px] uppercase flex items-center gap-1.5 transition-all cursor-pointer"
+                            title="Kosongkan seluruh riwayat penghargaan pegawai ini"
+                          >
+                            <i className="bi bi-trash3"></i> Kosongkan
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* TABLE VIEW */}
+                {penghargaanViewMode === 'table' && (pegawai.riwayatPenghargaan || []).length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-amber-50/60 via-yellow-50/40 to-slate-50 border-b border-amber-100 text-[9px] font-black uppercase text-amber-900 tracking-wider">
+                            <th className="py-3 px-3 w-10 text-center">No</th>
+                            <th className="py-3 px-4 min-w-[220px]">Nama Penghargaan / Tanda Kehormatan</th>
+                            <th className="py-3 px-3 text-center">Tahun</th>
+                            <th className="py-3 px-4 min-w-[180px]">Pemberi Penghargaan</th>
+                            <th className="py-3 px-4 min-w-[180px]">No. & Tgl SK / Piagam</th>
+                            <th className="py-3 px-4">Keterangan</th>
+                            <th className="py-3 px-3 text-center">Berkas / Piagam</th>
+                            {isEditing && <th className="py-3 px-3 text-center w-14">Aksi</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-sans">
+                          {(pegawai.riwayatPenghargaan || []).map((p, idx) => (
+                            <tr key={`${p.namaPenghargaan}-${p.tahun}-${idx}`} className="hover:bg-amber-50/20 transition-colors">
+                              <td className="py-3 px-3 text-center text-[10px] font-bold text-gray-400">{idx + 1}</td>
+                              
+                              <td className="py-3 px-4">
+                                {isEditing ? (
+                                  <div className="space-y-1">
+                                    <input
+                                      type="text"
+                                      className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-[11px] font-bold outline-none uppercase"
+                                      value={p.namaPenghargaan}
+                                      onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'namaPenghargaan', e.target.value)}
+                                      placeholder="Nama Penghargaan"
+                                    />
+                                    <select
+                                      className="w-full px-2 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-bold outline-none"
+                                      value={p.jenisPenghargaan || 'Tanda Kehormatan RI'}
+                                      onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'jenisPenghargaan', e.target.value)}
+                                    >
+                                      <option value="Tanda Kehormatan RI">Tanda Kehormatan RI</option>
+                                      <option value="Kementerian Hukum">Kementerian Hukum</option>
+                                      <option value="Direktorat Jenderal KI">Direktorat Jenderal KI</option>
+                                      <option value="Instansi Pemerintah Lain">Instansi Pemerintah Lain</option>
+                                      <option value="Internasional">Internasional</option>
+                                      <option value="Lainnya">Lainnya</option>
+                                    </select>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div className="font-bold text-gray-900 uppercase text-[11px] leading-snug">
+                                      {p.namaPenghargaan || '-'}
+                                    </div>
+                                    <span className={`inline-block mt-1 px-2 py-0.5 rounded font-black text-[8px] uppercase tracking-wide border ${
+                                      (p.jenisPenghargaan || '').includes('Kehormatan')
+                                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                        : (p.jenisPenghargaan || '').includes('Kementerian')
+                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                        : 'bg-gray-100 text-gray-700 border-gray-200'
+                                    }`}>
+                                      {p.jenisPenghargaan || 'Tanda Kehormatan RI'}
+                                    </span>
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-3 text-center">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    className="w-16 px-2 py-1.5 text-center bg-white border border-gray-200 rounded-lg text-[11px] font-mono font-bold outline-none"
+                                    value={p.tahun}
+                                    onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'tahun', e.target.value)}
+                                    placeholder="Tahun"
+                                  />
+                                ) : (
+                                  <span className="inline-block px-2.5 py-1 bg-amber-50 text-amber-900 font-mono font-bold text-[10px] rounded-lg border border-amber-200/60">
+                                    {p.tahun || '-'}
+                                  </span>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-4">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-[11px] font-bold outline-none"
+                                    value={p.pemberiPenghargaan}
+                                    onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'pemberiPenghargaan', e.target.value)}
+                                    placeholder="Pemberi Penghargaan"
+                                  />
+                                ) : (
+                                  <div className="text-[11px] font-bold text-gray-800 uppercase leading-snug">
+                                    {p.pemberiPenghargaan || '-'}
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-4">
+                                {isEditing ? (
+                                  <div className="space-y-1">
+                                    <input
+                                      type="text"
+                                      className="w-full px-2 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-mono outline-none"
+                                      value={p.nomorSk}
+                                      onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'nomorSk', e.target.value)}
+                                      placeholder="No. SK / Piagam"
+                                    />
+                                    <input
+                                      type="date"
+                                      className="w-full px-2 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-mono outline-none"
+                                      value={p.tanggalSk || ''}
+                                      onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'tanggalSk', e.target.value)}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div className="font-mono text-gray-700 text-[10px] uppercase font-bold leading-tight">
+                                      {p.nomorSk && p.nomorSk !== '-' ? p.nomorSk : '-'}
+                                    </div>
+                                    {p.tanggalSk && p.tanggalSk !== '-' && (
+                                      <div className="text-[9px] font-mono text-gray-400 mt-0.5">
+                                        Tgl: {formatDateIndoDisplay(p.tanggalSk)}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-4">
+                                {isEditing ? (
+                                  <input
+                                    type="text"
+                                    className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-[10px] outline-none"
+                                    value={p.keterangan || ''}
+                                    onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'keterangan', e.target.value)}
+                                    placeholder="Keterangan / Catatan"
+                                  />
+                                ) : (
+                                  <div className="text-[10px] text-gray-600 leading-snug max-w-xs">
+                                    {p.keterangan || '-'}
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-3 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {p.fileUrl ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => window.open(p.fileUrl || '', '_blank')}
+                                        className="h-7 w-7 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-600 hover:text-white flex items-center justify-center transition-colors text-xs cursor-pointer"
+                                        title="Lihat Piagam / Dokumen"
+                                      >
+                                        <i className="bi bi-eye"></i>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownload(p.fileUrl || '')}
+                                        className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors text-xs cursor-pointer"
+                                        title="Unduh Piagam / Dokumen"
+                                      >
+                                        <i className="bi bi-download"></i>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-[9px] text-gray-300 italic">-</span>
+                                  )}
+                                  {isEditing && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const input = document.createElement('input');
+                                        input.type = 'file';
+                                        input.accept = 'application/pdf,image/*';
+                                        input.onchange = (e: any) => {
+                                          const file = e.target.files[0];
+                                          if (file) handleUploadHistoryFile('riwayatPenghargaan', idx, file);
+                                        };
+                                        input.click();
+                                      }}
+                                      className="h-7 w-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-amber-600 hover:text-white flex items-center justify-center transition-colors text-xs cursor-pointer"
+                                      title="Unggah Piagam / SK Penghargaan"
+                                    >
+                                      <i className="bi bi-upload"></i>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+
+                              {isEditing && (
+                                <td className="py-3 px-3 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeHistoryItem('riwayatPenghargaan', idx)}
+                                    className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white flex items-center justify-center transition-colors mx-auto text-xs cursor-pointer"
+                                    title="Hapus riwayat penghargaan ini"
+                                  >
+                                    <i className="bi bi-trash3"></i>
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* CARD FORM VIEW */}
+                {penghargaanViewMode === 'card' && (
+                  <div className="space-y-4">
+                    {(pegawai.riwayatPenghargaan || []).map((p, idx) => (
+                      <div key={`${p.namaPenghargaan}-${p.tahun}-${idx}`} className="bg-gradient-to-br from-white to-amber-50/20 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-amber-100/80 shadow-xs relative group">
+                        {isEditing && (
+                          <button onClick={() => removeHistoryItem('riwayatPenghargaan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
+                            <i className="bi bi-trash3"></i>
+                          </button>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nama Penghargaan / Tanda Kehormatan</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.namaPenghargaan} onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'namaPenghargaan', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/70 border border-amber-100 rounded-xl text-[11px] font-black text-gray-900 select-all flex items-center gap-2">
+                                <i className="bi bi-award-fill text-amber-600"></i>
+                                {p.namaPenghargaan || '-'}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tahun</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.tahun} onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'tahun', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/70 border border-gray-100 rounded-xl text-[11px] font-bold text-gray-900 select-all font-mono">{p.tahun || '-'}</div>
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jenis Penghargaan</label>
+                            {isEditing ? (
+                              <select className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.jenisPenghargaan || 'Tanda Kehormatan RI'} onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'jenisPenghargaan', e.target.value)}>
+                                <option value="Tanda Kehormatan RI">Tanda Kehormatan RI</option>
+                                <option value="Kementerian Hukum">Kementerian Hukum</option>
+                                <option value="Direktorat Jenderal KI">Direktorat Jenderal KI</option>
+                                <option value="Instansi Pemerintah Lain">Instansi Pemerintah Lain</option>
+                                <option value="Internasional">Internasional</option>
+                                <option value="Lainnya">Lainnya</option>
+                              </select>
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/70 border border-gray-100 rounded-xl text-[11px] font-bold text-amber-900 select-all">{p.jenisPenghargaan || 'Tanda Kehormatan RI'}</div>
+                            )}
+                          </div>
+
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Pemberi Penghargaan</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none uppercase" value={p.pemberiPenghargaan} onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'pemberiPenghargaan', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/70 border border-gray-100 rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.pemberiPenghargaan || '-'}</div>
+                            )}
+                          </div>
+
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Nomor & Tanggal SK / Keppres</label>
+                            {isEditing ? (
+                              <div className="grid grid-cols-2 gap-2">
+                                <input type="text" placeholder="No. SK" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-bold outline-none" value={p.nomorSk || ''} onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'nomorSk', e.target.value)} />
+                                <input type="date" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-[10px] font-bold outline-none" value={p.tanggalSk || ''} onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'tanggalSk', e.target.value)} />
+                              </div>
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/70 border border-gray-100 rounded-xl text-[11px] font-bold text-gray-900 select-all">
+                                {p.nomorSk || '-'} {p.tanggalSk ? `(${formatDateIndoDisplay(p.tanggalSk)})` : ''}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Keterangan / Uraian</label>
+                            {isEditing ? (
+                              <input type="text" className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.keterangan || ''} onChange={e => updateHistoryItem('riwayatPenghargaan', idx, 'keterangan', e.target.value)} />
+                            ) : (
+                              <div className="px-4 py-2.5 bg-white/70 border border-gray-100 rounded-xl text-[11px] font-bold text-gray-700 select-all">{p.keterangan || '-'}</div>
+                            )}
+                          </div>
+
+                          <div className="space-y-1 md:col-span-2">
+                            <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Upload Berkas Piagam / SK</label>
+                            <div className="flex items-center gap-3">
+                              {p.fileUrl ? (
+                                <div className="flex gap-2">
+                                  <button onClick={() => window.open(p.fileUrl || '', '_blank')} className="px-4 py-2 bg-amber-50 text-amber-700 rounded-xl text-[9px] font-black uppercase border border-amber-200 hover:bg-amber-600 hover:text-white transition-all cursor-pointer">Lihat Piagam</button>
+                                  <button onClick={() => handleDownload(p.fileUrl || '')} className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 font-black cursor-pointer">
+                                    <i className="bi bi-download"></i> Unduh
+                                  </button>
+                                </div>
+                              ) : <span className="text-[9px] font-bold text-gray-300 italic uppercase">Belum ada file</span>}
+                              {isEditing && (
+                                <button onClick={() => {
+                                  const input = document.createElement('input');
+                                  input.type = 'file';
+                                  input.accept = 'application/pdf,image/*';
+                                  input.onchange = (e: any) => {
+                                    const file = e.target.files[0];
+                                    if (file) handleUploadHistoryFile('riwayatPenghargaan', idx, file);
+                                  };
+                                  input.click();
+                                }} className="px-4 py-2 bg-white border border-gray-200 text-gray-500 rounded-xl text-[9px] font-black uppercase hover:border-amber-600 hover:text-amber-600 transition-all cursor-pointer">Ganti File</button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {(pegawai.riwayatPenghargaan || []).length === 0 && (
+                  <div className="py-16 md:py-20 text-center border-2 border-dashed border-amber-200 rounded-3xl md:rounded-[2.5rem] bg-amber-50/20 space-y-4">
+                    <div className="h-16 w-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-xs border border-amber-100">
+                      <i className="bi bi-trophy-fill"></i>
+                    </div>
+                    <div>
+                      <h5 className="font-black text-gray-900 uppercase text-sm tracking-tight">Belum Ada Riwayat Penghargaan</h5>
+                      <p className="text-gray-400 text-xs mt-1 max-w-md mx-auto">
+                        Anda dapat menambahkan data tanda jasa / tanda kehormatan / penghargaan secara manual atau mengimpor data langsung dari SIMPEG.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                      {pegawai.nama.toUpperCase().includes('ANDRIEANSJAH') && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (window.confirm("Pasang data riwayat tanda kehormatan otentik SIMPEG Kemenkumham (Satyalancana Karya Satya XX Tahun, X Tahun, dan Piagam Prestasi) untuk Dr. ANDRIEANSJAH?")) {
+                              await handleApplySimpegData('penghargaan', 'REPLACE', ANDRIEANSJAH_PENGHARGAAN_DATA);
+                            }
+                          }}
+                          className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 text-white rounded-xl font-black text-[10px] uppercase shadow-md shadow-amber-100 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                        >
+                          <i className="bi bi-lightning-charge-fill text-yellow-200"></i> Muat Penghargaan SIMPEG Dr. Andrieansjah
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditing(true);
+                          addHistoryItem('riwayatPenghargaan');
+                        }}
+                        className="px-5 py-2.5 bg-amber-600 text-white rounded-xl font-black text-[10px] uppercase shadow-md shadow-amber-100 flex items-center gap-2 cursor-pointer"
+                      >
+                        <i className="bi bi-plus-lg"></i> Tambah Manual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSimpegImport('penghargaan')}
+                        className="px-5 py-2.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl font-black text-[10px] uppercase hover:bg-amber-100 flex items-center gap-2 cursor-pointer"
+                      >
+                        <i className="bi bi-file-earmark-spreadsheet"></i> Salin / Import dari SIMPEG
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'dossier' && (
               <div className="space-y-6 md:space-y-8 animate-fadeIn">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-50 pb-6 gap-4">
@@ -4433,7 +4965,7 @@ const ProfilePegawaiPage = () => {
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <button onClick={loadData} className="px-6 py-3 bg-white border border-gray-200 text-gray-600 rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 hover:bg-gray-50 transition-all">
+                    <button onClick={() => loadData(true)} className="px-6 py-3 bg-white border border-gray-200 text-gray-600 rounded-xl font-black text-[9px] uppercase flex items-center justify-center gap-2 hover:bg-gray-50 transition-all">
                       <i className="bi bi-arrow-clockwise"></i> Segarkan Berkas
                     </button>
                     {isEditing && (
@@ -4613,6 +5145,34 @@ const ProfilePegawaiPage = () => {
                      </tbody>
                   </table>
                </section>
+
+               {(pegawai.riwayatPenghargaan || []).length > 0 && (
+                  <section>
+                     <p className="font-bold border-b border-black mb-3 uppercase bg-gray-50 px-2 py-1">V. RIWAYAT TANDA KEHORMATAN / PENGHARGAAN</p>
+                     <table className="w-full border-collapse text-[9pt]">
+                        <thead>
+                           <tr className="border-b border-black font-bold">
+                              <td className="w-8 py-1 text-center">No</td>
+                              <td className="py-1">Nama Penghargaan</td>
+                              <td className="py-1 text-center">Tahun</td>
+                              <td className="py-1">Pemberi Penghargaan</td>
+                              <td className="py-1">No. SK / Piagam</td>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           {(pegawai.riwayatPenghargaan || []).map((h, i) => (
+                              <tr key={i} className="border-b border-gray-200">
+                                 <td className="py-1 text-center">{i + 1}</td>
+                                 <td className="py-1 font-bold uppercase">{h.namaPenghargaan}</td>
+                                 <td className="py-1 text-center font-mono">{h.tahun || '-'}</td>
+                                 <td className="py-1 uppercase">{h.pemberiPenghargaan || '-'}</td>
+                                 <td className="py-1 font-mono text-[8pt]">{h.nomorSk || '-'}</td>
+                              </tr>
+                           ))}
+                        </tbody>
+                     </table>
+                  </section>
+               )}
             </div>
 
             <div className="mt-14 flex justify-between items-start text-black">

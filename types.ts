@@ -203,6 +203,18 @@ export interface RiwayatPelatihan {
   fileUrl?: string;
 }
 
+export interface RiwayatPenghargaan {
+  id?: string;
+  namaPenghargaan: string; // e.g. "Satyalancana Karya Satya XX Tahun", "Pegawai Teladan DJKI"
+  jenisPenghargaan?: string; // "Tanda Kehormatan RI", "Kementerian Hukum", "Instansi Lain", "Internasional"
+  pemberiPenghargaan?: string; // "Presiden Republik Indonesia", "Menteri Hukum", "Direktur Jenderal KI"
+  nomorSk?: string; // No. SK / Keppres / Piagam
+  tanggalSk?: string; // Tgl SK / Piagam
+  tahun: string; // Tahun perolehan (e.g. "2022")
+  keterangan?: string;
+  fileUrl?: string; // File Piagam / Sertifikat PDF / Gambar
+}
+
 export interface Keluarga {
   hubungan: string;
   nama: string;
@@ -274,6 +286,7 @@ export interface Pegawai {
   riwayatPangkat?: RiwayatPangkat[];
   riwayatGaji?: RiwayatGaji[];
   riwayatPelatihan?: RiwayatPelatihan[];
+  riwayatPenghargaan?: RiwayatPenghargaan[];
   keluarga?: Keluarga[];
 }
 
