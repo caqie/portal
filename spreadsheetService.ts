@@ -45,7 +45,21 @@ export const DEFAULT_GIDS = {
   LAYANAN_SDM_LOG: '718204',
   LAYANAN_SDM_PESAN: '718205',
   MASTER_PETUGAS_SDM: '718206',
-  TUPOKSI_SDM: '718301'
+  TUPOKSI_SDM: '718301',
+  PPPK_EVALUATIONS: '718401',
+  PPPK_PERIODS: '718402',
+  PPPK_ASPECTS: '718403',
+  PPPK_ASSESSMENTS: '718404',
+  PPPK_ASSIGNMENTS: '718405',
+  PPPK_ATTENDANCE: '718406',
+  PPPK_SETTINGS: '718407',
+  PPPK_AUDIT: '718408',
+  DISIPLIN_LHKPN: '718501',
+  TUBEL_IBEL: '718502',
+  UANG_MAKAN: '718503',
+  SAKIP_RB: '718504',
+  ANGGARAN_DIPA: '718505',
+  ACTIVITY_LOG: '718506'
 };
 
 export const EXPECTED_COLUMNS_SCHEMA = {
@@ -61,24 +75,25 @@ export const EXPECTED_COLUMNS_SCHEMA = {
     'KETERANGAN PENSIUN', 'USIA PENSIUN', 'MASA KERJA PENSIUN', 'GAJI POKOK', 'RIWAYAT PENDIDIKAN',
     'RIWAYAT JABATAN', 'RIWAYAT PANGKAT', 'RIWAYAT GAJI', 'RIWAYAT PELATIHAN', 'RIWAYAT PENGHARGAAN', 'KELUARGA'
   ],
-  DOSSIER: ['ID', 'NIP', 'NAMAPEGAWAI', 'FILENAME', 'FILEURL'],
-  SKP: ['ID', 'NIP', 'NAMAPEGAWAI', 'TAHUN', 'PREDIKATKINERJA'],
-  PAK: ['ID', 'NIP', 'NAMAPEGAWAI', 'NOMOR', 'JUMLAHKREDIT'],
-  KENAIKAN: ['ID', 'NIP', 'NAMAPEGAWAI', 'DARI', 'MENJADI', 'STATUS'],
-  PENGEMBANGAN: ['ID', 'NIP', 'NAMAPEGAWAI', 'NAMAKEGIATAN', 'JUMLAHJPL', 'TAHUN'],
-  KGB: ['ID', 'NIP', 'NAMAPEGAWAI', 'TMTLAMA', 'TMTBARU', 'GAJIBARU', 'STATUS'],
+  DOSSIER: ['ID', 'NIP', 'NAMAPEGAWAI', 'FILENAME', 'FILEURL', 'KETERANGAN', 'TANGGALUPLOAD'],
+  SKP: ['ID', 'NIP', 'NAMAPEGAWAI', 'TAHUN', 'PREDIKATKINERJA', 'NILAI', 'ATASANPENILAI', 'FILEURL'],
+  PAK: ['ID', 'NIP', 'NAMAPEGAWAI', 'NOMOR', 'JUMLAHKREDIT', 'PERIODE', 'TANGGALSK'],
+  KENAIKAN: ['ID', 'NIP', 'NAMAPEGAWAI', 'DARI', 'MENJADI', 'STATUS', 'PERIODE', 'TANGGALTMT'],
+  PENGEMBANGAN: ['ID', 'NIP', 'NAMAPEGAWAI', 'NAMAKEGIATAN', 'JENISPENGEMBANGAN', 'KATEGORI', 'JUMLAHJPL', 'TAHUN', 'PENYELENGGARA', 'NOMORSERTIFIKAT', 'FILESERTIFIKATURL'],
+  KGB: ['ID', 'NIP', 'NAMAPEGAWAI', 'TMTLAMA', 'TMTBARU', 'GAJIBARU', 'STATUS', 'NOMORSK', 'TANGGALSK', 'MASAKERJATAHUN', 'MASAKERJABULAN'],
   TUGAS_RUTIN: ['ID', 'TIMESTAMP', 'BULAN', 'TAHUN', 'JENIS', 'DATA'],
-  KEGIATAN: ['ID', 'JUDULKEGIATAN', 'TANGGAL', 'TEMPAT', 'STATUS'],
-  ABK_ANJAB: ['ID', 'NAMAJABATAN', 'UNITKERJA', 'KEBUTUHANPEGAWAI'],
-  PELANTIKAN: ['ID', 'NOMOR', 'ASNNIP', 'DATA'],
-  PENSIUN: ['ID', 'NIP', 'NAMAPEGAWAI', 'DATA'],
-  MAGANG_PKL: ['ID', 'NAMA', 'INSTITUSI', 'STATUS'],
-  PERSURATAN: ['ID', 'JENISSURAT', 'NOMORSURAT', 'PREHAL', 'STATUS'],
-  SATYA_LENCANA: ['ID', 'NIP', 'NAMAPEGAWAI', 'KATEGORI', 'TAHUNTERIMA'],
+  KEGIATAN: ['ID', 'JUDULKEGIATAN', 'TANGGAL', 'TEMPAT', 'STATUS', 'DESKRIPSI', 'PENANGGUNGJAWAB', 'PESERTA'],
+  ABK_ANJAB: ['ID', 'NAMAJABATAN', 'KODEJABATAN', 'UNITKERJA', 'JENISJABATAN', 'KELASJABATAN', 'KEBUTUHANPEGAWAI', 'JUMLAHSAATINI', 'IKHTISARJABATAN', 'PENDIDIKANFORMAL', 'DIKLAT', 'PENGALAMANKERJA', 'URAIANTUGAS'],
+  PELANTIKAN: ['ID', 'NOMOR', 'ASNNIP', 'TANGGALPELANTIKAN', 'JABATANBARU', 'DATA'],
+  PENSIUN: ['ID', 'NIP', 'NAMAPEGAWAI', 'TMTPENSIUN', 'JENISPENSIUN', 'STATUS', 'DATA'],
+  MAGANG_PKL: ['ID', 'NAMA', 'NISNIM', 'INSTITUSI', 'JURUSAN', 'JENIS', 'TANGGALMULAI', 'TANGGALSELESAI', 'PENEMPATAN', 'STATUS', 'NOMORSURAT'],
+  PERSURATAN: ['ID', 'JENISSURAT', 'NOMORSURAT', 'TANGGALSURAT', 'PERIHAL', 'LAMPIRAN', 'TUJUAN', 'DARI', 'ISIRINGKAS', 'PJBNAMA', 'PJBNIP', 'PJBJABATAN', 'STATUS', 'FILEURL', 'PRIORITAS'],
+  SATYA_LENCANA: ['ID', 'NIP', 'NAMAPEGAWAI', 'KATEGORI', 'TAHUNTERIMA', 'NOMORKEPPRES', 'FILESERTIFIKATURL'],
   KEUANGAN: ['ID', 'NAMAKEGIATAN', 'TANGGAL', 'STATUS', 'MATAANGGARAN', 'TAHUNANGGARAN', 'PPKNIP', 'PPKNAMA', 'BENDAHARANIP', 'BENDAHARANAMA', 'UNITKERJA', 'KETERANGAN', 'TRANSACTIONID', 'KOTATTD', 'TANGGALDOKUMEN', 'PESERTA', 'CONFIGBIAYA', 'CONFIGSPD'],
-  BANK_SOAL: ['IDSOAL', 'PERTANYAAN', 'JAWABANBENAR'],
-  PESERTA_UKOM: ['NOPESERTA', 'NAMA', 'JENJANG'],
-  HASIL_UKOM: ['NOPESERTA', 'NAMA', 'TOTALNILAI'],
+  BANK_SOAL: ['IDSOAL', 'PERTANYAAN', 'OPSIA', 'OPSIB', 'OPSIC', 'OPSID', 'JAWABANBENAR', 'KATEGORI'],
+  PESERTA_UKOM: ['NOPESERTA', 'NIP', 'NAMA', 'JENJANG', 'RUANGUJIAN', 'JADWAL', 'ISLOCKED', 'UNLOCKPASSWORD'],
+  HASIL_UKOM: ['NOPESERTA', 'NIP', 'NAMA', 'NILAI', 'NILAITKP', 'TOTALNILAI', 'STATUSLULUS', 'TANGGALUJIAN', 'WAKTUSELESAI', 'ESSAYANSWERS', 'CATATAN'],
+  UKOM_SESSIONS: ['ID', 'NAMASESI', 'TANGGAL', 'WAKTUMULAI', 'WAKTUSELESAI', 'SUPERVISORNIPS', 'PESERTAIDS', 'STATUS'],
   PENILAIAN_TALENTA: ['ID', 'PEGAWAI_ID', 'NILAI_SKP', 'KOMPETENSI', 'INTEGRITAS', 'DISIPLIN', 'LEADERSHIP', 'TEAMWORK', 'INOVASI', 'KOMUNIKASI', 'PENDIDIKAN', 'PENGALAMAN', 'TOTAL_NILAI', 'KATEGORI_TALENTA', 'CREATED_AT'],
   TALENT_POOL: ['ID', 'PEGAWAI_ID', 'RANKING', 'STATUS_TALENTA', 'READINESS_LEVEL', 'REKOMENDASI_JABATAN', 'CREATED_AT'],
   ASSESSMENT_TALENTA: ['ID', 'PEGAWAI_ID', 'HASIL_ASSESSMENT', 'POTENSI', 'KOMPETENSI', 'ASSESSOR', 'CATATAN', 'TANGGAL_ASSESSMENT'],
@@ -89,7 +104,25 @@ export const EXPECTED_COLUMNS_SCHEMA = {
   LAYANAN_SDM_DOKUMEN: ['ID', 'IDPENGAJUAN', 'NOMORTIKET', 'NAMADOKUMEN', 'JENISDOKUMEN', 'FILEID', 'FILENAME', 'FILEURL', 'FILEBASE64', 'MIMETYPE', 'SIZE', 'UPLOADEDBY', 'UPLOADEDAT', 'VERSI', 'AKTIF'],
   LAYANAN_SDM_LOG: ['ID', 'IDPENGAJUAN', 'NOMORTIKET', 'TIMESTAMP', 'NIPUSER', 'NAMAUSER', 'ROLE', 'STATUSLAMA', 'STATUSBARU', 'CATATAN'],
   LAYANAN_SDM_PESAN: ['ID', 'IDPENGAJUAN', 'NOMORTIKET', 'PENGIRIMNIP', 'PENGIRIMNAMA', 'ROLE', 'PESAN', 'FILEID', 'FILEURL', 'FILENAME', 'TIMESTAMP', 'DIBACA'],
-  MASTER_PETUGAS_SDM: ['ID', 'NIP', 'NAMA', 'UNIT', 'ROLE', 'AKTIF', 'JENISLAYANAN']
+  MASTER_PETUGAS_SDM: ['ID', 'NIP', 'NAMA', 'UNIT', 'ROLE', 'AKTIF', 'JENISLAYANAN'],
+  ABSENSI: ['ID', 'NIP', 'NAMA', 'TANGGAL', 'WAKTU', 'TIPE', 'STATUS', 'LOKASI', 'CONFIDENCE', 'SIMPEGSTATUS', 'SIMPEGERROR', 'LATITUDE', 'LONGITUDE', 'OFFICENAME', 'DISTANCEMETERS', 'FOTOURL'],
+  LAPORAN: ['ID', 'JUDUL', 'PERIODE', 'JENIS', 'STATUS', 'FILEURL', 'CREATED_AT'],
+  CONFIG: ['KEY', 'VALUE', 'CATEGORY', 'UPDATED_AT', 'UPDATED_BY'],
+  SPMT_SPP: ['ID', 'TYPE', 'NOMOR', 'PEGAWAINIP', 'TANGGAL', 'JABATANLAMA', 'JABATANBARU', 'UNITKERJA', 'FILEURL'],
+  PPPK_EVALUATIONS: ['ID', 'EMPLOYEE_ID', 'PERIOD_ID', 'STATUS', 'SKP_SCORE', 'BEHAVIOR_360_SCORE', 'ATTENDANCE_SCORE', 'FINAL_SCORE', 'CATEGORY', 'IS_RECOMMENDED_EXTENSION', 'SNAPSHOT', 'CREATED_AT', 'UPDATED_AT'],
+  PPPK_PERIODS: ['ID', 'YEAR', 'SEMESTER', 'NAME', 'START_DATE', 'END_DATE', 'IS_ACTIVE', 'IS_CLOSED'],
+  PPPK_ASPECTS: ['ID', 'NAME', 'DESCRIPTION', 'WEIGHT', 'IS_ACTIVE', 'SORT_ORDER'],
+  PPPK_ASSESSMENTS: ['ID', 'EVALUATION_ID', 'ASPECT_ID', 'ASSESSOR_ID', 'ASSESSOR_TYPE', 'SCORE', 'NOTES', 'CREATED_AT'],
+  PPPK_ASSIGNMENTS: ['ID', 'PERIOD_ID', 'EMPLOYEE_ID', 'SUPERVISOR_ID', 'STATUS', 'APPROVAL_STATUS'],
+  PPPK_ATTENDANCE: ['ID', 'EMPLOYEE_ID', 'PERIOD_ID', 'TOTAL_WORKING_DAYS', 'PRESENT_DAYS', 'LATE_DAYS', 'ABSENT_DAYS', 'LEAVE_DAYS', 'SCORE', 'SYNCED_AT'],
+  PPPK_SETTINGS: ['ID', 'SKP_WEIGHT', 'BEHAVIOR_WEIGHT', 'ATTENDANCE_WEIGHT', 'MIN_RECOMMEND_SCORE', 'AUTO_SYNC_ATTENDANCE', 'UPDATED_AT'],
+  PPPK_AUDIT: ['ID', 'EVALUATION_ID', 'ACTION', 'ACTOR_ID', 'ACTOR_NAME', 'DETAILS', 'TIMESTAMP'],
+  DISIPLIN_LHKPN: ['ID', 'NIP', 'NAMA', 'UNITKERJA', 'JABATAN', 'JENIS', 'TAHUN', 'STATUS', 'TANGGAL_LAPOR', 'BUKTI_URL', 'KETERANGAN'],
+  TUBEL_IBEL: ['ID', 'NIP', 'NAMA', 'JENIS', 'INSTITUSI', 'JURUSAN', 'JENJANG', 'TAHUN_MULAI', 'TAHUN_SELESAI', 'STATUS', 'NOMOR_SK', 'FILE_URL'],
+  UANG_MAKAN: ['ID', 'NIP', 'NAMA', 'BULAN', 'TAHUN', 'GOLONGAN', 'HARI_KERJA', 'TARIF', 'TOTAL_BRUTO', 'PPH', 'TOTAL_NETTO', 'STATUS_BAYAR'],
+  SAKIP_RB: ['ID', 'TAHUN', 'INDIKATOR', 'TARGET', 'REALISASI', 'CAPAIAN', 'STATUS', 'UNITKERJA', 'EVIDENCE_URL'],
+  ANGGARAN_DIPA: ['ID', 'KODE_MAK', 'URAIAN', 'PAGU', 'REALISASI', 'SISA', 'PERSENTASE', 'TAHUN_ANGGARAN', 'UNITKERJA'],
+  ACTIVITY_LOG: ['ID', 'TIMESTAMP', 'USER_NIP', 'USER_NAME', 'ACTION', 'MODULE', 'DETAILS', 'IP_ADDRESS']
 };
 
 const getDbConfig = () => {
@@ -436,7 +469,94 @@ const STORAGE_KEY_MAP: Record<string, string> = {
   'LAYANAN_SDM_DOKUMEN': 'layanan_sdm_dokumen_db',
   'LAYANAN_SDM_LOG': 'layanan_sdm_log_db',
   'LAYANAN_SDM_PESAN': 'layanan_sdm_pesan_db',
-  'TUPOKSI_SDM': 'tupoksi_sdm_db'
+  'MASTER_PETUGAS_SDM': 'master_petugas_sdm_db',
+  'TUPOKSI_SDM': 'tupoksi_sdm_db',
+  'LAPORAN': 'portal_laporan_db',
+  'PPPK_EVALUATIONS': 'portal_pppk_evaluations',
+  'PPPK_PERIODS': 'portal_pppk_evaluation_periods',
+  'PPPK_ASPECTS': 'portal_pppk_behavior_aspects',
+  'PPPK_ASSESSMENTS': 'portal_pppk_behavior_assessments',
+  'PPPK_ASSIGNMENTS': 'portal_pppk_evaluation_assignments',
+  'PPPK_ATTENDANCE': 'portal_pppk_attendance_evaluations',
+  'PPPK_SETTINGS': 'portal_pppk_config_settings',
+  'PPPK_AUDIT': 'portal_pppk_audit_logs',
+  'DISIPLIN_LHKPN': 'portal_disiplin_lhkpn_db',
+  'TUBEL_IBEL': 'portal_tubel_ibel_db',
+  'UANG_MAKAN': 'portal_uang_makan_db',
+  'SAKIP_RB': 'portal_sakip_rb_db',
+  'ANGGARAN_DIPA': 'portal_anggaran_dipa_db',
+  'ACTIVITY_LOG': 'portal_audit_logs'
+};
+
+/**
+ * Safely writes array data to localStorage without throwing QuotaExceededError.
+ * If quota is reached, automatically purges disposable/duplicate caches,
+ * trims oversized data URLs for the cache copy, and never breaks network fetch execution.
+ */
+export const safeSaveToCache = <T>(storageKey: string, data: T[]): void => {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    try { localStorage.removeItem(storageKey); } catch (e) {}
+    return;
+  }
+
+  // 1. Immediately prune known redundant duplicates
+  try {
+    localStorage.removeItem('portal_sdm_pegawai_db');
+  } catch (e) {}
+
+  const trySet = (payload: any[]): boolean => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(payload));
+      return true;
+    } catch (err) {
+      return false;
+    }
+  };
+
+  // Attempt direct save
+  if (trySet(data)) return;
+
+  console.warn(`[Storage Quota] localStorage full when saving "${storageKey}". Attempting automatic pruning...`);
+
+  // 2. Prune old/disposable caches to free space
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (
+        k.startsWith('error_module_') ||
+        k.startsWith('simpeg_import_') ||
+        k.startsWith('heal_backup_') ||
+        k === 'portal_sdm_pegawai_db' ||
+        k === 'portal_gid_map_backup'
+      )) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
+
+  if (trySet(data)) return;
+
+  // 3. Prune oversized data URLs (photos / base64 attachments) for cached copy
+  try {
+    const lightweightData = data.map((item: any) => {
+      if (!item || typeof item !== 'object') return item;
+      const clone = { ...item };
+      if (typeof clone.foto === 'string' && clone.foto.length > 300 && clone.foto.startsWith('data:')) {
+        clone.foto = '';
+      }
+      return clone;
+    });
+
+    if (trySet(lightweightData)) {
+      console.log(`[Storage Quota] Saved pruned lightweight version of "${storageKey}" to localStorage.`);
+      return;
+    }
+  } catch (e) {}
+
+  // 4. If all else fails, log notice and do NOT throw! In-memory data is preserved and returned seamlessly.
+  console.warn(`[Storage Quota] Cache for "${storageKey}" could not be stored in localStorage due to browser storage limits. In-memory data will be used.`);
 };
 
 export const applyLocalCacheUpdate = (moduleName: string, action: 'SAVE' | 'DELETE', data: any) => {
@@ -473,7 +593,7 @@ export const applyLocalCacheUpdate = (moduleName: string, action: 'SAVE' | 'DELE
         } else {
           parsed.push(itemToSave);
         }
-        localStorage.setItem(key, JSON.stringify(parsed));
+        safeSaveToCache(key, parsed);
       } else if (action === 'DELETE') {
         const cleanDigits = (val: any) => String(val || '').replace(/\D/g, '');
         const isPegawai = moduleName.toUpperCase().trim() === 'PEGAWAI';
@@ -490,7 +610,7 @@ export const applyLocalCacheUpdate = (moduleName: string, action: 'SAVE' | 'DELE
             (item.noPeserta && data.noPeserta && String(item.noPeserta) === String(data.noPeserta))
           );
         });
-        localStorage.setItem(key, JSON.stringify(filtered));
+        safeSaveToCache(key, filtered);
       }
     }
   } catch (e) {
@@ -639,6 +759,63 @@ export const cleanupEmptyRowsRemote = async (moduleName: string): Promise<{ succ
   }
 };
 
+export const syncTableBatchRemote = async (moduleName: string, items: any[]): Promise<boolean> => {
+  if (!items || items.length === 0) return true;
+  const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
+  if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
+  
+  const cleanUrl = appsScriptUrl.trim();
+  try {
+    const useBackend = await checkBackend();
+    const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(cleanUrl)}` : cleanUrl;
+    const response = await fetch(finalUrl, {
+      method: 'POST',
+      headers: useBackend ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        module: moduleName.toUpperCase().trim(),
+        action: 'BATCH_SAVE',
+        spreadsheetId,
+        driveFolderId,
+        timestamp: new Date().toISOString(),
+        payload: items
+      })
+    });
+    if (response.ok) {
+      const text = await response.text();
+      try {
+        const resData = JSON.parse(text);
+        return resData.success === true;
+      } catch (e) {
+        return false;
+      }
+    }
+  } catch (err) {
+    console.warn(`[Batch Save Remote] Failed for ${moduleName}:`, err);
+  }
+  return false;
+};
+
+export const initAllSheetsRemote = async (): Promise<boolean> => {
+  const { appsScriptUrl, spreadsheetId } = getDbConfig();
+  if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
+  try {
+    const useBackend = await checkBackend();
+    const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(appsScriptUrl)}` : appsScriptUrl;
+    const response = await fetch(finalUrl, {
+      method: 'POST',
+      headers: useBackend ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'INITIALIZE_ALL_SHEETS', spreadsheetId })
+    });
+    if (response.ok) {
+      await syncGidMap();
+      return true;
+    }
+  } catch (e) {
+    console.warn("initAllSheetsRemote failed:", e);
+  }
+  return false;
+};
+
 export const getServerTime = async (): Promise<Date> => {
   const { appsScriptUrl } = getDbConfig();
   try {
@@ -777,9 +954,9 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
           }).filter((item: any): item is T => item !== null);
 
           if (result.length > 0) {
-            localStorage.setItem(storageKey, JSON.stringify(result));
+            safeSaveToCache(storageKey, result);
           } else {
-            localStorage.removeItem(storageKey);
+            try { localStorage.removeItem(storageKey); } catch (e) {}
           }
           
           sessionStorage.removeItem('last_spreadsheet_error');
@@ -861,9 +1038,9 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     }).filter((item): item is T => item !== null);
 
     if (result.length > 0) {
-      localStorage.setItem(storageKey, JSON.stringify(result));
+      safeSaveToCache(storageKey, result);
     } else {
-      localStorage.removeItem(storageKey);
+      try { localStorage.removeItem(storageKey); } catch (e) {}
     }
     if (isCritical) {
       sessionStorage.removeItem('last_spreadsheet_error');
@@ -878,23 +1055,26 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
       console.warn(`[Info] Optional table ${gidKey} fallback to local storage:`, error instanceof Error ? error.message : error);
     }
     
-    try {
-      const healed = await attemptAutoHeal(gidKey);
-      if (healed) {
-        return fetchTableData(gidKey, storageKey, mapper, bypassCache);
+    const isStorageError = error instanceof Error && (error.name === 'QuotaExceededError' || error.message.includes('quota') || error.message.includes('Quota'));
+    if (!isStorageError) {
+      try {
+        const healed = await attemptAutoHeal(gidKey);
+        if (healed) {
+          return fetchTableData(gidKey, storageKey, mapper, bypassCache);
+        }
+      } catch (healErr) {
+        console.warn(`Auto-heal retry for ${gidKey}:`, healErr);
       }
-    } catch (healErr) {
-      console.warn(`Auto-heal retry for ${gidKey}:`, healErr);
     }
 
     const errMsg = error instanceof Error ? error.message : String(error);
     
-    if (isCritical) {
+    if (isCritical && !isStorageError) {
       sessionStorage.setItem('last_spreadsheet_error', errMsg);
       sessionStorage.setItem('last_spreadsheet_error_gid', `${gidKey} (GID: ${gid})`);
       sessionStorage.setItem('last_spreadsheet_error_time', Date.now().toString());
       if (bypassCache) throw error;
-    } else {
+    } else if (!isCritical && !isStorageError) {
       sessionStorage.setItem(`error_module_${gidKey.toLowerCase()}`, errMsg);
     }
     

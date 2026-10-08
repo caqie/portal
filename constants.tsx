@@ -702,3 +702,175 @@ export const APP_ROUTES = [
   { path: '/admin/attendance/locations', label: 'Master Lokasi Geofence', icon: 'bi-geo-alt-fill' },
   { path: '/admin/attendance/settings', label: 'Pengaturan Presensi', icon: 'bi-sliders' }
 ];
+
+export interface PetaJabatanItem {
+  id: string;
+  kode: string;
+  nama: string;
+  level: number;
+  tipe: 'INSTANSI' | 'DIREKTORAT' | 'SEKRETARIAT' | 'SUBDIREKTORAT' | 'BAGIAN' | 'SUBBAGIAN';
+  parent?: string;
+  orderKey: number;
+}
+
+export const PETA_JABATAN_SIMPEG_TREE: PetaJabatanItem[] = [
+  { id: '1', kode: '1', nama: 'Direktorat Jenderal Kekayaan Intelektual', level: 0, tipe: 'INSTANSI', orderKey: 100 },
+  // 1. Paten
+  { id: '2', kode: '1.1', nama: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 200 },
+  { id: '2.1', kode: '1.1.1', nama: 'Subdirektorat Permohonan dan Pelayanan', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', orderKey: 210 },
+  { id: '2.2', kode: '1.1.2', nama: 'Subdirektorat Fasilitasi Komisi Banding Paten', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', orderKey: 220 },
+  { id: '2.3', kode: '1.1.3', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', orderKey: 230 },
+  // 2. Merek
+  { id: '3', kode: '1.2', nama: 'Direktorat Merek dan Indikasi Geografis', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 300 },
+  { id: '3.1', kode: '1.2.1', nama: 'Subdirektorat Permohonan dan Pelayanan', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Merek dan Indikasi Geografis', orderKey: 310 },
+  { id: '3.2', kode: '1.2.2', nama: 'Subdirektorat Fasilitasi Komisi Banding Merek', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Merek dan Indikasi Geografis', orderKey: 320 },
+  { id: '3.3', kode: '1.2.3', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Merek dan Indikasi Geografis', orderKey: 330 },
+  // 3. Hak Cipta
+  { id: '4', kode: '1.3', nama: 'Direktorat Hak Cipta dan Desain Industri', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 400 },
+  { id: '4.1', kode: '1.3.1', nama: 'Subdirektorat Permohonan dan Pelayanan', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Hak Cipta dan Desain Industri', orderKey: 410 },
+  { id: '4.2', kode: '1.3.2', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Hak Cipta dan Desain Industri', orderKey: 420 },
+  // 4. Kerja Sama
+  { id: '5', kode: '1.4', nama: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 500 },
+  { id: '5.1', kode: '1.4.1', nama: 'Subdirektorat Kerja Sama', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', orderKey: 510 },
+  { id: '5.2', kode: '1.4.2', nama: 'Subdirektorat Pemberdayaan dan Edukasi Kekayaan Intelektual', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', orderKey: 520 },
+  { id: '5.3', kode: '1.4.3', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', orderKey: 530 },
+  // 5. Sekretariat
+  { id: '6', kode: '1.5', nama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', level: 1, tipe: 'SEKRETARIAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 600 },
+  { id: '6.1', kode: '1.5.1', nama: 'Bagian Program dan Pelaporan', level: 2, tipe: 'BAGIAN', parent: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', orderKey: 610 },
+  { id: '6.2', kode: '1.5.2', nama: 'Bagian Keuangan', level: 2, tipe: 'BAGIAN', parent: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', orderKey: 620 },
+  { id: '6.3', kode: '1.5.3', nama: 'Bagian Umum', level: 2, tipe: 'BAGIAN', parent: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', orderKey: 630 },
+  { id: '6.3.1', kode: '1.5.3.1', nama: 'Subbagian Tata Usaha Pimpinan dan Protokol', level: 3, tipe: 'SUBBAGIAN', parent: 'Bagian Umum', orderKey: 631 },
+  { id: '6.3.2', kode: '1.5.3.2', nama: 'Subbagian Rumah Tangga', level: 3, tipe: 'SUBBAGIAN', parent: 'Bagian Umum', orderKey: 632 },
+  // 6. TI
+  { id: '7', kode: '1.6', nama: 'Direktorat Teknologi Informasi', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 700 },
+  { id: '7.1', kode: '1.6.1', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Teknologi Informasi', orderKey: 710 },
+  // 7. Penegakan Hukum
+  { id: '8', kode: '1.7', nama: 'Direktorat Penegakan Hukum', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 800 },
+  { id: '8.1', kode: '1.7.1', nama: 'Subdirektorat Pencegahan dan Sengketa Alternatif', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Penegakan Hukum', orderKey: 810 },
+  { id: '8.2', kode: '1.7.2', nama: 'Subdirektorat Penindakan dan Penyidikan', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Penegakan Hukum', orderKey: 820 },
+  { id: '8.3', kode: '1.7.3', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Penegakan Hukum', orderKey: 830 }
+];
+
+export const getPetaJabatanInfo = (p: { unitKerja?: string; jabatan?: string; bagian?: string; subbagian?: string }) => {
+  const u = (p.unitKerja || '').toLowerCase();
+  const j = (p.jabatan || '').toLowerCase();
+  const b = (p.bagian || '').toLowerCase();
+  const sb = (p.subbagian || '').toLowerCase();
+  const combined = `${u} ${j} ${b} ${sb}`;
+
+  // 1. Pimpinan Tinggi DJKI
+  if (j.includes('direktur jenderal kekayaan intelektual') || j === 'dirjen' || j.startsWith('direktur jenderal')) {
+    return {
+      treeKode: '1',
+      unitUtama: 'Direktorat Jenderal Kekayaan Intelektual',
+      subUnit: 'Pimpinan Tinggi Madya (Dirjen)',
+      orderKey: 100
+    };
+  }
+
+  // 2. Paten
+  if (u.includes('paten') || u.includes('sirkuit terpadu') || u.includes('rahasia dagang')) {
+    if (j.startsWith('direktur paten') || j === 'direktur') {
+      return { treeKode: '1.1', unitUtama: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 200 };
+    }
+    if (combined.includes('banding paten') || combined.includes('komisi banding paten')) {
+      return { treeKode: '1.1.2', unitUtama: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', subUnit: 'Subdirektorat Fasilitasi Komisi Banding Paten', orderKey: 220 };
+    }
+    if (combined.includes('tata usaha') || combined.includes('subbagian tata usaha') || combined.includes('subbag tu')) {
+      return { treeKode: '1.1.3', unitUtama: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', subUnit: 'Subbagian Tata Usaha', orderKey: 230 };
+    }
+    return { treeKode: '1.1.1', unitUtama: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', subUnit: 'Subdirektorat Permohonan dan Pelayanan', orderKey: 210 };
+  }
+
+  // 3. Merek
+  if (u.includes('merek') || u.includes('indikasi geografis')) {
+    if (j.startsWith('direktur merek') || j === 'direktur') {
+      return { treeKode: '1.2', unitUtama: 'Direktorat Merek dan Indikasi Geografis', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 300 };
+    }
+    if (combined.includes('banding merek') || combined.includes('komisi banding merek')) {
+      return { treeKode: '1.2.2', unitUtama: 'Direktorat Merek dan Indikasi Geografis', subUnit: 'Subdirektorat Fasilitasi Komisi Banding Merek', orderKey: 320 };
+    }
+    if (combined.includes('tata usaha') || combined.includes('subbagian tata usaha') || combined.includes('subbag tu')) {
+      return { treeKode: '1.2.3', unitUtama: 'Direktorat Merek dan Indikasi Geografis', subUnit: 'Subbagian Tata Usaha', orderKey: 330 };
+    }
+    return { treeKode: '1.2.1', unitUtama: 'Direktorat Merek dan Indikasi Geografis', subUnit: 'Subdirektorat Permohonan dan Pelayanan', orderKey: 310 };
+  }
+
+  // 4. Hak Cipta
+  if (u.includes('hak cipta') || u.includes('desain industri') || u.includes('cipta')) {
+    if (j.startsWith('direktur hak cipta') || j === 'direktur') {
+      return { treeKode: '1.3', unitUtama: 'Direktorat Hak Cipta dan Desain Industri', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 400 };
+    }
+    if (combined.includes('tata usaha') || combined.includes('subbagian tata usaha') || combined.includes('subbag tu')) {
+      return { treeKode: '1.3.2', unitUtama: 'Direktorat Hak Cipta dan Desain Industri', subUnit: 'Subbagian Tata Usaha', orderKey: 420 };
+    }
+    return { treeKode: '1.3.1', unitUtama: 'Direktorat Hak Cipta dan Desain Industri', subUnit: 'Subdirektorat Permohonan dan Pelayanan', orderKey: 410 };
+  }
+
+  // 5. Kerja Sama
+  if (u.includes('kerja sama') || u.includes('kerjasama') || u.includes('pemberdayaan') || u.includes('edukasi')) {
+    if (j.startsWith('direktur kerja sama') || j === 'direktur') {
+      return { treeKode: '1.4', unitUtama: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 500 };
+    }
+    if (combined.includes('pemberdayaan') || combined.includes('edukasi')) {
+      return { treeKode: '1.4.2', unitUtama: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', subUnit: 'Subdirektorat Pemberdayaan dan Edukasi Kekayaan Intelektual', orderKey: 520 };
+    }
+    if (combined.includes('tata usaha') || combined.includes('subbagian tata usaha') || combined.includes('subbag tu')) {
+      return { treeKode: '1.4.3', unitUtama: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', subUnit: 'Subbagian Tata Usaha', orderKey: 530 };
+    }
+    return { treeKode: '1.4.1', unitUtama: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', subUnit: 'Subdirektorat Kerja Sama', orderKey: 510 };
+  }
+
+  // 6. Sekretariat
+  if (u.includes('sekretariat')) {
+    if (j.includes('sekretaris direktorat jenderal') || j.includes('sesditjen')) {
+      return { treeKode: '1.5', unitUtama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', subUnit: 'Pimpinan Tinggi Pratama (Sesditjen)', orderKey: 600 };
+    }
+    if (combined.includes('program') || combined.includes('pelaporan')) {
+      return { treeKode: '1.5.1', unitUtama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', subUnit: 'Bagian Program dan Pelaporan', orderKey: 610 };
+    }
+    if (combined.includes('keuangan')) {
+      return { treeKode: '1.5.2', unitUtama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', subUnit: 'Bagian Keuangan', orderKey: 620 };
+    }
+    if (combined.includes('protokol') || combined.includes('pimpinan dan protokol') || combined.includes('tu pimpinan')) {
+      return { treeKode: '1.5.3.1', unitUtama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', subUnit: 'Subbagian Tata Usaha Pimpinan dan Protokol', orderKey: 631 };
+    }
+    if (combined.includes('rumah tangga')) {
+      return { treeKode: '1.5.3.2', unitUtama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', subUnit: 'Subbagian Rumah Tangga', orderKey: 632 };
+    }
+    if (combined.includes('kepegawaian') || combined.includes('sdm')) {
+      return { treeKode: '1.5', unitUtama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', subUnit: 'Bagian Kepegawaian / SDM', orderKey: 625 };
+    }
+    return { treeKode: '1.5.3', unitUtama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', subUnit: 'Bagian Umum', orderKey: 630 };
+  }
+
+  // 7. TI
+  if (u.includes('teknologi informasi') || u.includes('ti') || u.includes('sistem informasi')) {
+    if (j.startsWith('direktur teknologi') || j === 'direktur') {
+      return { treeKode: '1.6', unitUtama: 'Direktorat Teknologi Informasi', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 700 };
+    }
+    if (combined.includes('tata usaha') || combined.includes('subbag tu')) {
+      return { treeKode: '1.6.1', unitUtama: 'Direktorat Teknologi Informasi', subUnit: 'Subbagian Tata Usaha', orderKey: 710 };
+    }
+    return { treeKode: '1.6', unitUtama: 'Direktorat Teknologi Informasi', subUnit: 'Subbagian Tata Usaha', orderKey: 715 };
+  }
+
+  // 8. Penegakan Hukum
+  if (u.includes('penegakan hukum') || u.includes('sengketa') || u.includes('penyidikan') || u.includes('penindakan')) {
+    if (j.startsWith('direktur penegakan') || j === 'direktur') {
+      return { treeKode: '1.7', unitUtama: 'Direktorat Penegakan Hukum', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 800 };
+    }
+    if (combined.includes('pencegahan') || combined.includes('alternatif')) {
+      return { treeKode: '1.7.1', unitUtama: 'Direktorat Penegakan Hukum', subUnit: 'Subdirektorat Pencegahan dan Sengketa Alternatif', orderKey: 810 };
+    }
+    if (combined.includes('penindakan') || combined.includes('penyidikan')) {
+      return { treeKode: '1.7.2', unitUtama: 'Direktorat Penegakan Hukum', subUnit: 'Subdirektorat Penindakan dan Penyidikan', orderKey: 820 };
+    }
+    if (combined.includes('tata usaha') || combined.includes('subbag tu')) {
+      return { treeKode: '1.7.3', unitUtama: 'Direktorat Penegakan Hukum', subUnit: 'Subbagian Tata Usaha', orderKey: 830 };
+    }
+    return { treeKode: '1.7', unitUtama: 'Direktorat Penegakan Hukum', subUnit: 'Subdirektorat Pencegahan dan Sengketa Alternatif', orderKey: 815 };
+  }
+
+  return { treeKode: '1.9', unitUtama: p.unitKerja || 'Unit Kerja DJKI', subUnit: p.bagian || '-', orderKey: 999 };
+};

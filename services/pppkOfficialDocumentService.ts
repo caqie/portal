@@ -19,7 +19,7 @@ import {
   Pegawai,
   SKPRecord
 } from '../types';
-import { getAllEmployees } from './pppkEvaluationService';
+import { getAllEmployees, safePppkSetItem } from './pppkEvaluationService';
 import { getAtasanLangsung } from './strukturOrganisasiService';
 
 // STANDAR 28 PERTANYAAN BERAKHLAK DOKUMEN RESMI EVALUASI PPPK DJKI
@@ -1173,7 +1173,7 @@ export function saveOfficialEvaluationCustomization(
       updatedAt: new Date().toLocaleString('id-ID')
     };
 
-    localStorage.setItem('portal_pppk_evaluations', JSON.stringify(list));
+    safePppkSetItem('portal_pppk_evaluations', JSON.stringify(list));
     return list[idx];
   } catch (e) {
     return null;

@@ -290,6 +290,19 @@ const SettingsPage = () => {
     }
   };
 
+  const downloadScriptFile = () => {
+    if (!scriptCode) return;
+    const blob = new Blob([scriptCode], { type: 'text/javascript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Code.gs';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleDeleteSheet = async (sheetId: string, sheetName: string) => {
     if (!confirm(`HAPUS SHEET "${sheetName}"? Tindakan ini permanen.`)) return;
     setLoading(true);
@@ -1618,17 +1631,32 @@ const SettingsPage = () => {
 
               {/* Code Section */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider">
-                    Kode Backend Lengkap (GoogleAppsScript_Code.js)
-                  </span>
-                  <button 
-                    onClick={copyScriptToClipboard}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-blue-500/20"
-                  >
-                    <i className={`bi ${copiedScript ? "bi-check2-circle" : "bi-clipboard-check"}`}></i>
-                    {copiedScript ? "Berhasil Disalin!" : "Salin Seluruh Kode Script"}
-                  </button>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider">
+                      Kode Backend Lengkap (GoogleAppsScript_Code.js v7.0)
+                    </span>
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full uppercase">
+                      51 Modul Resmi
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={downloadScriptFile}
+                      className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95"
+                      title="Unduh file Code.gs untuk diimpor ke Google Apps Script"
+                    >
+                      <i className="bi bi-download"></i>
+                      Unduh Code.gs
+                    </button>
+                    <button 
+                      onClick={copyScriptToClipboard}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-blue-500/20"
+                    >
+                      <i className={`bi ${copiedScript ? "bi-check2-circle" : "bi-clipboard-check"}`}></i>
+                      {copiedScript ? "Berhasil Disalin!" : "Salin Seluruh Kode Script"}
+                    </button>
+                  </div>
                 </div>
                 <div className="relative bg-gray-900 rounded-2xl p-4 overflow-hidden border border-gray-800">
                   {loadingScript ? (
@@ -1637,7 +1665,7 @@ const SettingsPage = () => {
                       <span className="text-[10px] font-bold uppercase">Memuat kode script...</span>
                     </div>
                   ) : (
-                    <pre className="text-[9px] font-mono text-emerald-400 overflow-x-auto max-h-56 custom-scrollbar whitespace-pre leading-relaxed select-all">
+                    <pre className="text-[9px] font-mono text-emerald-400 overflow-x-auto max-h-72 custom-scrollbar whitespace-pre leading-relaxed select-all">
                       {scriptCode}
                     </pre>
                   )}

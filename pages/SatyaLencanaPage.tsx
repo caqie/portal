@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 // @ts-ignore
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchPegawaiFromSheets, fetchSatyaLencanaFromSheets, syncTableRemote, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai, SatyaLencanaRecord } from '../types';
 import { useAuth } from '../AuthContext';
@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx';
 
 const SatyaLencanaPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { canEdit, isSuperadmin, logActivity } = useAuth();
   
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
@@ -51,6 +52,32 @@ const SatyaLencanaPage = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (location.state?.nip && pegawaiList.length > 0) {
+      setSearchTerm(location.state.nip);
+      if (location.state?.openModal) {
+        const p = pegawaiList.find(x => x.nip === location.state.nip);
+        if (p) {
+          const cleanNip = (p.nip || '').replace(/\D/g, '');
+          const cpnsYear = cleanNip.length >= 12 ? parseInt(cleanNip.substring(8, 12)) : null;
+          const workingYears = cpnsYear ? (filterYear - cpnsYear) : null;
+          let category = '10 TAHUN';
+          if (workingYears && workingYears >= 30) category = '30 TAHUN';
+          else if (workingYears && workingYears >= 20) category = '20 TAHUN';
+          
+          setFormData({
+            nip: p.nip,
+            namaPegawai: p.nama,
+            kategori: category,
+            tahunTerima: filterYear,
+            nomorKeppres: `TK-${filterYear}-${Date.now().toString().slice(-4)}`
+          });
+          setIsModalOpen(true);
+        }
+      }
+    }
+  }, [location.state?.nip, pegawaiList]);
 
   const years = useMemo(() => {
     const current = new Date().getFullYear();

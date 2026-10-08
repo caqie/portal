@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { fetchPegawaiFromSheets } from '../spreadsheetService';
@@ -30,6 +30,76 @@ export const FaceRegistrationPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Live Camera Enrollment State
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const startRegistrationCamera = async () => {
+    setCameraError(null);
+    try {
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
+        });
+      } catch (e1) {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+
+      streamRef.current = stream;
+      setIsCameraActive(true);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          videoRef.current.play().catch((e: any) => console.warn(e));
+        }
+      }, 100);
+    } catch (err: any) {
+      console.error('Camera open failed:', err);
+      setCameraError('Gagal membuka kamera: ' + (err.message || 'Periksa izin kamera browser Anda.'));
+    }
+  };
+
+  const stopRegistrationCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+      streamRef.current = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  const capturePhotoFromCamera = async () => {
+    if (!videoRef.current) return;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], `master-face-${Date.now()}.jpg`, { type: 'image/jpeg' });
+            stopRegistrationCamera();
+            handleFileChange(file);
+          }
+        }, 'image/jpeg', 0.92);
+      }
+    } catch (e) {
+      console.error('Snapshot capture error:', e);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopRegistrationCamera();
+    };
+  }, []);
 
   // Load Pegawai Data & Existing Registration
   useEffect(() => {
@@ -236,12 +306,73 @@ export const FaceRegistrationPage: React.FC = () => {
         <div>
           <h3 className="text-base font-black text-gray-900 tracking-tight flex items-center gap-2">
             <i className="bi bi-camera-fill text-blue-600"></i>
-            <span>Unggah Foto Master Wajah</span>
+            <span>Pendaftaran Foto Master Wajah</span>
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Foto yang diunggah akan dianalisis secara lokal untuk mengekstrak template biometrik yang aman.
+            Gunakan kamera langsung atau unggah foto untuk mengekstrak template biometrik presensi.
           </p>
         </div>
+
+        {/* Live Camera Snapshot Modal / Box */}
+        {isCameraActive ? (
+          <div className="bg-slate-950 p-6 rounded-3xl border-2 border-slate-800 space-y-4 text-center">
+            <div className="relative aspect-[4/3] max-w-md mx-auto rounded-2xl overflow-hidden bg-black border border-slate-700">
+              <video
+                ref={videoRef}
+                playsInline
+                autoPlay
+                muted
+                className="w-full h-full object-cover scale-x-[-1]"
+              />
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className="w-48 h-60 rounded-[48%] border-2 border-dashed border-blue-400 shadow-[0_0_30px_rgba(59,130,246,0.3)]"></div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={capturePhotoFromCamera}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-blue-900/50 flex items-center gap-2"
+              >
+                <i className="bi bi-camera-fill text-sm"></i>
+                <span>Jepret Foto Wajah</span>
+              </button>
+              <button
+                type="button"
+                onClick={stopRegistrationCamera}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase rounded-xl"
+              >
+                Tutup Kamera
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between p-4 bg-blue-50/70 border border-blue-200 rounded-2xl">
+            <div className="flex items-center gap-3">
+              <i className="bi bi-camera-video-fill text-blue-600 text-xl"></i>
+              <div>
+                <p className="text-xs font-bold text-blue-950">Ambil Foto Langsung via Webcam</p>
+                <p className="text-[11px] text-blue-700">Nyalakan kamera live untuk mengambil foto profil master dalam 5 detik.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={startRegistrationCamera}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-sm flex items-center gap-2 transition-all shrink-0"
+            >
+              <i className="bi bi-camera"></i>
+              <span>Nyalakan Kamera</span>
+            </button>
+          </div>
+        )}
+
+        {cameraError && (
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 flex items-center gap-2">
+            <i className="bi bi-exclamation-triangle-fill text-rose-600"></i>
+            <span>{cameraError}</span>
+          </div>
+        )}
 
         {/* Dropzone */}
         <div

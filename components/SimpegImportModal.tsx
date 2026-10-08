@@ -10,7 +10,9 @@ import {
   ANDRIEANSJAH_PELATIHAN_DATA,
   TESSA_HARUMDILA_JABATAN_DATA,
   YASMON_PENDIDIKAN_DATA,
-  SIMPEG_PENGHARGAAN_DATA
+  SIMPEG_PENGHARGAAN_DATA,
+  SIMPEG_2015_PENGHARGAAN_SAMPLE,
+  SIMPEG_2015_RAW_TEXT
 } from '../data/simpegData';
 import { parseDateToYYYYMMDD } from '../spreadsheetService';
 
@@ -115,9 +117,9 @@ const CATEGORY_CONFIG: Record<SimpegCategory, {
     icon: 'bi-trophy-fill',
     colorClass: 'text-amber-600',
     badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
-    sampleCount: SIMPEG_PENGHARGAAN_DATA.length,
-    sampleDescription: '4 riwayat tanda jasa dan penghargaan resmi SIMPEG (Satyalancana Karya Satya XX, X, Pegawai Berprestasi, WBK)',
-    sampleData: SIMPEG_PENGHARGAAN_DATA,
+    sampleCount: SIMPEG_2015_PENGHARGAAN_SAMPLE.length,
+    sampleDescription: '15 riwayat tanda jasa otentik SIMPEG (Satyalancana Karya Satya XX Perak, Satyalancana Wira Karya Presiden RI, Penghargaan Menkumham RI 2015-2023)',
+    sampleData: SIMPEG_2015_PENGHARGAAN_SAMPLE,
     columns: ['Nama Penghargaan', 'Tahun', 'Pemberi Penghargaan', 'Jenis Penghargaan', 'No. SK / Piagam', 'Tgl SK', 'Keterangan'],
     fieldKeys: ['namaPenghargaan', 'tahun', 'pemberiPenghargaan', 'jenisPenghargaan', 'nomorSk', 'tanggalSk', 'keterangan']
   }
@@ -2471,6 +2473,31 @@ export const SimpegImportModal: React.FC<SimpegImportModalProps> = ({
                   <li>Klik di kotak di bawah dan tekan <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-[9px] font-mono font-bold">Ctrl+V</kbd> (Tempel). Sistem otomatis memetakan kolom-kolomnya!</li>
                 </ol>
               </div>
+
+              {activeCategory === 'penghargaan' && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl text-xs text-amber-950 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                      <i className="bi bi-trophy-fill"></i>
+                    </div>
+                    <div>
+                      <p className="font-black text-[10px] uppercase tracking-tight">Format Salinan SIMPEG 2015 Tersedia (15 Data)</p>
+                      <p className="text-[9px] text-amber-800">Satyalancana XX Perak, Satyalancana Wira Karya Presiden RI, & Penghargaan Menkumham</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPastedText(SIMPEG_2015_RAW_TEXT);
+                      handleParseText(SIMPEG_2015_RAW_TEXT);
+                    }}
+                    className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shrink-0"
+                  >
+                    <i className="bi bi-clipboard-check-fill"></i>
+                    <span>Tempel Contoh SIMPEG 2015</span>
+                  </button>
+                </div>
+              )}
 
               <textarea
                 rows={5}

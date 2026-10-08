@@ -186,32 +186,51 @@ async function startServer() {
       return;
     }
 
+    // Set 5-minute timeout for this request socket to allow Apps Script execution
+    req.setTimeout(300_000);
+    res.setTimeout(300_000);
+
     try {
-      const method = req.method;
+      const method = (req.method || "GET").toUpperCase();
       const headers: Record<string, string> = {};
 
       if (req.headers["content-type"]) {
         headers["content-type"] = req.headers["content-type"] as string;
       }
+      if (req.headers["accept"]) {
+        headers["accept"] = req.headers["accept"] as string;
+      }
 
-      const options: any = {
-        method,
-        headers,
-        redirect: "follow"
-      };
-
+      let bodyData: any = undefined;
       if (method !== "GET" && method !== "HEAD") {
         if (typeof req.body === "object" && Object.keys(req.body).length > 0) {
-          options.body = JSON.stringify(req.body);
+          bodyData = JSON.stringify(req.body);
           if (!headers["content-type"]) {
             headers["content-type"] = "application/json";
           }
         } else if (req.body) {
-          options.body = req.body;
+          bodyData = req.body;
         }
       }
 
-      const response = await fetch(targetUrl, options);
+      const buildOptions = () => ({
+        method,
+        headers,
+        body: bodyData,
+        redirect: "follow" as const,
+        signal: AbortSignal.timeout(300_000)
+      });
+
+      let response: Response;
+      try {
+        response = await fetch(targetUrl, buildOptions());
+      } catch (firstErr: any) {
+        // If transient timeout or socket reset occurs, retry once after a short wait
+        console.warn(`[Proxy Warning] First attempt failed for ${targetUrl}: ${firstErr?.message}. Retrying once...`);
+        await new Promise(r => setTimeout(r, 1200));
+        response = await fetch(targetUrl, buildOptions());
+      }
+
       const responseContentType = response.headers.get("content-type") || "text/plain";
       res.setHeader("Content-Type", responseContentType);
 
@@ -223,9 +242,13 @@ async function startServer() {
         res.send(text);
       }
     } catch (error: any) {
-      console.error("Proxy error for URL:", targetUrl, error);
-      res.status(500).json({ 
-        error: "Failed to fetch via proxy", 
+      const isTimeout = error?.name === 'HeadersTimeoutError' || 
+                        error?.name === 'TimeoutError' || 
+                        error?.message?.includes('timeout') || 
+                        error?.message?.includes('Timeout');
+      console.error(`[Proxy Error] ${isTimeout ? 'Timeout' : 'Failure'} for URL: ${targetUrl}`, error);
+      res.status(isTimeout ? 504 : 502).json({ 
+        error: isTimeout ? "Gateway Timeout: Google Apps Script took too long to respond." : "Failed to fetch via proxy", 
         details: error?.message || String(error) 
       });
     }

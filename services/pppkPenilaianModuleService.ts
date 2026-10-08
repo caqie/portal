@@ -51,6 +51,50 @@ export const PPPK_STORAGE = {
   ACTIVE_ROLE_SIMULATOR: 'portal_pppk_simulated_role_v2'
 };
 
+// In-memory fallback cache to ensure zero crash on QuotaExceededError
+const pppkModuleMemoryStore = new Map<string, string>();
+
+export const safePppkModuleSetItem = (key: string, value: any): void => {
+  try {
+    const jsonStr = typeof value === "string" ? value : JSON.stringify(value);
+    pppkModuleMemoryStore.set(key, jsonStr);
+    try {
+      localStorage.setItem(key, jsonStr);
+    } catch (err) {
+      console.warn(`[Quota Protection] localStorage quota exceeded while writing ${key}. Clean-up triggered.`);
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (
+            k.startsWith("error_module_") ||
+            k.startsWith("simpeg_import_") ||
+            k.startsWith("heal_backup_") ||
+            k === "portal_sdm_pegawai_db" ||
+            k === "portal_gid_map_backup"
+          )) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        localStorage.setItem(key, jsonStr);
+      } catch (secondErr) {
+        // Safe: In-memory cache is active and holds the data seamlessly
+      }
+    }
+  } catch (serializationErr) {
+    console.warn(`[safePppkModuleSetItem] Serialization warning for ${key}:`, serializationErr);
+  }
+};
+
+export const safePppkModuleGetItem = (key: string): string | null => {
+  try {
+    const val = localStorage.getItem(key);
+    if (val !== null) return val;
+  } catch (e) {}
+  return pppkModuleMemoryStore.get(key) || null;
+};
+
 // ============================================================
 // 1. MASTER 28 PERTANYAAN BERAKHLAK (7 ASPEK X 4 PERTANYAAN)
 // ============================================================
@@ -323,11 +367,11 @@ export function recordAuditLog(
   };
 
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.AUDIT_LOG);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.AUDIT_LOG);
     const logs: PPPKAuditLogRecord[] = raw ? JSON.parse(raw) : [];
     logs.unshift(newLog);
     // Keep max 500 logs
-    localStorage.setItem(PPPK_STORAGE.AUDIT_LOG, JSON.stringify(logs.slice(0, 500)));
+    safePppkModuleSetItem(PPPK_STORAGE.AUDIT_LOG, JSON.stringify(logs.slice(0, 500)));
   } catch (err) {
     console.error('Failed to save audit log:', err);
   }
@@ -335,7 +379,7 @@ export function recordAuditLog(
 
 export function getAuditLogs(): PPPKAuditLogRecord[] {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.AUDIT_LOG);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.AUDIT_LOG);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -348,7 +392,7 @@ export function getAuditLogs(): PPPKAuditLogRecord[] {
 
 export function getMasterPeriods(): EvaluationPeriod[] {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.PERIODS);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.PERIODS);
     if (raw) {
       return JSON.parse(raw);
     }
@@ -390,7 +434,7 @@ export function getMasterPeriods(): EvaluationPeriod[] {
     }
   ];
 
-  localStorage.setItem(PPPK_STORAGE.PERIODS, JSON.stringify(defaults));
+  safePppkModuleSetItem(PPPK_STORAGE.PERIODS, JSON.stringify(defaults));
   return defaults;
 }
 
@@ -407,7 +451,7 @@ export function saveMasterPeriod(period: EvaluationPeriod, userId: string, userN
     periods.unshift({ ...period, createdAt: now, updatedAt: now, createdBy: userName });
     recordAuditLog(userId, userName, 'CREATE', 'Master Periode', period.id, undefined, JSON.stringify(period), `Membuat periode baru ${period.name}`);
   }
-  localStorage.setItem(PPPK_STORAGE.PERIODS, JSON.stringify(periods));
+  safePppkModuleSetItem(PPPK_STORAGE.PERIODS, JSON.stringify(periods));
 }
 
 export function deleteMasterPeriod(id: string, userId: string, userName: string): void {
@@ -415,7 +459,7 @@ export function deleteMasterPeriod(id: string, userId: string, userName: string)
   const target = periods.find(p => p.id === id);
   if (!target) return;
   const filtered = periods.filter(p => p.id !== id);
-  localStorage.setItem(PPPK_STORAGE.PERIODS, JSON.stringify(filtered));
+  safePppkModuleSetItem(PPPK_STORAGE.PERIODS, JSON.stringify(filtered));
   recordAuditLog(userId, userName, 'DELETE', 'Master Periode', id, JSON.stringify(target), undefined, `Menghapus periode ${target.name}`);
 }
 
@@ -426,7 +470,7 @@ export function deleteMasterPeriod(id: string, userId: string, userName: string)
 export function getMasterPertanyaan(): PPPKMasterPertanyaanPerilaku[] {
   let list = DEFAULT_28_PERTANYAAN;
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.QUESTIONS);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.QUESTIONS);
     if (raw) {
       const parsed: PPPKMasterPertanyaanPerilaku[] = JSON.parse(raw);
       if (parsed.length >= 28) list = parsed;
@@ -452,11 +496,11 @@ export function saveMasterPertanyaan(item: PPPKMasterPertanyaanPerilaku, userId:
     list.push(item);
     recordAuditLog(userId, userName, 'CREATE', 'Master Pertanyaan Perilaku', item.id, undefined, JSON.stringify(item), `Menambah pertanyaan No. ${item.nomor}`);
   }
-  localStorage.setItem(PPPK_STORAGE.QUESTIONS, JSON.stringify(list));
+  safePppkModuleSetItem(PPPK_STORAGE.QUESTIONS, JSON.stringify(list));
 }
 
 export function resetMasterPertanyaanDefault(userId: string, userName: string): void {
-  localStorage.setItem(PPPK_STORAGE.QUESTIONS, JSON.stringify(DEFAULT_28_PERTANYAAN));
+  safePppkModuleSetItem(PPPK_STORAGE.QUESTIONS, JSON.stringify(DEFAULT_28_PERTANYAAN));
   recordAuditLog(userId, userName, 'RESET', 'Master Pertanyaan Perilaku', 'ALL', undefined, undefined, 'Mereset master pertanyaan perilaku ke 28 butir default BerAKHLAK');
 }
 
@@ -466,7 +510,7 @@ export function resetMasterPertanyaanDefault(userId: string, userName: string): 
 
 export function getPenugasanPenilaiList(periodeId?: string): PPPKPenugasanPenilai[] {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.ASSIGNMENTS);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.ASSIGNMENTS);
     let list: PPPKPenugasanPenilai[] = raw ? JSON.parse(raw) : [];
 
     // Ensure sample/demo assignments exist if list is completely empty
@@ -630,7 +674,7 @@ function seedSampleAssignments(): PPPKPenugasanPenilai[] {
     });
   }
 
-  localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(defaults));
+  safePppkModuleSetItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(defaults));
   return defaults;
 }
 
@@ -656,7 +700,7 @@ export function savePenugasanPenilai(
     recordAuditLog(userId, userName, 'CREATE', 'Penetapan Penilai', updated.id, undefined, JSON.stringify(updated), `Membuat penugasan baru PPPK ${updated.pppkNama}`);
   }
 
-  localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
+  safePppkModuleSetItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
   return updated;
 }
 
@@ -753,7 +797,7 @@ export function verifikasiUsulanPejabatPenilai(
 
   target.updatedAt = now;
   target.updatedBy = userName;
-  localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
+  safePppkModuleSetItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
   return target;
 }
 
@@ -811,7 +855,7 @@ export function tetapkanRekanKerjaGanda(
   target.updatedAt = new Date().toLocaleString('id-ID');
   target.updatedBy = userName;
 
-  localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
+  safePppkModuleSetItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
   recordAuditLog(
     userId,
     userName,
@@ -849,7 +893,7 @@ export function updatePenugasanPenilai(
   };
 
   list[idx] = updated;
-  localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
+  safePppkModuleSetItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
 
   recordAuditLog(
     userId,
@@ -878,22 +922,22 @@ export function deletePenugasanPenilai(
   if (!target) throw new Error('Data penugasan penilai tidak ditemukan.');
 
   const filtered = list.filter(a => a.id !== assignmentId);
-  localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(filtered));
+  safePppkModuleSetItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(filtered));
 
   // Also clean up related hasil kerja and perilaku if present
   try {
-    const rawHk = localStorage.getItem(PPPK_STORAGE.HASIL_KERJA);
+    const rawHk = safePppkModuleGetItem(PPPK_STORAGE.HASIL_KERJA);
     if (rawHk) {
       const hkDocs: PPPKPenilaianHasilKerjaDoc[] = JSON.parse(rawHk);
       const filteredHk = hkDocs.filter(d => d.penugasanId !== assignmentId);
-      localStorage.setItem(PPPK_STORAGE.HASIL_KERJA, JSON.stringify(filteredHk));
+      safePppkModuleSetItem(PPPK_STORAGE.HASIL_KERJA, JSON.stringify(filteredHk));
     }
 
-    const rawPerilaku = localStorage.getItem(PPPK_STORAGE.PERILAKU);
+    const rawPerilaku = safePppkModuleGetItem(PPPK_STORAGE.PERILAKU);
     if (rawPerilaku) {
       const perDocs: PPPKPenilaianPerilakuDoc[] = JSON.parse(rawPerilaku);
       const filteredPer = perDocs.filter(d => d.penugasanId !== assignmentId);
-      localStorage.setItem(PPPK_STORAGE.PERILAKU, JSON.stringify(filteredPer));
+      safePppkModuleSetItem(PPPK_STORAGE.PERILAKU, JSON.stringify(filteredPer));
     }
   } catch (err) {
     console.warn('Cleanup error during penugasan deletion:', err);
@@ -952,7 +996,7 @@ export function resetRekanKerja(
   target.updatedAt = new Date().toLocaleString('id-ID');
   target.updatedBy = userName;
 
-  localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
+  safePppkModuleSetItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(list));
 
   recordAuditLog(
     userId,
@@ -974,7 +1018,7 @@ export function resetRekanKerja(
 
 export function getHasilKerjaDoc(penugasanId: string): PPPKPenilaianHasilKerjaDoc | undefined {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.HASIL_KERJA);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.HASIL_KERJA);
     const docs: PPPKPenilaianHasilKerjaDoc[] = raw ? JSON.parse(raw) : [];
     let found = docs.find(d => d.penugasanId === penugasanId);
 
@@ -982,7 +1026,7 @@ export function getHasilKerjaDoc(penugasanId: string): PPPKPenilaianHasilKerjaDo
       // Create empty draft with default official standard RHKs
       found = createDefaultHasilKerjaDraft(penugasanId);
       docs.push(found);
-      localStorage.setItem(PPPK_STORAGE.HASIL_KERJA, JSON.stringify(docs));
+      safePppkModuleSetItem(PPPK_STORAGE.HASIL_KERJA, JSON.stringify(docs));
     }
     return found;
   } catch {
@@ -1095,7 +1139,7 @@ export function saveHasilKerjaDoc(
   userName: string
 ): void {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.HASIL_KERJA);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.HASIL_KERJA);
     const docs: PPPKPenilaianHasilKerjaDoc[] = raw ? JSON.parse(raw) : [];
     const idx = docs.findIndex(d => d.penugasanId === doc.penugasanId);
 
@@ -1137,7 +1181,7 @@ export function saveHasilKerjaDoc(
       docs.push(doc);
     }
 
-    localStorage.setItem(PPPK_STORAGE.HASIL_KERJA, JSON.stringify(docs));
+    safePppkModuleSetItem(PPPK_STORAGE.HASIL_KERJA, JSON.stringify(docs));
     recordAuditLog(userId, userName, 'SAVE_HASIL_KERJA', 'Hasil Kerja', doc.id, undefined, doc.ratingHasilKerjaFinal, `Menyimpan RHK & Rating Hasil Kerja (${doc.ratingHasilKerjaFinal})`);
   } catch (err) {
     console.error('Error saving hasil kerja:', err);
@@ -1153,7 +1197,7 @@ export function getPenilaianPerilakuDoc(
   rolePenilai: 'PEJABAT_PENILAI' | 'PNS_PENILAI' | 'PPPK_PENILAI'
 ): PPPKPenilaianPerilakuDoc | undefined {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.PERILAKU);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.PERILAKU);
     const docs: PPPKPenilaianPerilakuDoc[] = raw ? JSON.parse(raw) : [];
     let found = docs.find(d => d.penugasanId === penugasanId && d.rolePenilai === rolePenilai);
 
@@ -1200,7 +1244,7 @@ export function getPenilaianPerilakuDoc(
       };
 
       docs.push(found);
-      localStorage.setItem(PPPK_STORAGE.PERILAKU, JSON.stringify(docs));
+      safePppkModuleSetItem(PPPK_STORAGE.PERILAKU, JSON.stringify(docs));
     }
 
     return found;
@@ -1215,7 +1259,7 @@ export function savePenilaianPerilakuDoc(
   userName: string
 ): void {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.PERILAKU);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.PERILAKU);
     const docs: PPPKPenilaianPerilakuDoc[] = raw ? JSON.parse(raw) : [];
     const idx = docs.findIndex(d => d.id === doc.id);
 
@@ -1232,7 +1276,7 @@ export function savePenilaianPerilakuDoc(
       docs.push(doc);
     }
 
-    localStorage.setItem(PPPK_STORAGE.PERILAKU, JSON.stringify(docs));
+    safePppkModuleSetItem(PPPK_STORAGE.PERILAKU, JSON.stringify(docs));
     recordAuditLog(
       userId,
       userName,
@@ -1261,7 +1305,7 @@ function calculateAnswersAverage(answers: Record<string, number>): number {
 
 export function getAbsensiImportHeaders(): PPPKAbsensiImportHeader[] {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.ABSENSI_IMPORT);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.ABSENSI_IMPORT);
     if (raw) return JSON.parse(raw);
   } catch {}
 
@@ -1276,13 +1320,13 @@ export function getAbsensiImportHeaders(): PPPKAbsensiImportHeader[] {
     errorCount: 0,
     catatan: 'Ekspor mesin absensi otomatis unit DJKI'
   };
-  localStorage.setItem(PPPK_STORAGE.ABSENSI_IMPORT, JSON.stringify([sample]));
+  safePppkModuleSetItem(PPPK_STORAGE.ABSENSI_IMPORT, JSON.stringify([sample]));
   return [sample];
 }
 
 export function getAbsensiDetailRows(importId?: string): PPPKAbsensiDetailRow[] {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.ABSENSI_DETAIL);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.ABSENSI_DETAIL);
     let rows: PPPKAbsensiDetailRow[] = raw ? JSON.parse(raw) : [];
 
     if (rows.length === 0) {
@@ -1329,7 +1373,7 @@ function seedSampleAbsensiRows(): PPPKAbsensiDetailRow[] {
     };
   });
 
-  localStorage.setItem(PPPK_STORAGE.ABSENSI_DETAIL, JSON.stringify(rows));
+  safePppkModuleSetItem(PPPK_STORAGE.ABSENSI_DETAIL, JSON.stringify(rows));
   return rows;
 }
 
@@ -1360,11 +1404,11 @@ export function saveImportedAbsensi(
 ): void {
   const headers = getAbsensiImportHeaders();
   headers.unshift(header);
-  localStorage.setItem(PPPK_STORAGE.ABSENSI_IMPORT, JSON.stringify(headers));
+  safePppkModuleSetItem(PPPK_STORAGE.ABSENSI_IMPORT, JSON.stringify(headers));
 
   const allDetails = getAbsensiDetailRows().filter(r => r.importId !== header.id);
   const combined = [...details, ...allDetails];
-  localStorage.setItem(PPPK_STORAGE.ABSENSI_DETAIL, JSON.stringify(combined));
+  safePppkModuleSetItem(PPPK_STORAGE.ABSENSI_DETAIL, JSON.stringify(combined));
 
   recordAuditLog(
     userId,
@@ -1433,7 +1477,7 @@ export function calculateEvaluasiAkhir(penugasanId: string): PPPKEvaluasiAkhirDo
   const predikatKinerja = determinePredikat(ratingHasilKerja, ratingPerilakuKerja);
 
   // Existing saved eval doc check
-  const rawSaved = localStorage.getItem(PPPK_STORAGE.EVALUASI_AKHIR);
+  const rawSaved = safePppkModuleGetItem(PPPK_STORAGE.EVALUASI_AKHIR);
   const savedDocs: PPPKEvaluasiAkhirDoc[] = rawSaved ? JSON.parse(rawSaved) : [];
   const existing = savedDocs.find(d => d.penugasanId === penugasanId);
 
@@ -1529,7 +1573,7 @@ export function saveEvaluasiAkhirDoc(
   userName: string
 ): void {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.EVALUASI_AKHIR);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.EVALUASI_AKHIR);
     const docs: PPPKEvaluasiAkhirDoc[] = raw ? JSON.parse(raw) : [];
     const idx = docs.findIndex(d => d.penugasanId === doc.penugasanId);
 
@@ -1540,7 +1584,7 @@ export function saveEvaluasiAkhirDoc(
     } else {
       docs.push(doc);
     }
-    localStorage.setItem(PPPK_STORAGE.EVALUASI_AKHIR, JSON.stringify(docs));
+    safePppkModuleSetItem(PPPK_STORAGE.EVALUASI_AKHIR, JSON.stringify(docs));
     recordAuditLog(userId, userName, 'SAVE_EVALUASI', 'Hasil Penilaian', doc.id, undefined, doc.predikatKinerja, `Menyimpan Hasil Evaluasi Predikat ${doc.predikatKinerja}`);
   } catch (err) {
     console.error('Failed to save evaluasi akhir doc:', err);
@@ -1647,7 +1691,7 @@ export function finalizeEvaluation(
     assignments[aIdx].status = 'FINAL';
     assignments[aIdx].updatedAt = now;
     assignments[aIdx].updatedBy = userName;
-    localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(assignments));
+    safePppkModuleSetItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(assignments));
   }
 
   recordAuditLog(
@@ -1694,7 +1738,7 @@ export function bukaKembaliPenilaian(
     assignments[aIdx].status = 'DALAM_PENILAIAN';
     assignments[aIdx].updatedAt = now;
     assignments[aIdx].updatedBy = userName;
-    localStorage.setItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(assignments));
+    safePppkModuleSetItem(PPPK_STORAGE.ASSIGNMENTS, JSON.stringify(assignments));
   }
 
   recordAuditLog(
@@ -2199,7 +2243,7 @@ export function validatePreFinalisasi(penugasanId: string) {
 export const finalisasiPenilaian = finalizeEvaluation;
 export const getMasterPertanyaanPerilaku = getMasterPertanyaan;
 export const saveMasterPertanyaanPerilaku = (questions: PPPKMasterPertanyaanPerilaku[], userId: string, userName: string) => {
-  localStorage.setItem(PPPK_STORAGE.QUESTIONS, JSON.stringify(questions));
+  safePppkModuleSetItem(PPPK_STORAGE.QUESTIONS, JSON.stringify(questions));
   recordAuditLog(userId, userName, 'UPDATE_QUESTIONS', 'Master Pertanyaan', 'ALL', undefined, undefined, 'Memperbarui master pertanyaan perilaku BerAKHLAK');
 };
 export const getMasterPeriodePenilaian = getMasterPeriods;
@@ -2221,7 +2265,7 @@ export function saveAbsensiDetailRows(
   userName: string = 'Admin SDM'
 ): void {
   try {
-    localStorage.setItem(PPPK_STORAGE.ABSENSI_DETAIL, JSON.stringify(rows));
+    safePppkModuleSetItem(PPPK_STORAGE.ABSENSI_DETAIL, JSON.stringify(rows));
     recordAuditLog(
       userId,
       userName,
@@ -2244,7 +2288,7 @@ export function updateAbsensiDetailRow(
   maybeUserName?: string
 ): PPPKAbsensiDetailRow[] {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.ABSENSI_DETAIL);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.ABSENSI_DETAIL);
     let rows: PPPKAbsensiDetailRow[] = raw ? JSON.parse(raw) : [];
     if (typeof rowIdOrRow === 'string') {
       const rowId = rowIdOrRow;
@@ -2282,7 +2326,7 @@ export function deleteAbsensiDetailRow(
   userName: string = 'Admin SDM'
 ): PPPKAbsensiDetailRow[] {
   try {
-    const raw = localStorage.getItem(PPPK_STORAGE.ABSENSI_DETAIL);
+    const raw = safePppkModuleGetItem(PPPK_STORAGE.ABSENSI_DETAIL);
     const rows: PPPKAbsensiDetailRow[] = raw ? JSON.parse(raw) : [];
     const filtered = rows.filter(r => r.id !== rowId);
     saveAbsensiDetailRows(filtered, userId, userName);

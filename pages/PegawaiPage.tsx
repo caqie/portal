@@ -810,33 +810,554 @@ const PegawaiPage = () => {
     return dossierList.filter(d => d.nip === selectedPegawai.nip);
   }, [dossierList, selectedPegawai]);
 
+  // Helper Klasifikasi dan Urutan Peta Jabatan sesuai Standar Hierarki Kepegawaian DJKI / BKN
+  const getPetaJabatanHierarchy = (p: Pegawai) => {
+    const jab = (p.jabatan || '').toUpperCase().trim();
+    const eselon = (p.eselon || '').toUpperCase().trim();
+
+    // Tier 1: JPT Madya (Dirjen)
+    if ((jab.includes('DIREKTUR JENDERAL') && !jab.includes('SEKRETARIS') && !jab.includes('DIREKTORAT')) || eselon === 'I.A' || eselon === 'I.B') {
+      return { tier: 1, kategori: 'JPT Madya (Eselon I)', eselonTier: 'Eselon I', kelasJabatan: '17', levelCode: 'JPT_MADYA' };
+    }
+    // Tier 2: JPT Pratama (Eselon II - Sesditjen / Direktur)
+    if (jab.includes('SEKRETARIS DIREKTORAT') || jab.includes('SEKRETARIS DITJEN') || (jab.startsWith('DIREKTUR') && !jab.includes('SUBDIREKTORAT')) || eselon === 'II.A' || eselon === 'II.B') {
+      return { tier: 2, kategori: 'JPT Pratama (Eselon II)', eselonTier: 'Eselon II', kelasJabatan: '15-16', levelCode: 'JPT_PRATAMA' };
+    }
+    // Tier 3: Jabatan Administrator (Eselon III - Kabag, Koordinator, Kasubdit)
+    if (jab.includes('KEPALA BAGIAN') || jab.includes('KABAG') || jab.includes('KOORDINATOR') || jab.includes('KEPALA SUBDIREKTORAT') || jab.includes('KASUBDIT') || eselon === 'III.A' || eselon === 'III.B') {
+      return { tier: 3, kategori: 'Jabatan Administrator (Eselon III)', eselonTier: 'Eselon III', kelasJabatan: '12-14', levelCode: 'ADMINISTRATOR' };
+    }
+    // Tier 4: Jabatan Pengawas (Eselon IV - Subkoordinator, Kasubbag, Kasi)
+    if (jab.includes('SUBKOORDINATOR') || jab.includes('SUB KOORDINATOR') || jab.includes('KEPALA SUBBAGIAN') || jab.includes('KASUBBAG') || jab.includes('KEPALA SEKSI') || jab.includes('KASI') || eselon === 'IV.A' || eselon === 'IV.B') {
+      return { tier: 4, kategori: 'Jabatan Pengawas (Eselon IV)', eselonTier: 'Eselon IV', kelasJabatan: '8-9', levelCode: 'PENGAWAS' };
+    }
+    // Tier 5: JF Ahli Utama
+    if (jab.includes('UTAMA') && (jab.includes('AHLI UTAMA') || jab.includes('PEMERIKSA') || jab.includes('ANALIS'))) {
+      return { tier: 5, kategori: 'JF Ahli Utama', eselonTier: 'Fungsional Keahlian', kelasJabatan: '13-14', levelCode: 'JF_UTAMA' };
+    }
+    // Tier 6: JF Ahli Madya
+    if (jab.includes('MADYA') || jab.includes('AHLI MADYA')) {
+      return { tier: 6, kategori: 'JF Ahli Madya', eselonTier: 'Fungsional Keahlian', kelasJabatan: '11-12', levelCode: 'JF_MADYA' };
+    }
+    // Tier 7: JF Ahli Muda
+    if (jab.includes('MUDA') || jab.includes('AHLI MUDA')) {
+      return { tier: 7, kategori: 'JF Ahli Muda', eselonTier: 'Fungsional Keahlian', kelasJabatan: '9-10', levelCode: 'JF_MUDA' };
+    }
+    // Tier 8: JF Ahli Pertama
+    if (jab.includes('PERTAMA') || jab.includes('AHLI PERTAMA')) {
+      return { tier: 8, kategori: 'JF Ahli Pertama', eselonTier: 'Fungsional Keahlian', kelasJabatan: '8', levelCode: 'JF_PERTAMA' };
+    }
+    // Tier 9: JF Keterampilan (Penyelia, Mahir, Terampil, Pemula)
+    if (jab.includes('PENYELIA') || jab.includes('MAHIR') || jab.includes('PELAKSANA LANJUTAN') || jab.includes('TERAMPIL') || jab.includes('PEMULA')) {
+      return { tier: 9, kategori: 'JF Keterampilan', eselonTier: 'Fungsional Keterampilan', kelasJabatan: '6-8', levelCode: 'JF_KETERAMPILAN' };
+    }
+    // Tier 10: Pelaksana (JFU)
+    return { tier: 10, kategori: 'Jabatan Pelaksana (JFU)', eselonTier: 'Pelaksana', kelasJabatan: p.kelasJabatan || '5-7', levelCode: 'PELAKSANA' };
+  };
+
+  const GOLONGAN_PRIORITY: Record<string, number> = {
+    'IV/E': 140, 'IV/D': 130, 'IV/C': 120, 'IV/B': 110, 'IV/A': 100,
+    'III/D': 80, 'III/C': 70, 'III/B': 60, 'III/A': 50,
+    'II/D': 40, 'II/C': 35, 'II/B': 30, 'II/A': 25,
+    'I/D': 20, 'I/C': 15, 'I/B': 10, 'I/A': 5
+  };
+
+  const UNIT_ORDER: Record<string, number> = {
+    'Sekretariat Direktorat Jenderal Kekayaan Intelektual': 1,
+    'Direktorat Hak Cipta dan Desain Industri': 2,
+    'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang': 3,
+    'Direktorat Merek dan Indikasi Geografis': 4,
+    'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi': 5,
+    'Direktorat Teknologi Informasi Kekayaan Intelektual': 6,
+    'Direktorat Penegakan Hukum': 7
+  };
+
+  // Helper untuk memetakan posisi struktural pegawai per unit:
+  // Direktur -> Eselon III -> Eselon IV -> JF & Pelaksana di bawahnya
+  const resolvePegawaiStructure = (p: Pegawai) => {
+    const normUnit = normalizeUnitName(p.unitKerja);
+    const unitOrder = UNIT_ORDER[normUnit] || 99;
+    const jabUpper = (p.jabatan || '').toUpperCase().trim();
+    const eselonUpper = (p.eselon || '').toUpperCase().trim();
+    const hier = getPetaJabatanHierarchy(p);
+
+    const unitBagians = Object.keys(ORGANISASI_STRUCTURE[normUnit] || {});
+
+    // 1. Cek apakah Pimpinan Unit (Direktur / Sesditjen / Dirjen - Eselon II)
+    const isUnitLeader = hier.tier === 1 || hier.tier === 2 || 
+      (jabUpper.startsWith('DIREKTUR') && !jabUpper.includes('SUBDIREKTORAT')) || 
+      jabUpper.includes('SEKRETARIS DIREKTORAT') || 
+      jabUpper.includes('SEKRETARIS DITJEN') ||
+      eselonUpper === 'I.A' || eselonUpper === 'I.B' || eselonUpper === 'II.A' || eselonUpper === 'II.B';
+
+    if (isUnitLeader) {
+      return {
+        unitKerja: normUnit,
+        unitOrder,
+        bagian: 'Pimpinan Unit',
+        bagianOrder: -1,
+        isUnitLeader: true,
+        isBagianLeader: false,
+        subBagian: '',
+        subBagianOrder: -1,
+        isSubBagianLeader: false,
+        treeTier: 1, // 1: Pimpinan Unit
+        tingkatStr: '1. Pimpinan Unit (Eselon II)',
+        kedudukanHierarki: jabUpper.includes('DIREKTUR JENDERAL') ? '[ESELON I] Direktur Jenderal' : (jabUpper.includes('SEKRETARIS') ? '[ESELON II] Sekretaris Direktorat Jenderal' : '[ESELON II] Direktur'),
+        atasanLangsung: jabUpper.includes('DIREKTUR JENDERAL') ? 'Menteri Hukum dan HAM' : 'Direktur Jenderal Kekayaan Intelektual',
+        hier
+      };
+    }
+
+    // 2. Cek apakah Staf Khusus / Sekretaris Pimpinan Unit
+    const isDirectLeaderStaff = jabUpper.includes('SEKRETARIS PIMPINAN') || jabUpper.includes('STAF DIREKTUR') || jabUpper.includes('SESPIM');
+    if (isDirectLeaderStaff) {
+      return {
+        unitKerja: normUnit,
+        unitOrder,
+        bagian: 'Pimpinan Unit',
+        bagianOrder: -1,
+        isUnitLeader: false,
+        isBagianLeader: false,
+        subBagian: 'Sekretariat Pimpinan',
+        subBagianOrder: 0,
+        isSubBagianLeader: false,
+        treeTier: 2, // 2: Staf Langsung Pimpinan Unit
+        tingkatStr: '1. Staf Pimpinan Unit',
+        kedudukanHierarki: '[STAF PIMPINAN] Sekretaris / Ajudan Pimpinan',
+        atasanLangsung: normUnit.includes('Sekretariat') ? 'Sekretaris Direktorat Jenderal' : 'Direktur',
+        hier
+      };
+    }
+
+    // 3. Tentukan Bagian / Subdirektorat (Eselon III)
+    let assignedBagian = '';
+    if (p.bagian) {
+      const match = unitBagians.find(b => b.toLowerCase() === p.bagian!.toLowerCase() || b.toLowerCase().includes(p.bagian!.toLowerCase()) || p.bagian!.toLowerCase().includes(b.toLowerCase()));
+      if (match) assignedBagian = match;
+    }
+    if (!assignedBagian && p.subBagian) {
+      const match = unitBagians.find(b => b.toLowerCase().includes(p.subBagian!.toLowerCase()) || p.subBagian!.toLowerCase().includes(b.toLowerCase()));
+      if (match) assignedBagian = match;
+    }
+    if (!assignedBagian) {
+      if (normUnit.includes('Sekretariat')) {
+        if (jabUpper.includes('MUTASI') || jabUpper.includes('KEPEGAWAIAN') || jabUpper.includes('SDM') || jabUpper.includes('DISIPLIN')) assignedBagian = 'Bagian Kepegawaian';
+        else if (jabUpper.includes('KEUANGAN') || jabUpper.includes('ANGGARAN') || jabUpper.includes('PERBENDAHARAAN') || jabUpper.includes('AKUNTANSI')) assignedBagian = 'Bagian Keuangan';
+        else if (jabUpper.includes('PROGRAM') || jabUpper.includes('PELAPORAN') || jabUpper.includes('PERENCANAAN')) assignedBagian = 'Bagian Program dan Pelaporan';
+        else assignedBagian = 'Bagian Umum';
+      } else if (normUnit.includes('Cipta') || normUnit.includes('Desain Industri')) {
+        if (jabUpper.includes('PERMOHONAN') || jabUpper.includes('PUBLIKASI')) assignedBagian = 'Subdirektorat Permohonan dan Publikasi';
+        else if (jabUpper.includes('PELAYANAN HUKUM') || jabUpper.includes('LMK') || jabUpper.includes('LEMBAGA MANAJEMEN')) assignedBagian = 'Subdirektorat Pelayanan Hukum dan Lembaga Manajemen Kolektif';
+        else if (jabUpper.includes('DESAIN INDUSTRI')) assignedBagian = 'Subdirektorat Desain Industri';
+        else if (jabUpper.includes('TATA USAHA')) assignedBagian = 'Bagian Tata Usaha';
+        else assignedBagian = 'Subdirektorat Hak Cipta';
+      } else if (normUnit.includes('Paten') || normUnit.includes('DTLST')) {
+        if (jabUpper.includes('PERMOHONAN') || jabUpper.includes('PUBLIKASI')) assignedBagian = 'Subdirektorat Permohonan dan Publikasi Paten';
+        else if (jabUpper.includes('PEMERIKSAAN PATEN II') || jabUpper.includes('PATEN II')) assignedBagian = 'Subdirektorat Pemeriksaan Paten II';
+        else if (jabUpper.includes('PELAYANAN HUKUM') || jabUpper.includes('ADMINISTRASI')) assignedBagian = 'Subdirektorat Administrasi dan Pelayanan Hukum';
+        else if (jabUpper.includes('TATA USAHA')) assignedBagian = 'Bagian Tata Usaha';
+        else assignedBagian = 'Subdirektorat Pemeriksaan Paten I';
+      } else if (normUnit.includes('Merek') || normUnit.includes('Indikasi Geografis')) {
+        if (jabUpper.includes('PERMOHONAN') || jabUpper.includes('PUBLIKASI')) assignedBagian = 'Subdirektorat Permohonan dan Publikasi Merek';
+        else if (jabUpper.includes('INDIKASI GEOGRAFIS')) assignedBagian = 'Subdirektorat Indikasi Geografis';
+        else if (jabUpper.includes('PELAYANAN HUKUM') || jabUpper.includes('ADMINISTRASI')) assignedBagian = 'Subdirektorat Administrasi dan Pelayanan Hukum';
+        else if (jabUpper.includes('TATA USAHA')) assignedBagian = 'Bagian Tata Usaha';
+        else assignedBagian = 'Subdirektorat Pemeriksaan Merek';
+      } else if (normUnit.includes('Sama') || normUnit.includes('Edukasi')) {
+        if (jabUpper.includes('LUAR NEGERI') || jabUpper.includes('BILATERAL')) assignedBagian = 'Subdirektorat Kerja Sama Luar Negeri';
+        else if (jabUpper.includes('DALAM NEGERI')) assignedBagian = 'Subdirektorat Kerja Sama Dalam Negeri';
+        else if (jabUpper.includes('EDUKASI')) assignedBagian = 'Subdirektorat Edukasi';
+        else if (jabUpper.includes('TATA USAHA')) assignedBagian = 'Bagian Tata Usaha';
+        else assignedBagian = 'Subdirektorat Pemberdayaan KI';
+      } else if (normUnit.includes('Teknologi Informasi') || normUnit.includes('TI')) {
+        if (jabUpper.includes('INFRASTRUKTUR') || jabUpper.includes('TIK') || jabUpper.includes('JARINGAN')) assignedBagian = 'Subdirektorat Infrastruktur TIK';
+        else if (jabUpper.includes('DATA') || jabUpper.includes('LAYANAN INFORMASI')) assignedBagian = 'Subdirektorat Manajemen Data dan Informasi';
+        else if (jabUpper.includes('TATA USAHA')) assignedBagian = 'Bagian Tata Usaha';
+        else assignedBagian = 'Subdirektorat Pengembangan Sistem Informasi';
+      } else if (normUnit.includes('Penegakan Hukum') || normUnit.includes('Gakkum')) {
+        if (jabUpper.includes('PENYIDIKAN') || jabUpper.includes('SIDIK') || jabUpper.includes('PPNS')) assignedBagian = 'Subdirektorat Penyidikan';
+        else if (jabUpper.includes('PEMANTAUAN') || jabUpper.includes('PENGAWASAN')) assignedBagian = 'Subdirektorat Pemantauan dan Pengawasan';
+        else if (jabUpper.includes('TATA USAHA')) assignedBagian = 'Bagian Tata Usaha';
+        else assignedBagian = 'Subdirektorat Pencegahan dan Penyelesaian Sengketa';
+      }
+    }
+    if (!assignedBagian) assignedBagian = unitBagians[0] || 'Bagian Tata Usaha';
+
+    const bagianOrder = unitBagians.indexOf(assignedBagian) >= 0 ? unitBagians.indexOf(assignedBagian) : 99;
+    const availableSubs = ORGANISASI_STRUCTURE[normUnit]?.[assignedBagian] || [];
+
+    // 4. Cek apakah Kepala Bagian / Koordinator / Kasubdit (Eselon III)
+    const isBagianLeader = hier.tier === 3 || 
+      jabUpper.includes('KEPALA BAGIAN') || 
+      jabUpper.includes('KABAG') || 
+      jabUpper.includes('KOORDINATOR') || 
+      jabUpper.includes('KEPALA SUBDIREKTORAT') || 
+      jabUpper.includes('KASUBDIT') ||
+      eselonUpper === 'III.A' || eselonUpper === 'III.B';
+
+    if (isBagianLeader) {
+      return {
+        unitKerja: normUnit,
+        unitOrder,
+        bagian: assignedBagian,
+        bagianOrder,
+        isUnitLeader: false,
+        isBagianLeader: true,
+        subBagian: '',
+        subBagianOrder: -1,
+        isSubBagianLeader: false,
+        treeTier: 3, // 3: Kepala Bagian / Eselon III
+        tingkatStr: '2. Administrator (Eselon III)',
+        kedudukanHierarki: assignedBagian.startsWith('Subdirektorat') ? `[ESELON III] Kepala ${assignedBagian}` : `[ESELON III] Kepala ${assignedBagian}`,
+        atasanLangsung: normUnit.includes('Sekretariat') ? 'Sekretaris Direktorat Jenderal' : 'Direktur',
+        hier
+      };
+    }
+
+    // 5. Tentukan Subbagian / Seksi (Eselon IV)
+    let assignedSubBagian = '';
+    if (p.subBagian) {
+      const match = availableSubs.find(s => s.toLowerCase() === p.subBagian!.toLowerCase() || s.toLowerCase().includes(p.subBagian!.toLowerCase()) || p.subBagian!.toLowerCase().includes(s.toLowerCase()));
+      if (match) assignedSubBagian = match;
+    }
+    if (!assignedSubBagian) {
+      const match = availableSubs.find(s => jabUpper.includes(s.toUpperCase()));
+      if (match) assignedSubBagian = match;
+    }
+
+    // Cek apakah JF Ahli Madya / Utama yang berada langsung di bawah Bagian / Subdirektorat
+    const isDirectBagianJF = (hier.tier === 5 || hier.tier === 6) && !p.subBagian;
+    if (isDirectBagianJF && !assignedSubBagian) {
+      return {
+        unitKerja: normUnit,
+        unitOrder,
+        bagian: assignedBagian,
+        bagianOrder,
+        isUnitLeader: false,
+        isBagianLeader: false,
+        subBagian: 'Kelompok Jabatan Fungsional',
+        subBagianOrder: 98,
+        isSubBagianLeader: false,
+        treeTier: 4, // 4: JF Langsung di bawah Eselon III
+        tingkatStr: '2.1. JF di bawah Eselon III',
+        kedudukanHierarki: `[DI BAWAH ESELON III] ${hier.kategori}`,
+        atasanLangsung: `Kepala ${assignedBagian}`,
+        hier
+      };
+    }
+
+    if (!assignedSubBagian) {
+      assignedSubBagian = availableSubs[0] || 'Subbagian Tata Usaha';
+    }
+    const subBagianOrder = availableSubs.indexOf(assignedSubBagian) >= 0 ? availableSubs.indexOf(assignedSubBagian) : 99;
+
+    // 6. Cek apakah Kepala Subbagian / Kasi / Subkoordinator (Eselon IV)
+    const isSubBagianLeader = hier.tier === 4 ||
+      jabUpper.includes('SUBKOORDINATOR') ||
+      jabUpper.includes('SUB KOORDINATOR') ||
+      jabUpper.includes('KEPALA SUBBAGIAN') ||
+      jabUpper.includes('KASUBBAG') ||
+      jabUpper.includes('KEPALA SEKSI') ||
+      jabUpper.includes('KASI') ||
+      eselonUpper === 'IV.A' || eselonUpper === 'IV.B';
+
+    if (isSubBagianLeader) {
+      return {
+        unitKerja: normUnit,
+        unitOrder,
+        bagian: assignedBagian,
+        bagianOrder,
+        isUnitLeader: false,
+        isBagianLeader: false,
+        subBagian: assignedSubBagian,
+        subBagianOrder,
+        isSubBagianLeader: true,
+        treeTier: 6, // 6: Kepala Subbagian / Kasi (Eselon IV)
+        tingkatStr: '3. Pengawas (Eselon IV)',
+        kedudukanHierarki: assignedSubBagian.startsWith('Seksi') ? `[ESELON IV] Kepala ${assignedSubBagian}` : `[ESELON IV] Kepala ${assignedSubBagian}`,
+        atasanLangsung: `Kepala ${assignedBagian}`,
+        hier
+      };
+    }
+
+    // 7. Pegawai di bawah Eselon IV: Jabatan Fungsional (JF)
+    const isFungsional = hier.tier >= 5 && hier.tier <= 9;
+    if (isFungsional) {
+      return {
+        unitKerja: normUnit,
+        unitOrder,
+        bagian: assignedBagian,
+        bagianOrder,
+        isUnitLeader: false,
+        isBagianLeader: false,
+        subBagian: assignedSubBagian,
+        subBagianOrder,
+        isSubBagianLeader: false,
+        treeTier: 7, // 7: JF di bawah Eselon IV
+        tingkatStr: '3.1. JF di bawah Eselon IV',
+        kedudukanHierarki: `[DI BAWAH ESELON IV] ${hier.kategori}`,
+        atasanLangsung: `Kepala / Subkoordinator ${assignedSubBagian}`,
+        hier
+      };
+    }
+
+    // 8. Pegawai di bawah Eselon IV: Pelaksana / JFU
+    return {
+      unitKerja: normUnit,
+      unitOrder,
+      bagian: assignedBagian,
+      bagianOrder,
+      isUnitLeader: false,
+      isBagianLeader: false,
+      subBagian: assignedSubBagian,
+      subBagianOrder,
+      isSubBagianLeader: false,
+      treeTier: 8, // 8: Pelaksana di bawah Eselon IV
+      tingkatStr: '3.2. Pelaksana di bawah Eselon IV',
+      kedudukanHierarki: '[DI BAWAH ESELON IV] Jabatan Pelaksana (JFU)',
+      atasanLangsung: `Kepala / Subkoordinator ${assignedSubBagian}`,
+      hier
+    };
+  };
+
+  // Fungsi pengurutan utama hierarki struktur unit:
+  // Unit -> Direktur -> Eselon III -> Eselon IV -> JF & Pelaksana di bawahnya
+  const sortPegawaiByUnitStructureHierarchy = (list: Pegawai[], groupByUnit = true): { pegawai: Pegawai; struct: ReturnType<typeof resolvePegawaiStructure> }[] => {
+    const mapped = list.map(p => ({
+      pegawai: p,
+      struct: resolvePegawaiStructure(p)
+    }));
+
+    return mapped.sort((a, b) => {
+      // 1. Urutkan per Unit Kerja (Sekretariat s.d. Dit Penegakan Hukum)
+      if (groupByUnit && a.struct.unitOrder !== b.struct.unitOrder) {
+        return a.struct.unitOrder - b.struct.unitOrder;
+      }
+
+      // 2. Di dalam Unit: Urutkan Bagian / Subdirektorat (Pimpinan Unit bagianOrder = -1 paling atas)
+      if (a.struct.bagianOrder !== b.struct.bagianOrder) {
+        return a.struct.bagianOrder - b.struct.bagianOrder;
+      }
+
+      // 3. Di dalam Bagian: Urutkan Subbagian / Seksi
+      if (a.struct.subBagianOrder !== b.struct.subBagianOrder) {
+        // Jika salah satunya Kepala Bagian (treeTier 3), posisikan di atas subbagian
+        if (a.struct.treeTier === 3) return -1;
+        if (b.struct.treeTier === 3) return 1;
+        return a.struct.subBagianOrder - b.struct.subBagianOrder;
+      }
+
+      // 4. Di dalam Subbagian / Seksi: Urutkan Tree Tier (Kepala Seksi/Eselon IV -> JF -> Pelaksana)
+      if (a.struct.treeTier !== b.struct.treeTier) {
+        return a.struct.treeTier - b.struct.treeTier;
+      }
+
+      // 5. Di dalam grup JF/Pelaksana yang sama: Urutkan jenjang JF (Utama -> Madya -> Muda -> Pertama -> Keterampilan)
+      if (a.struct.hier.tier !== b.struct.hier.tier) {
+        return a.struct.hier.tier - b.struct.hier.tier;
+      }
+
+      // 6. Urutkan Golongan Tertinggi (IV/e s.d. I/a)
+      const golA = GOLONGAN_PRIORITY[(a.pegawai.golRuang || '').toUpperCase()] || 0;
+      const golB = GOLONGAN_PRIORITY[(b.pegawai.golRuang || '').toUpperCase()] || 0;
+      if (golA !== golB) return golB - golA;
+
+      // 7. Senioritas TMT Pangkat tertua duluan
+      if (a.pegawai.tmtPangkat && b.pegawai.tmtPangkat) {
+        const cmp = String(a.pegawai.tmtPangkat).localeCompare(String(b.pegawai.tmtPangkat));
+        if (cmp !== 0) return cmp;
+      }
+
+      // 8. Urutan Nama Alfabetis
+      return (a.pegawai.nama || '').localeCompare(b.pegawai.nama || '');
+    });
+  };
+
   const handleExportExcel = (type: 'SHARE' | 'FULL') => {
     const wb = XLSX.utils.book_new();
     
     // Filter data for export: exclude 'Tidak Aktif' and 'Pensiun' if not searching
-    const exportPegawai = searchTerm.trim() === '' 
+    const rawExportPegawai = searchTerm.trim() === '' 
       ? filteredPegawai.filter(p => p.status !== 'Tidak Aktif' && p.status !== 'Pensiun')
       : filteredPegawai;
 
-    if (type === 'SHARE') {
-      const data = exportPegawai.map((p, index) => ({
-        'No': index + 1,
-        'NIP': p.nip,
-        'NAMA': p.nama,
-        'Pangkat/golongan': `${p.pangkat || '-'}, ${p.golRuang || '-'}`,
-        'Jabatan': p.jabatan,
-        'Unit kerja': p.unitKerja,
-        'Jenis pegawai': p.jenisPegawai
-      }));
-      const ws = XLSX.utils.json_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, "Daftar Pegawai");
-    } else {
-      // Sheet 1: Semua Pegawai
-      const allData = exportPegawai.map(p => ({ ...p }));
-      const wsAll = XLSX.utils.json_to_sheet(allData);
-      XLSX.utils.book_append_sheet(wb, wsAll, "Semua Pegawai");
+    // Klasifikasikan dan urutkan sesuai hierarki struktur per unit (Direktur -> Eselon III -> Eselon IV -> JF & Pelaksana di bawahnya)
+    const structuredList = sortPegawaiByUnitStructureHierarchy(rawExportPegawai, true);
 
-      // Mapping nama sheet agar tidak melebihi 31 karakter
+    if (type === 'SHARE') {
+      const data = structuredList.map((item, index) => {
+        const p = item.pegawai;
+        const s = item.struct;
+        return {
+          'No': index + 1,
+          'Unit Kerja': s.unitKerja,
+          'Bagian / Subdirektorat': s.bagian,
+          'Subbagian / Seksi': s.subBagian || '-',
+          'Kedudukan Hierarki': s.kedudukanHierarki,
+          'Atasan Langsung': s.atasanLangsung,
+          'NIP': p.nip,
+          'NAMA': p.nama,
+          'Pangkat/Golongan': `${p.pangkat || '-'}, ${p.golRuang || '-'}`,
+          'Klasifikasi Jabatan': s.hier.kategori,
+          'Jabatan': p.jabatan,
+          'Jenis Pegawai': p.jenisPegawai || 'PNS'
+        };
+      });
+      const ws = XLSX.utils.json_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, "Daftar Pegawai (Hierarkis)");
+    } else {
+      // 1. Sheet 1: Peta Jabatan Struktur (Per Unit: Direktur -> Eselon III -> Eselon IV -> JF & Pelaksana)
+      const petaJabatanRows = structuredList.map((item, index) => {
+        const p = item.pegawai;
+        const s = item.struct;
+        return {
+          'No': index + 1,
+          'Unit Kerja': s.unitKerja,
+          'Tingkat Organisasi': s.tingkatStr,
+          'Induk Struktur (Eselon III)': s.bagian,
+          'Sub Struktur (Eselon IV)': s.subBagian || '-',
+          'Kedudukan Hierarki': s.kedudukanHierarki,
+          'Atasan Langsung': s.atasanLangsung,
+          'Nama Pemangku': p.nama,
+          'NIP': p.nip,
+          'Nama Jabatan': p.jabatan,
+          'Pangkat / Golongan': `${p.pangkat || '-'} (${p.golRuang || '-'})`,
+          'TMT Pangkat': p.tmtPangkat || '-',
+          'Kelas Jabatan': s.hier.kelasJabatan,
+          'Eselon': p.eselon || s.hier.eselonTier,
+          'Pendidikan Terakhir': p.pendidikan || '-',
+          'Status Pegawai': p.jenisPegawai || 'PNS',
+          'Keterangan Bezetting': 'Terisi (1)'
+        };
+      });
+      const wsPeta = XLSX.utils.json_to_sheet(petaJabatanRows);
+      XLSX.utils.book_append_sheet(wb, wsPeta, "Peta Jabatan Struktur");
+
+      // 2. Sheet 2: Semua Pegawai (Tersusun Lengkap per Hierarki Struktur Organisasi)
+      const allDataFormatted = structuredList.map((item, index) => {
+        const p = item.pegawai;
+        const s = item.struct;
+        return {
+          'No': index + 1,
+          'NIP': p.nip,
+          'Nama Lengkap': p.nama,
+          'Unit Kerja': s.unitKerja,
+          'Bagian / Subdirektorat': s.bagian,
+          'Subbagian / Seksi': s.subBagian || '-',
+          'Kedudukan Hierarki': s.kedudukanHierarki,
+          'Atasan Langsung': s.atasanLangsung,
+          'Status Kepegawaian': p.status || 'Aktif',
+          'Jenis Pegawai': p.jenisPegawai || 'PNS',
+          'Klasifikasi Peta Jabatan': s.hier.kategori,
+          'Jabatan': p.jabatan,
+          'Kelas Jabatan': s.hier.kelasJabatan,
+          'Eselon': p.eselon || s.hier.eselonTier,
+          'Pangkat': p.pangkat || '-',
+          'Gol/Ruang': p.golRuang || '-',
+          'TMT Pangkat': p.tmtPangkat || '-',
+          'TMT Jabatan': p.tmtJabatan || '-',
+          'Masa Kerja': p.masaKerja || '-',
+          'Pendidikan Terakhir': p.pendidikan || '-',
+          'Jurusan / Prodi': p.jurusan || '-',
+          'Tempat Lahir': p.tempatLahir || '-',
+          'Tanggal Lahir': p.tanggalLahir || '-',
+          'Usia': p.usia || '-',
+          'Jenis Kelamin': p.gender === 'L' ? 'Laki-laki' : p.gender === 'P' ? 'Perempuan' : p.gender || '-',
+          'Agama': p.agama || '-',
+          'No Rekening Gaji': p.noRekeningGaji || '-',
+          'Alamat': p.alamat || '-'
+        };
+      });
+      const wsAll = XLSX.utils.json_to_sheet(allDataFormatted);
+      XLSX.utils.book_append_sheet(wb, wsAll, "Semua Pegawai (Hierarkis)");
+
+      // 3. Sheet 3: Rekapitulasi Peta Jabatan (Matriks Bezetting per Unit & per Bagian)
+      const rekapPetaJabatan: any[] = [];
+      let totalAllPegs = 0;
+
+      UNIT_KERJA.forEach((unit, uIdx) => {
+        const unitItems = structuredList.filter(item => item.struct.unitKerja === unit);
+        const unitBagians = Object.keys(ORGANISASI_STRUCTURE[unit] || {});
+        
+        // Ringkasan per Bagian dalam Unit
+        unitBagians.forEach((bag, bIdx) => {
+          const bagItems = unitItems.filter(item => item.struct.bagian === bag);
+          let jpt = 0, adm = 0, pengawas = 0, jfUtama = 0, jfMadya = 0, jfMuda = 0, jfPertama = 0, jfKeterampilan = 0, pelaksana = 0;
+
+          bagItems.forEach(item => {
+            const t = item.struct.hier.tier;
+            if (t === 1 || t === 2) jpt++;
+            else if (t === 3) adm++;
+            else if (t === 4) pengawas++;
+            else if (t === 5) jfUtama++;
+            else if (t === 6) jfMadya++;
+            else if (t === 7) jfMuda++;
+            else if (t === 8) jfPertama++;
+            else if (t === 9) jfKeterampilan++;
+            else pelaksana++;
+          });
+
+          rekapPetaJabatan.push({
+            'No': `${uIdx + 1}.${bIdx + 1}`,
+            'Unit Kerja': unit,
+            'Bagian / Subdirektorat': bag,
+            'JPT (Eselon II)': jpt,
+            'Administrator (Eselon III)': adm,
+            'Pengawas (Eselon IV)': pengawas,
+            'JF Ahli Utama': jfUtama,
+            'JF Ahli Madya': jfMadya,
+            'JF Ahli Muda': jfMuda,
+            'JF Ahli Pertama': jfPertama,
+            'JF Keterampilan': jfKeterampilan,
+            'Pelaksana (JFU)': pelaksana,
+            'Total Bezetting Riil': bagItems.length
+          });
+        });
+
+        // Hitung juga Pimpinan Unit yang tidak masuk dalam bagian tertentu
+        const leaderItems = unitItems.filter(item => item.struct.bagian === 'Pimpinan Unit');
+        if (leaderItems.length > 0) {
+          rekapPetaJabatan.push({
+            'No': `${uIdx + 1}.0`,
+            'Unit Kerja': unit,
+            'Bagian / Subdirektorat': 'Pimpinan Unit & Staf',
+            'JPT (Eselon II)': leaderItems.filter(i => i.struct.hier.tier <= 2).length,
+            'Administrator (Eselon III)': 0,
+            'Pengawas (Eselon IV)': 0,
+            'JF Ahli Utama': 0,
+            'JF Ahli Madya': 0,
+            'JF Ahli Muda': 0,
+            'JF Ahli Pertama': 0,
+            'JF Keterampilan': 0,
+            'Pelaksana (JFU)': leaderItems.filter(i => i.struct.hier.tier > 2).length,
+            'Total Bezetting Riil': leaderItems.length
+          });
+        }
+
+        totalAllPegs += unitItems.length;
+      });
+
+      // Baris Total Keseluruhan
+      rekapPetaJabatan.push({
+        'No': 'TOTAL',
+        'Unit Kerja': 'TOTAL KESELURUHAN DITJEN KEKAYAAN INTELEKTUAL',
+        'Bagian / Subdirektorat': 'SELURUH UNIT KERJA',
+        'JPT (Eselon II)': rekapPetaJabatan.reduce((acc, curr) => acc + (curr['JPT (Eselon II)'] || 0), 0),
+        'Administrator (Eselon III)': rekapPetaJabatan.reduce((acc, curr) => acc + (curr['Administrator (Eselon III)'] || 0), 0),
+        'Pengawas (Eselon IV)': rekapPetaJabatan.reduce((acc, curr) => acc + (curr['Pengawas (Eselon IV)'] || 0), 0),
+        'JF Ahli Utama': rekapPetaJabatan.reduce((acc, curr) => acc + (curr['JF Ahli Utama'] || 0), 0),
+        'JF Ahli Madya': rekapPetaJabatan.reduce((acc, curr) => acc + (curr['JF Ahli Madya'] || 0), 0),
+        'JF Ahli Muda': rekapPetaJabatan.reduce((acc, curr) => acc + (curr['JF Ahli Muda'] || 0), 0),
+        'JF Ahli Pertama': rekapPetaJabatan.reduce((acc, curr) => acc + (curr['JF Ahli Pertama'] || 0), 0),
+        'JF Keterampilan': rekapPetaJabatan.reduce((acc, curr) => acc + (curr['JF Keterampilan'] || 0), 0),
+        'Pelaksana (JFU)': rekapPetaJabatan.reduce((acc, curr) => acc + (curr['Pelaksana (JFU)'] || 0), 0),
+        'Total Bezetting Riil': totalAllPegs
+      });
+      const wsRekap = XLSX.utils.json_to_sheet(rekapPetaJabatan);
+      XLSX.utils.book_append_sheet(wb, wsRekap, "Rekap Peta Jabatan");
+
+      // Mapping nama sheet unit agar singkat dan ramah Excel (maks 31 karakter)
       const UNIT_SHEET_NAMES: Record<string, string> = {
         'Sekretariat Direktorat Jenderal Kekayaan Intelektual': 'Sekretariat',
         'Direktorat Hak Cipta dan Desain Industri': 'Hak Cipta & DI',
@@ -847,51 +1368,80 @@ const PegawaiPage = () => {
         'Direktorat Penegakan Hukum': 'Penegakan Hukum'
       };
 
-      // Sheets 2-8: Per Unit Kerja (hanya jika ada data atau jika tidak sedang difilter)
+      // Sheets 4-10: Sheet Per Unit Kerja (Setiap unit terurut Direktur -> Eselon III -> Eselon IV -> JF -> Pelaksana)
       UNIT_KERJA.forEach(unit => {
-        const unitData = exportPegawai.filter(p => normalizeUnitName(p.unitKerja) === unit).map(p => ({ ...p }));
-        if (unitData.length > 0) {
-          const wsUnit = XLSX.utils.json_to_sheet(unitData);
+        const unitItems = structuredList.filter(item => item.struct.unitKerja === unit);
+        if (unitItems.length > 0) {
+          const formattedUnit = unitItems.map((item, idx) => {
+            const p = item.pegawai;
+            const s = item.struct;
+            return {
+              'No': idx + 1,
+              'Tingkat Organisasi': s.tingkatStr,
+              'Bagian / Subdirektorat': s.bagian,
+              'Subbagian / Seksi': s.subBagian || '-',
+              'Kedudukan Hierarki': s.kedudukanHierarki,
+              'Atasan Langsung': s.atasanLangsung,
+              'NIP': p.nip,
+              'Nama Lengkap': p.nama,
+              'Jabatan': p.jabatan,
+              'Pangkat / Golongan': `${p.pangkat || '-'} (${p.golRuang || '-'})`,
+              'TMT Pangkat': p.tmtPangkat || '-',
+              'Kelas Jabatan': s.hier.kelasJabatan,
+              'Eselon': p.eselon || s.hier.eselonTier,
+              'Pendidikan': p.pendidikan || '-',
+              'Status Pegawai': p.jenisPegawai || 'PNS'
+            };
+          });
+          const wsUnit = XLSX.utils.json_to_sheet(formattedUnit);
           const sheetName = UNIT_SHEET_NAMES[unit] || unit.substring(0, 31);
           XLSX.utils.book_append_sheet(wb, wsUnit, sheetName);
         }
       });
     }
     
-    XLSX.writeFile(wb, `Data_Pegawai_DJKI_${type}_${Date.now()}.xlsx`);
+    XLSX.writeFile(wb, `Data_Pegawai_DJKI_${type}_PetaJabatanStruktur_${Date.now()}.xlsx`);
   };
 
   const handleExportSelectedExcel = () => {
     if (selectedNipsForBulk.length === 0) return;
     const wb = XLSX.utils.book_new();
     const exportPegawai = pegawaiList.filter(p => p.nip && selectedNipsForBulk.includes(p.nip));
+    const structuredList = sortPegawaiByUnitStructureHierarchy(exportPegawai, true);
 
-    const data = exportPegawai.map((p, index) => ({
-      'No': index + 1,
-      'NIP': p.nip,
-      'NAMA': p.nama,
-      'NIK': p.nik || '-',
-      'Gol/Ruang': p.golRuang || '-',
-      'Pangkat': p.pangkat || '-',
-      'Jabatan': p.jabatan || '-',
-      'Unit Kerja': p.unitKerja || '-',
-      'Bagian': p.bagian || '-',
-      'Sub Bagian': p.subBagian || '-',
-      'Jenis Pegawai': p.jenisPegawai || '-',
-      'Status': p.status || '-',
-      'Gender': p.gender || '-',
-      'Tempat Lahir': p.tempatLahir || '-',
-      'Tanggal Lahir': p.tanggalLahir || '-',
-      'Usia': p.usia || '-',
-      'Pendidikan': p.pendidikan || '-',
-      'Jurusan': p.jurusan || '-',
-      'No HP': p.noHp || '-',
-      'Email': p.email || '-',
-      'NPWP': p.npwp || '-',
-      'BPJS': p.noBpjs || '-',
-      'Bank': p.namaBank || '-',
-      'No Rekening': p.noRekeningGaji || '-'
-    }));
+    const data = structuredList.map((item, index) => {
+      const p = item.pegawai;
+      const s = item.struct;
+      return {
+        'No': index + 1,
+        'NIP': p.nip,
+        'NAMA': p.nama,
+        'Unit Kerja': s.unitKerja,
+        'Bagian / Subdirektorat': s.bagian,
+        'Subbagian / Seksi': s.subBagian || '-',
+        'Kedudukan Hierarki': s.kedudukanHierarki,
+        'Atasan Langsung': s.atasanLangsung,
+        'Jabatan': p.jabatan || '-',
+        'Gol/Ruang': p.golRuang || '-',
+        'Pangkat': p.pangkat || '-',
+        'Kelas Jabatan': s.hier.kelasJabatan,
+        'Eselon': p.eselon || s.hier.eselonTier,
+        'Jenis Pegawai': p.jenisPegawai || '-',
+        'Status': p.status || '-',
+        'Gender': p.gender || '-',
+        'Tempat Lahir': p.tempatLahir || '-',
+        'Tanggal Lahir': p.tanggalLahir || '-',
+        'Usia': p.usia || '-',
+        'Pendidikan': p.pendidikan || '-',
+        'Jurusan': p.jurusan || '-',
+        'No HP': p.noHp || '-',
+        'Email': p.email || '-',
+        'NPWP': p.npwp || '-',
+        'BPJS': p.noBpjs || '-',
+        'Bank': p.namaBank || '-',
+        'No Rekening': p.noRekeningGaji || '-'
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, "Pegawai Terpilih");
@@ -1273,8 +1823,8 @@ const PegawaiPage = () => {
              <span className="hidden xs:inline">Sync Cloud</span>
              <span className="xs:hidden">Sync</span>
            </button>
-           <button onClick={() => handleExportExcel('SHARE')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2"><i className="bi bi-file-earmark-spreadsheet-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Share</span><span className="xs:hidden">Shr</span></button>
-           {canEdit && (<button onClick={() => handleExportExcel('FULL')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-600 text-white rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"><i className="bi bi-database-fill-down text-base md:text-lg"></i> <span className="hidden xs:inline">Full</span><span className="xs:hidden">Full</span></button>)}
+           <button onClick={() => handleExportExcel('SHARE')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2" title="Unduh Data Pegawai Ringkas (Terstruktur Per Unit: Direktur -> Eselon III -> Eselon IV -> JF & Pelaksana)"><i className="bi bi-file-earmark-spreadsheet-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Share</span><span className="xs:hidden">Shr</span></button>
+           {canEdit && (<button onClick={() => handleExportExcel('FULL')} className="h-10 md:h-14 px-3 md:px-6 bg-emerald-600 text-white rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] uppercase shadow-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2" title="Unduh Database Lengkap dengan Peta Jabatan Struktur Per Unit: Direktur -> Eselon III -> Eselon IV -> JF & Pelaksana di bawahnya, Rekapitulasi Bezetting, dan Sheet Khusus Per Direktorat"><i className="bi bi-diagram-3-fill text-base md:text-lg"></i> <span className="hidden xs:inline">Full + Peta Jabatan</span><span className="xs:hidden">Full</span></button>)}
            {canEdit && (
              <button 
                onClick={() => {

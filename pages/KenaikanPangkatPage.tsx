@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchPegawaiFromSheets, syncTableRemote, fetchKenaikanFromSheets, uploadFileToDrive } from '../spreadsheetService';
 import { Pegawai, KenaikanKarir } from '../types';
 import { useAuth } from '../AuthContext';
@@ -16,6 +16,7 @@ import { jsPDF } from 'jspdf';
 
 const KenaikanPangkatPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { canEdit, logActivity, isSuperadmin, user: currentUser } = useAuth();
   
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
@@ -76,6 +77,16 @@ const KenaikanPangkatPage = () => {
       });
     }
   };
+
+  useEffect(() => {
+    if (location.state?.nip && pegawaiList.length > 0) {
+      handleASNSelect(location.state.nip);
+      if (location.state.tmtUsulan) {
+        setFormData((prev: any) => ({ ...prev, tmtUsulan: location.state.tmtUsulan }));
+      }
+      setActiveView('editor');
+    }
+  }, [location.state?.nip, pegawaiList]);
 
   const handleSave = async () => {
     if (!formData.nip || !formData.menjadi) return alert("Lengkapi data usulan.");
@@ -395,7 +406,31 @@ const KenaikanPangkatPage = () => {
                     <div><label className={labelClass}>Pangkat Tujuan</label><input className={inputClass} value={formData.menjadi} onChange={e=>setFormData({...formData, menjadi: e.target.value})} /></div>
                  </div>
                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className={labelClass}>TMT Usulan</label><input type="date" className={inputClass} value={formData.tmtUsulan} onChange={e=>setFormData({...formData, tmtUsulan: e.target.value})} /></div>
+                    <div>
+                      <label className={labelClass}>TMT Usulan (6 Periode BKN)</label>
+                      <input type="date" className={inputClass} value={formData.tmtUsulan} onChange={e=>setFormData({...formData, tmtUsulan: e.target.value})} />
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {['02-01', '04-01', '06-01', '08-01', '10-01', '12-01'].map(p => {
+                          const y = formData.tmtUsulan ? formData.tmtUsulan.split('-')[0] : new Date().getFullYear();
+                          const targetDate = `${y}-${p}`;
+                          const monthNames: Record<string, string> = { '02': 'Feb', '04': 'Apr', '06': 'Jun', '08': 'Ags', '10': 'Okt', '12': 'Des' };
+                          const m = p.split('-')[0];
+                          const isSelected = formData.tmtUsulan === targetDate;
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, tmtUsulan: targetDate })}
+                              className={`px-2 py-0.5 rounded text-[8px] font-black uppercase transition-all ${
+                                isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              1 {monthNames[m]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <div><label className={labelClass}>Nomor Nota Dinas</label><input className={inputClass} value={formData.nomorNota} onChange={e=>setFormData({...formData, nomorNota: e.target.value})} /></div>
                      <div><label className={labelClass}>Tanggal Nota Dinas</label><input type="date" className={inputClass} value={formData.tanggalNota} onChange={e=>setFormData({...formData, tanggalNota: e.target.value})} /></div>
                  </div>

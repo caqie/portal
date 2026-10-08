@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 // @ts-ignore
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchPegawaiFromSheets, fetchKGBFromSheets, syncTableRemote, uploadFileToDrive, parseDateToYYYYMMDD } from '../spreadsheetService';
 import { Pegawai, KGB } from '../types';
 import { useAuth } from '../AuthContext';
@@ -30,6 +30,7 @@ const terbilang = (n: number): string => {
 
 const KGBGeneratorPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logActivity, canEdit, isSuperadmin } = useAuth();
   const [pegawaiList, setPegawaiList] = useState<Pegawai[]>([]);
   const [kgbHistory, setKgbHistory] = useState<KGB[]>([]);
@@ -83,6 +84,13 @@ const KGBGeneratorPage = () => {
   );
 
   useEffect(() => { loadInitialData(); }, []);
+
+  useEffect(() => {
+    if (location.state?.nip && pegawaiList.length > 0) {
+      handlePegawaiSelect(location.state.nip);
+      setActiveView('editor');
+    }
+  }, [location.state?.nip, pegawaiList]);
 
   const loadInitialData = async () => {
     setLoading(true);
@@ -183,6 +191,13 @@ const KGBGeneratorPage = () => {
       });
     }
   };
+
+  useEffect(() => {
+    if (location.state?.nip && pegawaiList.length > 0) {
+      handlePegawaiSelect(location.state.nip);
+      setActiveView('editor');
+    }
+  }, [location.state?.nip, pegawaiList]);
 
   const handleEditKgb = (k: KGB) => {
     setFormData({

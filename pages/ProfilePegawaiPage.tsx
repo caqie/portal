@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Pegawai, RiwayatPendidikan, RiwayatJabatan, RiwayatPangkat, RiwayatPelatihan, RiwayatGaji, RiwayatPenghargaan, Keluarga, Dossier } from '../types';
 import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, parseDateToYYYYMMDD } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
@@ -10,7 +10,7 @@ import SuccessModal from '../components/SuccessModal';
 import AutocompleteInput from '../components/AutocompleteInput';
 import SimpegImportModal, { SimpegCategory } from '../components/SimpegImportModal';
 import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
-import { ANDRIEANSJAH_JABATAN_DATA, ANDRIEANSJAH_PELATIHAN_DATA, ANDRIEANSJAH_PANGKAT_DATA, ANDRIEANSJAH_PENDIDIKAN_DATA, ANDRIEANSJAH_PENGHARGAAN_DATA, TESSA_HARUMDILA_JABATAN_DATA, YASMON_PENDIDIKAN_DATA, SIMPEG_PENGHARGAAN_DATA } from '../data/simpegData';
+import { ANDRIEANSJAH_JABATAN_DATA, ANDRIEANSJAH_PELATIHAN_DATA, ANDRIEANSJAH_PANGKAT_DATA, ANDRIEANSJAH_PENDIDIKAN_DATA, ANDRIEANSJAH_PENGHARGAAN_DATA, TESSA_HARUMDILA_JABATAN_DATA, YASMON_PENDIDIKAN_DATA, SIMPEG_PENGHARGAAN_DATA, SIMPEG_2015_PENGHARGAAN_SAMPLE } from '../data/simpegData';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -351,22 +351,23 @@ const enrichPegawaiData = (found: Pegawai): Pegawai => {
 
   if (jabatanWasRepaired || identitasRepaired || pangkatWasRepaired || pendidikanWasRepaired) {
     try {
-      ['portal_pegawai_db', 'portal_sdm_pegawai_db'].forEach(key => {
-        const rawDb = localStorage.getItem(key);
-        if (rawDb) {
-          const allPeg = JSON.parse(rawDb);
-          const pIdx = allPeg.findIndex((p: any) => p.id === cloned.id || (p.nip && p.nip === cloned.nip));
-          if (pIdx >= 0) {
-            if (jabatanWasRepaired) allPeg[pIdx].riwayatJabatan = sanitizedJabatan;
-            if (pangkatWasRepaired) allPeg[pIdx].riwayatPangkat = sanitizedPangkat;
-            if (pendidikanWasRepaired) allPeg[pIdx].riwayatPendidikan = sanitizedPendidikan;
-            if (identitasRepaired) {
-              allPeg[pIdx] = { ...allPeg[pIdx], ...cloned };
-            }
-            localStorage.setItem(key, JSON.stringify(allPeg));
+      localStorage.removeItem('portal_sdm_pegawai_db');
+      const rawDb = localStorage.getItem('portal_pegawai_db');
+      if (rawDb) {
+        const allPeg = JSON.parse(rawDb);
+        const pIdx = allPeg.findIndex((p: any) => p.id === cloned.id || (p.nip && p.nip === cloned.nip));
+        if (pIdx >= 0) {
+          if (jabatanWasRepaired) allPeg[pIdx].riwayatJabatan = sanitizedJabatan;
+          if (pangkatWasRepaired) allPeg[pIdx].riwayatPangkat = sanitizedPangkat;
+          if (pendidikanWasRepaired) allPeg[pIdx].riwayatPendidikan = sanitizedPendidikan;
+          if (identitasRepaired) {
+            allPeg[pIdx] = { ...allPeg[pIdx], ...cloned };
           }
+          try {
+            localStorage.setItem('portal_pegawai_db', JSON.stringify(allPeg));
+          } catch (err) {}
         }
-      });
+      }
     } catch (e) {}
   }
 
@@ -522,7 +523,32 @@ const ProfilePegawaiPage = () => {
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [tempPhotoFile, setTempPhotoFile] = useState<File | null>(null);
   const [tempPhotoPreview, setTempPhotoPreview] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'identitas' | 'keluarga' | 'pendidikan' | 'jabatan' | 'pangkat' | 'gaji' | 'pelatihan' | 'penghargaan' | 'dossier'>('identitas');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<'identitas' | 'keluarga' | 'pendidikan' | 'jabatan' | 'pangkat' | 'gaji' | 'pelatihan' | 'penghargaan' | 'dossier'>(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const qTab = sp.get('tab') as any;
+      const valid = ['identitas', 'keluarga', 'pendidikan', 'jabatan', 'pangkat', 'gaji', 'pelatihan', 'penghargaan', 'dossier'];
+      if (qTab && valid.includes(qTab)) return qTab;
+      const stTab = (window.history.state?.usr as any)?.tab;
+      if (stTab && valid.includes(stTab)) return stTab;
+    } catch (e) {}
+    return 'identitas';
+  });
+
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(location.search);
+      const qTab = sp.get('tab') as any;
+      const stTab = (location.state as any)?.tab;
+      const valid = ['identitas', 'keluarga', 'pendidikan', 'jabatan', 'pangkat', 'gaji', 'pelatihan', 'penghargaan', 'dossier'];
+      if (qTab && valid.includes(qTab)) {
+        setActiveTab(qTab);
+      } else if (stTab && valid.includes(stTab)) {
+        setActiveTab(stTab);
+      }
+    } catch (e) {}
+  }, [location.search, location.state]);
   
   const [isEditing, setIsEditing] = useState(false);
   const [jabatanViewMode, setJabatanViewMode] = useState<'table' | 'card'>('table');
@@ -858,11 +884,46 @@ const ProfilePegawaiPage = () => {
     window.open(finalUrl, '_blank');
   };
 
+  const compressImage = (file: File, maxDim = 450, quality = 0.85): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string || '');
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(e.target?.result as string || '');
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("Ukuran file terlalu besar. Maksimal 2MB.");
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Ukuran file terlalu besar. Maksimal 10MB.");
         return;
       }
       setTempPhotoFile(file);
@@ -874,31 +935,63 @@ const ProfilePegawaiPage = () => {
   const handleUploadPhoto = async () => {
     if (!tempPhotoFile || !pegawai) return;
     setUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
-      const res = await uploadFileToDrive(`FOTO_${pegawai.nip}_${Date.now()}`, tempPhotoFile.type, base64);
-      if (res.success && res.fileUrl) {
-        const updatedPegawai = { ...pegawai, foto: res.fileUrl };
-        setPegawai(updatedPegawai);
-        
-        // Auto-save the record to ensure the photo link is persisted
-        await savePegawai(updatedPegawai);
-        
-        logActivity('UPDATE', 'Pegawai', `Update foto profil pegawai: ${pegawai.nama} (NIP: ${pegawai.nip})`);
-        
-        setIsPhotoModalOpen(false);
-        if (tempPhotoPreview) URL.revokeObjectURL(tempPhotoPreview);
-        setTempPhotoFile(null);
-        setTempPhotoPreview('');
-        setSuccessMsg("Foto profil berhasil diperbarui dan tersimpan.");
-        setShowSuccess(true);
-      } else {
-        alert(res.message || "Gagal mengunggah foto. Pastikan koneksi internet stabil dan ukuran file tidak terlalu besar.");
+    try {
+      // 1. Kompresi gambar client-side (menghasilkan JPEG optimal ~30-45KB)
+      const compressedDataUrl = await compressImage(tempPhotoFile, 450, 0.85);
+      let finalPhotoUrl = compressedDataUrl;
+
+      // 2. Jika Google Drive Apps Script tersedia, coba simpan ke Google Drive
+      try {
+        const res = await uploadFileToDrive(`FOTO_${pegawai.nip}_${Date.now()}`, 'image/jpeg', compressedDataUrl);
+        if (res.success && res.fileUrl) {
+          finalPhotoUrl = res.fileUrl;
+        }
+      } catch (err) {
+        console.warn("Upload Drive dilewati/fallback ke data URL lokal:", err);
       }
+
+      // 3. Update state dan simpan ke pegawai
+      const updatedPegawai = { ...pegawai, foto: finalPhotoUrl };
+      setPegawai(updatedPegawai);
+
+      // Simpan juga ke cache localStorage langsung agar semua halaman melihat foto baru secara instan
+      try {
+        localStorage.removeItem('portal_sdm_pegawai_db');
+        const raw = localStorage.getItem('portal_pegawai_db');
+        if (raw) {
+          const list: Pegawai[] = JSON.parse(raw);
+          const idx = list.findIndex(p => p.nip === pegawai.nip);
+          if (idx !== -1) {
+            list[idx] = { ...list[idx], foto: finalPhotoUrl };
+            try {
+              localStorage.setItem('portal_pegawai_db', JSON.stringify(list));
+            } catch (quotaErr) {
+              // Jika daftar pegawai terlalu besar untuk menyimpan base64, simpan foto tersendiri
+              try {
+                localStorage.setItem(`foto_pegawai_${pegawai.nip}`, finalPhotoUrl);
+              } catch (e) {}
+            }
+          }
+        }
+      } catch (e) {}
+
+      // Auto-save via spreadsheetService
+      await savePegawai(updatedPegawai);
+
+      logActivity('UPDATE', 'Pegawai', `Update foto profil pegawai: ${pegawai.nama} (NIP: ${pegawai.nip})`);
+
+      setIsPhotoModalOpen(false);
+      if (tempPhotoPreview) URL.revokeObjectURL(tempPhotoPreview);
+      setTempPhotoFile(null);
+      setTempPhotoPreview('');
+      setSuccessMsg("Foto profil berhasil diperbarui dan tersimpan.");
+      setShowSuccess(true);
+    } catch (err) {
+      console.error("Gagal update foto profil:", err);
+      alert("Terjadi kesalahan saat memproses foto profil.");
+    } finally {
       setUploading(false);
-    };
-    reader.readAsDataURL(tempPhotoFile);
+    }
   };
 
   const handleSaveDossier = async (e: React.FormEvent) => {
@@ -1405,17 +1498,18 @@ const ProfilePegawaiPage = () => {
     setPegawai(updated);
     await savePegawai(updated);
     try {
-      ['portal_pegawai_db', 'portal_sdm_pegawai_db'].forEach(key => {
-        const raw = localStorage.getItem(key);
-        if (raw) {
-          const list = JSON.parse(raw);
-          const idx = list.findIndex((p: any) => p.id === updated.id || (p.nip && p.nip === updated.nip));
-          if (idx >= 0) {
-            list[idx] = { ...list[idx], ...updated };
-            localStorage.setItem(key, JSON.stringify(list));
-          }
+      localStorage.removeItem('portal_sdm_pegawai_db');
+      const raw = localStorage.getItem('portal_pegawai_db');
+      if (raw) {
+        const list = JSON.parse(raw);
+        const idx = list.findIndex((p: any) => p.id === updated.id || (p.nip && p.nip === updated.nip));
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...updated };
+          try {
+            localStorage.setItem('portal_pegawai_db', JSON.stringify(list));
+          } catch (e) {}
         }
-      });
+      }
     } catch (e) {}
     setSyncing(false);
     setSuccessMsg('Data identitas dan kepegawaian berhasil dipulihkan!');
@@ -1444,7 +1538,112 @@ const ProfilePegawaiPage = () => {
     setShowSuccess(true);
   };
 
+  // Koneksi Modul Kenaikan Pangkat 6 Periode BKN & Dashboard
+  const pangkatConnectionInfo = useMemo(() => {
+    if (!pegawai) return null;
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    const tmtPkt = pegawai.tmtPangkat || (pegawai.riwayatPangkat?.[0]?.tmtPangkat) || '';
+    
+    let yearsInRank = 0;
+    if (tmtPkt) {
+      const parts = String(tmtPkt).split(/[-/]/);
+      if (parts.length === 3) {
+        const tmtPktYear = parts[0].length === 4 ? parseInt(parts[0]) : parseInt(parts[2]);
+        yearsInRank = Math.max(0, currentYear - tmtPktYear);
+      }
+    }
 
+    const BKN_PERIODS = [
+      { month: 2, name: 'Februari', label: '1 Februari' },
+      { month: 4, name: 'April', label: '1 April' },
+      { month: 6, name: 'Juni', label: '1 Juni' },
+      { month: 8, name: 'Agustus', label: '1 Agustus' },
+      { month: 10, name: 'Oktober', label: '1 Oktober' },
+      { month: 12, name: 'Desember', label: '1 Desember' }
+    ];
+
+    const nextPeriod = BKN_PERIODS.find(p => p.month >= currentMonth) || BKN_PERIODS[0];
+    const nextPeriodYear = BKN_PERIODS.find(p => p.month >= currentMonth) ? currentYear : currentYear + 1;
+
+    return {
+      tmtPkt,
+      yearsInRank,
+      isEligible: yearsInRank >= 4,
+      nextPeriod: `${nextPeriod.label} ${nextPeriodYear}`,
+      nextPeriodName: nextPeriod.name,
+      pangkatSekarang: `${pegawai.pangkat || '-'} (${pegawai.golRuang || '-'})`,
+      isPns: (pegawai.jenisPegawai || 'PNS').toUpperCase() === 'PNS'
+    };
+  }, [pegawai]);
+
+  // Koneksi Modul Kenaikan Gaji Berkala (KGB) & Dashboard
+  const kgbConnectionInfo = useMemo(() => {
+    if (!pegawai) return null;
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    const anchorDate = (pegawai as any).tmtKgb || pegawai.tmtPangkat || pegawai.tmtCpns || (pegawai.riwayatGaji?.[0]?.tmtSk) || '';
+    
+    let anchorYear = currentYear;
+    let diffYears = 0;
+    if (anchorDate) {
+      const parts = String(anchorDate).split(/[-/]/);
+      if (parts.length === 3) {
+        anchorYear = parts[0].length === 4 ? parseInt(parts[0]) : parseInt(parts[2]);
+        diffYears = currentYear - anchorYear;
+      }
+    }
+
+    const nextKgbYear = anchorYear + Math.ceil(Math.max(1, diffYears + 1) / 2) * 2;
+    const isKgbDueSoon = diffYears > 0 && diffYears % 2 === 0;
+
+    return {
+      anchorDate,
+      anchorYear,
+      diffYears,
+      nextKgbYear,
+      isKgbDueSoon,
+      gajiPokok: pegawai.gajiPokok || (pegawai.riwayatGaji?.[0]?.gajiPokok) || '-'
+    };
+  }, [pegawai]);
+
+  // Koneksi Modul Satyalancana Karya Satya & Dashboard
+  const satyaConnectionInfo = useMemo(() => {
+    if (!pegawai) return null;
+    const currentYear = new Date().getFullYear();
+    const cleanNip = String(pegawai.nip || '').replace(/\D/g, '');
+    let cpnsYear = null;
+    if (cleanNip.length >= 12) {
+      cpnsYear = parseInt(cleanNip.substring(8, 12));
+    } else if (pegawai.tmtCpns) {
+      const parts = String(pegawai.tmtCpns).split(/[-/]/);
+      if (parts.length === 3) {
+        cpnsYear = parts[0].length === 4 ? parseInt(parts[0]) : parseInt(parts[2]);
+      }
+    }
+
+    const workingYears = cpnsYear ? Math.max(0, currentYear - cpnsYear) : 0;
+    
+    let eligibleMilestone: '10 TAHUN' | '20 TAHUN' | '30 TAHUN' | null = null;
+    let eligibleBadge = '';
+    if (workingYears >= 30) {
+      eligibleMilestone = '30 TAHUN';
+      eligibleBadge = 'Satyalancana Karya Satya XXX Tahun (Emas)';
+    } else if (workingYears >= 20) {
+      eligibleMilestone = '20 TAHUN';
+      eligibleBadge = 'Satyalancana Karya Satya XX Tahun (Perak)';
+    } else if (workingYears >= 10) {
+      eligibleMilestone = '10 TAHUN';
+      eligibleBadge = 'Satyalancana Karya Satya X Tahun (Perunggu)';
+    }
+
+    return {
+      cpnsYear,
+      workingYears,
+      eligibleMilestone,
+      eligibleBadge
+    };
+  }, [pegawai]);
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -1541,16 +1740,20 @@ const ProfilePegawaiPage = () => {
           <div className="bg-white p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] border border-gray-100 shadow-sm text-center space-y-4 md:space-y-6">
             <div className="relative inline-block">
               <div 
-                className={`h-32 w-32 md:h-40 md:w-40 rounded-2xl md:rounded-[2rem] bg-gray-50 border-4 md:border-8 border-white shadow-2xl overflow-hidden mx-auto relative group ${!isEditing && pegawai.foto ? 'cursor-pointer' : ''}`}
-                onClick={() => !isEditing && pegawai.foto && setShowPhotoPreview(true)}
+                className={`h-32 w-32 md:h-40 md:w-40 rounded-2xl md:rounded-[2rem] bg-gray-50 border-4 md:border-8 border-white shadow-2xl overflow-hidden mx-auto relative group ${pegawai.foto ? 'cursor-pointer' : ''}`}
+                onClick={() => pegawai.foto ? setShowPhotoPreview(true) : (canEdit && fileInputRef.current?.click())}
               >
                 {pegawai.foto ? (
                   <img src={getPhotoUrl(pegawai.foto)} className="h-full w-full object-cover transition-transform group-hover:scale-105" alt="Profile" referrerPolicy="no-referrer" />
                 ) : (
                   <div className="h-full w-full flex items-center justify-center text-gray-300 text-4xl font-black">?</div>
                 )}
-                {isEditing && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+                {canEdit && (
+                  <div 
+                    className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" 
+                    onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                    title="Ganti Foto Profil"
+                  >
                     <i className="bi bi-camera-fill text-white text-2xl"></i>
                   </div>
                 )}
@@ -1558,6 +1761,18 @@ const ProfilePegawaiPage = () => {
               <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handlePhotoFileChange} />
               {uploading && <div className="absolute inset-x-0 bottom-0 top-0 bg-blue-600/50 rounded-2xl md:rounded-[2rem] flex items-center justify-center z-20"><div className="h-6 w-6 md:h-8 md:w-8 border-2 md:border-4 border-white/30 border-t-white rounded-full animate-spin"></div></div>}
             </div>
+            {canEdit && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1.5 active:scale-95 shadow-xs cursor-pointer"
+                >
+                  <i className="bi bi-camera-fill"></i>
+                  <span>Ganti Foto</span>
+                </button>
+              </div>
+            )}
             <div>
               <h4 className="font-black text-gray-900 tracking-tight leading-tight text-sm md:text-base">{formatPegawaiName(pegawai.nama)}</h4>
               <p className="text-[8px] md:text-[9px] font-black text-blue-600 uppercase tracking-widest mt-1.5 md:mt-2">{pegawai.jabatan}</p>
@@ -3574,6 +3789,75 @@ const ProfilePegawaiPage = () => {
                   </div>
                 )}
 
+                {/* BANNER TERKONEKSI MODUL KENAIKAN PANGKAT 6 PERIODE BKN & NOTIFIKASI DASHBOARD */}
+                {pangkatConnectionInfo && (
+                  <div className="p-5 md:p-6 bg-gradient-to-r from-amber-500/10 via-amber-50/80 to-yellow-50/60 border border-amber-200/80 rounded-2xl md:rounded-3xl shadow-sm space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-start md:items-center gap-3.5">
+                        <div className="h-11 w-11 md:h-12 md:w-12 rounded-2xl bg-amber-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md shadow-amber-600/20">
+                          <i className="bi bi-award-fill"></i>
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-black text-gray-950 text-xs md:text-sm uppercase tracking-tight">Terkoneksi Modul Kenaikan Pangkat (6 Periode BKN)</span>
+                            <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                              Live Dashboard Notif
+                            </span>
+                          </div>
+                          <p className="text-[10px] md:text-xs text-gray-600 mt-0.5">
+                            Kepangkatan saat ini: <strong className="text-amber-900">{pangkatConnectionInfo.pangkatSekarang}</strong> • TMT: <strong className="text-gray-900 font-mono">{formatDateIndoDisplay(pangkatConnectionInfo.tmtPkt)}</strong> ({pangkatConnectionInfo.yearsInRank} Tahun dalam Pangkat).
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => navigate('/kenaikan-pangkat', { state: { nip: pegawai.nip } })}
+                          className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-[9px] font-black uppercase transition-all shadow-md shadow-amber-600/20 flex items-center gap-1.5 cursor-pointer"
+                          title="Buka Usulan Kenaikan Pangkat di Modul Kenaikan Pangkat"
+                        >
+                          <i className="bi bi-box-arrow-up-right"></i>
+                          <span>Buka Modul Kenaikan Pangkat</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/', { state: { openNotif: 'pangkat' } })}
+                          className="px-4 py-2.5 bg-white hover:bg-amber-50 active:scale-95 text-amber-900 border border-amber-300 rounded-xl text-[9px] font-black uppercase transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          title="Lihat Reminder Kenaikan Pangkat pada Dashboard"
+                        >
+                          <i className="bi bi-bell-fill text-amber-600"></i>
+                          <span>Notifikasi di Dashboard</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-[9px]">
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Siklus Kenaikan</div>
+                        <div className="font-black text-amber-950 mt-0.5">6 Periode BKN / Tahun</div>
+                        <div className="text-[8px] text-gray-500">Feb, Apr, Jun, Ags, Okt, Des</div>
+                      </div>
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Periode Terdekat</div>
+                        <div className="font-black text-blue-700 mt-0.5">{pangkatConnectionInfo.nextPeriod}</div>
+                        <div className="text-[8px] text-gray-500">Usulan SIASN BKN</div>
+                      </div>
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Syarat Masa Pangkat</div>
+                        <div className="font-black text-emerald-700 mt-0.5">{pangkatConnectionInfo.yearsInRank >= 4 ? 'Memenuhi Syarat (>= 4 Thn)' : `${4 - pangkatConnectionInfo.yearsInRank} Tahun Lagi`}</div>
+                        <div className="text-[8px] text-gray-500">Masa kepangkatan minimal</div>
+                      </div>
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Status Notifikasi</div>
+                        <div className="font-black text-gray-900 mt-0.5 flex items-center gap-1">
+                          <i className="bi bi-check-circle-fill text-emerald-600"></i> Terintegrasi Otomatis
+                        </div>
+                        <div className="text-[8px] text-gray-500">Muncul pada notif Dashboard</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* TABLE VIEW */}
                 {pangkatViewMode === 'table' && (pegawai.riwayatPangkat || []).length > 0 && (
                   <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
@@ -3874,6 +4158,75 @@ const ProfilePegawaiPage = () => {
                     )}
                   </div>
                 </div>
+
+                {/* BANNER TERKONEKSI MODUL KENAIKAN GAJI BERKALA & NOTIFIKASI DASHBOARD */}
+                {kgbConnectionInfo && (
+                  <div className="p-5 md:p-6 bg-gradient-to-r from-emerald-500/10 via-emerald-50/80 to-teal-50/60 border border-emerald-200/80 rounded-2xl md:rounded-3xl shadow-sm space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-start md:items-center gap-3.5">
+                        <div className="h-11 w-11 md:h-12 md:w-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md shadow-emerald-600/20">
+                          <i className="bi bi-cash-stack"></i>
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-black text-gray-950 text-xs md:text-sm uppercase tracking-tight">Terkoneksi Modul Kenaikan Gaji Berkala (KGB)</span>
+                            <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              Live Dashboard Notif
+                            </span>
+                          </div>
+                          <p className="text-[10px] md:text-xs text-gray-600 mt-0.5">
+                            TMT Acuan Terakhir: <strong className="text-gray-900 font-mono">{formatDateIndoDisplay(kgbConnectionInfo.anchorDate)}</strong> • Jadwal KGB Berikutnya: <strong className="text-emerald-800">Tahun {kgbConnectionInfo.nextKgbYear}</strong> (Setiap 2 Tahun Sesuai PP No. 5/2024).
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => navigate('/kgb-generator', { state: { nip: pegawai.nip } })}
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-[9px] font-black uppercase transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer"
+                          title="Buka dan Cetak SK KGB di Modul KGB Generator"
+                        >
+                          <i className="bi bi-box-arrow-up-right"></i>
+                          <span>Buka Modul KGB Generator</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/', { state: { openNotif: 'kgb' } })}
+                          className="px-4 py-2.5 bg-white hover:bg-emerald-50 active:scale-95 text-emerald-900 border border-emerald-300 rounded-xl text-[9px] font-black uppercase transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          title="Lihat Reminder KGB pada Dashboard"
+                        >
+                          <i className="bi bi-bell-fill text-emerald-600"></i>
+                          <span>Notifikasi di Dashboard</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-[9px]">
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Regulasi KGB</div>
+                        <div className="font-black text-emerald-950 mt-0.5">PP No. 5 Tahun 2024</div>
+                        <div className="text-[8px] text-gray-500">Periodik tiap 2 tahun</div>
+                      </div>
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">TMT Acuan KGB</div>
+                        <div className="font-black text-gray-900 mt-0.5 font-mono">{formatDateIndoDisplay(kgbConnectionInfo.anchorDate)}</div>
+                        <div className="text-[8px] text-gray-500">Dasar perhitungan berkala</div>
+                      </div>
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Jadwal Periode</div>
+                        <div className="font-black text-blue-700 mt-0.5">Tahun {kgbConnectionInfo.nextKgbYear}</div>
+                        <div className="text-[8px] text-gray-500">{kgbConnectionInfo.isKgbDueSoon ? 'Jatuh tempo tahun ini' : 'Masa berkala berjalan'}</div>
+                      </div>
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Sinkronisasi Modul</div>
+                        <div className="font-black text-gray-900 mt-0.5 flex items-center gap-1">
+                          <i className="bi bi-check-circle-fill text-emerald-600"></i> Terkoneksi ke Notif
+                        </div>
+                        <div className="text-[8px] text-gray-500">Auto-fill SK KGB Otentik</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* TABLE VIEW */}
                 {gajiViewMode === 'table' && (pegawai.riwayatGaji || []).length > 0 && (
@@ -4585,6 +4938,81 @@ const ProfilePegawaiPage = () => {
                     )}
                   </div>
                 </div>
+
+                {/* BANNER TERKONEKSI MODUL SATYALANCANA KARYA SATYA & NOTIFIKASI DASHBOARD */}
+                {satyaConnectionInfo && (
+                  <div className="p-5 md:p-6 bg-gradient-to-r from-amber-500/10 via-yellow-50/80 to-orange-50/60 border border-amber-200/80 rounded-2xl md:rounded-3xl shadow-sm space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-start md:items-center gap-3.5">
+                        <div className="h-11 w-11 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md shadow-amber-500/20">
+                          <i className="bi bi-trophy-fill"></i>
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-black text-gray-950 text-xs md:text-sm uppercase tracking-tight">Terkoneksi Modul Satyalancana Karya Satya & Reward</span>
+                            <span className="px-2.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-200 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                              Live Dashboard Notif
+                            </span>
+                          </div>
+                          <p className="text-[10px] md:text-xs text-gray-600 mt-0.5">
+                            Total Masa Kerja ASN: <strong className="text-amber-900">{satyaConnectionInfo.workingYears} Tahun</strong> (CPNS: <span className="font-mono">{satyaConnectionInfo.cpnsYear || '-'}</span>) • Kategori: <strong className="text-gray-900">{satyaConnectionInfo.eligibleBadge || 'Dalam Masa Pengabdian'}</strong>.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => navigate('/satya-lencana', { state: { nip: pegawai.nip, openModal: true } })}
+                          className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 active:scale-95 text-white rounded-xl text-[9px] font-black uppercase transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer"
+                          title="Buka Modul Satyalancana untuk Mengusulkan Penghargaan"
+                        >
+                          <i className="bi bi-box-arrow-up-right"></i>
+                          <span>Buka Modul Satyalancana</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/', { state: { openNotif: 'satya' } })}
+                          className="px-4 py-2.5 bg-white hover:bg-amber-50 active:scale-95 text-amber-900 border border-amber-300 rounded-xl text-[9px] font-black uppercase transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          title="Lihat Reminder Satyalancana pada Dashboard"
+                        >
+                          <i className="bi bi-bell-fill text-amber-600"></i>
+                          <span>Notifikasi di Dashboard</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-[9px]">
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Milestone 10 Tahun</div>
+                        <div className={`font-black mt-0.5 ${satyaConnectionInfo.workingYears >= 10 ? 'text-emerald-700' : 'text-gray-400'}`}>
+                          {satyaConnectionInfo.workingYears >= 10 ? 'Memenuhi Syarat (Perunggu)' : `${10 - satyaConnectionInfo.workingYears} Thn Menuju Milestone`}
+                        </div>
+                        <div className="text-[8px] text-gray-500">Satyalancana Karya Satya X</div>
+                      </div>
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Milestone 20 Tahun</div>
+                        <div className={`font-black mt-0.5 ${satyaConnectionInfo.workingYears >= 20 ? 'text-emerald-700' : 'text-gray-400'}`}>
+                          {satyaConnectionInfo.workingYears >= 20 ? 'Memenuhi Syarat (Perak)' : `${Math.max(0, 20 - satyaConnectionInfo.workingYears)} Thn Menuju Milestone`}
+                        </div>
+                        <div className="text-[8px] text-gray-500">Satyalancana Karya Satya XX</div>
+                      </div>
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Milestone 30 Tahun</div>
+                        <div className={`font-black mt-0.5 ${satyaConnectionInfo.workingYears >= 30 ? 'text-emerald-700' : 'text-gray-400'}`}>
+                          {satyaConnectionInfo.workingYears >= 30 ? 'Memenuhi Syarat (Emas)' : `${Math.max(0, 30 - satyaConnectionInfo.workingYears)} Thn Menuju Milestone`}
+                        </div>
+                        <div className="text-[8px] text-gray-500">Satyalancana Karya Satya XXX</div>
+                      </div>
+                      <div className="bg-white/80 p-2.5 rounded-xl border border-amber-100">
+                        <div className="text-gray-400 font-bold uppercase text-[8px]">Integrasi Dashboard</div>
+                        <div className="font-black text-gray-900 mt-0.5 flex items-center gap-1">
+                          <i className="bi bi-check-circle-fill text-emerald-600"></i> Terkoneksi ke Notif
+                        </div>
+                        <div className="text-[8px] text-gray-500">Auto-notif saat jatuh tempo</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* TABLE VIEW */}
                 {penghargaanViewMode === 'table' && (pegawai.riwayatPenghargaan || []).length > 0 && (

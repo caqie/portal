@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchPegawaiFromSheets, getRetirementDetails, fetchPengembanganFromSheets, fetchKGBFromSheets, fetchKegiatanFromSheets, fetchAbsensiHistoryFromSheets } from '../spreadsheetService';
 import { Pegawai, Pengembangan, KGB, Kegiatan, AbsensiRecord } from '../types';
 import { useAuth } from '../AuthContext';
@@ -31,6 +31,7 @@ const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: str
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { 
     user, 
     logActivity, 
@@ -155,8 +156,18 @@ const Dashboard = () => {
   const [isErrorDismissed, setIsErrorDismissed] = useState(false);
 
   useEffect(() => { 
+    try {
+      localStorage.removeItem('portal_sdm_pegawai_db');
+    } catch (e) {}
     if (user) loadDashboardData(); 
   }, [user?.nip]);
+
+  useEffect(() => {
+    if (location.state?.openNotif) {
+      setNotifTab(location.state.openNotif);
+      setIsNotifOpen(true);
+    }
+  }, [location.state]);
 
   const loadDashboardData = async () => {
     const hasCache = !!localStorage.getItem('portal_pegawai_db');
@@ -575,8 +586,23 @@ const Dashboard = () => {
             const tmtMonth = tmtParts[0].length === 4 ? parseInt(tmtParts[1]) : parseInt(tmtParts[1]);
             const diffYears = currentYear - tmtYear;
             if (diffYears > 0 && diffYears % 4 === 0) {
-                if (selectedMonth === 'Semua' || tmtMonth === parseInt(selectedMonth)) {
-                    listPangkat.push({ nama: p.nama, nip: p.nip, tmtTerakhir: p.tmtPangkat, keterangan: `Jadwal KP Tahun ${currentYear}` });
+                const BKN_PERIODS = [
+                  { month: 2, name: 'Februari' },
+                  { month: 4, name: 'April' },
+                  { month: 6, name: 'Juni' },
+                  { month: 8, name: 'Agustus' },
+                  { month: 10, name: 'Oktober' },
+                  { month: 12, name: 'Desember' }
+                ];
+                const matched = BKN_PERIODS.find(bp => bp.month >= tmtMonth) || BKN_PERIODS[0];
+                if (selectedMonth === 'Semua' || matched.month === parseInt(selectedMonth) || tmtMonth === parseInt(selectedMonth)) {
+                    listPangkat.push({ 
+                      nama: p.nama, 
+                      nip: p.nip, 
+                      tmtTerakhir: p.tmtPangkat, 
+                      keterangan: `KP Periode ${matched.name} ${currentYear} (6 Periode BKN)`,
+                      periodeBkn: matched.name
+                    });
                 }
             }
         }
@@ -1734,12 +1760,59 @@ const Dashboard = () => {
 
               <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar space-y-3 md:space-y-4 bg-white">
                  {(reminders[notifTab] || []).map((item, i) => (
-                    <div key={`${item.nip || item.nama || i}-${i}`} className="p-4 md:p-5 bg-gray-50/50 border border-gray-100 rounded-2xl md:rounded-[2rem] flex items-center gap-4 md:gap-5 hover:bg-blue-50 transition-all shadow-sm group">
+                    <div key={`${item.nip || item.nama || i}-${i}`} className="p-4 md:p-5 bg-gray-50/50 border border-gray-100 rounded-2xl md:rounded-[2rem] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-blue-50/40 transition-all shadow-xs group">
                        <div className="min-w-0 flex-1">
-                          <p className="text-[10px] md:text-[11px] font-black text-gray-950 truncate">{formatPegawaiName(item.nama || 'Tanpa Nama')}</p>
-                          <p className="text-[8px] md:text-[9px] font-bold text-gray-400 mt-1 uppercase">{item.tmt || item.tmtTerakhir || '-'}</p>
+                          <p className="text-[11px] md:text-[12px] font-black text-gray-950 truncate">{formatPegawaiName(item.nama || 'Tanpa Nama')}</p>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            {item.nip && <span className="font-mono text-[9px] text-blue-600 font-bold">NIP. {item.nip}</span>}
+                            <span className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase">• TMT: {item.tmt || item.tmtTerakhir || '-'}</span>
+                          </div>
                        </div>
-                       <span className="shrink-0 px-2.5 md:px-3 py-1 bg-white border rounded-lg text-[8px] md:text-[9px] font-black text-gray-500 uppercase">{item.sisa || item.keterangan || item.pengabdian || '-'}</span>
+                       
+                       <div className="flex items-center gap-2 shrink-0">
+                          <span className="px-2.5 md:px-3 py-1 bg-white border border-gray-200 rounded-lg text-[8px] md:text-[9px] font-black text-gray-600 uppercase shadow-2xs">
+                             {item.sisa || item.keterangan || item.pengabdian || '-'}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsNotifOpen(false);
+                              if (notifTab === 'kgb') {
+                                navigate('/kgb-generator', { state: { nip: item.nip } });
+                              } else if (notifTab === 'pangkat') {
+                                navigate('/kenaikan-pangkat', { state: { nip: item.nip } });
+                              } else if (notifTab === 'satya') {
+                                navigate('/satya-lencana', { state: { nip: item.nip, openModal: true } });
+                              } else if (notifTab === 'pensiun') {
+                                navigate('/pensiun');
+                              } else if (notifTab === 'bangkom') {
+                                navigate('/pengembangan', { state: { nip: item.nip } });
+                              }
+                            }}
+                            className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[9px] font-black uppercase transition-all shadow-xs flex items-center gap-1 active:scale-95 cursor-pointer"
+                            title="Buka Modul Terkait"
+                          >
+                            <i className="bi bi-box-arrow-up-right text-[10px]"></i>
+                            <span>Buka Modul</span>
+                          </button>
+
+                          {item.nip && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsNotifOpen(false);
+                                const tabParam = notifTab === 'kgb' ? 'gaji' : notifTab === 'pangkat' ? 'pangkat' : notifTab === 'satya' ? 'penghargaan' : notifTab === 'bangkom' ? 'pelatihan' : 'identitas';
+                                navigate(`/pegawai/${item.nip}?tab=${tabParam}`, { state: { tab: tabParam } });
+                              }}
+                              className="px-2.5 py-1.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg text-[9px] font-black uppercase transition-all shadow-xs flex items-center gap-1 active:scale-95 cursor-pointer"
+                              title="Lihat Profil Pegawai"
+                            >
+                              <i className="bi bi-person-badge-fill text-[10px] text-blue-600"></i>
+                              <span>Profil</span>
+                            </button>
+                          )}
+                       </div>
                     </div>
                  ))}
                  {(reminders[notifTab] || []).length === 0 && <div className="py-20 text-center opacity-30"><p className="text-[10px] font-black tracking-widest">Data terpantau aman</p></div>}

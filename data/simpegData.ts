@@ -1448,6 +1448,220 @@ export const ANDRIEANSJAH_PENGHARGAAN_DATA: any[] = [
   }
 ];
 
+export const SIMPEG_2015_RAW_TEXT = `SATYA LENCANA KARYA SATYA XX (PERAK)
+55/TK/TAHUN 2015
+16/06/2015
+Presiden Republik Indonesia
+2016
+PENGHARGAAN LAIN
+-
+26/01/2016
+Menteri Hukum dan Hak Asasi Manusia
+2017
+PENGHARGAAN LAIN
+25/B/KP/XI/2017/01
+01/01/2017
+Lainnya
+2018
+PENGHARGAAN LAIN
+-
+26/01/2018
+Menteri Hukum dan Hak Asasi Manusia
+2022
+SATYA LENCANA WIRA KARYA PRESIDEN RI
+56 /TK/TAHUN 2022
+02/08/2022
+Presiden Republik Indonesia
+2022
+PENGHARGAAN LAIN
+M.HH-08.KP.05.03 Tahun 2022
+16/08/2022
+Menteri Hukum dan Hak Asasi Manusia
+2022
+PENGHARGAAN LAIN
+-
+07/08/2022
+Lainnya
+2022
+PENGHARGAAN LAIN
+M.HH-08.KP.05.03 Tahun 2022
+16/08/2022
+Menteri Hukum dan Hak Asasi Manusia
+2022
+PENGHARGAAN LAIN
+M.HH-08.KP.05.03 Tahun 2022
+16/08/2022
+Menteri Hukum dan Hak Asasi Manusia
+2022
+PENGHARGAAN LAIN
+M.HH-08.KP.05.03 Tahun 2022
+16/08/2022
+Menteri Hukum dan Hak Asasi Manusia
+2022
+PENGHARGAAN LAIN
+kkk
+07/12/2023
+Menteri Hukum dan Hak Asasi Manusia
+2022
+PENGHARGAAN LAIN
+1
+16/08/2022
+Menteri Hukum dan Hak Asasi Manusia
+2022
+PENGHARGAAN LAIN
+eee
+15/12/2023
+Menteri Hukum dan Hak Asasi Manusia
+2023
+PENGHARGAAN LAIN
+M.H-H-06.KP.05.03
+18/08/2024
+Menteri Hukum dan Hak Asasi Manusia
+2023
+PENGHARGAAN LAIN
+-
+08/11/2023
+a.n. Menteri Hukum dan HAM`;
+
+export const SIMPEG_2015_PENGHARGAAN_SAMPLE: any[] = [
+  {
+    namaPenghargaan: 'SATYA LENCANA KARYA SATYA XX (PERAK)',
+    jenisPenghargaan: 'Tanda Kehormatan RI',
+    nomorSk: '55/TK/TAHUN 2015',
+    tanggalSk: '2015-06-16',
+    pemberiPenghargaan: 'Presiden Republik Indonesia',
+    tahun: '2015',
+    keterangan: 'Tanda Kehormatan Satyalancana Karya Satya XX (Perak)'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: '-',
+    tanggalSk: '2016-01-26',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia',
+    tahun: '2016',
+    keterangan: 'Penghargaan Lain Kementerian Hukum dan HAM'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Lainnya',
+    nomorSk: '25/B/KP/XI/2017/01',
+    tanggalSk: '2017-01-01',
+    pemberiPenghargaan: 'Lainnya',
+    tahun: '2017',
+    keterangan: 'Penghargaan Lain Instansi'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: '-',
+    tanggalSk: '2018-01-26',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia',
+    tahun: '2018',
+    keterangan: 'Penghargaan Lain Kementerian Hukum dan HAM'
+  },
+  {
+    namaPenghargaan: 'SATYA LENCANA WIRA KARYA PRESIDEN RI',
+    jenisPenghargaan: 'Tanda Kehormatan RI',
+    nomorSk: '56 /TK/TAHUN 2022',
+    tanggalSk: '2022-08-02',
+    pemberiPenghargaan: 'Presiden Republik Indonesia',
+    tahun: '2022',
+    keterangan: 'Tanda Kehormatan Satyalancana Wira Karya Presiden RI'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: 'M.HH-08.KP.05.03 Tahun 2022',
+    tanggalSk: '2022-08-16',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia',
+    tahun: '2022',
+    keterangan: 'Penghargaan Menkumham RI'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Lainnya',
+    nomorSk: '-',
+    tanggalSk: '2022-08-07',
+    pemberiPenghargaan: 'Lainnya',
+    tahun: '2022',
+    keterangan: 'Penghargaan Lainnya'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: 'M.HH-08.KP.05.03 Tahun 2022',
+    tanggalSk: '2022-08-16',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia',
+    tahun: '2022',
+    keterangan: 'Penghargaan Menkumham RI'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: 'M.HH-08.KP.05.03 Tahun 2022',
+    tanggalSk: '2022-08-16',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia',
+    tahun: '2022',
+    keterangan: 'Penghargaan Menkumham RI'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: 'M.HH-08.KP.05.03 Tahun 2022',
+    tanggalSk: '2022-08-16',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia',
+    tahun: '2022',
+    keterangan: 'Penghargaan Menkumham RI'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: 'kkk',
+    tanggalSk: '2023-12-07',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia',
+    tahun: '2022',
+    keterangan: 'Penghargaan Menkumham RI'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: '1',
+    tanggalSk: '2022-08-16',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia',
+    tahun: '2022',
+    keterangan: 'Penghargaan Menkumham RI'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: 'eee',
+    tanggalSk: '2023-12-15',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia',
+    tahun: '2022',
+    keterangan: 'Penghargaan Menkumham RI'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: 'M.H-H-06.KP.05.03',
+    tanggalSk: '2024-08-18',
+    pemberiPenghargaan: 'Menteri Hukum dan Hak Asasi Manusia',
+    tahun: '2023',
+    keterangan: 'Penghargaan Menkumham RI'
+  },
+  {
+    namaPenghargaan: 'PENGHARGAAN LAIN',
+    jenisPenghargaan: 'Kementerian Hukum',
+    nomorSk: '-',
+    tanggalSk: '2023-11-08',
+    pemberiPenghargaan: 'a.n. Menteri Hukum dan HAM',
+    tahun: '2023',
+    keterangan: 'Penghargaan a.n. Menkumham'
+  }
+];
+
+
 
 
 
