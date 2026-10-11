@@ -341,6 +341,11 @@ export interface KeuanganRecord {
 export interface ABKAnjab { 
   id: string; 
   namaJabatan: string; 
+  kodeJabatan?: string;
+  kelasJabatan?: string;
+  unitUtama?: string;
+  unitMadya?: string;
+  unitPratama?: string;
   unitKerja: string; 
   jumlahSaatIni: number; 
   totalMenitBebanKerja: number; 
@@ -349,10 +354,16 @@ export interface ABKAnjab {
   status: 'IDEAL' | 'KURANG' | 'LEBIH'; 
   jenisJabatan: 'PELAKSANA' | 'FUNGSIONAL' | 'STRUKTUR';
   ikhtisarJabatan: string;
-  kualifikasiPendidikan: string;
+  kualifikasiPendidikan?: string;
+  pendidikanFormal?: string;
+  diklat?: string;
+  pengalamanKerja?: string;
   tanggungJawab: string;
   wewenang: string;
-  syaratJabatan: string;
+  syaratJabatan?: string;
+  bahanKerja?: string;
+  perangkatKerja?: string;
+  korelasiJabatan?: string;
   lingkunganKerja: string;
   risikoBahaya: string;
   bakatKerja: string;
@@ -360,8 +371,13 @@ export interface ABKAnjab {
   minatKerja: string;
   upayaFisik: string;
   kondisiFisik: string;
+  fungsiPekerjaan?: string;
   jamKerjaEfektif: number;
   uraianTugas: any; 
+  hasilKerjaList?: any[];
+  bahanKerjaList?: any[];
+  perangkatKerjaList?: any[];
+  korelasiJabatanList?: any[];
 }
 
 export interface KGB { 
