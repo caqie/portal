@@ -6,6 +6,47 @@
  */
 
 import * as XLSX from 'xlsx';
+import { MASTER_JABATAN_PERMENKUMHAM_38_2025 } from '../data/anjabAbkConstants';
+
+/**
+ * Mencari Kelas Jabatan resmi berdasarkan Permenkumham No. 38 Tahun 2025
+ */
+export const getKelasJabatanForPeta = (namaJabatan: string): string => {
+  if (!namaJabatan) return '';
+  const clean = namaJabatan.trim().toUpperCase();
+  if (clean.startsWith('A)') || clean.startsWith('B)') || clean.includes('JABATAN FUNGSIONAL') || clean.includes('JABATAN PELAKSANA')) {
+    return '';
+  }
+
+  // Khusus Pimpinan & Struktural Eselon I, II, III, IV
+  if (clean.includes('DIREKTUR JENDERAL KEKAYAAN')) return '17';
+  if (clean.includes('SEKRETARIS DIREKTORAT JENDERAL')) return '16';
+  if (clean.startsWith('DIREKTUR ')) return '15';
+  if (clean.startsWith('KEPALA BAGIAN ') || clean.startsWith('KEPALA SUBDIREKTORAT ')) return '13';
+  if (clean.startsWith('KEPALA SUBBAGIAN ') || clean.startsWith('KEPALA SEKSI ')) return '9';
+
+  // Cek exact match
+  const exact = MASTER_JABATAN_PERMENKUMHAM_38_2025.find(m => m.label.toUpperCase() === clean);
+  if (exact) return exact.class;
+
+  // Cek kecocokan tanpa kata "AHLI"
+  const cleanTanpaAhli = clean.replace(/ AHLI /g, ' ');
+  for (const m of MASTER_JABATAN_PERMENKUMHAM_38_2025) {
+    const mLabel = m.label.toUpperCase();
+    if (clean === mLabel || cleanTanpaAhli === mLabel.replace(/ AHLI /g, ' ')) {
+      return m.class;
+    }
+  }
+
+  // Cek substring
+  const partial = MASTER_JABATAN_PERMENKUMHAM_38_2025.find(m => {
+    const mLabel = m.label.toUpperCase();
+    return clean.includes(mLabel) || mLabel.includes(clean);
+  });
+  if (partial) return partial.class;
+
+  return '';
+};
 
 export interface PetaJabatanAbkRow {
   no: string;
@@ -543,12 +584,13 @@ export const FORMASI_SIMPEG_2025: FormasiSimpegRow[] = [
 ];
 
 /**
- * Membuat Worksheet Peta Jabatan ABK (Sesuai Halaman 1-7 PDF)
+ * Membuat Worksheet Peta Jabatan ABK (Sesuai Halaman 1-7 PDF) dengan integrasi Kelas Jabatan Permenkumham 38/2025
  */
 export const buildPetaJabatanAbkSheet = (): XLSX.WorkSheet => {
   const formattedRows = OFFICIAL_PETA_JABATAN_ABK.map(r => ({
     'No': r.no,
     'Jabatan': r.jabatan,
+    'Kelas Jabatan (Permenkumham 38/2025)': getKelasJabatanForPeta(r.jabatan),
     'Kebutuhan Pegawai berdasarkan ABK*': r.abk,
     'Formasi*': r.formasi,
     'Existing': r.existing,
@@ -563,6 +605,7 @@ export const buildPetaJabatanAbkSheet = (): XLSX.WorkSheet => {
   ws['!cols'] = [
     { wch: 8 },  // No
     { wch: 55 }, // Jabatan
+    { wch: 18 }, // Kelas Jabatan (Permenkumham 38/2025)
     { wch: 32 }, // Kebutuhan Pegawai berdasarkan ABK*
     { wch: 12 }, // Formasi*
     { wch: 12 }, // Existing
@@ -585,6 +628,7 @@ export const buildFormasiSimpegSheet = (): XLSX.WorkSheet => {
     rows.push({
       'Tahun': r.tahun,
       'Nama Jabatan': r.namaJabatan,
+      'Kelas Jabatan (Permenkumham 38/2025)': getKelasJabatanForPeta(r.namaJabatan),
       'Formasi': r.formasi,
       'Existing': r.existing,
       'Kebutuhan Formasi': r.kebutuhanFormasi,
@@ -596,6 +640,7 @@ export const buildFormasiSimpegSheet = (): XLSX.WorkSheet => {
   rows.push({
     'Tahun': 'TOTAL 2026',
     'Nama Jabatan': 'REKAPITULASI FORMASI SIMPEG 2026',
+    'Kelas Jabatan (Permenkumham 38/2025)': '',
     'Formasi': 110,
     'Existing': 263,
     'Kebutuhan Formasi': -35,
@@ -606,6 +651,7 @@ export const buildFormasiSimpegSheet = (): XLSX.WorkSheet => {
   rows.push({
     'Tahun': '---',
     'Nama Jabatan': '----------------------------------------',
+    'Kelas Jabatan (Permenkumham 38/2025)': '---',
     'Formasi': '---',
     'Existing': '---',
     'Kebutuhan Formasi': '---',
@@ -617,6 +663,7 @@ export const buildFormasiSimpegSheet = (): XLSX.WorkSheet => {
     rows.push({
       'Tahun': r.tahun,
       'Nama Jabatan': r.namaJabatan,
+      'Kelas Jabatan (Permenkumham 38/2025)': getKelasJabatanForPeta(r.namaJabatan),
       'Formasi': r.formasi,
       'Existing': r.existing,
       'Kebutuhan Formasi': r.kebutuhanFormasi,
@@ -632,6 +679,7 @@ export const buildFormasiSimpegSheet = (): XLSX.WorkSheet => {
   rows.push({
     'Tahun': 'TOTAL 2025',
     'Nama Jabatan': 'REKAPITULASI FORMASI SIMPEG 2025',
+    'Kelas Jabatan (Permenkumham 38/2025)': '',
     'Formasi': totalFormasi2025,
     'Existing': totalExisting2025,
     'Kebutuhan Formasi': totalKebutuhan2025,
@@ -643,10 +691,40 @@ export const buildFormasiSimpegSheet = (): XLSX.WorkSheet => {
   ws['!cols'] = [
     { wch: 12 }, // Tahun
     { wch: 55 }, // Nama Jabatan
+    { wch: 18 }, // Kelas Jabatan (Permenkumham 38/2025)
     { wch: 12 }, // Formasi
     { wch: 12 }, // Existing
     { wch: 18 }, // Kebutuhan Formasi
     { wch: 38 }  // Keterangan
+  ];
+
+  return ws;
+};
+
+/**
+ * Membuat Worksheet Standar Kelas Jabatan Permenkumham No. 38 Tahun 2025
+ */
+export const buildMasterKelasJabatanSheet = (): XLSX.WorkSheet => {
+  const rows = MASTER_JABATAN_PERMENKUMHAM_38_2025.map((m, idx) => ({
+    'No': idx + 1,
+    'Kode Jabatan (SIASN)': m.code,
+    'Nomenklatur Jabatan': m.label,
+    'Kelas Jabatan (Permenkumham 38/2025)': m.class,
+    'Kategori Jabatan': m.type,
+    'Kualifikasi Pendidikan Minimal': m.minEducation || '-',
+    'Rekomendasi Unit Kerja': m.unitRecommendation || '-'
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+
+  ws['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 18 }, // Kode Jabatan
+    { wch: 55 }, // Nomenklatur Jabatan
+    { wch: 16 }, // Kelas Jabatan
+    { wch: 18 }, // Kategori
+    { wch: 45 }, // Kualifikasi Pendidikan
+    { wch: 35 }  // Rekomendasi Unit
   ];
 
   return ws;
@@ -665,6 +743,10 @@ export const downloadOfficialPetaJabatanExcel = () => {
   // Sheet 2: Formasi SIMPEG (Hal 8-9)
   const wsSimpeg = buildFormasiSimpegSheet();
   XLSX.utils.book_append_sheet(wb, wsSimpeg, "Formasi SIMPEG Eselon I");
+
+  // Sheet 3: Standar Kelas Jabatan Permenkumham No. 38 Tahun 2025
+  const wsMaster = buildMasterKelasJabatanSheet();
+  XLSX.utils.book_append_sheet(wb, wsMaster, "Kelas Jabatan Permenkumham 38");
 
   XLSX.writeFile(wb, `Peta_Jabatan_ABK_dan_Formasi_SIMPEG_DJKI_${Date.now()}.xlsx`);
 };
