@@ -19,6 +19,10 @@ async function startServer() {
   const wss = new WebSocketServer({ server });
   const PORT = 3000;
 
+  wss.on("error", (err) => {
+    console.warn("WebSocketServer warning/error handled:", err?.message || err);
+  });
+
   // Store active sessions
   // Map<sessionId, Set<WebSocket>>
   const sessions = new Map<string, Set<WebSocket>>();
@@ -27,6 +31,10 @@ async function startServer() {
 
   wss.on("connection", (ws) => {
     console.log("New WebSocket connection");
+
+    ws.on("error", (err) => {
+      console.warn("WebSocket client connection error handled:", err?.message || err);
+    });
 
     ws.on("message", (message) => {
       try {
@@ -257,7 +265,10 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        hmr: false
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -268,6 +279,10 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  server.on("error", (err: any) => {
+    console.error("HTTP/WebSocket server error:", err?.message || err);
+  });
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
