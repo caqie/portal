@@ -12,6 +12,7 @@ import SearchableSelect from '../components/SearchableSelect';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
+import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
 import { getKelasJabatanPermenkumham38 } from '../data/anjabAbkConstants';
 
