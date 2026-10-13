@@ -1,10 +1,12 @@
 import { Pegawai } from './types';
 import { TalentProfileData } from './components/TalentDevelopmentView';
+import { getKelasJabatanPermenkumham38 } from './data/anjabAbkConstants';
 
 export interface PegawaiCompetencyDetail {
   nip: string;
   nama: string;
   jabatan: string;
+  kelasJabatan?: string;
   unitKerja: string;
   jenjangJabatan: string;
   rumpunJabatan: string;
@@ -238,6 +240,7 @@ export function getPegawaiCompetencyDetail(pegawai: Pegawai): PegawaiCompetencyD
       nip,
       nama: pegawai.nama,
       jabatan: pegawai.jabatan || 'Pegawai DJKI',
+      kelasJabatan: getKelasJabatanPermenkumham38(pegawai.jabatan || '', pegawai.eselon, pegawai.golRuang) || pegawai.kelasJabatan || '-',
       unitKerja: pegawai.unitKerja || 'Sekretariat Direktorat Jenderal Kekayaan Intelektual',
       jenjangJabatan: jenjang,
       rumpunJabatan: rumpun,
@@ -333,6 +336,7 @@ export function getPegawaiCompetencyDetail(pegawai: Pegawai): PegawaiCompetencyD
     nip,
     nama: pegawai.nama,
     jabatan: pegawai.jabatan || 'Pegawai DJKI',
+    kelasJabatan: getKelasJabatanPermenkumham38(pegawai.jabatan || '', pegawai.eselon, pegawai.golRuang) || pegawai.kelasJabatan || '-',
     unitKerja: pegawai.unitKerja || 'Sekretariat Direktorat Jenderal Kekayaan Intelektual',
     jenjangJabatan: jenjang,
     rumpunJabatan: rumpun,

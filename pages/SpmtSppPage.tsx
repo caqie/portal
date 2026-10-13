@@ -5,6 +5,7 @@ import { fetchPegawaiFromSheets, syncTableRemote, fetchSPMTSPPFromSheets } from 
 import { Pegawai, SpmtSppRecord } from '../types';
 import { useAuth } from '../AuthContext';
 import { UNIT_KERJA, normalizeUnitName, DEFAULT_LOGO } from '../constants';
+import { getKelasJabatanPermenkumham38 } from '../data/anjabAbkConstants';
 import SuccessModal from '../components/SuccessModal';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -256,7 +257,15 @@ const SpmtSppPage = () => {
               <div className="space-y-6">
                  <h5 className="text-[10px] font-black text-emerald-600 uppercase border-b pb-2 tracking-widest">Data Pegawai</h5>
                  <SearchableSelect label="Pegawai Bersangkutan" options={searchableOptions} value={formData.pegawaiNip || ''} onChange={handlePegawaiSelect} />
-                 <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jabatan Baru</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border rounded-xl text-xs font-bold" value={formData.jabatanBaru || ''} onChange={e=>setFormData({...formData, jabatanBaru: e.target.value})} /></div>
+                 <div className="space-y-1">
+                   <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jabatan Baru</label>
+                   <input type="text" className="w-full px-5 py-3 bg-gray-50 border rounded-xl text-xs font-bold" value={formData.jabatanBaru || ''} onChange={e=>setFormData({...formData, jabatanBaru: e.target.value})} />
+                   {formData.jabatanBaru && (
+                     <p className="text-[9px] font-black text-blue-600 ml-2">
+                       Kelas Jabatan Resmi (Permenkumham 38/2025): Kelas {getKelasJabatanPermenkumham38(formData.jabatanBaru) || '-'}
+                     </p>
+                   )}
+                 </div>
                  <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Unit Kerja</label><input type="text" className="w-full px-5 py-3 bg-gray-50 border rounded-xl text-xs font-bold" value={formData.unitKerja || ''} onChange={e=>setFormData({...formData, unitKerja: e.target.value})} /></div>
                  <div className="space-y-1"><label className="text-[8px] font-black text-gray-400 uppercase ml-2">Tanggal Pelantikan/Mulai Tugas</label><input type="date" className="w-full px-5 py-3 bg-gray-50 border rounded-xl text-xs font-bold" value={formData.tanggalLantikAtauSpmt || ''} onChange={e=>setFormData({...formData, tanggalLantikAtauSpmt: e.target.value})} /></div>
               </div>

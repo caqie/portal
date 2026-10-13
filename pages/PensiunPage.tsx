@@ -12,8 +12,8 @@ import SearchableSelect from '../components/SearchableSelect';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
-import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
+import { getKelasJabatanPermenkumham38 } from '../data/anjabAbkConstants';
 
 const PensiunPage = () => {
   const navigate = useNavigate();
@@ -178,6 +178,7 @@ const PensiunPage = () => {
       'NIP': p.nip,
       'Unit Kerja': p.unitKerja,
       'Jabatan': p.jabatan,
+      'Kelas Jabatan (Permenkumham 38/2025)': getKelasJabatanPermenkumham38(p.jabatan || '', p.eselon, p.golRuang) || p.kelasJabatan || '-',
       'Golongan': p.golRuang,
       'TMT Pensiun': p.tmtPensiunDisplay || (p.retirement?.tmtPensiun.toLocaleDateString('id-ID')),
       'Sisa Masa Kerja': p.sisaMasaKerja || p.masaKerja || '-',
@@ -476,7 +477,12 @@ const PensiunPage = () => {
                     <tbody className="divide-y divide-gray-50">
                       {retiringCandidates.map((p, i) => (
                         <tr key={`${p.nip}-${i}`} className="hover:bg-blue-50/5 group transition-all">
-                          <td className="px-10 py-5"><p className="text-[11px] font-black text-gray-950 uppercase">{p.nama}</p><p className="text-[9px] font-mono text-blue-600">NIP. {p.nip}</p></td>
+                          <td className="px-10 py-5">
+                            <p className="text-[11px] font-black text-gray-950 uppercase">{p.nama}</p>
+                            <p className="text-[9px] font-mono text-blue-600">
+                              NIP. {p.nip} • {p.jabatan || 'Pegawai'} (Kelas {getKelasJabatanPermenkumham38(p.jabatan || '', p.eselon, p.golRuang) || p.kelasJabatan || '-'})
+                            </p>
+                          </td>
                           <td className="px-4 py-5 text-center font-black text-rose-600">{p.tmtPensiunDisplay || (p.retirement?.tmtPensiun.toLocaleDateString('id-ID'))}</td>
                           <td className="px-4 py-5 text-center"><span className="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[9px] font-black border border-rose-100">{p.sisaMasaKerja || p.masaKerja || '-'}</span></td>
                           <td className="px-10 py-5 text-right"><button onClick={() => handleASNSelect(p.nip)} className="h-9 px-6 bg-gray-950 text-white rounded-xl text-[9px] font-black uppercase shadow-lg active:scale-95 transition-all md:opacity-0 md:group-hover:opacity-100">Buat DPCP</button></td>

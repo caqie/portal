@@ -13,6 +13,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import html2canvas from 'html2canvas';
 // @ts-ignore
 import { jsPDF } from 'jspdf';
+import { getKelasJabatanPermenkumham38 } from '../data/anjabAbkConstants';
 
 // Helper Function: Angka Terbilang
 const terbilang = (nilai: number) => {
@@ -152,6 +153,7 @@ const PelantikanGeneratorPage = () => {
       asnGolRuang: activePegawai.golRuang || '',
       asnJabatan: jabatanBaru,
       asnJabatanBaru: jabatanBaru,
+      asnKelasJabatan: getKelasJabatanPermenkumham38(jabatanBaru, activePegawai.eselon, activePegawai.golRuang) || activePegawai.kelasJabatan || '',
       asnJabatanLama: activePegawai.jabatan || '',
       asnAgama: activePegawai.agama || '',
       kataPelantikan: oathTexts.pembuka,
@@ -218,10 +220,12 @@ const PelantikanGeneratorPage = () => {
     try {
       if (editingId) {
         const jabatanBaru = (formData.asnJabatanBaru || formData.asnJabatan || '').trim();
+        const pExisting = pegawaiList.find(x => x.nip === formData.asnNip);
         const updatedFormData = {
           ...formData,
           asnJabatan: jabatanBaru,
-          asnJabatanBaru: jabatanBaru
+          asnJabatanBaru: jabatanBaru,
+          asnKelasJabatan: getKelasJabatanPermenkumham38(jabatanBaru, pExisting?.eselon, pExisting?.golRuang) || ''
         };
         const payload = {
           id: editingId,
@@ -253,6 +257,7 @@ const PelantikanGeneratorPage = () => {
               asnGolRuang: p.golRuang || '',
               asnJabatan: jabatanBaru,
               asnJabatanBaru: jabatanBaru,
+              asnKelasJabatan: getKelasJabatanPermenkumham38(jabatanBaru, p.eselon, p.golRuang) || p.kelasJabatan || '',
               asnJabatanLama: p.jabatan || '',
               asnAgama: p.agama || '',
               kataPelantikan: oathTexts.pembuka,

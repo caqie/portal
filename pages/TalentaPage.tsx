@@ -20,6 +20,7 @@ import { useAuth } from '../AuthContext';
 import SearchableSelect from '../components/SearchableSelect';
 import { formatPegawaiName } from '../constants';
 import { getAtasanLangsung } from '../services/strukturOrganisasiService';
+import { getKelasJabatanPermenkumham38 } from '../data/anjabAbkConstants';
 import * as XLSX from 'xlsx';
 
 // Recharts for graphics
@@ -688,6 +689,7 @@ export default function TalentaPage() {
         ...pen,
         nama: peg ? formatPegawaiName(peg.nama) : 'Karyawan',
         jabatan: peg?.jabatan || 'Jabatan Fungsional',
+        kelas_jabatan: getKelasJabatanPermenkumham38(peg?.jabatan || '', peg?.eselon, peg?.golRuang) || peg?.kelasJabatan || '-',
         unit_kerja: peg?.unitKerja || 'DJKI',
         foto: peg?.foto || '',
         masa_kerja: parseInt(peg?.masaKerja || '0') || 0,
@@ -987,6 +989,7 @@ export default function TalentaPage() {
       'NIP Pegawai': p.pegawai_id,
       'Nama Pegawai': p.nama,
       'Jabatan': p.jabatan,
+      'Kelas Jabatan (Permenkumham 38/2025)': p.kelas_jabatan,
       'Unit Kerja': p.unit_kerja,
       'SKP': p.nilai_skp,
       'Kompetensi': p.kompetensi,
