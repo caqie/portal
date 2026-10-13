@@ -157,6 +157,38 @@ export const MASTER_JABATAN_PERMENKUMHAM_38_2025: MasterJabatanItem[] = [
   { label: "PERAWAT PENYELIA", code: "2.15.09", class: "8", type: "JF", minEducation: "D-III Keperawatan" },
   { label: "PERAWAT AHLI PERTAMA", code: "2.15.10", class: "8", type: "JF", minEducation: "S-1 Ners / Keperawatan" },
 
+  // 16. PENERJEMAH
+  { label: "PENERJEMAH AHLI PERTAMA", code: "2.16.01", class: "8", type: "JF", minEducation: "S-1 Sastra / Bahasa / Hubungan Internasional" },
+  { label: "PENERJEMAH AHLI MUDA", code: "2.16.02", class: "10", type: "JF", minEducation: "S-1 Sastra / Bahasa / Hubungan Internasional" },
+  { label: "PENERJEMAH AHLI MADYA", code: "2.16.03", class: "12", type: "JF", minEducation: "S-1 Sastra / Bahasa / Hubungan Internasional" },
+
+  // 17. PUSTAKAWAN & ASISTEN PERPUSTAKAAN
+  { label: "PUSTAKAWAN AHLI PERTAMA", code: "2.17.01", class: "8", type: "JF", minEducation: "S-1 Ilmu Perpustakaan / Informasi" },
+  { label: "PUSTAKAWAN AHLI MUDA", code: "2.17.02", class: "9", type: "JF", minEducation: "S-1 Ilmu Perpustakaan / Informasi" },
+  { label: "PUSTAKAWAN AHLI MADYA", code: "2.17.03", class: "11", type: "JF", minEducation: "S-1 Ilmu Perpustakaan / Informasi" },
+  { label: "ASISTEN PERPUSTAKAAN TERAMPIL", code: "2.17.04", class: "6", type: "JF", minEducation: "D-III Perpustakaan / Kearsipan" },
+  { label: "ASISTEN PERPUSTAKAAN MAHIR", code: "2.17.05", class: "7", type: "JF", minEducation: "D-III Perpustakaan / Kearsipan" },
+  { label: "ASISTEN PERPUSTAKAAN PENYELIA", code: "2.17.06", class: "8", type: "JF", minEducation: "D-III Perpustakaan / Kearsipan" },
+
+  // 18. MANGGALA INFORMATIKA
+  { label: "MANGGALA INFORMATIKA AHLI PERTAMA", code: "2.18.01", class: "8", type: "JF", minEducation: "S-1 Teknik Informatika / Ilmu Komputer" },
+  { label: "MANGGALA INFORMATIKA AHLI MUDA", code: "2.18.02", class: "9", type: "JF", minEducation: "S-1 Teknik Informatika / Ilmu Komputer" },
+  { label: "MANGGALA INFORMATIKA AHLI MADYA", code: "2.18.03", class: "11", type: "JF", minEducation: "S-1 Teknik Informatika / Ilmu Komputer" },
+
+  // 19. PERENCANA
+  { label: "PERENCANA AHLI PERTAMA", code: "2.19.01", class: "8", type: "JF", minEducation: "S-1 Perencanaan Wilayah / Ekonomi / Manajemen" },
+  { label: "PERENCANA AHLI MUDA", code: "2.19.02", class: "10", type: "JF", minEducation: "S-1 Perencanaan Wilayah / Ekonomi / Manajemen" },
+  { label: "PERENCANA AHLI MADYA", code: "2.19.03", class: "12", type: "JF", minEducation: "S-1 Perencanaan Wilayah / Ekonomi / Manajemen" },
+
+  // 20. PENATA LAKSANA BARANG
+  { label: "PENATA LAKSANA BARANG TERAMPIL", code: "2.20.01", class: "6", type: "JF", minEducation: "D-III Manajemen Aset / Administrasi" },
+  { label: "PENATA LAKSANA BARANG MAHIR", code: "2.20.02", class: "7", type: "JF", minEducation: "D-III Manajemen Aset / Administrasi" },
+
+  // 21. PRANATA LABORATORIUM KESEHATAN
+  { label: "PRANATA LABORATORIUM KESEHATAN TERAMPIL", code: "2.21.01", class: "6", type: "JF", minEducation: "D-III Analis Kesehatan / Laboratorium Medis" },
+  { label: "PRANATA LABORATORIUM KESEHATAN MAHIR", code: "2.21.02", class: "7", type: "JF", minEducation: "D-III Analis Kesehatan / Laboratorium Medis" },
+  { label: "PRANATA LABORATORIUM KESEHATAN PENYELIA", code: "2.21.03", class: "8", type: "JF", minEducation: "D-III Analis Kesehatan / Laboratorium Medis" },
+
   // E. DAFTAR NAMA JABATAN DAN KELAS JABATAN PELAKSANA (BAGIAN D PERMENKUMHAM 38 TAHUN 2025)
   { label: "PENELAAH TEKNIS KEBIJAKAN", code: "4.01", class: "7", type: "PELAKSANA", minEducation: "S-1 Semua Jurusan / Kebijakan Publik" },
   { label: "PENATA KELOLA PEMERINTAHAN", code: "4.02", class: "7", type: "PELAKSANA", minEducation: "S-1 Ilmu Pemerintahan / Administrasi Negara" },
@@ -173,8 +205,145 @@ export const MASTER_JABATAN_PERMENKUMHAM_38_2025: MasterJabatanItem[] = [
   { label: "PENGELOLA LAYANAN OPERASIONAL", code: "4.13", class: "6", type: "PELAKSANA", minEducation: "D-III Semua Jurusan" },
   { label: "OPERATOR LAYANAN OPERASIONAL", code: "4.14", class: "5", type: "PELAKSANA", minEducation: "SMA / SMK Sederajat" },
   { label: "PENGADMINISTRASI PERKANTORAN", code: "4.15", class: "5", type: "PELAKSANA", minEducation: "SMA / SMK / D-III Administrasi Perkantoran" },
-  { label: "PENGELOLA UMUM OPERASIONAL", code: "4.16", class: "1", type: "PELAKSANA", minEducation: "SMA / SMP Sederajat" }
+  { label: "PENGELOLA UMUM OPERASIONAL", code: "4.16", class: "1", type: "PELAKSANA", minEducation: "SMA / SMP Sederajat" },
+
+  // F. JABATAN PELAKSANA TRANSISI / NOMENKLATUR EKSISTING DI LINGKUNGAN DJKI
+  { label: "ANALIS PENGEMBANGAN PEGAWAI", code: "4.17", class: "7", type: "PELAKSANA", minEducation: "S-1 Manajemen SDM / Hukum / Administrasi" },
+  { label: "PENGELOLA DATA KEPEGAWAIAN", code: "4.18", class: "6", type: "PELAKSANA", minEducation: "D-III Manajemen / Komputer / Administrasi" },
+  { label: "PENGADMINISTRASI PERJALANAN DINAS", code: "4.19", class: "5", type: "PELAKSANA", minEducation: "SMA / SMK / D-III Perkantoran" },
+  { label: "PENGADMINISTRASI UMUM", code: "4.20", class: "5", type: "PELAKSANA", minEducation: "SMA / SMK / D-III Perkantoran" },
+  { label: "PENGELOLA HASIL KERJA", code: "4.21", class: "6", type: "PELAKSANA", minEducation: "D-III Manajemen / Administrasi" },
+  { label: "PENYUSUN PROGRAM", code: "4.22", class: "7", type: "PELAKSANA", minEducation: "S-1 Perencanaan / Ekonomi / Manajemen" },
+  { label: "ANALIS SISTEM APLIKASI DAN JARINGAN KOMPUTER", code: "4.23", class: "7", type: "PELAKSANA", minEducation: "S-1 Teknik Informatika / Sistem Informasi" },
+  { label: "ANALIS PERTIMBANGAN HUKUM", code: "4.24", class: "7", type: "PELAKSANA", minEducation: "S-1 Ilmu Hukum" },
+  { label: "PENYUSUN TINDAK LANJUT DAN LAPORAN HASIL PEMERIKSAAN", code: "4.25", class: "7", type: "PELAKSANA", minEducation: "S-1 Hukum / Akuntansi / Manajemen" }
 ];
+
+/**
+ * Normalisasi nama jabatan untuk pemetaan kelas jabatan sesuai Permenkumham No. 38 Tahun 2025
+ */
+export const normalizeJobTitle = (raw: string): string => {
+  if (!raw) return '';
+  let s = raw.trim().toUpperCase();
+  // Strip anotasi kurung seperti (Teknis), (Sistem)
+  s = s.replace(/\s*\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  // Standarisasi ejaan & singkatan
+  s = s.replace(/\bPERUUNDANG-UNDANGAN\b/g, 'PERUNDANG-UNDANGAN');
+  s = s.replace(/\bPERUU\b/g, 'PERUNDANG-UNDANGAN');
+  s = s.replace(/\bANGGARAN PENDAPATAN DAN BELANJA NEGARA\b/g, 'APBN');
+  s = s.replace(/\bPELAKSANA LANJUTAN\b/g, 'MAHIR');
+  
+  // Penyesuaian arsiparis / prakom pelaksana ke terampil
+  if (s.includes('ARSIPARIS PELAKSANA') || s.includes('PRANATA KOMPUTER PELAKSANA')) {
+    s = s.replace(/\bPELAKSANA\b/g, 'TERAMPIL');
+  }
+
+  // Sisipkan 'AHLI' untuk jabatan keahlian yang ditulis ringkas tanpa kata 'AHLI'
+  const keahlianLevels = ['UTAMA', 'MADYA', 'MUDA', 'PERTAMA'];
+  for (const lvl of keahlianLevels) {
+    const regex = new RegExp(`\\s+${lvl}$`);
+    if (regex.test(s) && !s.includes('AHLI ' + lvl) && !s.includes('ESELON') && !s.includes('TINGKAT')) {
+      s = s.replace(regex, ` AHLI ${lvl}`);
+      break;
+    }
+  }
+
+  return s;
+};
+
+/**
+ * Logika Resmi Pemetaan Kelas Jabatan Berdasarkan Permenkumham No. 38 Tahun 2025
+ * untuk Pemrosesan Data Peta Jabatan, Formasi SIMPEG, dan ABK DJKI
+ */
+export const getKelasJabatanPermenkumham38 = (
+  namaJabatan: string,
+  eselon?: string,
+  golRuang?: string
+): string => {
+  if (!namaJabatan) return '';
+  const clean = namaJabatan.trim().toUpperCase();
+
+  // Abaikan baris heading atau rekapitulasi
+  if (
+    clean.startsWith('A)') || 
+    clean.startsWith('B)') || 
+    clean.includes('JABATAN FUNGSIONAL (SEBUTKAN') || 
+    clean.includes('JABATAN PELAKSANA (SEBUTKAN') ||
+    clean.includes('SEBUTKAN SEMUA') || 
+    clean.includes('TOTAL SELURUH') ||
+    clean === '---' ||
+    clean.startsWith('REKAPITULASI')
+  ) {
+    return '';
+  }
+
+  const es = (eselon || '').toUpperCase().trim();
+
+  // 1. Pimpinan Tinggi Madya & Pratama (Eselon I & II)
+  if (clean.includes('DIREKTUR JENDERAL KEKAYAAN') || es === 'I.A' || es === 'I.B') return '17';
+  if (clean.includes('SEKRETARIS DIREKTORAT JENDERAL') || clean.includes('SEKRETARIS DITJEN')) return '16';
+  if ((clean.startsWith('DIREKTUR ') && !clean.includes('SUBDIREKTORAT')) || es === 'II.A' || es === 'II.B') return '15';
+
+  // 2. Administrator (Eselon III)
+  if (
+    clean.startsWith('KEPALA BAGIAN ') || 
+    clean.startsWith('KEPALA SUBDIREKTORAT ') || 
+    clean.startsWith('KABAG ') || 
+    clean.startsWith('KASUBDIT ') ||
+    es === 'III.A' || 
+    es === 'III.B'
+  ) {
+    return '13';
+  }
+
+  // 3. Pengawas (Eselon IV)
+  if (
+    clean.startsWith('KEPALA SUBBAGIAN ') || 
+    clean.startsWith('KEPALA SEKSI ') || 
+    clean.startsWith('KASUBBAG ') || 
+    clean.startsWith('KASI ') ||
+    es === 'IV.A' || 
+    es === 'IV.B'
+  ) {
+    return '10';
+  }
+
+  const norm = normalizeJobTitle(namaJabatan);
+
+  // 4. Pencocokan Persis (Exact Match) dengan Master Data Permenkumham 38/2025
+  const exact = MASTER_JABATAN_PERMENKUMHAM_38_2025.find(m => m.label.toUpperCase() === norm);
+  if (exact) return exact.class;
+
+  // 5. Pencocokan Substring / Partial Match dengan Master Data Permenkumham 38/2025
+  const partial = MASTER_JABATAN_PERMENKUMHAM_38_2025.find(m => {
+    const mLabel = m.label.toUpperCase();
+    return norm === mLabel || norm.includes(mLabel) || mLabel.includes(norm);
+  });
+  if (partial) return partial.class;
+
+  // 6. Penentuan Berdasarkan Jenjang Jabatan Fungsional (Ketentuan Umum BKN & PermenPAN-RB)
+  if (norm.includes('AHLI UTAMA')) return '13';
+  if (norm.includes('AHLI MADYA')) return '11';
+  if (norm.includes('AHLI MUDA')) return '9';
+  if (norm.includes('AHLI PERTAMA')) return '8';
+  if (norm.includes('PENYELIA')) return '8';
+  if (norm.includes('MAHIR')) return '7';
+  if (norm.includes('TERAMPIL')) return '6';
+  if (norm.includes('PEMULA')) return '5';
+
+  // 7. Penentuan Berdasarkan Golongan Ruang Pelaksana (Fallback)
+  if (golRuang) {
+    const g = golRuang.toUpperCase().trim();
+    if (g.startsWith('IV')) return '9';
+    if (g.startsWith('III/D')) return '8';
+    if (g.startsWith('III/C') || g.startsWith('III/B')) return '7';
+    if (g.startsWith('III/A')) return '6';
+    if (g.startsWith('II')) return '5';
+    if (g.startsWith('I')) return '1';
+  }
+
+  return '';
+};
 
 // 2. CONTOH DOKUMEN RESMI ANJAB & FORMAT ABK LENGKAP: DIREKTUR MEREK DAN INDIKASI GEOGRAFIS
 export const CONTOH_ANJAB_DIREKTUR_MEREK = {

@@ -18,7 +18,8 @@ import { jsPDF } from 'jspdf';
 import { 
   MASTER_JABATAN_PERMENKUMHAM_38_2025, 
   DAFTAR_CONTOH_DOKUMEN_ANJAB, 
-  MasterJabatanItem 
+  MasterJabatanItem,
+  getKelasJabatanPermenkumham38
 } from '../data/anjabAbkConstants';
 
 // MASTER DATA JABATAN & KELAS JABATAN RESMI SESUAI PERMENKUMHAM NO. 38 TAHUN 2025
@@ -116,7 +117,12 @@ const ABKAnjabPage = () => {
         ikhtisarJabatan: formData.ikhtisarJabatan || `Melaksanakan tugas ${master.label.toLowerCase()} sesuai dengan ketentuan peraturan perundang-undangan untuk kelancaran tugas organisasi.`
       });
     } else {
-      setFormData({ ...formData, namaJabatan: val });
+      const resolvedClass = getKelasJabatanPermenkumham38(val);
+      setFormData({ 
+        ...formData, 
+        namaJabatan: val,
+        ...(resolvedClass ? { kelasJabatan: resolvedClass } : {})
+      });
     }
   };
 

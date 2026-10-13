@@ -23,6 +23,7 @@ import {
   buildFormasiSimpegSheet, 
   downloadOfficialPetaJabatanExcel 
 } from '../services/petaJabatanAbkData';
+import { getKelasJabatanPermenkumham38 } from '../data/anjabAbkConstants';
 
 const PegawaiPage = () => {
   const navigate = useNavigate();
@@ -814,49 +815,50 @@ const PegawaiPage = () => {
     return dossierList.filter(d => d.nip === selectedPegawai.nip);
   }, [dossierList, selectedPegawai]);
 
-  // Helper Klasifikasi dan Urutan Peta Jabatan sesuai Standar Hierarki Kepegawaian DJKI / BKN
+  // Helper Klasifikasi dan Urutan Peta Jabatan sesuai Standar Hierarki Kepegawaian DJKI / BKN dan Permenkumham 38/2025
   const getPetaJabatanHierarchy = (p: Pegawai) => {
     const jab = (p.jabatan || '').toUpperCase().trim();
     const eselon = (p.eselon || '').toUpperCase().trim();
+    const officialClass = getKelasJabatanPermenkumham38(p.jabatan || '', p.eselon, p.golRuang);
 
     // Tier 1: JPT Madya (Dirjen)
     if ((jab.includes('DIREKTUR JENDERAL') && !jab.includes('SEKRETARIS') && !jab.includes('DIREKTORAT')) || eselon === 'I.A' || eselon === 'I.B') {
-      return { tier: 1, kategori: 'JPT Madya (Eselon I)', eselonTier: 'Eselon I', kelasJabatan: '17', levelCode: 'JPT_MADYA' };
+      return { tier: 1, kategori: 'JPT Madya (Eselon I)', eselonTier: 'Eselon I', kelasJabatan: officialClass || '17', levelCode: 'JPT_MADYA' };
     }
     // Tier 2: JPT Pratama (Eselon II - Sesditjen / Direktur)
     if (jab.includes('SEKRETARIS DIREKTORAT') || jab.includes('SEKRETARIS DITJEN') || (jab.startsWith('DIREKTUR') && !jab.includes('SUBDIREKTORAT')) || eselon === 'II.A' || eselon === 'II.B') {
-      return { tier: 2, kategori: 'JPT Pratama (Eselon II)', eselonTier: 'Eselon II', kelasJabatan: '15-16', levelCode: 'JPT_PRATAMA' };
+      return { tier: 2, kategori: 'JPT Pratama (Eselon II)', eselonTier: 'Eselon II', kelasJabatan: officialClass || (jab.includes('SEKRETARIS') ? '16' : '15'), levelCode: 'JPT_PRATAMA' };
     }
     // Tier 3: Jabatan Administrator (Eselon III - Kabag, Koordinator, Kasubdit)
     if (jab.includes('KEPALA BAGIAN') || jab.includes('KABAG') || jab.includes('KOORDINATOR') || jab.includes('KEPALA SUBDIREKTORAT') || jab.includes('KASUBDIT') || eselon === 'III.A' || eselon === 'III.B') {
-      return { tier: 3, kategori: 'Jabatan Administrator (Eselon III)', eselonTier: 'Eselon III', kelasJabatan: '12-14', levelCode: 'ADMINISTRATOR' };
+      return { tier: 3, kategori: 'Jabatan Administrator (Eselon III)', eselonTier: 'Eselon III', kelasJabatan: officialClass || '13', levelCode: 'ADMINISTRATOR' };
     }
     // Tier 4: Jabatan Pengawas (Eselon IV - Subkoordinator, Kasubbag, Kasi)
     if (jab.includes('SUBKOORDINATOR') || jab.includes('SUB KOORDINATOR') || jab.includes('KEPALA SUBBAGIAN') || jab.includes('KASUBBAG') || jab.includes('KEPALA SEKSI') || jab.includes('KASI') || eselon === 'IV.A' || eselon === 'IV.B') {
-      return { tier: 4, kategori: 'Jabatan Pengawas (Eselon IV)', eselonTier: 'Eselon IV', kelasJabatan: '8-9', levelCode: 'PENGAWAS' };
+      return { tier: 4, kategori: 'Jabatan Pengawas (Eselon IV)', eselonTier: 'Eselon IV', kelasJabatan: officialClass || '10', levelCode: 'PENGAWAS' };
     }
     // Tier 5: JF Ahli Utama
     if (jab.includes('UTAMA') && (jab.includes('AHLI UTAMA') || jab.includes('PEMERIKSA') || jab.includes('ANALIS'))) {
-      return { tier: 5, kategori: 'JF Ahli Utama', eselonTier: 'Fungsional Keahlian', kelasJabatan: '13-14', levelCode: 'JF_UTAMA' };
+      return { tier: 5, kategori: 'JF Ahli Utama', eselonTier: 'Fungsional Keahlian', kelasJabatan: officialClass || '13', levelCode: 'JF_UTAMA' };
     }
     // Tier 6: JF Ahli Madya
     if (jab.includes('MADYA') || jab.includes('AHLI MADYA')) {
-      return { tier: 6, kategori: 'JF Ahli Madya', eselonTier: 'Fungsional Keahlian', kelasJabatan: '11-12', levelCode: 'JF_MADYA' };
+      return { tier: 6, kategori: 'JF Ahli Madya', eselonTier: 'Fungsional Keahlian', kelasJabatan: officialClass || '11', levelCode: 'JF_MADYA' };
     }
     // Tier 7: JF Ahli Muda
     if (jab.includes('MUDA') || jab.includes('AHLI MUDA')) {
-      return { tier: 7, kategori: 'JF Ahli Muda', eselonTier: 'Fungsional Keahlian', kelasJabatan: '9-10', levelCode: 'JF_MUDA' };
+      return { tier: 7, kategori: 'JF Ahli Muda', eselonTier: 'Fungsional Keahlian', kelasJabatan: officialClass || '9', levelCode: 'JF_MUDA' };
     }
     // Tier 8: JF Ahli Pertama
     if (jab.includes('PERTAMA') || jab.includes('AHLI PERTAMA')) {
-      return { tier: 8, kategori: 'JF Ahli Pertama', eselonTier: 'Fungsional Keahlian', kelasJabatan: '8', levelCode: 'JF_PERTAMA' };
+      return { tier: 8, kategori: 'JF Ahli Pertama', eselonTier: 'Fungsional Keahlian', kelasJabatan: officialClass || '8', levelCode: 'JF_PERTAMA' };
     }
     // Tier 9: JF Keterampilan (Penyelia, Mahir, Terampil, Pemula)
     if (jab.includes('PENYELIA') || jab.includes('MAHIR') || jab.includes('PELAKSANA LANJUTAN') || jab.includes('TERAMPIL') || jab.includes('PEMULA')) {
-      return { tier: 9, kategori: 'JF Keterampilan', eselonTier: 'Fungsional Keterampilan', kelasJabatan: '6-8', levelCode: 'JF_KETERAMPILAN' };
+      return { tier: 9, kategori: 'JF Keterampilan', eselonTier: 'Fungsional Keterampilan', kelasJabatan: officialClass || '7', levelCode: 'JF_KETERAMPILAN' };
     }
     // Tier 10: Pelaksana (JFU)
-    return { tier: 10, kategori: 'Jabatan Pelaksana (JFU)', eselonTier: 'Pelaksana', kelasJabatan: p.kelasJabatan || '5-7', levelCode: 'PELAKSANA' };
+    return { tier: 10, kategori: 'Jabatan Pelaksana (JFU)', eselonTier: 'Pelaksana', kelasJabatan: officialClass || (p.kelasJabatan && !p.kelasJabatan.includes('-') ? p.kelasJabatan : '7'), levelCode: 'PELAKSANA' };
   };
 
   const GOLONGAN_PRIORITY: Record<string, number> = {
@@ -1471,7 +1473,7 @@ const PegawaiPage = () => {
               subBagian: s.subBagian || '-',
               namaJabatan: jabProper,
               klasifikasi: s.hier.kategori,
-              kelasJabatan: s.hier.kelasJabatan,
+              kelasJabatan: getKelasJabatanPermenkumham38(jabProper, p.eselon, p.golRuang) || s.hier.kelasJabatan,
               eselon: p.eselon || s.hier.eselonTier,
               tingkatStr: s.tingkatStr,
               atasanLangsung: s.atasanLangsung,

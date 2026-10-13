@@ -6,47 +6,20 @@
  */
 
 import * as XLSX from 'xlsx';
-import { MASTER_JABATAN_PERMENKUMHAM_38_2025 } from '../data/anjabAbkConstants';
+import { 
+  MASTER_JABATAN_PERMENKUMHAM_38_2025, 
+  getKelasJabatanPermenkumham38,
+  normalizeJobTitle 
+} from '../data/anjabAbkConstants';
 
 /**
  * Mencari Kelas Jabatan resmi berdasarkan Permenkumham No. 38 Tahun 2025
+ * untuk pemrosesan Peta Jabatan ABK dan Formasi SIMPEG
  */
 export const getKelasJabatanForPeta = (namaJabatan: string): string => {
-  if (!namaJabatan) return '';
-  const clean = namaJabatan.trim().toUpperCase();
-  if (clean.startsWith('A)') || clean.startsWith('B)') || clean.includes('JABATAN FUNGSIONAL') || clean.includes('JABATAN PELAKSANA')) {
-    return '';
-  }
-
-  // Khusus Pimpinan & Struktural Eselon I, II, III, IV
-  if (clean.includes('DIREKTUR JENDERAL KEKAYAAN')) return '17';
-  if (clean.includes('SEKRETARIS DIREKTORAT JENDERAL')) return '16';
-  if (clean.startsWith('DIREKTUR ')) return '15';
-  if (clean.startsWith('KEPALA BAGIAN ') || clean.startsWith('KEPALA SUBDIREKTORAT ')) return '13';
-  if (clean.startsWith('KEPALA SUBBAGIAN ') || clean.startsWith('KEPALA SEKSI ')) return '9';
-
-  // Cek exact match
-  const exact = MASTER_JABATAN_PERMENKUMHAM_38_2025.find(m => m.label.toUpperCase() === clean);
-  if (exact) return exact.class;
-
-  // Cek kecocokan tanpa kata "AHLI"
-  const cleanTanpaAhli = clean.replace(/ AHLI /g, ' ');
-  for (const m of MASTER_JABATAN_PERMENKUMHAM_38_2025) {
-    const mLabel = m.label.toUpperCase();
-    if (clean === mLabel || cleanTanpaAhli === mLabel.replace(/ AHLI /g, ' ')) {
-      return m.class;
-    }
-  }
-
-  // Cek substring
-  const partial = MASTER_JABATAN_PERMENKUMHAM_38_2025.find(m => {
-    const mLabel = m.label.toUpperCase();
-    return clean.includes(mLabel) || mLabel.includes(clean);
-  });
-  if (partial) return partial.class;
-
-  return '';
+  return getKelasJabatanPermenkumham38(namaJabatan);
 };
+
 
 export interface PetaJabatanAbkRow {
   no: string;

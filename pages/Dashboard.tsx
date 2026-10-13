@@ -9,6 +9,7 @@ import CalendarView from '../components/CalendarView';
 import LayananSDMAlertBanner from '../components/LayananSDM/LayananSDMAlertBanner';
 import UserSelfServiceDashboard from '../components/UserSelfServiceDashboard';
 import ExternalAppLinks from '../components/ExternalAppLinks';
+import { getKelasJabatanPermenkumham38 } from '../data/anjabAbkConstants';
 
 const StatsCard = ({ title, value, icon, color, loading, subtext }: { title: string, value: string | number, icon: string, color: string, loading?: boolean, subtext?: string }) => (
   <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2.5rem] shadow-sm border border-gray-100 flex items-center space-x-3 md:space-x-4 hover:shadow-xl transition-all duration-300 group">
@@ -108,45 +109,11 @@ const Dashboard = () => {
   const [filterJenisGender, setFilterJenisGender] = useState('Semua Jenis');
   const [filterJenisGrade, setFilterJenisGrade] = useState('Semua Jenis');
 
-  // Helper for Kelas Jabatan (Permenkum 38/2025 Placeholder Logic)
+  // Helper for Kelas Jabatan sesuai Permenkumham No. 38 Tahun 2025
   const getKelasJabatan = (p: Pegawai) => {
-      if (p.kelasJabatan && p.kelasJabatan !== '-') return p.kelasJabatan;
-      const jab = (p.jabatan || '').toUpperCase();
-      const eselon = (p.eselon || '').toUpperCase();
-      const gol = (p.golRuang || '').toUpperCase();
-      
-      // JPT
-      if (eselon === 'I.A') return '17';
-      if (eselon === 'I.B') return '16';
-      if (eselon === 'II.A') return '15';
-      if (eselon === 'II.B') return '14';
-      
-      // Administrator / Pengawas
-      if (eselon === 'III.A') return '12';
-      if (eselon === 'III.B') return '11';
-      if (eselon === 'IV.A') return '9';
-      if (eselon === 'IV.B') return '8';
-
-      // Fungsional Ahli
-      if (jab.includes('AHLI UTAMA')) return '14';
-      if (jab.includes('AHLI MADYA')) return '12';
-      if (jab.includes('AHLI MUDA')) return '9';
-      if (jab.includes('AHLI PERTAMA')) return '8';
-      
-      // Fungsional Keterampilan
-      if (jab.includes('PENYELIA')) return '8';
-      if (jab.includes('MAHIR')) return '7';
-      if (jab.includes('TERAMPIL')) return '6';
-      if (jab.includes('PEMULA')) return '5';
-
-      // Pelaksana Berdasarkan Golongan (Standard Mapping if not specified)
-      if (gol.startsWith('IV')) return '9';
-      if (gol.startsWith('III/D')) return '8';
-      if (gol.startsWith('III/C')) return '7';
-      if (gol.startsWith('III/B')) return '6';
-      if (gol.startsWith('III/A')) return '5';
-      if (gol.startsWith('II')) return '4';
-      
+      if (p.kelasJabatan && p.kelasJabatan !== '-' && !p.kelasJabatan.includes('-')) return p.kelasJabatan;
+      const resmi = getKelasJabatanPermenkumham38(p.jabatan || '', p.eselon, p.golRuang);
+      if (resmi) return resmi;
       return '-';
   };
 
