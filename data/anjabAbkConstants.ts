@@ -18,7 +18,7 @@ export interface MasterJabatanItem {
 export const MASTER_JABATAN_PERMENKUMHAM_38_2025: MasterJabatanItem[] = [
   // A. JABATAN PIMPINAN TINGGI (JPT) & PIMPINAN UNIT DJKI
   { label: "DIREKTUR JENDERAL KEKAYAAN INTELEKTUAL", code: "1.01.01", class: "17", type: "JPT", minEducation: "S-2 / S-3 Hukum / Manajemen / Kebijakan Publik", unitRecommendation: "Sekretariat Direktorat Jenderal Kekayaan Intelektual" },
-  { label: "SEKRETARIS DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL", code: "1.02.01", class: "15", type: "JPT", minEducation: "S-2 / S-3 Hukum / Manajemen / Kebijakan Publik", unitRecommendation: "Sekretariat Direktorat Jenderal Kekayaan Intelektual" },
+  { label: "SEKRETARIS DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL", code: "1.02.01", class: "16", type: "JPT", minEducation: "S-2 / S-3 Hukum / Manajemen / Kebijakan Publik", unitRecommendation: "Sekretariat Direktorat Jenderal Kekayaan Intelektual" },
   { label: "DIREKTUR HAK CIPTA DAN DESAIN INDUSTRI", code: "1.01.02", class: "15", type: "JPT", minEducation: "S-1 / S-2 Hukum / Kebijakan Publik / Desain / Manajemen", unitRecommendation: "Direktorat Hak Cipta dan Desain Industri" },
   { label: "DIREKTUR PATEN, DESAIN TATA LETAK SIRKUIT TERPADU, DAN RAHASIA DAGANG", code: "1.01.03", class: "15", type: "JPT", minEducation: "S-1 / S-2 Teknik / MIPA / Hukum / Manajemen", unitRecommendation: "Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang" },
   { label: "DIREKTUR MEREK DAN INDIKASI GEOGRAFIS", code: "1.01.04", class: "15", type: "JPT", minEducation: "S-1/D-IV Hukum / Manajemen / Administrasi Negara / Kebijakan Publik", unitRecommendation: "Direktorat Merek dan Indikasi Geografis" },
@@ -227,6 +227,13 @@ export const normalizeJobTitle = (raw: string): string => {
   let s = raw.trim().toUpperCase();
   // Strip anotasi kurung seperti (Teknis), (Sistem)
   s = s.replace(/\s*\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  // Strip prefix penugasan seperti Plt, Plh, Pj, Pjs, Calon
+  s = s.replace(/^(PLT\.|PLH\.|PJ\.|PJS\.|CALON)\s+/i, '');
+  // Strip prefix "JABATAN FUNGSIONAL " atau "JABATAN PELAKSANA "
+  s = s.replace(/^JABATAN\s+(FUNGSIONAL|PELAKSANA|STRUKTURAL)\s+/i, '');
+  // Strip suffix unit kerja penempatan jika ada ("PADA DIREKTORAT...", "PADA BAGIAN...", "DI LINGKUNGAN...")
+  s = s.replace(/\s+PADA\s+(DIREKTORAT|SEKRETARIAT|BAGIAN|SUBDIREKTORAT|SUBBAGIAN|SEKSI)\b.*$/i, '');
+  s = s.replace(/\s+DI\s+LINGKUNGAN\b.*$/i, '');
   // Standarisasi ejaan & singkatan
   s = s.replace(/\bPERUUNDANG-UNDANGAN\b/g, 'PERUNDANG-UNDANGAN');
   s = s.replace(/\bPERUU\b/g, 'PERUNDANG-UNDANGAN');
@@ -253,7 +260,7 @@ export const normalizeJobTitle = (raw: string): string => {
 
 /**
  * Logika Resmi Pemetaan Kelas Jabatan Berdasarkan Permenkumham No. 38 Tahun 2025
- * untuk Pemrosesan Data Peta Jabatan, Formasi SIMPEG, dan ABK DJKI
+ * untuk Pemrosesan Data Peta Jabatan, Formasi SIMPEG, Profil Pegawai, dan ABK DJKI
  */
 export const getKelasJabatanPermenkumham38 = (
   namaJabatan: string,
@@ -263,7 +270,7 @@ export const getKelasJabatanPermenkumham38 = (
   if (!namaJabatan) return '';
   const clean = namaJabatan.trim().toUpperCase();
 
-  // Abaikan baris heading atau rekapitulasi
+  // Abaikan baris heading, rekapitulasi, atau placeholder kosong
   if (
     clean.startsWith('A)') || 
     clean.startsWith('B)') || 
@@ -272,36 +279,44 @@ export const getKelasJabatanPermenkumham38 = (
     clean.includes('SEBUTKAN SEMUA') || 
     clean.includes('TOTAL SELURUH') ||
     clean === '---' ||
-    clean.startsWith('REKAPITULASI')
+    clean.startsWith('REKAPITULASI') ||
+    clean === '-' ||
+    clean === 'N/A' ||
+    clean === 'TIDAK ADA'
   ) {
     return '';
   }
 
   const es = (eselon || '').toUpperCase().trim();
 
-  // 1. Pimpinan Tinggi Madya & Pratama (Eselon I & II)
-  if (clean.includes('DIREKTUR JENDERAL KEKAYAAN') || es === 'I.A' || es === 'I.B') return '17';
+  // 1. Pimpinan Tinggi Madya & Pratama (Eselon I & II) Sesuai Permenkumham 38/2025
+  if (clean.includes('DIREKTUR JENDERAL KEKAYAAN') || clean === 'DIREKTUR JENDERAL' || es === 'I.A' || es === 'I.B') return '17';
   if (clean.includes('SEKRETARIS DIREKTORAT JENDERAL') || clean.includes('SEKRETARIS DITJEN')) return '16';
-  if ((clean.startsWith('DIREKTUR ') && !clean.includes('SUBDIREKTORAT')) || es === 'II.A' || es === 'II.B') return '15';
+  if ((clean.startsWith('DIREKTUR') && !clean.includes('SUBDIREKTORAT') && !clean.includes('JENDERAL')) || es === 'II.A' || es === 'II.B') return '15';
 
-  // 2. Administrator (Eselon III)
+  // 2. Administrator (Eselon III) Sesuai Permenkumham 38/2025 - Kelas 13
   if (
-    clean.startsWith('KEPALA BAGIAN ') || 
-    clean.startsWith('KEPALA SUBDIREKTORAT ') || 
-    clean.startsWith('KABAG ') || 
-    clean.startsWith('KASUBDIT ') ||
+    clean.startsWith('KEPALA BAGIAN') || 
+    clean.startsWith('KEPALA SUBDIREKTORAT') || 
+    clean.startsWith('KABAG') || 
+    clean.startsWith('KASUBDIT') ||
+    clean.startsWith('KOORDINATOR') ||
+    clean === 'KOORDINATOR' ||
     es === 'III.A' || 
     es === 'III.B'
   ) {
     return '13';
   }
 
-  // 3. Pengawas (Eselon IV)
+  // 3. Pengawas (Eselon IV) Sesuai Permenkumham 38/2025 - Kelas 10
   if (
-    clean.startsWith('KEPALA SUBBAGIAN ') || 
-    clean.startsWith('KEPALA SEKSI ') || 
-    clean.startsWith('KASUBBAG ') || 
-    clean.startsWith('KASI ') ||
+    clean.startsWith('KEPALA SUBBAGIAN') || 
+    clean.startsWith('KEPALA SEKSI') || 
+    clean.startsWith('KASUBBAG') || 
+    clean.startsWith('KASI') ||
+    clean.startsWith('SUBKOORDINATOR') ||
+    clean.startsWith('SUB KOORDINATOR') ||
+    clean === 'SUBKOORDINATOR' ||
     es === 'IV.A' || 
     es === 'IV.B'
   ) {
@@ -314,24 +329,70 @@ export const getKelasJabatanPermenkumham38 = (
   const exact = MASTER_JABATAN_PERMENKUMHAM_38_2025.find(m => m.label.toUpperCase() === norm);
   if (exact) return exact.class;
 
-  // 5. Pencocokan Substring / Partial Match dengan Master Data Permenkumham 38/2025
+  // 5. Pencocokan Cerdas (Smart Matching) dengan Master Data Permenkumham 38/2025
+  const levels = ['AHLI UTAMA', 'AHLI MADYA', 'AHLI MUDA', 'AHLI PERTAMA', 'PENYELIA', 'MAHIR', 'TERAMPIL', 'PEMULA'];
+  const matchedLevel = levels.find(l => norm.includes(l));
+
+  if (matchedLevel) {
+    // Cari kandidat yang memiliki jenjang yang sama dan nama dasar yang berkesesuaian
+    const candidates = MASTER_JABATAN_PERMENKUMHAM_38_2025.filter(m => m.label.includes(matchedLevel));
+    const bestCandidate = candidates.find(m => {
+      const baseMaster = m.label.replace(matchedLevel, '').trim();
+      const baseNorm = norm.replace(matchedLevel, '').trim();
+      return baseNorm.includes(baseMaster) || baseMaster.includes(baseNorm);
+    });
+    if (bestCandidate) return bestCandidate.class;
+  }
+
+  // Pencocokan substring langsung untuk pelaksana atau jabatan spesifik tanpa jenjang
   const partial = MASTER_JABATAN_PERMENKUMHAM_38_2025.find(m => {
     const mLabel = m.label.toUpperCase();
-    return norm === mLabel || norm.includes(mLabel) || mLabel.includes(norm);
+    return norm === mLabel || norm.includes(mLabel);
   });
   if (partial) return partial.class;
 
-  // 6. Penentuan Berdasarkan Jenjang Jabatan Fungsional (Ketentuan Umum BKN & PermenPAN-RB)
+  // 6. Penentuan Berdasarkan Jenjang Jabatan Fungsional Khusus Sesuai Permenkumham 38/2025
+  const isHighTierJF = norm.includes('PERANCANG PERATURAN') || 
+    norm.includes('ANALIS SDM APARATUR') || 
+    norm.includes('ANALIS KEBIJAKAN') || 
+    norm.includes('ANALIS PENGELOLAAN KEUANGAN APBN') || 
+    norm.includes('ANALIS ANGGARAN') || 
+    norm.includes('PERENCANA') || 
+    norm.includes('DOKTER') ||
+    norm.includes('PENERJEMAH');
+
+  if (isHighTierJF) {
+    if (norm.includes('AHLI UTAMA')) return '14';
+    if (norm.includes('AHLI MADYA')) return '12';
+    if (norm.includes('AHLI MUDA')) return '10';
+    if (norm.includes('AHLI PERTAMA')) return norm.includes('DOKTER') ? '9' : '8';
+  }
+
+  // Standar umum JF (Pemeriksa Paten/Merek/Desain, Analis KI, Analis Hukum, Penyuluh, Prakom, Arsiparis):
   if (norm.includes('AHLI UTAMA')) return '13';
   if (norm.includes('AHLI MADYA')) return '11';
   if (norm.includes('AHLI MUDA')) return '9';
   if (norm.includes('AHLI PERTAMA')) return '8';
-  if (norm.includes('PENYELIA')) return '8';
-  if (norm.includes('MAHIR')) return '7';
-  if (norm.includes('TERAMPIL')) return '6';
+  if (norm.includes('PENYELIA')) return norm.includes('KEUANGAN APBN') ? '9' : '8';
+  if (norm.includes('MAHIR')) return norm.includes('KEUANGAN APBN') ? '8' : '7';
+  if (norm.includes('TERAMPIL')) return norm.includes('KEUANGAN APBN') ? '7' : '6';
   if (norm.includes('PEMULA')) return '5';
 
-  // 7. Penentuan Berdasarkan Golongan Ruang Pelaksana (Fallback)
+  // 7. Penentuan Berdasarkan Nomenklatur Pelaksana Standar Permenkumham 38/2025
+  if (norm.includes('PENELAAH TEKNIS') || norm.includes('PENATA KELOLA') || norm.includes('FASILITATOR') || norm.includes('PENATA LAYANAN') || norm.includes('KONTEN INTERNET') || norm.includes('ANALIS SISTEM') || norm.includes('PENYUSUN PROGRAM') || norm.includes('ANALIS PENGEMBANGAN PEGAWAI') || norm.includes('ANALIS PERTIMBANGAN')) {
+    return '7';
+  }
+  if (norm.includes('PENGELOLA LAYANAN') || norm.includes('PENGOLAH DATA') || norm.includes('PENGELOLA KEPROTOKOLAN') || norm.includes('DOKUMENTALIS') || norm.includes('PENGELOLA HASIL KERJA') || norm.includes('PENGELOLA DATA')) {
+    return '6';
+  }
+  if (norm.includes('OPERATOR LAYANAN') || norm.includes('PENGADMINISTRASI')) {
+    return '5';
+  }
+  if (norm.includes('PENGELOLA UMUM OPERASIONAL')) {
+    return '1';
+  }
+
+  // 8. Penentuan Berdasarkan Golongan Ruang Pelaksana (Fallback bila tidak terdefinisi)
   if (golRuang) {
     const g = golRuang.toUpperCase().trim();
     if (g.startsWith('IV')) return '9';

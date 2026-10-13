@@ -3,6 +3,7 @@ import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, T
 import { MASTER_LAYANAN_DATA } from './layananMasterData';
 import { INITIAL_TUPOKSI_SDM } from './tupoksiConstants';
 import { getJabatanClassification, resolveUserPendidikan, getPangkatFromGol } from './constants';
+import { getKelasJabatanPermenkumham38 } from './data/anjabAbkConstants';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8dTUPkAb1f8EeH3DxXjTd9IZ-yAMUWxSfci9ZBLkMf3gxH3as4GlALPtER6JM-BWD/exec';
@@ -1210,12 +1211,14 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
       keluarga: getJson('KELUARGA')
     } as Pegawai;
 
-    // A. Classification Enrichment
+    // A. Classification & Grade Enrichment (Permenkumham No. 38 Tahun 2025)
     const determinedClass = getJabatanClassification(p);
     p.klasifikasiJabatan = determinedClass;
     if (!p.jenisJabatan || p.jenisJabatan === '-' || p.jenisJabatan.trim() === '') {
       p.jenisJabatan = determinedClass;
     }
+    const rawKelas = (get('KELASJABATAN') || get('KELAS_JABATAN') || get('GRADE') || '').trim();
+    p.kelasJabatan = getKelasJabatanPermenkumham38(p.jabatan || '', p.eselon, p.golRuang) || (rawKelas && rawKelas !== '-' ? rawKelas : '');
 
     // B. Identity & Retirement Enrichment
     const statusLower = (p.status || '').trim().toLowerCase();
@@ -1958,6 +1961,10 @@ export const savePegawai = async (pegawai: Partial<Pegawai>): Promise<boolean> =
     delete (payload as any)[field];
   });
   
+  if (payload.jabatan) {
+    payload.kelasJabatan = getKelasJabatanPermenkumham38(payload.jabatan, payload.eselon, payload.golRuang) || payload.kelasJabatan;
+  }
+
   return syncTableRemote('PEGAWAI', 'SAVE', payload);
 };
 

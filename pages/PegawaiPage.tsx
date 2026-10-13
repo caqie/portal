@@ -309,6 +309,10 @@ const PegawaiPage = () => {
             payload.unitKerja = payload.subBagian || 'DJKI';
           }
 
+          if (payload.jabatan) {
+            payload.kelasJabatan = getKelasJabatanPermenkumham38(payload.jabatan, payload.eselon, payload.golRuang) || payload.kelasJabatan;
+          }
+
           if (payload.nip) {
             const cleanNip = payload.nip.replace(/\D/g, '');
             const existingId = existingPegawaiMap.get(cleanNip);
@@ -1280,7 +1284,7 @@ const PegawaiPage = () => {
       'Nama Jabatan': properJabatan,
       'Klasifikasi Peta Jabatan': s.hier?.kategori || p.klasifikasiJabatan || '-',
       'Jenis Jabatan': p.jenisJabatan || s.hier?.eselonTier || '-',
-      'Kelas Jabatan': s.hier?.kelasJabatan || p.kelasJabatan || '-',
+      'Kelas Jabatan': getKelasJabatanPermenkumham38(properJabatan, p.eselon, p.golRuang) || s.hier?.kelasJabatan || p.kelasJabatan || '-',
       'Eselon': p.eselon || s.hier?.eselonTier || '-',
       'Status Kepegawaian': p.jenisPegawai || 'PNS',
       'Status Pegawai (Aktifitas)': p.status || 'Aktif',
@@ -1359,7 +1363,7 @@ const PegawaiPage = () => {
           'Subbagian / Seksi': s.subBagian || '-',
           'Nama Jabatan': resolveProperJabatan(p, s),
           'Klasifikasi Jabatan': s.hier.kategori,
-          'Kelas Jabatan': s.hier.kelasJabatan,
+          'Kelas Jabatan': getKelasJabatanPermenkumham38(resolveProperJabatan(p, s), p.eselon, p.golRuang) || s.hier.kelasJabatan,
           'Eselon': p.eselon || s.hier.eselonTier,
           'Pangkat / Golongan': `${p.pangkat || '-'} (${p.golRuang || '-'})`,
           'Status Kepegawaian': p.jenisPegawai || 'PNS',
@@ -1402,7 +1406,7 @@ const PegawaiPage = () => {
           'Pangkat / Golongan': `${p.pangkat || '-'} (${p.golRuang || '-'})`,
           'TMT Pangkat': p.tmtPangkat || '-',
           'TMT Jabatan': p.tmtJabatan || '-',
-          'Kelas Jabatan': s.hier.kelasJabatan,
+          'Kelas Jabatan': getKelasJabatanPermenkumham38(resolveProperJabatan(p, s), p.eselon, p.golRuang) || s.hier.kelasJabatan,
           'Eselon': p.eselon || s.hier.eselonTier,
           'Pendidikan Terakhir': p.pendidikan || '-',
           'Jurusan / Prodi': p.jurusan || '-',

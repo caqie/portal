@@ -16,8 +16,8 @@ import {
  * Mencari Kelas Jabatan resmi berdasarkan Permenkumham No. 38 Tahun 2025
  * untuk pemrosesan Peta Jabatan ABK dan Formasi SIMPEG
  */
-export const getKelasJabatanForPeta = (namaJabatan: string): string => {
-  return getKelasJabatanPermenkumham38(namaJabatan);
+export const getKelasJabatanForPeta = (namaJabatan: string, eselon?: string, golRuang?: string): string => {
+  return getKelasJabatanPermenkumham38(namaJabatan, eselon, golRuang);
 };
 
 

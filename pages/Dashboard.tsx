@@ -110,10 +110,10 @@ const Dashboard = () => {
   const [filterJenisGrade, setFilterJenisGrade] = useState('Semua Jenis');
 
   // Helper for Kelas Jabatan sesuai Permenkumham No. 38 Tahun 2025
-  const getKelasJabatan = (p: Pegawai) => {
-      if (p.kelasJabatan && p.kelasJabatan !== '-' && !p.kelasJabatan.includes('-')) return p.kelasJabatan;
+  const getKelasJabatan = (p: Pegawai): string => {
       const resmi = getKelasJabatanPermenkumham38(p.jabatan || '', p.eselon, p.golRuang);
       if (resmi) return resmi;
+      if (p.kelasJabatan && p.kelasJabatan !== '-' && !p.kelasJabatan.includes('-')) return p.kelasJabatan;
       return '-';
   };
 

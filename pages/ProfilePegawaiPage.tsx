@@ -11,6 +11,7 @@ import AutocompleteInput from '../components/AutocompleteInput';
 import SimpegImportModal, { SimpegCategory } from '../components/SimpegImportModal';
 import { JENJANG_PENDIDIKAN_LIST, JURUSAN_LIST } from '../educationConstants';
 import { ANDRIEANSJAH_JABATAN_DATA, ANDRIEANSJAH_PELATIHAN_DATA, ANDRIEANSJAH_PANGKAT_DATA, ANDRIEANSJAH_PENDIDIKAN_DATA, ANDRIEANSJAH_PENGHARGAAN_DATA, TESSA_HARUMDILA_JABATAN_DATA, YASMON_PENDIDIKAN_DATA, SIMPEG_PENGHARGAAN_DATA, SIMPEG_2015_PENGHARGAAN_SAMPLE } from '../data/simpegData';
+import { getKelasJabatanPermenkumham38 } from '../data/anjabAbkConstants';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore
@@ -1780,7 +1781,9 @@ const ProfilePegawaiPage = () => {
             </div>
             <div className="pt-4 md:pt-6 border-t border-gray-50 flex flex-col gap-2">
                <span className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase ${pegawai.status === 'Aktif' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>{pegawai.status}</span>
-               <span className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[8px] font-black uppercase">{pegawai.golRuang} • {pegawai.pangkat}</span>
+               <span className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-[8px] font-black uppercase">
+                 {pegawai.golRuang} • {pegawai.pangkat} • Kelas {getKelasJabatanPermenkumham38(pegawai.jabatan || '', pegawai.eselon, pegawai.golRuang) || pegawai.kelasJabatan || '-'}
+               </span>
             </div>
           </div>
 
@@ -2052,6 +2055,13 @@ const ProfilePegawaiPage = () => {
                       ) : (
                         <div className="px-5 md:px-6 py-3.5 md:py-4 bg-gray-50/50 border border-gray-100 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-bold text-gray-900 min-h-[48px] md:min-h-[54px] flex items-center select-all">{formatDateIndoDisplay(pegawai.tmtJabatan)}</div>
                       )}
+                    </div>
+                    <div className="space-y-2">
+                      <label className={labelClass}>Kelas Jabatan (Permenkumham 38/2025)</label>
+                      <div className="px-5 md:px-6 py-3.5 md:py-4 bg-blue-50/40 border border-blue-200/70 rounded-xl md:rounded-2xl text-[12px] md:text-[13px] font-black text-blue-700 min-h-[48px] md:min-h-[54px] flex items-center justify-between">
+                        <span>Kelas {getKelasJabatanPermenkumham38(pegawai.jabatan || '', pegawai.eselon, pegawai.golRuang) || pegawai.kelasJabatan || '-'}</span>
+                        <span className="text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded bg-blue-100/70 text-blue-800">Standar Resmi DJKI</span>
+                      </div>
                     </div>
                     <div className="space-y-2 col-span-full">
                       <label className={labelClass}>Unit Kerja</label>
