@@ -7,6 +7,7 @@ import { SUB_TEAMS_INFO, INITIAL_TUPOKSI_SDM } from '../tupoksiConstants';
 import { initializeAllSDMData } from '../sampleDataSDM';
 import TupoksiActionWorkspaceModal from '../components/Tupoksi/TupoksiActionWorkspaceModal';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 
 export interface SDMModuleItem {
   id: string;
@@ -312,10 +313,10 @@ const TupoksiSDMPage: React.FC<TupoksiSDMPageProps> = ({ initialTab }) => {
       'Catatan': item.catatan
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    const ws = safeJsonToSheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Tupoksi_SDM_DJKI");
-    XLSX.writeFile(wb, `Tupoksi_SDM_DJKI_${new Date().toISOString().split('T')[0]}.xlsx`);
+    safeWriteExcel(wb, `Tupoksi_SDM_DJKI_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // Filter Modul Operasional Logic

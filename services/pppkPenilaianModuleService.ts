@@ -34,6 +34,7 @@ import {
 } from '../types';
 import { getAllEmployees } from './pppkEvaluationService';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -2174,11 +2175,11 @@ export function exportEvaluasiPppkToExcel(periodeId?: string): void {
     };
   });
 
-  const ws = XLSX.utils.json_to_sheet(dataRows);
+  const ws = safeJsonToSheet(dataRows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Rekap Penilaian PPPK');
 
-  XLSX.writeFile(wb, `Rekap_Penilaian_Kinerja_PPPK_${new Date().getFullYear()}.xlsx`);
+  safeWriteExcel(wb, `Rekap_Penilaian_Kinerja_PPPK_${new Date().getFullYear()}.xlsx`);
 }
 
 /**

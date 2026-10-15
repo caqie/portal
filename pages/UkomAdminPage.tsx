@@ -32,6 +32,7 @@ import {
   Unlock
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 import { PesertaUkom, HasilUkom, BankSoal, Pegawai, UkomSession, UkomSupervisor } from '../types';
 import { 
   fetchPesertaUkomFromSheets, 
@@ -380,18 +381,18 @@ const UkomAdminPage: React.FC = () => {
         BOBOTNILAI: '5'
       }
     ];
-    const ws = XLSX.utils.json_to_sheet(template);
+    const ws = safeJsonToSheet(template);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
-    XLSX.writeFile(wb, 'Template_Bank_Soal.xlsx');
+    safeWriteExcel(wb, 'Template_Bank_Soal.xlsx');
   };
 
   const exportToExcel = () => {
     const data = activeTab === 'HASIL' ? hasil : peserta;
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = safeJsonToSheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, activeTab);
-    XLSX.writeFile(wb, `UKOM_${activeTab}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    safeWriteExcel(wb, `UKOM_${activeTab}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handlePrintCard = (p: PesertaUkom) => {
@@ -655,10 +656,10 @@ const UkomAdminPage: React.FC = () => {
                           BOBOTNILAI: '5'
                         }
                       ];
-                      const ws = XLSX.utils.json_to_sheet(template);
+                      const ws = safeJsonToSheet(template);
                       const wb = XLSX.utils.book_new();
                       XLSX.utils.book_append_sheet(wb, ws, "Soal");
-                      XLSX.writeFile(wb, "Template_Soal_UKOM.xlsx");
+                      safeWriteExcel(wb, "Template_Soal_UKOM.xlsx");
                     }}
                     className="px-6 py-3 bg-white border border-gray-200 text-gray-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 transition-all flex items-center gap-2"
                   >

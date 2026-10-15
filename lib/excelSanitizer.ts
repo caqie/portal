@@ -52,10 +52,10 @@ export const sanitizeForExcel = (val: any, limit: number = SAFE_EXCEL_CELL_LIMIT
 /**
  * Sanitizes an array of object records before passing into XLSX.utils.json_to_sheet.
  */
-export const sanitizeExcelRows = <T extends Record<string, any>>(
-  rows: T[],
+export const sanitizeExcelRows = (
+  rows: any[],
   limit: number = SAFE_EXCEL_CELL_LIMIT
-): T[] => {
+): any[] => {
   if (!Array.isArray(rows)) return [];
   return rows.map(row => {
     if (!row || typeof row !== 'object') return row;
@@ -117,8 +117,8 @@ export const sanitizeWorksheet = (
  * Safe drop-in replacement for XLSX.utils.json_to_sheet.
  * Sanitizes input records and validates the created worksheet.
  */
-export const safeJsonToSheet = <T extends Record<string, any>>(
-  data: T[],
+export const safeJsonToSheet = (
+  data: any[],
   opts?: XLSX.JSON2SheetOpts,
   limit: number = SAFE_EXCEL_CELL_LIMIT
 ): XLSX.WorkSheet => {

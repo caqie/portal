@@ -14,6 +14,7 @@ import html2canvas from 'html2canvas';
 // @ts-ignore
 import { jsPDF } from 'jspdf';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 import { getKelasJabatanPermenkumham38 } from '../data/anjabAbkConstants';
 
 const PensiunPage = () => {
@@ -186,10 +187,10 @@ const PensiunPage = () => {
       'BUP': p.retirement?.bup || '-'
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const worksheet = safeJsonToSheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Monitoring Pensiun");
-    XLSX.writeFile(workbook, `Monitoring_Pensiun_${new Date().getFullYear()}.xlsx`);
+    safeWriteExcel(workbook, `Monitoring_Pensiun_${new Date().getFullYear()}.xlsx`);
     logActivity('DOWNLOAD', 'PENSIUN', 'Download Excel Monitoring Pensiun');
   };
 
@@ -346,10 +347,10 @@ const PensiunPage = () => {
          return { 'Nama Pegawai': p.namaPegawai, 'NIP': p.nip };
        }
      });
-     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+     const worksheet = safeJsonToSheet(dataToExport);
      const workbook = XLSX.utils.book_new();
      XLSX.utils.book_append_sheet(workbook, worksheet, "Arsip DPCP");
-     XLSX.writeFile(workbook, `Arsip_DPCP_${new Date().getFullYear()}.xlsx`);
+     safeWriteExcel(workbook, `Arsip_DPCP_${new Date().getFullYear()}.xlsx`);
    };
 
   const labelClass = "text-[9px] font-black text-gray-400 uppercase ml-3 tracking-widest block mb-1.5";

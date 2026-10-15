@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { AuditLog } from '../types';
 import ConfirmationModal from '../components/ConfirmationModal';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 
 const ActivityLogPage = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
@@ -47,10 +48,10 @@ const ActivityLogPage = () => {
       'Aksi': l.action,
       'Deskripsi': l.description
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = safeJsonToSheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Audit Log Aktivitas");
-    XLSX.writeFile(wb, `Audit_Logs_SDM_DJKI_${new Date().getTime()}.xlsx`);
+    safeWriteExcel(wb, `Audit_Logs_SDM_DJKI_${new Date().getTime()}.xlsx`);
   };
 
   const actionColors: Record<string, string> = {

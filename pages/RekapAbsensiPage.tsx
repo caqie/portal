@@ -4,6 +4,7 @@ import { fetchPegawaiFromSheets, fetchAllAbsensiHistoryFromSheets, fetchAbsensiC
 import { Pegawai, AbsensiRecord, AbsensiConfig } from '../types';
 import { useAuth } from '../AuthContext';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DEFAULT_HOLIDAYS, parseSinglePdf, ensurePdfJsLoaded, Holiday, ParsedAttendance, isHariMasukUM, getIsoDateStr } from '../pdfParserUtils';
@@ -234,10 +235,10 @@ const RekapAbsensiPage = () => {
 
   const handleExport = () => {
     const data = filteredLogs.map(l => ({ NIP: l.nip, Nama: l.nama, Tanggal: l.tanggal, Waktu: l.waktu, Tipe: l.tipe, Skor: `${(l.confidence * 100).toFixed(0)}%`, Lokasi: l.lokasi }));
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = safeJsonToSheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Rekap Absensi");
-    XLSX.writeFile(wb, `Rekap_Absen_${new Date().getTime()}.xlsx`);
+    safeWriteExcel(wb, `Rekap_Absen_${new Date().getTime()}.xlsx`);
     logActivity('DOWNLOAD', 'Absensi', 'Mengekspor rekap absensi ke Excel');
   };
 
@@ -665,7 +666,7 @@ const RekapAbsensiPage = () => {
       });
     });
 
-    const wsDetailAbsensi = XLSX.utils.json_to_sheet(detailAbsensiData);
+    const wsDetailAbsensi = safeJsonToSheet(detailAbsensiData);
     wsDetailAbsensi['!cols'] = [
       { wch: 24 }, // NIP
       { wch: 34 }, // Nama
@@ -690,7 +691,7 @@ const RekapAbsensiPage = () => {
       };
     });
 
-    const wsRekapUangMakan = XLSX.utils.json_to_sheet(rekapUangMakanData);
+    const wsRekapUangMakan = safeJsonToSheet(rekapUangMakanData);
     wsRekapUangMakan['!cols'] = [
       { wch: 24 }, // NIP
       { wch: 34 }, // Nama
@@ -717,7 +718,7 @@ const RekapAbsensiPage = () => {
       }
     });
 
-    const wsDetailUangMakan = XLSX.utils.json_to_sheet(detailUangMakanData);
+    const wsDetailUangMakan = safeJsonToSheet(detailUangMakanData);
     wsDetailUangMakan['!cols'] = [
       { wch: 8 },  // No
       { wch: 34 }, // Nama
@@ -741,7 +742,7 @@ const RekapAbsensiPage = () => {
         'Pesan Kendala / Error': err.errorMessage,
         'Rekomendasi Solusi': 'Pastikan berkas PDF presensi memiliki layer teks asli (bukan foto/scan gambar) dan tidak diproteksi kata sandi.'
       }));
-      const wsErr = XLSX.utils.json_to_sheet(errorRows);
+      const wsErr = safeJsonToSheet(errorRows);
       wsErr['!cols'] = [
         { wch: 6 },
         { wch: 38 },
@@ -754,7 +755,7 @@ const RekapAbsensiPage = () => {
       XLSX.utils.book_append_sheet(wb, wsErr, "Catatan Berkas Error");
     }
 
-    XLSX.writeFile(wb, `Rekap_Absensi_dan_Uang_Makan_${new Date().getTime()}.xlsx`);
+    safeWriteExcel(wb, `Rekap_Absensi_dan_Uang_Makan_${new Date().getTime()}.xlsx`);
     logActivity('DOWNLOAD', 'Absensi', `Mengekspor rekap spreadsheet bulk (${results.length} pegawai${parseErrors.length > 0 ? ', ' + parseErrors.length + ' berkas error' : ''}) ke Excel.`);
   };
 
@@ -778,7 +779,7 @@ const RekapAbsensiPage = () => {
       'Rekomendasi Solusi': '1. Unggah ulang berkas PDF asli dari portal presensi (harus teks digital, bukan scan/foto).\n2. Pastikan file tidak terenkripsi atau diproteksi kata sandi.\n3. Periksa apakah tabel tanggal dan jam presensi tercetak lengkap.'
     }));
 
-    const ws1 = XLSX.utils.json_to_sheet(errorRows);
+    const ws1 = safeJsonToSheet(errorRows);
     ws1['!cols'] = [
       { wch: 6 },
       { wch: 40 },
@@ -798,12 +799,12 @@ const RekapAbsensiPage = () => {
       { 'Parameter': 'Modul Sistem', 'Nilai': 'Rekapitulasi Presensi & Uang Makan Pegawai' },
       { 'Parameter': 'Status Tindak Lanjut', 'Nilai': 'Perlu perbaikan berkas fisik PDF yang dilaporkan gagal' }
     ];
-    const ws2 = XLSX.utils.json_to_sheet(summaryRows);
+    const ws2 = safeJsonToSheet(summaryRows);
     ws2['!cols'] = [{ wch: 35 }, { wch: 50 }];
     XLSX.utils.book_append_sheet(wb, ws2, 'Ringkasan Audit');
 
     const dateStr = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(wb, `Laporan_Error_Parsing_Absensi_${dateStr}.xlsx`);
+    safeWriteExcel(wb, `Laporan_Error_Parsing_Absensi_${dateStr}.xlsx`);
     logActivity('DOWNLOAD', 'Absensi', `Mengekspor laporan ${parseErrors.length} berkas error parsing PDF ke Excel.`);
     setNotification({ message: `Berhasil mengekspor ${parseErrors.length} berkas error ke Excel.`, type: 'success' });
   };

@@ -5,6 +5,7 @@ import { Pegawai, Pengembangan, KGB, Kegiatan, AbsensiRecord } from '../types';
 import { useAuth } from '../AuthContext';
 import { UNIT_KERJA, normalizeUnitName, formatPegawaiName, getJabatanClassification, resolveUserPendidikan } from '../constants';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeAoaToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 import CalendarView from '../components/CalendarView';
 import LayananSDMAlertBanner from '../components/LayananSDM/LayananSDMAlertBanner';
 import UserSelfServiceDashboard from '../components/UserSelfServiceDashboard';
@@ -279,7 +280,7 @@ const Dashboard = () => {
       [],
       ["TOTAL KESELURUHAN", "", classificationStats.total, classificationStats.totalUnique, "100%"]
     ];
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+    const wsSummary = safeAoaToSheet(summaryRows);
     XLSX.utils.book_append_sheet(wb, wsSummary, "Ringkasan Klaster");
 
     // Sheet 2: Unique Nomenclature
@@ -290,10 +291,10 @@ const Dashboard = () => {
     classificationStats.fungsionalTitles.forEach(t => nomenclatureRows.push(["FUNGSIONAL", t]));
     classificationStats.pelaksanaTitles.forEach(t => nomenclatureRows.push(["PELAKSANA", t]));
 
-    const wsNom = XLSX.utils.aoa_to_sheet(nomenclatureRows);
+    const wsNom = safeAoaToSheet(nomenclatureRows);
     XLSX.utils.book_append_sheet(wb, wsNom, "Daftar Nomenklatur");
 
-    XLSX.writeFile(wb, `Rekap_Klaster_Jabatan_${new Date().toISOString().split('T')[0]}.xlsx`);
+    safeWriteExcel(wb, `Rekap_Klaster_Jabatan_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const unitDistribution = useMemo(() => {
@@ -602,14 +603,14 @@ const Dashboard = () => {
     const wb = XLSX.utils.book_new();
     
     // 1. Sebaran Unit
-    const unitWs = XLSX.utils.json_to_sheet(unitDistribution.map(u => ({ 
+    const unitWs = safeJsonToSheet(unitDistribution.map(u => ({ 
       'Unit Kerja Pengampu': u.unit, 
       'PNS': u.pns, 'CPNS': u.cpns, 'PPPK': u.pppk, 'PPPK Paruh Waktu': u.pppkParuh, 'Total ASN': u.total 
     })));
     XLSX.utils.book_append_sheet(wb, unitWs, "Sebaran Unit");
 
     // 2. Statistik Gender
-    const genderWs = XLSX.utils.json_to_sheet([
+    const genderWs = safeJsonToSheet([
         { 'Kategori': 'Laki-laki', 'Jumlah': genderStats.pria },
         { 'Kategori': 'Perempuan', 'Jumlah': genderStats.wanita },
         { 'Kategori': 'Total', 'Jumlah': genderStats.pria + genderStats.wanita }
@@ -617,21 +618,21 @@ const Dashboard = () => {
     XLSX.utils.book_append_sheet(wb, genderWs, "Statistik Gender");
 
     // 3. Statistik Pendidikan
-    const eduWs = XLSX.utils.json_to_sheet(educationStats.map(e => ({
+    const eduWs = safeJsonToSheet(educationStats.map(e => ({
         'Jenjang Pendidikan': e.label,
         'Jumlah ASN': e.count
     })));
     XLSX.utils.book_append_sheet(wb, eduWs, "Statistik Pendidikan");
 
     // 4. Sebaran Golongan
-    const gradeWs = XLSX.utils.json_to_sheet(gradeStats.map(g => ({
+    const gradeWs = safeJsonToSheet(gradeStats.map(g => ({
         'Golongan / Ruang': g.label,
         'Jumlah ASN': g.count
     })));
     XLSX.utils.book_append_sheet(wb, gradeWs, "Sebaran Golongan");
 
     // 5. Matriks Jabatan (Summary)
-    const jabWs = XLSX.utils.json_to_sheet(matrixJabatan.map(j => ({
+    const jabWs = safeJsonToSheet(matrixJabatan.map(j => ({
         'Nama Jabatan': j.jabatan,
         'Unit Kerja': j.unitKerja,
         'Bagian': j.bagian,
@@ -641,7 +642,7 @@ const Dashboard = () => {
     })));
     XLSX.utils.book_append_sheet(wb, jabWs, "Matriks Jabatan");
 
-    XLSX.writeFile(wb, `PortalSDM_Full_Analytics_${new Date().getTime()}.xlsx`);
+    safeWriteExcel(wb, `PortalSDM_Full_Analytics_${new Date().getTime()}.xlsx`);
     logActivity('DOWNLOAD', 'Dashboard', 'Download Full Analytics Statistics');
   };
 
@@ -720,7 +721,7 @@ const Dashboard = () => {
         'Total Pegawai': data.total
       }));
 
-    const wsAll = XLSX.utils.json_to_sheet(overallData);
+    const wsAll = safeJsonToSheet(overallData);
     XLSX.utils.book_append_sheet(wb, wsAll, "Keseluruhan Jabatan");
 
     // 2. Per-Unit Sheets
@@ -740,13 +741,13 @@ const Dashboard = () => {
             'Total Pegawai': j.total
           }));
         
-        const wsUnit = XLSX.utils.json_to_sheet(unitData);
+        const wsUnit = safeJsonToSheet(unitData);
         const safeName = unitName.replace('Direktorat ', 'DIT ').replace('Sekretariat ', 'SET ').substring(0, 31);
         XLSX.utils.book_append_sheet(wb, wsUnit, safeName);
       }
     });
 
-    XLSX.writeFile(wb, `Nomenklatur_Jabatan_DJKI_${new Date().getTime()}.xlsx`);
+    safeWriteExcel(wb, `Nomenklatur_Jabatan_DJKI_${new Date().getTime()}.xlsx`);
     logActivity('DOWNLOAD', 'Dashboard', 'Download Matriks Jabatan Lengkap (Excel Export)');
   };
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../AuthContext';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
@@ -1284,7 +1285,7 @@ const UangMakanPage: React.FC = () => {
         'Uang Makan Bersih / Net (Rp)': calc.netTotal
       };
     });
-    const ws1 = XLSX.utils.json_to_sheet(rekapPMKData);
+    const ws1 = safeJsonToSheet(rekapPMKData);
     ws1['!cols'] = [
       { wch: 6 },  // No
       { wch: 32 }, // Nama
@@ -1310,7 +1311,7 @@ const UangMakanPage: React.FC = () => {
         'Jumlah Hari Kerja': umDays
       };
     });
-    const ws2 = XLSX.utils.json_to_sheet(jumlahHariKerjaData);
+    const ws2 = safeJsonToSheet(jumlahHariKerjaData);
     ws2['!cols'] = [
       { wch: 24 }, // NIP
       { wch: 34 }, // Nama
@@ -1351,7 +1352,7 @@ const UangMakanPage: React.FC = () => {
         });
       });
     });
-    const ws3 = XLSX.utils.json_to_sheet(detailAbsenData);
+    const ws3 = safeJsonToSheet(detailAbsenData);
     ws3['!cols'] = [
       { wch: 24 }, // NIP
       { wch: 34 }, // Nama
@@ -1383,7 +1384,7 @@ const UangMakanPage: React.FC = () => {
       });
       if (umDays.length > 0) counterNo++;
     });
-    const ws4 = XLSX.utils.json_to_sheet(detailUmData);
+    const ws4 = safeJsonToSheet(detailUmData);
     ws4['!cols'] = [
       { wch: 8 },  // No
       { wch: 34 }, // Nama
@@ -1403,7 +1404,7 @@ const UangMakanPage: React.FC = () => {
         'Pesan Error / Kendala': err.errorMessage,
         'Rekomendasi Solusi': 'Pastikan berkas PDF presensi memiliki layer teks asli (bukan foto/scan gambar) dan tidak diproteksi sandi.'
       }));
-      const wsErr = XLSX.utils.json_to_sheet(errorRows);
+      const wsErr = safeJsonToSheet(errorRows);
       wsErr['!cols'] = [
         { wch: 6 },
         { wch: 38 },
@@ -1416,7 +1417,7 @@ const UangMakanPage: React.FC = () => {
       XLSX.utils.book_append_sheet(wb, wsErr, 'Catatan Berkas Error');
     }
 
-    XLSX.writeFile(wb, `Rekap_Uang_Makan_Golongan_PMK_SDM_DJKI_${new Date().toISOString().split('T')[0]}.xlsx`);
+    safeWriteExcel(wb, `Rekap_Uang_Makan_Golongan_PMK_SDM_DJKI_${new Date().toISOString().split('T')[0]}.xlsx`);
     logActivity('DOWNLOAD', 'Uang Makan', `Mengekspor rekap Uang Makan sesuai standar PMK ke Excel Multi-Sheet (${parseErrors.length > 0 ? '5 Sheet termasuk Error' : '4 Sheet'})`);
   };
 
@@ -1440,7 +1441,7 @@ const UangMakanPage: React.FC = () => {
       'Rekomendasi Solusi': '1. Unggah ulang berkas PDF asli dari portal presensi (harus teks digital, bukan scan/foto).\n2. Pastikan file tidak terenkripsi atau diproteksi kata sandi.\n3. Periksa apakah tabel tanggal dan jam presensi tercetak lengkap.'
     }));
 
-    const ws1 = XLSX.utils.json_to_sheet(errorRows);
+    const ws1 = safeJsonToSheet(errorRows);
     ws1['!cols'] = [
       { wch: 6 },
       { wch: 40 },
@@ -1460,12 +1461,12 @@ const UangMakanPage: React.FC = () => {
       { 'Parameter': 'Modul Sistem', 'Nilai': 'Pengelolaan Presensi & Uang Makan ASN DJKI' },
       { 'Parameter': 'Status Tindak Lanjut', 'Nilai': 'Perlu perbaikan berkas fisik PDF yang dilaporkan gagal' }
     ];
-    const ws2 = XLSX.utils.json_to_sheet(summaryRows);
+    const ws2 = safeJsonToSheet(summaryRows);
     ws2['!cols'] = [{ wch: 35 }, { wch: 50 }];
     XLSX.utils.book_append_sheet(wb, ws2, 'Ringkasan Audit');
 
     const dateStr = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(wb, `Laporan_Error_Parsing_PDF_Uang_Makan_${dateStr}.xlsx`);
+    safeWriteExcel(wb, `Laporan_Error_Parsing_PDF_Uang_Makan_${dateStr}.xlsx`);
     logActivity('DOWNLOAD', 'Uang Makan', `Mengekspor laporan ${parseErrors.length} berkas error parsing PDF ke Excel.`);
     setNotification({ message: `Berhasil mengekspor ${parseErrors.length} berkas error ke Excel.`, type: 'success' });
   };

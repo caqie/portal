@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { AdminUser, MaintenanceConfig, CloudConfig, AbsensiConfig, Pegawai, SystemConfig, PageAccess, normalizeRolesList } from '../types';
 import { fetchUsersFromSheets, uploadFileToDrive, syncTableRemote, syncGidMap, fetchAbsensiConfig, saveAbsensiConfig, fetchPegawaiFromSheets, fetchSystemConfig, saveSystemConfig, auditSpreadsheet, deleteSheetRemote, EXPECTED_COLUMNS_SCHEMA, saveSharedConfigToServer, parseDateToYYYYMMDD, cleanupEmptyRowsRemote } from '../spreadsheetService';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 import { useAuth } from '../AuthContext';
 import { DEFAULT_LOGO, DEFAULT_TEMPLATE_LOGO, APP_ROUTES, UNIT_KERJA, PANGKAT_MAP } from '../constants';
 import SuccessModal from '../components/SuccessModal';
@@ -375,10 +376,10 @@ const SettingsPage = () => {
       }
     ];
     
-    const ws = XLSX.utils.json_to_sheet(sampleData, { header: headers });
+    const ws = safeJsonToSheet(sampleData, { header: headers });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template_Import_Pegawai");
-    XLSX.writeFile(wb, "Template_Import_Pegawai.xlsx");
+    safeWriteExcel(wb, "Template_Import_Pegawai.xlsx");
   };
 
   const findDuplicatesAndInvalids = (list: Pegawai[]) => {

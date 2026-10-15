@@ -457,10 +457,10 @@ const KeuanganPage = () => {
       'Total Biaya': p.totalJumlah
     }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = safeJsonToSheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Peserta");
-    XLSX.writeFile(wb, `Peserta_${record.namaKegiatan.replace(/\s+/g, '_')}.xlsx`);
+    safeWriteExcel(wb, `Peserta_${record.namaKegiatan.replace(/\s+/g, '_')}.xlsx`);
   };
 
   const handleDownloadAllActivitiesExcel = () => {
@@ -476,10 +476,10 @@ const KeuanganPage = () => {
       'Total Biaya': r.peserta.reduce((acc, p) => acc + p.totalJumlah, 0)
     }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = safeJsonToSheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Kegiatan_Keuangan");
-    XLSX.writeFile(wb, `Data_Keuangan_${new Date().toISOString().split('T')[0]}.xlsx`);
+    safeWriteExcel(wb, `Data_Keuangan_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handlePrintAllDocuments = async (record: KeuanganRecord, type: typeof previewType) => {
