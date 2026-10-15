@@ -10,6 +10,7 @@ import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 
 const SatyaLencanaPage = () => {
   const navigate = useNavigate();
@@ -176,10 +177,10 @@ const SatyaLencanaPage = () => {
     const data = eligiblePegawai.map(p => ({
       'NIP': p.nip, 'Nama': p.nama, 'Unit Kerja': p.unitKerja, 'Tahun CPNS': p.cpnsYear, 'Masa Kerja': p.workingYears, 'Kategori': p.category
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = safeJsonToSheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Kelayakan Satyalencana");
-    XLSX.writeFile(wb, `Monitoring_Satyalencana_DJKI_${filterYear}.xlsx`);
+    safeWriteExcel(wb, `Monitoring_Satyalencana_DJKI_${filterYear}.xlsx`);
   };
 
   const inputClass = "w-full px-5 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 transition-all shadow-sm";

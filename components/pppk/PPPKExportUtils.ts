@@ -6,6 +6,7 @@
  */
 
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../../lib/excelSanitizer';
 import { PPPKEvaluation } from '../../types';
 import { AnnualRecapRow } from '../../services/pppkEvaluationService';
 import {
@@ -63,12 +64,12 @@ export function exportPPPKEvaluationsToExcel(evaluations: PPPKEvaluation[], file
     'Tanggal Finalisasi': ev.finalizedAt || '-'
   }));
 
-  const worksheet = XLSX.utils.json_to_sheet(data);
+  const worksheet = safeJsonToSheet(data);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Evaluasi PPPK');
 
   const name = fileName || `Evaluasi_Kinerja_PPPK_${new Date().toISOString().slice(0, 10)}.xlsx`;
-  XLSX.writeFile(workbook, name);
+  safeWriteExcel(workbook, name);
 }
 
 /**
@@ -94,9 +95,9 @@ export function exportPPPKAnnualRecapToExcel(recapRows: AnnualRecapRow[], year: 
     'Status Kelengkapan': r.statusText
   }));
 
-  const worksheet = XLSX.utils.json_to_sheet(data);
+  const worksheet = safeJsonToSheet(data);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, `Rekap Tahunan ${year}`);
 
-  XLSX.writeFile(workbook, `Rekap_Tahunan_Evaluasi_PPPK_${year}.xlsx`);
+  safeWriteExcel(workbook, `Rekap_Tahunan_Evaluasi_PPPK_${year}.xlsx`);
 }

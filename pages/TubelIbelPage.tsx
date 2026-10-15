@@ -8,6 +8,7 @@ import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 
 export interface TubelIbelRecord {
   id: string;
@@ -445,10 +446,10 @@ export const TubelIbelPage: React.FC = () => {
       'Judul Tesis/Disertasi': item.judulTesisDisertasi || '-'
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    const ws = safeJsonToSheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Tubel_Ibel_DJKI');
-    XLSX.writeFile(wb, `Data_Tugas_Belajar_Izin_Belajar_DJKI_${new Date().toISOString().split('T')[0]}.xlsx`);
+    safeWriteExcel(wb, `Data_Tugas_Belajar_Izin_Belajar_DJKI_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const genRecord = useMemo(() => {

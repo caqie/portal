@@ -6,6 +6,7 @@
  */
 
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 import { 
   MASTER_JABATAN_PERMENKUMHAM_38_2025, 
   getKelasJabatanPermenkumham38,
@@ -572,7 +573,7 @@ export const buildPetaJabatanAbkSheet = (): XLSX.WorkSheet => {
     'PPPK (Paruh Waktu)': r.pppkParuh
   }));
 
-  const ws = XLSX.utils.json_to_sheet(formattedRows);
+  const ws = safeJsonToSheet(formattedRows);
 
   // Set column widths for readability
   ws['!cols'] = [
@@ -659,7 +660,7 @@ export const buildFormasiSimpegSheet = (): XLSX.WorkSheet => {
     'Keterangan': 'Total Rekap 2025'
   });
 
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const ws = safeJsonToSheet(rows);
 
   ws['!cols'] = [
     { wch: 12 }, // Tahun
@@ -688,7 +689,7 @@ export const buildMasterKelasJabatanSheet = (): XLSX.WorkSheet => {
     'Rekomendasi Unit Kerja': m.unitRecommendation || '-'
   }));
 
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const ws = safeJsonToSheet(rows);
 
   ws['!cols'] = [
     { wch: 6 },  // No
@@ -721,5 +722,5 @@ export const downloadOfficialPetaJabatanExcel = () => {
   const wsMaster = buildMasterKelasJabatanSheet();
   XLSX.utils.book_append_sheet(wb, wsMaster, "Kelas Jabatan Permenkumham 38");
 
-  XLSX.writeFile(wb, `Peta_Jabatan_ABK_dan_Formasi_SIMPEG_DJKI_${Date.now()}.xlsx`);
+  safeWriteExcel(wb, `Peta_Jabatan_ABK_dan_Formasi_SIMPEG_DJKI_${Date.now()}.xlsx`);
 };

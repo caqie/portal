@@ -1,14 +1,15 @@
 /**
  * ============================================================================
- * PORTAL SDM DJKI - GOOGLE APPS SCRIPT BACKEND CORE (PRO ENTERPRISE V7.0 - 2026)
+ * PORTAL SDM DJKI - GOOGLE APPS SCRIPT BACKEND CORE (PRO ENTERPRISE V7.1 - 2026)
  * ============================================================================
  * 
  * BACKEND RESMI INTEGRASI GOOGLE SHEETS & GOOGLE DRIVE UNTUK PORTAL KEPEGAWAIAN
  * DIREKTORAT JENDERAL KEKAYAAN INTELEKTUAL (DJKI) KEMENTERIAN HUKUM RI
  * 
- * FITUR TERBARU V7.0:
+ * FITUR TERBARU V7.1:
  * - Dukungan Penuh Seluruh 51 Modul Kepegawaian (Pegawai, Talenta, PPPK, UKOM,
  *   Disiplin/LHKPN, Tubel/Ibel, Anggaran/DIPA, SAKIP/RB, Uang Makan, Layanan SDM, dll.)
+ * - Endpoint Cepat Pencarian Profil Pegawai By NIP / ID (GET_PEGAWAI_BY_NIP)
  * - Auto-Upsert Cerdas (Deteksi NIP, ID, No. Tiket, No. Peserta, dsb. secara otomatis)
  * - Ultra-Fast Bulk / Batch Save (Menyimpan ribuan baris dalam hitungan detik)
  * - Otomatis Penambahan Kolom Baru (Dynamic Schema Auto-Expand)
@@ -389,6 +390,14 @@ function doPost(e) {
     if (action === 'DELETE') return handleDelete(ss, moduleName, payload);
     if (action === 'DELETE_BATCH') return handleBatchDelete(ss, moduleName, payload);
     if (action === 'GET') return handleGet(ss, moduleName, payload);
+    if (action === 'GET_PEGAWAI_BY_NIP' || action === 'GET_PEGAWAI') {
+      var queryNip = (payload && (payload.nip || payload.id || payload.q || payload.search)) || (data.nip || data.id || data.q) || "";
+      return handleGetPegawaiByNip(ss, queryNip);
+    }
+    if (action === 'SEARCH_PEGAWAI') {
+      var querySearch = (payload && (payload.q || payload.query)) || (data.q || data.query) || "";
+      return handleSearchPegawai(ss, querySearch);
+    }
     if (action === 'AUDIT_DATABASE') return handleAuditDatabase(ss, payload);
     if (action === 'DELETE_SHEET') return handleDeleteSheet(ss, payload);
     if (action === 'CLEANUP_EMPTY_ROWS') return handleCleanupEmptyRows(ss, moduleName);
@@ -911,6 +920,22 @@ function handleGet(ss, moduleName, params) {
       rows.push(obj);
     }
 
+    // Filter jika query spesifik NIP/ID diberikan pada modul PEGAWAI
+    if (params && (params.nip || params.id) && moduleName.toUpperCase() === 'PEGAWAI') {
+      var searchNip = (params.nip || params.id || "").toString().trim();
+      var cleanNip = searchNip.replace(/\D/g, '');
+      var filtered = rows.filter(function(r) {
+        var rNip = r.NIP || r.nip || "";
+        var rId = r.ID || r.id || "";
+        var rNipClean = String(rNip).replace(/\D/g, '');
+        if (cleanNip && rNipClean && rNipClean === cleanNip) return true;
+        if (rId && String(rId).trim().toLowerCase() === searchNip.toLowerCase()) return true;
+        if (rNip && String(rNip).trim().toLowerCase() === searchNip.toLowerCase()) return true;
+        return false;
+      });
+      return createResponse({ success: true, data: filtered, count: filtered.length, total: filtered.length });
+    }
+
     return createResponse({ success: true, data: rows, count: rows.length, total: lastRow - 1 });
   } catch (e) { 
     return createResponse({ success: false, message: e.toString() }); 
@@ -988,26 +1013,65 @@ function handleGetPegawaiByNip(ss, nip) {
     if (lastRow < 2) return createResponse({ success: true, data: null });
 
     var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-    var nipIdx = -1;
+    var nipIdx = -1, idIdx = -1, namaIdx = -1;
     for (var h = 0; h < headers.length; h++) {
       var hName = headers[h] ? headers[h].toString().toLowerCase().replace(/[\s_]/g, '') : '';
-      if (hName === 'nip') { nipIdx = h; break; }
+      if (hName === 'nip') nipIdx = h;
+      if (hName === 'id') idIdx = h;
+      if (hName === 'nama' || hName === 'namapegawai') namaIdx = h;
     }
-    if (nipIdx === -1) return createResponse({ success: false, message: "Kolom NIP tidak ditemukan." });
+    if (nipIdx === -1 && idIdx === -1 && namaIdx === -1) {
+      return createResponse({ success: false, message: "Kolom NIP / ID tidak ditemukan pada sheet PEGAWAI." });
+    }
 
-    var nipList = sheet.getRange(2, nipIdx + 1, lastRow - 1, 1).getValues();
-    for (var r = 0; r < nipList.length; r++) {
-      var clean = nipList[r][0] ? nipList[r][0].toString().replace(/\D/g, '') : '';
-      if (clean === nip) {
-        var fullRow = sheet.getRange(r + 2, 1, 1, lastCol).getValues()[0];
+    var cleanTarget = nip ? nip.toString().trim() : '';
+    var cleanDigits = cleanTarget.replace(/\D/g, '');
+    var lowerTarget = cleanTarget.toLowerCase();
+
+    var displayRange = sheet.getRange(2, 1, lastRow - 1, lastCol);
+    var displayValues = displayRange.getDisplayValues();
+    var rawValues = displayRange.getValues();
+
+    for (var r = 0; r < displayValues.length; r++) {
+      var rowDisp = displayValues[r];
+      var rowRaw = rawValues[r];
+      
+      var rowNipDisp = nipIdx !== -1 && rowDisp[nipIdx] ? rowDisp[nipIdx].toString().trim() : '';
+      var rowNipDigits = rowNipDisp.replace(/\D/g, '');
+      var rowId = idIdx !== -1 && rowDisp[idIdx] ? rowDisp[idIdx].toString().trim() : '';
+      var rowNama = namaIdx !== -1 && rowDisp[namaIdx] ? rowDisp[namaIdx].toString().trim().toLowerCase() : '';
+
+      var isMatch = false;
+      if (cleanDigits && rowNipDigits && rowNipDigits === cleanDigits) isMatch = true;
+      else if (rowId && (rowId === cleanTarget || rowId.toLowerCase() === lowerTarget)) isMatch = true;
+      else if (rowNipDisp && (rowNipDisp === cleanTarget || rowNipDisp.toLowerCase() === lowerTarget)) isMatch = true;
+      else if (lowerTarget.length >= 3 && isNaN(Number(cleanTarget)) && (rowNama === lowerTarget || rowNama.indexOf(lowerTarget) !== -1)) isMatch = true;
+
+      if (isMatch) {
         var obj = {};
         for (var c = 0; c < headers.length; c++) {
-          obj[headers[c]] = fullRow[c];
+          var hKey = headers[c];
+          if (!hKey) continue;
+          var val = rowRaw[c];
+          var dispVal = rowDisp[c];
+          if (typeof val === 'string' && (val.indexOf('[') === 0 || val.indexOf('{') === 0)) {
+            try {
+              obj[hKey] = JSON.parse(val);
+            } catch (e) {
+              obj[hKey] = val;
+            }
+          } else if (val instanceof Date) {
+            obj[hKey] = dispVal || val.toISOString();
+          } else if (typeof val === 'number' && (hKey.toLowerCase().indexOf('nip') !== -1 || hKey.toLowerCase().indexOf('nik') !== -1)) {
+            obj[hKey] = dispVal || String(val);
+          } else {
+            obj[hKey] = val !== undefined && val !== null ? val : "";
+          }
         }
         return createResponse({ success: true, data: obj });
       }
     }
-    return createResponse({ success: true, data: null, message: "Pegawai dengan NIP " + nip + " tidak ditemukan." });
+    return createResponse({ success: true, data: null, message: "Pegawai dengan NIP/ID " + cleanTarget + " tidak ditemukan." });
   } catch (e) {
     return createResponse({ success: false, message: e.toString() });
   }

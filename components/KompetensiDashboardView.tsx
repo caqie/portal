@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { Pegawai, Pengembangan } from '../types';
 import { formatPegawaiName } from '../constants';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 import {
   ResponsiveContainer,
   BarChart,
@@ -297,10 +298,10 @@ export const KompetensiDashboardView: React.FC<Props> = ({
       'Status Pemenuhan': p.statusPemenuhan,
       'Rekomendasi Bangkom': p.rekomendasiBangkom
     }));
-    const ws = XLSX.utils.json_to_sheet(sheetData);
+    const ws = safeJsonToSheet(sheetData);
     const unitTitle = drilldownUnitStats ? drilldownUnitStats.shortName : 'Unit';
     XLSX.utils.book_append_sheet(wb, ws, `Pegawai_${unitTitle}`);
-    XLSX.writeFile(wb, `Daftar_Pegawai_${unitTitle}_Kompetensi_${new Date().getFullYear()}.xlsx`);
+    safeWriteExcel(wb, `Daftar_Pegawai_${unitTitle}_Kompetensi_${new Date().getFullYear()}.xlsx`);
   };
 
   // Data Distribusi Kategori Kecakapan (Donut Chart)
@@ -403,7 +404,7 @@ export const KompetensiDashboardView: React.FC<Props> = ({
       'Tingkat Pemenuhan (%)': `${u.fitPercentage}%`,
       'Kategori Kelayakan': u.kategori
     }));
-    const ws1 = XLSX.utils.json_to_sheet(sheet1Data);
+    const ws1 = safeJsonToSheet(sheet1Data);
     XLSX.utils.book_append_sheet(wb, ws1, 'Rekap Unit Kerja');
 
     // Sheet 2: Rekapitulasi per Jenjang Jabatan
@@ -415,7 +416,7 @@ export const KompetensiDashboardView: React.FC<Props> = ({
       'Gap Skor': j.gap,
       'Tingkat Pemenuhan (%)': `${j.fitPercentage}%`
     }));
-    const ws2 = XLSX.utils.json_to_sheet(sheet2Data);
+    const ws2 = safeJsonToSheet(sheet2Data);
     XLSX.utils.book_append_sheet(wb, ws2, 'Rekap Jenjang');
 
     // Sheet 3: Rincian Seluruh Pegawai Terasesmen
@@ -436,10 +437,10 @@ export const KompetensiDashboardView: React.FC<Props> = ({
       'Promotabel Jabatan': p.isPromotableJabatan ? 'YA' : 'TIDAK',
       'Rekomendasi Bangkom': p.rekomendasiBangkom
     }));
-    const ws3 = XLSX.utils.json_to_sheet(sheet3Data);
+    const ws3 = safeJsonToSheet(sheet3Data);
     XLSX.utils.book_append_sheet(wb, ws3, 'Data Pegawai Lengkap');
 
-    XLSX.writeFile(wb, `Dashboard_Kompetensi_DJKI_${new Date().getFullYear()}.xlsx`);
+    safeWriteExcel(wb, `Dashboard_Kompetensi_DJKI_${new Date().getFullYear()}.xlsx`);
   };
 
   // Custom Tooltip Recharts untuk Bar Chart Unit Kerja

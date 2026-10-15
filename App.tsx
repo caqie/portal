@@ -339,7 +339,8 @@ const AppContent = () => {
   const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   const cleanUserNip = (user?.nip || '').trim();
-  const userProfilePath = cleanUserNip ? `/pegawai/${cleanUserNip}` : '/pegawai/profile';
+  const isUserAdminName = cleanUserNip.toLowerCase() === 'admin' || cleanUserNip.toLowerCase() === 'superadmin' || cleanUserNip.toLowerCase() === 'administrator';
+  const userProfilePath = isUserAdminName ? '/pegawai/profile' : (cleanUserNip ? `/pegawai/${cleanUserNip}` : '/pegawai/profile');
   const isUserProfileActive = 
     location.pathname === userProfilePath || 
     location.pathname === '/profile' || 

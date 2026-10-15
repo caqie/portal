@@ -494,13 +494,76 @@ const STORAGE_KEY_MAP: Record<string, string> = {
  * If quota is reached, automatically purges disposable/duplicate caches,
  * trims oversized data URLs for the cache copy, and never breaks network fetch execution.
  */
+// Active session in-memory cache for ultra-fast (0ms) data retrieval across the application
+export const inMemoryCache: Record<string, any[]> = {};
+
+const IDB_TABLES_DB = 'PortalSdmTablesCacheDB';
+const IDB_TABLES_STORE = 'tables_data';
+
+const openTablesDb = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') return reject(new Error('IndexedDB not supported'));
+    const req = indexedDB.open(IDB_TABLES_DB, 1);
+    req.onupgradeneeded = (e: any) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_TABLES_STORE)) {
+        db.createObjectStore(IDB_TABLES_STORE, { keyPath: 'key' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+};
+
+export const saveTableToIndexedDb = async (key: string, data: any[]): Promise<void> => {
+  try {
+    const db = await openTablesDb();
+    const tx = db.transaction(IDB_TABLES_STORE, 'readwrite');
+    const store = tx.objectStore(IDB_TABLES_STORE);
+    store.put({ key, data, updatedAt: Date.now() });
+  } catch (err) {}
+};
+
+export const getTableFromIndexedDb = async <T>(key: string): Promise<T[] | null> => {
+  try {
+    const db = await openTablesDb();
+    return new Promise((resolve) => {
+      const tx = db.transaction(IDB_TABLES_STORE, 'readonly');
+      const store = tx.objectStore(IDB_TABLES_STORE);
+      const req = store.get(key);
+      req.onsuccess = () => {
+        if (req.result && Array.isArray(req.result.data) && req.result.data.length > 0) {
+          resolve(req.result.data);
+        } else {
+          resolve(null);
+        }
+      };
+      req.onerror = () => resolve(null);
+    });
+  } catch (err) {
+    return null;
+  }
+};
+
+/**
+ * Safely writes array data to localStorage without throwing QuotaExceededError.
+ * Keeps full records in inMemoryCache and IndexedDB (virtually unlimited quota),
+ * and creates a lightweight index for localStorage to stay well below browser quotas.
+ */
 export const safeSaveToCache = <T>(storageKey: string, data: T[]): void => {
   if (!data || !Array.isArray(data) || data.length === 0) {
+    delete inMemoryCache[storageKey];
     try { localStorage.removeItem(storageKey); } catch (e) {}
     return;
   }
 
-  // 1. Immediately prune known redundant duplicates
+  // 1. Keep full dataset in memory (0ms access)
+  inMemoryCache[storageKey] = data;
+
+  // 2. Persist full dataset to IndexedDB (virtually unlimited storage)
+  saveTableToIndexedDb(storageKey, data);
+
+  // 3. Immediately prune known redundant duplicates
   try {
     localStorage.removeItem('portal_sdm_pegawai_db');
   } catch (e) {}
@@ -519,7 +582,7 @@ export const safeSaveToCache = <T>(storageKey: string, data: T[]): void => {
 
   console.warn(`[Storage Quota] localStorage full when saving "${storageKey}". Attempting automatic pruning...`);
 
-  // 2. Prune old/disposable caches to free space
+  // 4. Prune old/disposable caches to free space
   try {
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -539,7 +602,7 @@ export const safeSaveToCache = <T>(storageKey: string, data: T[]): void => {
 
   if (trySet(data)) return;
 
-  // 3. Prune oversized data URLs (photos / base64 attachments) for cached copy
+  // 5. Prune oversized data URLs (photos / base64 attachments) for cached copy
   try {
     const lightweightData = data.map((item: any) => {
       if (!item || typeof item !== 'object') return item;
@@ -556,8 +619,32 @@ export const safeSaveToCache = <T>(storageKey: string, data: T[]): void => {
     }
   } catch (e) {}
 
-  // 4. If all else fails, log notice and do NOT throw! In-memory data is preserved and returned seamlessly.
-  console.warn(`[Storage Quota] Cache for "${storageKey}" could not be stored in localStorage due to browser storage limits. In-memory data will be used.`);
+  // 6. For massive collections (like 1,000+ Pegawai): prune heavy nested history arrays for localStorage index
+  if (storageKey === 'portal_pegawai_db') {
+    try {
+      const indexedOnly = data.map((item: any) => {
+        if (!item || typeof item !== 'object') return item;
+        const { riwayatJabatan, riwayatPendidikan, riwayatPangkat, riwayatGaji, riwayatPelatihan, riwayatPenghargaan, keluarga, ...core } = item;
+        return {
+          ...core,
+          riwayatJabatan: Array.isArray(riwayatJabatan) ? riwayatJabatan.slice(0, 1) : [],
+          riwayatPendidikan: Array.isArray(riwayatPendidikan) ? riwayatPendidikan.slice(0, 1) : [],
+          riwayatPangkat: Array.isArray(riwayatPangkat) ? riwayatPangkat.slice(0, 1) : [],
+          riwayatGaji: [],
+          riwayatPelatihan: [],
+          riwayatPenghargaan: [],
+          keluarga: []
+        };
+      });
+      if (trySet(indexedOnly)) {
+        console.log(`[Storage Quota] Saved lightweight index of 1,000+ pegawai to localStorage.`);
+        return;
+      }
+    } catch (e) {}
+  }
+
+  // 7. If all else fails, full data is safely secured in IndexedDB & inMemoryCache!
+  console.warn(`[Storage Quota] Cache for "${storageKey}" stored in IndexedDB and in-memory cache. Browser localStorage exceeded limit.`);
 };
 
 export const applyLocalCacheUpdate = (moduleName: string, action: 'SAVE' | 'DELETE', data: any) => {
@@ -898,13 +985,29 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
   } catch (e) {}
 
   if (!bypassCache) {
+    // 1. In-memory cache (fastest, 0ms)
+    if (inMemoryCache[storageKey] && inMemoryCache[storageKey].length > 0) {
+      return inMemoryCache[storageKey] as T[];
+    }
+    // 2. LocalStorage cache
     const cached = localStorage.getItem(storageKey);
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          inMemoryCache[storageKey] = parsed;
+          return parsed;
+        }
       } catch (e) {}
     }
+    // 3. IndexedDB cache (virtually unlimited quota, e.g. 1000+ Pegawai records)
+    try {
+      const idbData = await getTableFromIndexedDb<T>(storageKey);
+      if (idbData && idbData.length > 0) {
+        inMemoryCache[storageKey] = idbData;
+        return idbData;
+      }
+    } catch (e) {}
   }
 
   // 1. Primary Action: Fetch via Google Apps Script API 'GET' action
@@ -1083,8 +1186,7 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
   }
 };
 
-export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegawai[]> => {
-  const rawList = await fetchTableData<Pegawai>('PEGAWAI', 'portal_pegawai_db', (cols, headers) => {
+export const mapPegawaiCols = (cols: string[], headers: string[]): Pegawai | null => {
     const get = (k: string) => { 
       const i = headers.indexOf(k.toUpperCase().replace(/[\s_.]/g, '')); 
       return (i !== -1 && cols[i]) ? cols[i] : ''; 
@@ -1265,7 +1367,23 @@ export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegaw
     }
 
     return p;
-  }, bypassCache);
+};
+
+export const mapPegawaiRecord = (rowObj: Record<string, any>): Pegawai | null => {
+  if (!rowObj || typeof rowObj !== 'object') return null;
+  const rawHeaders = Object.keys(rowObj);
+  const headers = rawHeaders.map(h => h.trim().toUpperCase().replace(/[\s_.]/g, ''));
+  const cols = rawHeaders.map(h => {
+    const val = rowObj[h];
+    if (val === undefined || val === null) return '';
+    if (typeof val === 'object') return JSON.stringify(val);
+    return String(val);
+  });
+  return mapPegawaiCols(cols, headers);
+};
+
+export const fetchPegawaiFromSheets = async (bypassCache = false): Promise<Pegawai[]> => {
+  const rawList = await fetchTableData<Pegawai>('PEGAWAI', 'portal_pegawai_db', mapPegawaiCols, bypassCache);
 
   // Guarantee list has unique NIPs
   const seen = new Set<string>();
@@ -1968,10 +2086,152 @@ export const savePegawai = async (pegawai: Partial<Pegawai>): Promise<boolean> =
   return syncTableRemote('PEGAWAI', 'SAVE', payload);
 };
 
-export const findPegawaiByNip = async (nip: string): Promise<Pegawai | null> => {
-    const all = await fetchPegawaiFromSheets();
-    const cleanNip = nip.replace(/\D/g, '');
-    return all.find(p => (p.nip || '').replace(/\D/g, '') === cleanNip) || null;
+export const findPegawaiByNip = async (nipOrId: string, bypassCache = false): Promise<Pegawai | null> => {
+  if (!nipOrId) return null;
+  const rawTarget = decodeURIComponent(nipOrId).trim();
+  const cleanDigits = rawTarget.replace(/\D/g, '');
+  const lowerTarget = rawTarget.toLowerCase();
+
+  // If target is admin username or generic profile keyword, return synthetic admin profile
+  const isAdminTarget = 
+    lowerTarget === 'admin' || 
+    lowerTarget === 'superadmin' || 
+    lowerTarget === 'administrator' || 
+    lowerTarget === 'me' || 
+    lowerTarget === 'profile' || 
+    lowerTarget === 'data-diri';
+
+  if (isAdminTarget) {
+    try {
+      const authRaw = localStorage.getItem('auth_user');
+      const currentUser = authRaw ? JSON.parse(authRaw) : null;
+      return {
+        id: currentUser?.id || 'ADMIN-SDM',
+        nip: currentUser?.nip || 'Admin SDM',
+        nama: currentUser?.name || 'Administrator Portal SDM',
+        jabatan: currentUser?.role ? `${currentUser.role} SDM` : 'Super Administrator Kepegawaian',
+        unitKerja: 'Direktorat Jenderal Kekayaan Intelektual',
+        bagian: 'Bagian Kepegawaian',
+        subBagian: 'Subbagian Tata Usaha dan Kepegawaian',
+        eselon: 'II.a',
+        golRuang: 'IV/c',
+        pangkat: 'Pembina Utama Muda',
+        statusPegawai: 'Aktif',
+        status: 'Aktif',
+        jenisPegawai: 'PNS',
+        email: currentUser?.email || 'admin.sdm@dgip.go.id',
+        foto: currentUser?.foto || '',
+        gender: 'L',
+        tempatLahir: 'Jakarta',
+        tanggalLahir: '1980-01-01',
+        tmtCpns: '2005-01-01',
+        tmtPangkat: '2024-04-01',
+        tmtJabatan: '2024-01-01',
+        pendidikan: 'S2',
+        jurusan: 'Ilmu Hukum / Manajemen SDM',
+        agama: 'Islam',
+        bup: '60',
+        usiaPensiun: '60',
+        masaKerja: '19 Tahun 0 Bulan',
+        riwayatJabatan: [],
+        riwayatPendidikan: [],
+        riwayatPangkat: [],
+        riwayatGaji: [],
+        riwayatPelatihan: [],
+        riwayatPenghargaan: [],
+        keluarga: []
+      } as Pegawai;
+    } catch (e) {}
+  }
+
+  const matchInList = (pList: Pegawai[]): Pegawai | undefined => {
+    return pList.find(p => 
+      (cleanDigits && cleanDigits.length >= 4 && (p.nip || '').replace(/\D/g, '') === cleanDigits) ||
+      (p.id && (p.id === rawTarget || p.id.toLowerCase() === lowerTarget)) ||
+      (p.nip && p.nip.trim() === rawTarget) ||
+      (cleanDigits && p.id && p.id.replace(/\D/g, '') === cleanDigits) ||
+      (rawTarget.length >= 3 && isNaN(Number(rawTarget)) && p.nama && (p.nama.toLowerCase() === lowerTarget || p.nama.toLowerCase().includes(lowerTarget)))
+    );
+  };
+
+  // 1. Check local memory & cache first (instant 0ms)
+  if (!bypassCache) {
+    if (inMemoryCache['portal_pegawai_db']) {
+      const found = matchInList(inMemoryCache['portal_pegawai_db']);
+      if (found) return found;
+    }
+    try {
+      const cached = localStorage.getItem('portal_pegawai_db') || localStorage.getItem('portal_sdm_pegawai_db');
+      if (cached) {
+        const pList: Pegawai[] = JSON.parse(cached);
+        const found = matchInList(pList);
+        if (found) {
+          inMemoryCache['portal_pegawai_db'] = pList;
+          return found;
+        }
+      }
+    } catch (e) {}
+    try {
+      const idbList = await getTableFromIndexedDb<Pegawai>('portal_pegawai_db');
+      if (idbList && idbList.length > 0) {
+        const found = matchInList(idbList);
+        if (found) {
+          inMemoryCache['portal_pegawai_db'] = idbList;
+          return found;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2. Direct remote query to Apps Script (GET_PEGAWAI_BY_NIP) if configured
+  const { appsScriptUrl, spreadsheetId } = getDbConfig();
+  if (appsScriptUrl && appsScriptUrl.trim() !== '') {
+    try {
+      const cleanUrl = appsScriptUrl.trim();
+      const useBackend = await checkBackend();
+      const finalUrl = useBackend ? `/api/proxy?url=${encodeURIComponent(cleanUrl)}` : cleanUrl;
+      const apiResponse = await fetch(finalUrl, {
+        method: 'POST',
+        headers: useBackend ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'GET_PEGAWAI_BY_NIP',
+          module: 'PEGAWAI',
+          spreadsheetId: spreadsheetId,
+          payload: { nip: rawTarget }
+        })
+      });
+      if (apiResponse.ok) {
+        const textResult = await apiResponse.text();
+        const json = JSON.parse(textResult);
+        if (json.success && json.data) {
+          const mapped = mapPegawaiRecord(json.data);
+          if (mapped) {
+            // Update local cache with this fresh record
+            try {
+              const cached = inMemoryCache['portal_pegawai_db'] || [];
+              const idx = cached.findIndex(x => (mapped.nip && x.nip && x.nip.replace(/\D/g, '') === mapped.nip.replace(/\D/g, '')) || (x.id === mapped.id));
+              if (idx >= 0) cached[idx] = mapped;
+              else cached.push(mapped);
+              safeSaveToCache('portal_pegawai_db', cached);
+            } catch (e) {}
+            return mapped;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Direct GET_PEGAWAI_BY_NIP notice:", e);
+    }
+  }
+
+  // 3. Resilient Fallback: fetch list via fetchPegawaiFromSheets
+  try {
+    const all = await fetchPegawaiFromSheets(bypassCache);
+    const match = matchInList(all);
+    return match || null;
+  } catch (e) {
+    console.error("findPegawaiByNip fallback error:", e);
+    return null;
+  }
 };
 
 export const saveHasilUkom = (hasil: HasilUkom) => syncTableRemote('HASIL_UKOM', 'SAVE', hasil);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Pegawai, RiwayatPendidikan, RiwayatJabatan, RiwayatPangkat, RiwayatPelatihan, RiwayatGaji, RiwayatPenghargaan, Keluarga, Dossier } from '../types';
-import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, parseDateToYYYYMMDD } from '../spreadsheetService';
+import { fetchPegawaiFromSheets, findPegawaiByNip, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, parseDateToYYYYMMDD, getTableFromIndexedDb } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
 import { getPhotoUrl } from '../lib/photoUtils';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
@@ -17,11 +17,71 @@ import html2canvas from 'html2canvas';
 // @ts-ignore
 import { jsPDF } from 'jspdf';
 
+const createAdminProfile = (currentUser?: any): Pegawai => ({
+  id: currentUser?.id || 'ADMIN-SDM',
+  nip: currentUser?.nip || 'Admin SDM',
+  nama: currentUser?.name || 'Administrator Portal SDM',
+  jabatan: currentUser?.role ? `${currentUser.role} SDM` : 'Super Administrator Kepegawaian',
+  unitKerja: 'Direktorat Jenderal Kekayaan Intelektual',
+  bagian: 'Bagian Kepegawaian',
+  subBagian: 'Subbagian Tata Usaha dan Kepegawaian',
+  eselon: 'II.a',
+  golRuang: 'IV/c',
+  pangkat: 'Pembina Utama Muda',
+  statusPegawai: 'Aktif',
+  status: 'Aktif',
+  jenisPegawai: 'PNS',
+  email: currentUser?.email || 'admin.sdm@dgip.go.id',
+  foto: currentUser?.foto || '',
+  gender: 'L',
+  tempatLahir: 'Jakarta',
+  tanggalLahir: '1980-01-01',
+  tmtCpns: '2005-01-01',
+  tmtPangkat: '2024-04-01',
+  tmtJabatan: '2024-01-01',
+  pendidikan: 'S2',
+  jurusan: 'Ilmu Hukum / Manajemen SDM',
+  agama: 'Islam',
+  bup: '60',
+  usiaPensiun: '60',
+  masaKerja: '19 Tahun 0 Bulan',
+  riwayatJabatan: [],
+  riwayatPendidikan: [],
+  riwayatPangkat: [],
+  riwayatGaji: [],
+  riwayatPelatihan: [],
+  riwayatPenghargaan: [],
+  keluarga: []
+});
+
 // Pure helper functions for instantaneous cache lookup and data enrichment
 const findTargetPegawai = (pData: Pegawai[], nipParam?: string, currentUser?: any): Pegawai | undefined => {
-  const cleanParamNip = (nipParam || '').replace(/\D/g, '');
+  const rawParam = decodeURIComponent(nipParam || '').trim();
+  const lowerParam = rawParam.toLowerCase();
+  const cleanParamNip = rawParam.replace(/\D/g, '');
   const cleanUserNip = (currentUser?.nip || '').replace(/\D/g, '');
-  const isGenericProfile = !cleanParamNip || nipParam === 'profile' || nipParam === 'me' || nipParam === 'data-diri';
+  const lowerUserNip = (currentUser?.nip || '').toLowerCase();
+  const lowerUserId = String(currentUser?.id || '').toLowerCase();
+
+  const isGenericProfile = 
+    !rawParam || 
+    rawParam === 'profile' || 
+    rawParam === 'me' || 
+    rawParam === 'data-diri' || 
+    rawParam === 'undefined' || 
+    rawParam === 'null' ||
+    lowerParam === 'admin' ||
+    lowerParam === 'superadmin' ||
+    lowerParam === 'administrator' ||
+    (lowerUserNip && lowerParam === lowerUserNip) ||
+    (lowerUserId && lowerParam === lowerUserId);
+
+  if (!pData || pData.length === 0) {
+    if (isGenericProfile || currentUser?.role?.includes('Admin') || lowerParam === 'admin') {
+      return createAdminProfile(currentUser);
+    }
+    return undefined;
+  }
 
   let found: Pegawai | undefined;
 
@@ -29,23 +89,57 @@ const findTargetPegawai = (pData: Pegawai[], nipParam?: string, currentUser?: an
     if (cleanUserNip) {
       found = pData.find(p => (p.nip || '').replace(/\D/g, '') === cleanUserNip);
     }
-    if (!found && currentUser?.name) {
-      found = pData.find(p => (p.nama || '').toLowerCase().trim() === currentUser.name.toLowerCase().trim());
+    if (!found && currentUser?.id) {
+      found = pData.find(p => p.id && String(p.id).trim().toLowerCase() === lowerUserId);
     }
     if (!found && currentUser?.name) {
-      found = pData.find(p => (p.nama || '').toLowerCase().includes(currentUser.name.toLowerCase().trim()));
+      const cName = currentUser.name.toLowerCase().trim();
+      found = pData.find(p => (p.nama || '').toLowerCase().trim() === cName);
     }
-    if (!found && pData.length > 0) {
-      found = pData[0];
+    if (!found && currentUser?.name) {
+      const cName = currentUser.name.toLowerCase().trim();
+      found = pData.find(p => (p.nama || '').toLowerCase().includes(cName));
     }
-  } else {
-    found = pData.find(p => (p.nip || '').replace(/\D/g, '') === cleanParamNip);
-    if (!found && cleanUserNip && cleanParamNip === cleanUserNip && currentUser?.name) {
-      found = pData.find(p => (p.nama || '').toLowerCase().includes(currentUser.name.toLowerCase().trim()));
+    if (!found) {
+      if (currentUser?.role?.includes('Admin') || lowerParam === 'admin' || lowerUserNip === 'admin') {
+        return createAdminProfile(currentUser);
+      }
+      if (pData.length > 0) {
+        found = pData[0];
+      }
     }
+    return found;
   }
 
-  return found;
+  // 1. Direct clean NIP comparison
+  if (cleanParamNip && cleanParamNip.length >= 4) {
+    found = pData.find(p => (p.nip || '').replace(/\D/g, '') === cleanParamNip);
+    if (found) return found;
+    found = pData.find(p => (p.id || '').replace(/\D/g, '') === cleanParamNip);
+    if (found) return found;
+  }
+
+  // 2. Direct ID match (case-insensitive)
+  found = pData.find(p => p.id && (p.id.trim().toLowerCase() === lowerParam));
+  if (found) return found;
+
+  // 3. Direct raw NIP string match
+  found = pData.find(p => p.nip && p.nip.trim().toLowerCase() === lowerParam);
+  if (found) return found;
+
+  // 4. Name match if param contains letters
+  if (rawParam.length >= 3 && isNaN(Number(rawParam))) {
+    found = pData.find(p => (p.nama || '').toLowerCase().trim() === lowerParam) ||
+            pData.find(p => (p.nama || '').toLowerCase().includes(lowerParam));
+    if (found) return found;
+  }
+
+  // 5. Fallback for logged-in user matching param
+  if (currentUser && (lowerParam === lowerUserNip || lowerParam === 'admin' || lowerParam === 'superadmin')) {
+    return createAdminProfile(currentUser);
+  }
+
+  return undefined;
 };
 
 const enrichPegawaiData = (found: Pegawai): Pegawai => {
@@ -590,7 +684,8 @@ const ProfilePegawaiPage = () => {
   };
 
   const loadData = async (forceNetwork = false) => {
-    // 1. Instant Cache Reader: If employee data is in localStorage, render IMMEDIATELY (0ms load time)
+    // 1. Instant Cache Reader: If employee data is in localStorage or in-memory, render IMMEDIATELY (0ms load time)
+    let foundInCache = false;
     try {
       const rawP = localStorage.getItem('portal_pegawai_db') || localStorage.getItem('portal_sdm_pegawai_db');
       const rawD = localStorage.getItem('portal_dossiers_db');
@@ -598,6 +693,7 @@ const ProfilePegawaiPage = () => {
         const pList: Pegawai[] = JSON.parse(rawP);
         const match = findTargetPegawai(pList, nip, user);
         if (match) {
+          foundInCache = true;
           const enriched = enrichPegawaiData(match);
           setPegawai(enriched);
           if (rawD) {
@@ -606,34 +702,82 @@ const ProfilePegawaiPage = () => {
               .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
             setDossiers(filtered);
           }
-          setLoading(false); // Display immediately without waiting for sheets
-        } else {
-          setLoading(true);
+          setLoading(false);
         }
-      } else {
-        setLoading(true);
       }
-    } catch (e) {
+    } catch (e) {}
+
+    // Check IndexedDB if not in localStorage
+    if (!foundInCache) {
+      try {
+        const idbData = await getTableFromIndexedDb<Pegawai>('portal_pegawai_db');
+        if (idbData && idbData.length > 0) {
+          const match = findTargetPegawai(idbData, nip, user);
+          if (match) {
+            foundInCache = true;
+            const enriched = enrichPegawaiData(match);
+            setPegawai(enriched);
+            setLoading(false);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // If not found in cache, show loading indicator while fetching
+    if (!foundInCache) {
       setLoading(true);
     }
 
-    // 2. Background Sync (Silent): verify updates against remote Google Sheets without blocking UI
+    // 2. Fetch from remote Google Sheets / Apps Script:
+    const shouldFetchNetwork = forceNetwork || !foundInCache;
     try {
-      const [pData, dData] = await Promise.all([
-        fetchPegawaiFromSheets(forceNetwork), 
-        fetchDossiersFromSheets(forceNetwork)
-      ]);
+      let foundPegawai: Pegawai | null = null;
+      const targetQuery = (nip || user?.nip || '').trim();
 
-      const found = findTargetPegawai(pData, nip, user);
-      if (found) {
-        const enriched = enrichPegawaiData(found);
+      // Try targeted lookup (checks memory, IndexedDB, Apps Script, and database)
+      if (targetQuery) {
+        foundPegawai = await findPegawaiByNip(targetQuery, shouldFetchNetwork);
+      }
+
+      // If direct single lookup didn't find, query full list
+      if (!foundPegawai) {
+        const [pData, dData] = await Promise.all([
+          fetchPegawaiFromSheets(shouldFetchNetwork), 
+          fetchDossiersFromSheets(shouldFetchNetwork)
+        ]);
+
+        const match = findTargetPegawai(pData, nip, user);
+        if (match) {
+          foundPegawai = match;
+          const filteredDossiers = dData.filter(d => (d.nip || '').replace(/\D/g, '') === (match.nip || '').replace(/\D/g, ''))
+            .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+          setDossiers(filteredDossiers);
+        }
+      }
+
+      // Fallback for admin users viewing profile
+      if (!foundPegawai) {
+        const cleanParam = (nip || '').trim().toLowerCase();
+        if (cleanParam === 'admin' || cleanParam === 'profile' || cleanParam === 'data-diri' || user?.role?.includes('Admin') || user?.nip === 'admin') {
+          foundPegawai = createAdminProfile(user);
+        }
+      }
+
+      if (foundPegawai) {
+        const enriched = enrichPegawaiData(foundPegawai);
         setPegawai(enriched);
-        const filteredDossiers = dData.filter(d => (d.nip || '').replace(/\D/g, '') === (found.nip || '').replace(/\D/g, ''))
-          .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
-        setDossiers(filteredDossiers);
+        // Also fetch dossiers if not yet loaded
+        if (!dossiers || dossiers.length === 0) {
+          try {
+            const dData = await fetchDossiersFromSheets(false);
+            const filteredDossiers = dData.filter(d => (d.nip || '').replace(/\D/g, '') === (foundPegawai!.nip || '').replace(/\D/g, ''))
+              .sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+            setDossiers(filteredDossiers);
+          } catch (err) {}
+        }
       }
     } catch (e) {
-      console.warn("Background sheet sync notice:", e);
+      console.warn("Sheet sync notice for employee profile:", e);
     } finally {
       setLoading(false);
     }
@@ -1654,12 +1798,49 @@ const ProfilePegawaiPage = () => {
   );
 
   if (!pegawai) return (
-    <div className="bg-white p-20 rounded-[3rem] text-center border border-gray-100 shadow-sm">
-      <i className="bi bi-exclamation-triangle text-rose-500 text-4xl mb-4 block"></i>
-      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pegawai tidak ditemukan</p>
-      <button onClick={() => navigate(isUserPortalView ? '/' : '/pegawai')} className="mt-6 px-8 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase">
-        {isUserPortalView ? 'Kembali ke Dashboard Pegawai' : 'Kembali ke Database ASN'}
-      </button>
+    <div className="bg-white p-12 md:p-16 rounded-[2.5rem] md:rounded-[3rem] text-center border border-gray-100 shadow-sm max-w-2xl mx-auto my-8">
+      <div className="w-16 h-16 bg-amber-50 rounded-3xl flex items-center justify-center text-amber-500 text-3xl mx-auto mb-5 border border-amber-100 shadow-inner">
+        <i className="bi bi-person-exclamation"></i>
+      </div>
+      <h3 className="text-base md:text-lg font-black text-gray-900 uppercase tracking-tight mb-2">Pegawai Tidak Ditemukan</h3>
+      <p className="text-xs text-gray-500 font-medium max-w-md mx-auto mb-4">
+        Data profil pegawai dengan NIP/ID <span className="font-mono font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">{nip || user?.nip || '-'}</span> belum ditemukan di cache aplikasi.
+      </p>
+      <div className="p-4 bg-blue-50/70 rounded-2xl border border-blue-100 text-left mb-6 text-xs text-blue-900 space-y-1.5">
+        <p className="font-bold flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-blue-800">
+          <i className="bi bi-info-circle-fill text-blue-600"></i> Solusi & Sinkronisasi Data:
+        </p>
+        <p className="text-[11px] text-blue-800 leading-relaxed">
+          Google Sheets dan Apps Script memiliki lebih dari 1.000 data pegawai resmi. Klik tombol <b>Sinkronkan Ulang dari Cloud</b> di bawah untuk mengambil data terbaru langsung dari server Google Sheets.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button 
+          onClick={() => loadData(true)} 
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 cursor-pointer"
+        >
+          <i className="bi bi-arrow-repeat"></i>
+          <span>Sinkronkan Ulang dari Cloud</span>
+        </button>
+        {(user?.role?.includes('Admin') || user?.nip === 'admin') && (
+          <button 
+            onClick={() => {
+              const adm = createAdminProfile(user);
+              setPegawai(adm);
+            }} 
+            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95 cursor-pointer"
+          >
+            <i className="bi bi-shield-check"></i>
+            <span>Buka Profil Admin SDM</span>
+          </button>
+        )}
+        <button 
+          onClick={() => navigate(isUserPortalView ? '/' : '/pegawai')} 
+          className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all cursor-pointer"
+        >
+          {isUserPortalView ? 'Kembali ke Dashboard Pegawai' : 'Kembali ke Database ASN'}
+        </button>
+      </div>
     </div>
   );
 

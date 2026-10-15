@@ -22,6 +22,7 @@ import { formatPegawaiName } from '../constants';
 import { getAtasanLangsung } from '../services/strukturOrganisasiService';
 import { getKelasJabatanPermenkumham38 } from '../data/anjabAbkConstants';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 
 // Recharts for graphics
 import {
@@ -1002,10 +1003,10 @@ export default function TalentaPage() {
       'Readiness': p.readiness_level
     }));
 
-    const ws = XLSX.utils.json_to_sheet(rawExportData);
+    const ws = safeJsonToSheet(rawExportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Talent Pool');
-    XLSX.writeFile(wb, `Laporan_Talent_Pool_DJKI_${Date.now()}.xlsx`);
+    safeWriteExcel(wb, `Laporan_Talent_Pool_DJKI_${Date.now()}.xlsx`);
     showAlert('success', 'Download Excel Berhasil.');
   };
 

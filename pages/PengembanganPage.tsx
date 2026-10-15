@@ -13,6 +13,7 @@ import TalentDevelopmentView from '../components/TalentDevelopmentView';
 import KompetensiDashboardView from '../components/KompetensiDashboardView';
 import { FALLBACK_REPRESENTATIVE_PEGAWAI } from '../kompetensiDashboardData';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 
 const PengembanganPage = () => {
   const navigate = useNavigate();
@@ -134,10 +135,10 @@ const PengembanganPage = () => {
       'Minimal JP': p.targetJp,
       'Status': p.isEligible ? 'MEMENUHI' : 'BELUM MEMENUHI'
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = safeJsonToSheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Monitoring Bangkom");
-    XLSX.writeFile(wb, `Monitoring_Bangkom_DJKI_${filterYear}.xlsx`);
+    safeWriteExcel(wb, `Monitoring_Bangkom_DJKI_${filterYear}.xlsx`);
   };
 
   const inputClass = "w-full px-5 py-3.5 bg-gray-50 border-2 border-gray-100 rounded-2xl text-[12px] font-black uppercase outline-none focus:border-blue-600 focus:bg-white transition-all";

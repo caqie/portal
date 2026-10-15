@@ -8,6 +8,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import SearchableSelect from '../components/SearchableSelect';
 import { Plus, Search, Trash2, Edit, Eye, Download, Printer, X, Save, RefreshCw, User } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 // @ts-ignore
 import html2canvas from 'html2canvas';
 // @ts-ignore

@@ -1634,7 +1634,7 @@ const SettingsPage = () => {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black uppercase text-gray-500 tracking-wider">
-                      Kode Backend Lengkap (GoogleAppsScript_Code.js v7.0)
+                      Kode Backend Lengkap (GoogleAppsScript_Code.js v7.1)
                     </span>
                     <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full uppercase">
                       51 Modul Resmi

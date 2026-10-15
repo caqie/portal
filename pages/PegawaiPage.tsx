@@ -17,6 +17,7 @@ import { getAtasanLangsung, getAllPegawaiForNode, PopulatedOrganisasiNode } from
 // @ts-ignore
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
+import { sanitizeForExcel, sanitizeExcelRows, safeJsonToSheet, safeWriteExcel } from '../lib/excelSanitizer';
 import { 
   OFFICIAL_PETA_JABATAN_ABK, 
   buildPetaJabatanAbkSheet, 
@@ -1211,38 +1212,7 @@ const PegawaiPage = () => {
     return 'Pengadministrasi Perkantoran / Pelaksana Tata Usaha';
   };
 
-  // Batas maksimum panjang karakter per sel pada file Excel XML adalah 32.767 karakter.
-  // Helper ini mencegah crash "Text length must not exceed 32767 characters" saat ekspor Excel.
-  const sanitizeForExcel = (val: any): any => {
-    if (val === null || val === undefined) return '-';
-    if (typeof val === 'string') {
-      if (val.startsWith('data:image/') || val.startsWith('data:application/') || (val.startsWith('data:') && val.length > 200)) {
-        return '[Data Biometrik Base64]';
-      }
-      if (val.length > 32000) {
-        return val.substring(0, 31950) + '... [Teks Dibatasi Maksimal 32.767 Karakter Excel]';
-      }
-      return val;
-    }
-    if (typeof val === 'object') {
-      const jsonStr = JSON.stringify(val);
-      if (jsonStr.length > 32000) {
-        return jsonStr.substring(0, 31950) + '...';
-      }
-      return jsonStr;
-    }
-    return val;
-  };
-
-  const sanitizeExcelRows = <T extends Record<string, any>>(rows: T[]): T[] => {
-    return rows.map(row => {
-      const sanitized: any = {};
-      for (const [k, v] of Object.entries(row)) {
-        sanitized[k] = sanitizeForExcel(v);
-      }
-      return sanitized;
-    });
-  };
+  // Sanitizer karakter Excel 32.767 diimpor dari ../lib/excelSanitizer untuk mencegah crash format .xlsx
 
   // Helper memformat seluruh kolom data pegawai lengkap (65+ kolom komprehensif master & per unit)
   const formatCompletePegawaiExportRow = (item: { pegawai: Pegawai; struct: any }, index: number) => {
@@ -1716,7 +1686,7 @@ const PegawaiPage = () => {
         });
       }
       
-      XLSX.writeFile(wb, `Data_Pegawai_DJKI_${type}_PetaJabatanStruktur_${Date.now()}.xlsx`);
+      safeWriteExcel(wb, `Data_Pegawai_DJKI_${type}_PetaJabatanStruktur_${Date.now()}.xlsx`);
     } catch (err: any) {
       console.error("Gagal melakukan ekspor data ke Excel:", err);
       alert(`Gagal mengekspor file Excel: ${err?.message || 'Terjadi kesalahan sistem'}`);
@@ -1734,7 +1704,7 @@ const PegawaiPage = () => {
 
       const ws = XLSX.utils.json_to_sheet(sanitizeExcelRows(data));
       XLSX.utils.book_append_sheet(wb, ws, "Pegawai Terpilih");
-      XLSX.writeFile(wb, `Data_Pegawai_Terpilih_${Date.now()}.xlsx`);
+      safeWriteExcel(wb, `Data_Pegawai_Terpilih_${Date.now()}.xlsx`);
     } catch (err: any) {
       console.error("Gagal melakukan ekspor pegawai terpilih:", err);
       alert(`Gagal mengekspor data: ${err?.message || 'Terjadi kesalahan sistem'}`);
