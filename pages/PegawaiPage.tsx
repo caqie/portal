@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Pegawai, Dossier } from '../types';
 import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, findPegawaiByNip, parseDateToYYYYMMDD } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
-import { getPhotoUrl } from '../lib/photoUtils';
-import { normalizeUnitName, UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, DEFAULT_LOGO, BANK_LIST, formatPegawaiName, polishGelarDanNama, getJabatanClassification } from '../constants';
+import { getPhotoUrl, formatDrivePhotoUrl } from '../lib/photoUtils';
+import { normalizeUnitName, UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, DEFAULT_LOGO, BANK_LIST, formatPegawaiName, polishGelarDanNama, getJabatanClassification, resolvePegawaiPendidikanDanJurusan, normalizeJenjangLabel } from '../constants';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -451,6 +451,101 @@ const PegawaiPage = () => {
 
 
 
+  const enrichPegawaiRecord = (p: Pegawai): Pegawai => {
+    const enriched = { ...p };
+    
+    // 1. Classification Enrichment
+    enriched.klasifikasiJabatan = getJabatanClassification(enriched);
+    if (!enriched.jenisJabatan || enriched.jenisJabatan === '-' || enriched.jenisJabatan.trim() === '') {
+      enriched.jenisJabatan = enriched.klasifikasiJabatan;
+    }
+
+    // 2. Normalize Status & Jenis Pegawai
+    const rawStatus = (enriched.status || '').trim();
+    const rawJenis = (enriched.jenisPegawai || '').trim();
+    const upperRawStatus = rawStatus.toUpperCase();
+    if (['PNS', 'CPNS', 'PPPK', 'PPPK PARUH WAKTU', 'PPNPN', 'HONORER'].includes(upperRawStatus)) {
+      if (!rawJenis) enriched.jenisPegawai = rawStatus;
+      enriched.status = 'Aktif';
+    }
+    if (!enriched.status || enriched.status === '-') {
+      enriched.status = 'Aktif';
+    }
+    if (!enriched.jenisPegawai || enriched.jenisPegawai === '-') {
+      enriched.jenisPegawai = 'PNS';
+    }
+
+    // 3. Normalize GolRuang
+    if (enriched.golRuang) {
+      const matchGol = enriched.golRuang.match(/([I|V|X]+)\s*\/\s*([a-eA-E])/i);
+      if (matchGol) {
+        enriched.golRuang = `${matchGol[1].toUpperCase()}/${matchGol[2].toLowerCase()}`;
+      }
+    }
+    
+    // 4. Identity & Retirement & Age Enrichment
+    const birthDateStr = formatDateForInput(enriched.tanggalLahir);
+    let birth: Date | null = null;
+    if (birthDateStr) {
+      const b = new Date(birthDateStr);
+      if (!isNaN(b.getTime())) birth = b;
+    }
+    if (!birth && enriched.nip) {
+      const cleanNip = enriched.nip.replace(/\D/g, '');
+      if (cleanNip.length >= 8) {
+        const yr = parseInt(cleanNip.substring(0, 4));
+        const mo = parseInt(cleanNip.substring(4, 6)) - 1;
+        const dy = parseInt(cleanNip.substring(6, 8));
+        if (yr >= 1940 && yr <= 2025 && mo >= 0 && mo <= 11 && dy >= 1 && dy <= 31) {
+          const b = new Date(yr, mo, dy);
+          if (!isNaN(b.getTime())) {
+            birth = b;
+            if (!enriched.tanggalLahir) {
+              enriched.tanggalLahir = `${yr}-${String(mo + 1).padStart(2, '0')}-${String(dy).padStart(2, '0')}`;
+            }
+          }
+        }
+      }
+    }
+
+    if (birth) {
+      if (!enriched.usia || enriched.usia === '-') {
+        const today = new Date();
+        let years = today.getFullYear() - birth.getFullYear();
+        let months = today.getMonth() - birth.getMonth();
+        if (months < 0) {
+          years--;
+          months += 12;
+        }
+        enriched.usia = `${years} Thn ${months} Bln`;
+      }
+
+      if (!enriched.bup || enriched.bup === '-') {
+        const isHighLevel = enriched.eselon && enriched.eselon !== '-' && enriched.eselon !== '';
+        const isFungsionalAhli = enriched.jabatan?.toUpperCase().includes('MADYA') || enriched.jabatan?.toUpperCase().includes('UTAMA');
+        enriched.bup = (isHighLevel || isFungsionalAhli) ? '60' : '58';
+      }
+
+      const bupYears = parseInt(enriched.bup);
+      const retirementDate = new Date(birth.getFullYear() + bupYears, birth.getMonth() + 1, 1);
+      
+      if (!enriched.tglPensiun || enriched.tglPensiun === '-') {
+        enriched.tglPensiun = retirementDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      }
+
+      if (!enriched.tmtPensiun || enriched.tmtPensiun === '-') {
+        enriched.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
+      }
+    }
+
+    // 5. Education & Photo
+    const eduResolved = resolvePegawaiPendidikanDanJurusan(enriched);
+    if (eduResolved.pendidikan) enriched.pendidikan = eduResolved.pendidikan;
+    if (eduResolved.jurusan) enriched.jurusan = eduResolved.jurusan;
+    if (enriched.foto) enriched.foto = formatDrivePhotoUrl(enriched.foto);
+    return enriched;
+  };
+
   const loadData = async (bypassCache = false) => {
     try {
       const hasCache = !!localStorage.getItem('portal_pegawai_db');
@@ -469,52 +564,7 @@ const PegawaiPage = () => {
         fetchDossiersFromSheets(bypassCache)
       ]);
       
-      const enrichedData = pData.map(p => {
-        const enriched = { ...p };
-        
-        // 1. Classification Enrichment
-        enriched.klasifikasiJabatan = getJabatanClassification(enriched);
-        if (!enriched.jenisJabatan || enriched.jenisJabatan === '-' || enriched.jenisJabatan.trim() === '') {
-          enriched.jenisJabatan = enriched.klasifikasiJabatan;
-        }
-        
-        // 2. Identity & Retirement Enrichment
-        if (enriched.tanggalLahir) {
-          const birth = new Date(formatDateForInput(enriched.tanggalLahir));
-          if (!isNaN(birth.getTime())) {
-            // 1. Calculate Age if missing
-            if (!enriched.usia || enriched.usia === '-') {
-              const today = new Date();
-              let years = today.getFullYear() - birth.getFullYear();
-              let months = today.getMonth() - birth.getMonth();
-              if (months < 0) {
-                years--;
-                months += 12;
-              }
-              enriched.usia = `${years} Thn ${months} Bln`;
-            }
-
-            // 2. Retirement Info
-            if (!enriched.bup || enriched.bup === '-') {
-              const isHighLevel = enriched.eselon && enriched.eselon !== '-' && enriched.eselon !== '';
-              const isFungsionalAhli = enriched.jabatan?.toUpperCase().includes('MADYA') || enriched.jabatan?.toUpperCase().includes('UTAMA');
-              enriched.bup = (isHighLevel || isFungsionalAhli) ? '60' : '58';
-            }
-
-            const bupYears = parseInt(enriched.bup);
-            const retirementDate = new Date(birth.getFullYear() + bupYears, birth.getMonth() + 1, 1);
-            
-            if (!enriched.tglPensiun || enriched.tglPensiun === '-') {
-              enriched.tglPensiun = retirementDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-            }
-
-            if (!enriched.tmtPensiun || enriched.tmtPensiun === '-') {
-              enriched.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
-            }
-          }
-        }
-        return enriched;
-      });
+      const enrichedData = pData.map(enrichPegawaiRecord);
 
       setPegawaiList(enrichedData);
       setDossierList(dData);
@@ -537,46 +587,7 @@ const PegawaiPage = () => {
         fetchDossiersFromSheets(true)
       ]);
       
-      const enrichedData = pData.map(p => {
-        const enriched = { ...p };
-        if (!enriched.klasifikasiJabatan || enriched.klasifikasiJabatan === '-') {
-          enriched.klasifikasiJabatan = getJabatanClassification(enriched);
-        }
-        
-        if (enriched.tanggalLahir) {
-          const birth = new Date(formatDateForInput(enriched.tanggalLahir));
-          if (!isNaN(birth.getTime())) {
-            if (!enriched.usia || enriched.usia === '-') {
-              const today = new Date();
-              let years = today.getFullYear() - birth.getFullYear();
-              let months = today.getMonth() - birth.getMonth();
-              if (months < 0) {
-                years--;
-                months += 12;
-              }
-              enriched.usia = `${years} Thn ${months} Bln`;
-            }
-
-            if (!enriched.bup || enriched.bup === '-') {
-              const isHighLevel = enriched.eselon && enriched.eselon !== '-' && enriched.eselon !== '';
-              const isFungsionalAhli = enriched.jabatan?.toUpperCase().includes('MADYA') || enriched.jabatan?.toUpperCase().includes('UTAMA');
-              enriched.bup = (isHighLevel || isFungsionalAhli) ? '60' : '58';
-            }
-
-            const bupYears = parseInt(enriched.bup);
-            const retirementDate = new Date(birth.getFullYear() + bupYears, birth.getMonth() + 1, 1);
-            
-            if (!enriched.tglPensiun || enriched.tglPensiun === '-') {
-              enriched.tglPensiun = retirementDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-            }
-
-            if (!enriched.tmtPensiun || enriched.tmtPensiun === '-') {
-              enriched.tmtPensiun = `${retirementDate.getFullYear()}-${String(retirementDate.getMonth() + 1).padStart(2, '0')}-01`;
-            }
-          }
-        }
-        return enriched;
-      });
+      const enrichedData = pData.map(enrichPegawaiRecord);
 
       setPegawaiList(enrichedData);
       setDossierList(dData);
@@ -592,8 +603,12 @@ const PegawaiPage = () => {
 
   const handleEditPegawai = (p: Pegawai) => {
     setSelectedPegawai(p);
+    const eduResolved = resolvePegawaiPendidikanDanJurusan(p);
     setFormData({
       ...p,
+      pendidikan: eduResolved.pendidikan || p.pendidikan,
+      jurusan: eduResolved.jurusan || p.jurusan,
+      foto: formatDrivePhotoUrl(p.foto),
       tmtPangkat: formatDateForInput(p.tmtPangkat),
       tmtJabatan: formatDateForInput(p.tmtJabatan),
       tmtCpns: formatDateForInput(p.tmtCpns),
@@ -648,6 +663,67 @@ const PegawaiPage = () => {
     return Array.from(finalSet).sort((a, b) => a.localeCompare(b));
   }, [pegawaiList]);
 
+  const normalizeGolRuang = (val?: string): string => {
+    if (!val) return '';
+    const match = val.match(/([I|V|X]+)\s*\/\s*([a-eA-E])/i);
+    if (match) {
+      return `${match[1].toUpperCase()}/${match[2].toLowerCase()}`;
+    }
+    return val.trim();
+  };
+
+  const SORTED_GOLS = useMemo(() => {
+    return Object.keys(PANGKAT_MAP).sort((a, b) => {
+      const romValues: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4 };
+      const rankA = a.split('/')[0];
+      const rankB = b.split('/')[0];
+      if (rankA !== rankB) return (romValues[rankA] || 0) - (romValues[rankB] || 0);
+      return a.localeCompare(b);
+    });
+  }, []);
+
+  const AVAILABLE_UNIT_LIST = useMemo(() => {
+    const list = [...UNIT_KERJA];
+    const foundSet = new Set<string>();
+    (pegawaiList || []).forEach(p => {
+      const norm = normalizeUnitName(p.unitKerja, p.bagian, p.jabatan);
+      if (norm) foundSet.add(norm);
+    });
+    if (foundSet.has('Pimpinan DJKI') && !list.includes('Pimpinan DJKI')) {
+      list.unshift('Pimpinan DJKI');
+    }
+    if (foundSet.has('LAINNYA') && !list.includes('LAINNYA')) {
+      list.push('LAINNYA');
+    }
+    return list;
+  }, [pegawaiList]);
+
+  const AVAILABLE_JENIS_LIST = useMemo(() => {
+    const defaultList = ['PNS', 'CPNS', 'PPPK', 'PPPK Paruh Waktu'];
+    const set = new Set<string>(defaultList);
+    (pegawaiList || []).forEach(p => {
+      const jp = (p.jenisPegawai || '').trim();
+      if (jp && jp !== '-' && !set.has(jp)) {
+        set.add(jp);
+      }
+    });
+    return Array.from(set);
+  }, [pegawaiList]);
+
+  const AVAILABLE_JURUSAN_LIST = useMemo(() => {
+    const set = new Set<string>();
+    (pegawaiList || []).forEach(p => {
+      const j = (p.jurusan || '').trim();
+      if (j && j !== '-' && j.toUpperCase() !== 'LAINNYA') {
+        set.add(j);
+      }
+    });
+    JURUSAN_LIST.forEach(j => {
+      if (j && j.trim()) set.add(j.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'id'));
+  }, [pegawaiList]);
+
   const KLASIFIKASI_LIST = useMemo(() => {
     const defaultSet = ['JPT', 'STRUKTURAL', 'FUNGSIONAL', 'PELAKSANA'];
     const found = new Set<string>(defaultSet);
@@ -660,157 +736,292 @@ const PegawaiPage = () => {
     return Array.from(found);
   }, [pegawaiList]);
 
+  const calculateEmployeeAge = (p: Pegawai): number | null => {
+    const birthDateStr = formatDateForInput(p.tanggalLahir);
+    let birth: Date | null = null;
+    if (birthDateStr) {
+      const b = new Date(birthDateStr);
+      if (!isNaN(b.getTime())) birth = b;
+    }
+    if (!birth && p.nip) {
+      const cleanNip = p.nip.replace(/\D/g, '');
+      if (cleanNip.length >= 8) {
+        const yr = parseInt(cleanNip.substring(0, 4));
+        const mo = parseInt(cleanNip.substring(4, 6)) - 1;
+        const dy = parseInt(cleanNip.substring(6, 8));
+        if (yr >= 1940 && yr <= 2025 && mo >= 0 && mo <= 11 && dy >= 1 && dy <= 31) {
+          const b = new Date(yr, mo, dy);
+          if (!isNaN(b.getTime())) birth = b;
+        }
+      }
+    }
+    if (birth) {
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      return age;
+    }
+    if (p.usia) {
+      const match = p.usia.match(/(\d+)\s*th/i);
+      if (match) return parseInt(match[1]);
+    }
+    return null;
+  };
+
+  const matchesPendidikan = (pPend: string | undefined, selectedList: string[]): boolean => {
+    if (selectedList.length === 0) return true;
+    if (!pPend) return false;
+
+    const rawPend = pPend.trim().toLowerCase();
+    const normPend = normalizeJenjangLabel(pPend).toLowerCase();
+
+    return selectedList.some(sel => {
+      const rawSel = sel.trim().toLowerCase();
+      const normSel = normalizeJenjangLabel(sel).toLowerCase();
+
+      if (rawPend === rawSel || normPend === normSel) return true;
+
+      if (normSel === 's-3') {
+        return rawPend.includes('s-3') || rawPend.includes('s3') || rawPend.includes('doktor') || rawPend.includes('phd');
+      }
+      if (normSel === 's-2') {
+        return rawPend.includes('s-2') || rawPend.includes('s2') || rawPend.includes('magister') || rawPend.includes('master');
+      }
+      if (normSel === 's-1') {
+        return (rawPend.includes('s-1') || rawPend.includes('s1') || rawPend.includes('sarjana')) && !rawPend.includes('terapan');
+      }
+      if (normSel === 'profesi') {
+        return rawPend.includes('profesi') || rawPend.includes('spesialis') || rawPend.includes('apoteker') || rawPend.includes('dokter');
+      }
+      if (normSel === 'd-iv') {
+        return rawPend.includes('d-iv') || rawPend.includes('d4') || rawPend.includes('d-4') || rawPend.includes('terapan');
+      }
+      if (normSel === 'd-iii') {
+        return rawPend.includes('d-iii') || rawPend.includes('d3') || rawPend.includes('d-3') || rawPend.includes('ahli madya');
+      }
+      if (normSel === 'd-ii') {
+        return rawPend.includes('d-ii') || rawPend.includes('d2') || rawPend.includes('d-2');
+      }
+      if (normSel === 'd-i') {
+        return rawPend.includes('d-i') || rawPend.includes('d1') || rawPend.includes('d-1');
+      }
+      if (normSel === 'slta') {
+        return rawPend.includes('slta') || rawPend.includes('sma') || rawPend.includes('smk') || rawPend.includes('ma ') || rawPend.endsWith('ma');
+      }
+      if (normSel === 'sltp') {
+        return rawPend.includes('sltp') || rawPend.includes('smp') || rawPend.includes('mts');
+      }
+      if (normSel.includes('sd')) {
+        return rawPend.includes('sd');
+      }
+
+      return rawPend.includes(rawSel);
+    });
+  };
+
+  const matchesJurusan = (p: Pegawai, selectedList: string[]): boolean => {
+    if (selectedList.length === 0) return true;
+    const pJurusan = (p.jurusan || '').trim().toLowerCase();
+    const pPendidikan = (p.pendidikan || '').trim().toLowerCase();
+    const pNama = (p.nama || '').trim().toLowerCase();
+
+    return selectedList.some(sel => {
+      const s = sel.trim().toLowerCase();
+      if (!s) return false;
+
+      if (pJurusan && (pJurusan === s || pJurusan.includes(s) || s.includes(pJurusan))) {
+        return true;
+      }
+      if (pPendidikan && pPendidikan.includes(s)) {
+        return true;
+      }
+      if (s.includes('hukum') && (pJurusan.includes('hukum') || pNama.includes('s.h') || pNama.includes('m.h'))) return true;
+      if ((s.includes('komputer') || s.includes('informatika')) && (pNama.includes('s.kom') || pNama.includes('m.kom') || pNama.includes('m.t') || pNama.includes('s.t'))) return true;
+      if (s.includes('akuntansi') && (pNama.includes('ak.') || pNama.includes('s.ak') || pNama.includes('m.ak'))) return true;
+      if (s.includes('ekonomi') && (pNama.includes('s.e') || pNama.includes('m.e') || pNama.includes('m.m'))) return true;
+
+      return false;
+    });
+  };
+
+  const matchesGolongan = (pGol: string | undefined, minGol: string, maxGol: string, sortedGols: string[]): boolean => {
+    if (minGol === 'Semua' && maxGol === 'Semua') return true;
+    const currentGol = normalizeGolRuang(pGol);
+    const currentIndex = sortedGols.indexOf(currentGol);
+    if (currentIndex === -1) return false;
+
+    const minIdx = minGol === 'Semua' ? 0 : sortedGols.indexOf(normalizeGolRuang(minGol));
+    const maxIdx = maxGol === 'Semua' ? sortedGols.length - 1 : sortedGols.indexOf(normalizeGolRuang(maxGol));
+
+    const effectiveMin = Math.min(minIdx === -1 ? 0 : minIdx, maxIdx === -1 ? sortedGols.length - 1 : maxIdx);
+    const effectiveMax = Math.max(minIdx === -1 ? 0 : minIdx, maxIdx === -1 ? sortedGols.length - 1 : maxIdx);
+
+    return currentIndex >= effectiveMin && currentIndex <= effectiveMax;
+  };
+
+  const matchesSearch = (p: Pegawai, term: string): boolean => {
+    if (!term) return true;
+    const tokens = term.toLowerCase().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return true;
+    const pUnitNorm = normalizeUnitName(p.unitKerja, p.bagian, p.jabatan);
+    const searchStr = [
+      p.nama,
+      p.nip,
+      p.nik,
+      p.jabatan,
+      p.unitKerja,
+      p.bagian,
+      p.subBagian,
+      p.pendidikan,
+      p.jurusan,
+      p.status,
+      p.alamat,
+      p.golRuang,
+      p.pangkat,
+      pUnitNorm
+    ].map(v => String(v || '').toLowerCase()).join(' ');
+
+    return tokens.every(token => searchStr.includes(token));
+  };
+
   const filteredPegawai = useMemo(() => {
-    const term = searchTerm.toLowerCase().trim();
-    const min = minAge ? parseInt(minAge) : 0;
-    const max = maxAge ? parseInt(maxAge) : 200;
+    const term = searchTerm.trim();
+    const rawMin = minAge ? parseInt(minAge) : null;
+    const rawMax = maxAge ? parseInt(maxAge) : null;
+    const min = rawMin !== null && rawMax !== null ? Math.min(rawMin, rawMax) : (rawMin !== null ? rawMin : 0);
+    const max = rawMin !== null && rawMax !== null ? Math.max(rawMin, rawMax) : (rawMax !== null ? rawMax : 200);
 
     return (pegawaiList || []).filter(p => {
-      // NOTE: We no longer hide ghost records so the user can see/fix them
-      // if (!(p.nama || '').trim() || !(p.nip || '').trim()) return false;
-
-      const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.bagian, p.subBagian, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
-      const match = searchStr.includes(term);
+      const match = matchesSearch(p, term);
 
       const pNipClean = (p.nip || p.id || '').replace(/\D/g, '');
       const sotkMatch = !filterSotk || filterSotk.targetNips.has(pNipClean);
 
-      const pUnitNorm = normalizeUnitName(p.unitKerja);
+      const pUnitNorm = normalizeUnitName(p.unitKerja, p.bagian, p.jabatan);
       const filterUnitNorm = filterUnit === 'Semua Unit' ? 'Semua Unit' : normalizeUnitName(filterUnit);
-      const unitMatch = filterUnit === 'Semua Unit' || pUnitNorm === filterUnitNorm;
+      const isSekretariatFilter = filterUnit.toLowerCase().includes('sekretariat') || filterUnit.toLowerCase() === 'setditjen';
+      const unitMatch = filterUnit === 'Semua Unit' || 
+        pUnitNorm === filterUnitNorm || 
+        (isSekretariatFilter && pUnitNorm === UNIT_KERJA[0]);
 
       const selectedSubJenis = filterJenis === 'Semua Jenis' || !filterJenis ? [] : filterJenis.split(',').filter(Boolean);
-      const jenisMatch = selectedSubJenis.length === 0 || selectedSubJenis.map(s => s.toLowerCase()).includes((p.jenisPegawai || '').trim().toLowerCase());
-      const statusMatch = filterStatus === 'Semua Status' || (p.status || 'Aktif') === filterStatus;
+      const pJenis = (p.jenisPegawai || 'PNS').trim().toLowerCase();
+      const jenisMatch = selectedSubJenis.length === 0 || selectedSubJenis.some(s => {
+        const sLower = s.toLowerCase();
+        return pJenis === sLower || (sLower === 'pppk' && pJenis.startsWith('pppk') && !pJenis.includes('paruh waktu'));
+      });
+
+      const pStatus = (p.status || 'Aktif').trim().toLowerCase();
+      const filterStatusLower = filterStatus.trim().toLowerCase();
+      const statusMatch = filterStatus === 'Semua Status' || (
+        filterStatusLower === 'aktif' ? (pStatus === 'aktif' || pStatus === 'pns' || pStatus === 'cpns' || pStatus === 'pppk') :
+        pStatus === filterStatusLower
+      );
       
-      // Pendidikan match (supporting multiple)
       const selectedPendidikans = filterPendidikan === 'Semua Pendidikan' || !filterPendidikan ? [] : filterPendidikan.split(',').filter(Boolean);
-      const pendidikanMatch = selectedPendidikans.length === 0 || selectedPendidikans.map(x => x.toLowerCase()).includes((p.pendidikan || '').trim().toLowerCase());
+      const pendidikanMatch = matchesPendidikan(p.pendidikan, selectedPendidikans);
 
-      // Jurusan match (supporting multiple)
       const selectedJurusans = filterJurusan === 'Semua Jurusan' || !filterJurusan ? [] : filterJurusan.split(',').filter(Boolean);
-      const jurusanMatch = selectedJurusans.length === 0 || selectedJurusans.map(x => x.toLowerCase()).includes((p.jurusan || '').trim().toLowerCase());
+      const jurusanMatch = matchesJurusan(p, selectedJurusans);
 
-      // Klasifikasi match (supporting multiple)
       const selectedKlasifikasis = filterKlasifikasi === 'Semua Klasifikasi' || !filterKlasifikasi ? [] : filterKlasifikasi.split(',').filter(Boolean);
       const klasifikasiMatch = selectedKlasifikasis.length === 0 || selectedKlasifikasis.map(x => x.toLowerCase()).includes((p.klasifikasiJabatan || '').trim().toLowerCase());
 
-      // Agama match (normalizing Kristen and Protestan)
       const pAgamaNorm = getNormalizedAgama(p.agama || '');
       const filterAgamaNorm = getNormalizedAgama(filterAgama);
       const agamaMatch = filterAgama === 'Semua Agama' || pAgamaNorm.toLowerCase() === filterAgamaNorm.toLowerCase();
 
-      // Golongan range match
-      let golonganMatch = true;
-      if (minGolongan !== 'Semua' || maxGolongan !== 'Semua') {
-        const sortedGols = Object.keys(PANGKAT_MAP).sort((a, b) => {
-          // Priority: I < II < III < IV
-          const rankA = a.split('/')[0];
-          const rankB = b.split('/')[0];
-          const romValues: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4 };
-          if (rankA !== rankB) return (romValues[rankA] || 0) - (romValues[rankB] || 0);
-          return a.localeCompare(b);
-        });
-        
-        const currentGol = p.golRuang || '-';
-        const currentIndex = sortedGols.indexOf(currentGol);
-        
-        if (currentIndex === -1) {
-          golonganMatch = false;
-        } else {
-          const minIdx = minGolongan === 'Semua' ? 0 : sortedGols.indexOf(minGolongan);
-          const maxIdx = maxGolongan === 'Semua' ? sortedGols.length - 1 : sortedGols.indexOf(maxGolongan);
-          golonganMatch = currentIndex >= minIdx && currentIndex <= maxIdx;
-        }
-      }
-      
-      // Age calculation
+      const golonganMatch = matchesGolongan(p.golRuang, minGolongan, maxGolongan, SORTED_GOLS);
+
       let ageMatch = true;
       if (minAge || maxAge) {
-        const birthDateStr = formatDateForInput(p.tanggalLahir);
-        if (birthDateStr) {
-          const birthDate = new Date(birthDateStr);
-          if (!isNaN(birthDate.getTime())) {
-            const today = new Date();
-            let age = today.getFullYear() - birthDate.getFullYear();
-            const m = today.getMonth() - birthDate.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-              age--;
-            }
-            ageMatch = age >= min && age <= max;
-          } else {
-            ageMatch = false; // Cannot calculate age
-          }
+        const age = calculateEmployeeAge(p);
+        if (age !== null) {
+          ageMatch = age >= min && age <= max;
         } else {
-          ageMatch = false; // No birth date
+          ageMatch = false;
         }
       }
 
       return match && sotkMatch && unitMatch && jenisMatch && statusMatch && golonganMatch && pendidikanMatch && jurusanMatch && ageMatch && klasifikasiMatch && agamaMatch;
     });
-  }, [pegawaiList, searchTerm, filterSotk, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama]);
+  }, [pegawaiList, searchTerm, filterSotk, filterUnit, filterJenis, filterStatus, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama, SORTED_GOLS]);
 
   const filteredForCounts = useMemo(() => {
-    const term = searchTerm.toLowerCase().trim();
-    const min = minAge ? parseInt(minAge) : 0;
-    const max = maxAge ? parseInt(maxAge) : 200;
+    const term = searchTerm.trim();
+    const rawMin = minAge ? parseInt(minAge) : null;
+    const rawMax = maxAge ? parseInt(maxAge) : null;
+    const min = rawMin !== null && rawMax !== null ? Math.min(rawMin, rawMax) : (rawMin !== null ? rawMin : 0);
+    const max = rawMin !== null && rawMax !== null ? Math.max(rawMin, rawMax) : (rawMax !== null ? rawMax : 200);
 
     return (pegawaiList || []).filter(p => {
-      const searchStr = [p.nama, p.nip, p.nik, p.jabatan, p.unitKerja, p.bagian, p.subBagian, p.pendidikan, p.jurusan, p.status, p.alamat].map(v => String(v || '').toLowerCase()).join(' ');
-      const match = searchStr.includes(term);
+      const match = matchesSearch(p, term);
 
       const pNipClean = (p.nip || p.id || '').replace(/\D/g, '');
       const sotkMatch = !filterSotk || filterSotk.targetNips.has(pNipClean);
 
-      const pUnitNorm = normalizeUnitName(p.unitKerja);
+      const pUnitNorm = normalizeUnitName(p.unitKerja, p.bagian, p.jabatan);
       const filterUnitNorm = filterUnit === 'Semua Unit' ? 'Semua Unit' : normalizeUnitName(filterUnit);
-      const unitMatch = filterUnit === 'Semua Unit' || pUnitNorm === filterUnitNorm;
+      const isSekretariatFilter = filterUnit.toLowerCase().includes('sekretariat') || filterUnit.toLowerCase() === 'setditjen';
+      const unitMatch = filterUnit === 'Semua Unit' || 
+        pUnitNorm === filterUnitNorm || 
+        (isSekretariatFilter && pUnitNorm === UNIT_KERJA[0]);
 
       const selectedSubJenis = filterJenis === 'Semua Jenis' || !filterJenis ? [] : filterJenis.split(',').filter(Boolean);
-      const jenisMatch = selectedSubJenis.length === 0 || selectedSubJenis.map(s => s.toLowerCase()).includes((p.jenisPegawai || '').trim().toLowerCase());
+      const pJenis = (p.jenisPegawai || 'PNS').trim().toLowerCase();
+      const jenisMatch = selectedSubJenis.length === 0 || selectedSubJenis.some(s => {
+        const sLower = s.toLowerCase();
+        return pJenis === sLower || (sLower === 'pppk' && pJenis.startsWith('pppk') && !pJenis.includes('paruh waktu'));
+      });
       
-      // Pendidikan match (supporting multiple)
       const selectedPendidikans = filterPendidikan === 'Semua Pendidikan' || !filterPendidikan ? [] : filterPendidikan.split(',').filter(Boolean);
-      const pendidikanMatch = selectedPendidikans.length === 0 || selectedPendidikans.map(x => x.toLowerCase()).includes((p.pendidikan || '').trim().toLowerCase());
+      const pendidikanMatch = matchesPendidikan(p.pendidikan, selectedPendidikans);
 
-      // Jurusan match (supporting multiple)
       const selectedJurusans = filterJurusan === 'Semua Jurusan' || !filterJurusan ? [] : filterJurusan.split(',').filter(Boolean);
-      const jurusanMatch = selectedJurusans.length === 0 || selectedJurusans.map(x => x.toLowerCase()).includes((p.jurusan || '').trim().toLowerCase());
+      const jurusanMatch = matchesJurusan(p, selectedJurusans);
 
-      // Klasifikasi match (supporting multiple)
       const selectedKlasifikasis = filterKlasifikasi === 'Semua Klasifikasi' || !filterKlasifikasi ? [] : filterKlasifikasi.split(',').filter(Boolean);
       const klasifikasiMatch = selectedKlasifikasis.length === 0 || selectedKlasifikasis.map(x => x.toLowerCase()).includes((p.klasifikasiJabatan || '').trim().toLowerCase());
 
-      // Agama match (for counts, normalizing Kristen and Protestan)
       const pAgamaNorm = getNormalizedAgama(p.agama || '');
       const filterAgamaNorm = getNormalizedAgama(filterAgama);
       const agamaMatch = filterAgama === 'Semua Agama' || pAgamaNorm.toLowerCase() === filterAgamaNorm.toLowerCase();
 
+      const golonganMatch = matchesGolongan(p.golRuang, minGolongan, maxGolongan, SORTED_GOLS);
+
       let ageMatch = true;
       if (minAge || maxAge) {
-        const birthDateStr = formatDateForInput(p.tanggalLahir);
-        if (birthDateStr) {
-          const birthDate = new Date(birthDateStr);
-          if (!isNaN(birthDate.getTime())) {
-            const today = new Date();
-            let age = today.getFullYear() - birthDate.getFullYear();
-            const m = today.getMonth() - birthDate.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-            ageMatch = age >= min && age <= max;
-          } else ageMatch = false;
-        } else ageMatch = false;
+        const age = calculateEmployeeAge(p);
+        if (age !== null) {
+          ageMatch = age >= min && age <= max;
+        } else {
+          ageMatch = false;
+        }
       }
-      return match && sotkMatch && unitMatch && jenisMatch && ageMatch && pendidikanMatch && jurusanMatch && klasifikasiMatch && agamaMatch;
+      return match && sotkMatch && unitMatch && jenisMatch && golonganMatch && ageMatch && pendidikanMatch && jurusanMatch && klasifikasiMatch && agamaMatch;
     });
-  }, [pegawaiList, searchTerm, filterSotk, filterUnit, filterJenis, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama]);
+  }, [pegawaiList, searchTerm, filterSotk, filterUnit, filterJenis, minGolongan, maxGolongan, minAge, maxAge, filterPendidikan, filterJurusan, filterKlasifikasi, filterAgama, SORTED_GOLS]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
       'Aktif': 0, 'Tidak Aktif': 0, 'Pensiun': 0, 'Tugas Belajar': 0
     };
     (filteredForCounts || []).forEach(p => {
-      const status = p.status || 'Aktif';
-      if (counts[status] !== undefined) counts[status]++;
+      const s = (p.status || 'Aktif').trim().toLowerCase();
+      if (s === 'aktif' || s === 'pns' || s === 'cpns' || s === 'pppk') {
+        counts['Aktif']++;
+      } else if (s.includes('tidak aktif') || s.includes('non aktif') || s.includes('non-aktif') || s.includes('inactive')) {
+        counts['Tidak Aktif']++;
+      } else if (s.includes('pensiun') || s.includes('bup')) {
+        counts['Pensiun']++;
+      } else if (s.includes('tugas belajar') || s.includes('tubel') || s.startsWith('tugas')) {
+        counts['Tugas Belajar']++;
+      } else {
+        counts['Aktif']++;
+      }
     });
     return counts;
   }, [filteredForCounts]);
@@ -886,7 +1097,7 @@ const PegawaiPage = () => {
   // Helper untuk memetakan posisi struktural pegawai per unit:
   // Direktur -> Eselon III -> Eselon IV -> JF & Pelaksana di bawahnya
   const resolvePegawaiStructure = (p: Pegawai) => {
-    const normUnit = normalizeUnitName(p.unitKerja);
+    const normUnit = normalizeUnitName(p.unitKerja, p.bagian, p.jabatan);
     const unitOrder = UNIT_ORDER[normUnit] || 99;
     const jabUpper = (p.jabatan || '').toUpperCase().trim();
     const eselonUpper = (p.eselon || '').toUpperCase().trim();
@@ -1718,8 +1929,9 @@ const PegawaiPage = () => {
     reader.onloadend = async () => {
       const base64 = reader.result as string;
       const res = await uploadFileToDrive(`FOTO_${formData.nip || 'NEW'}_${Date.now()}`, tempPhotoFile.type, base64);
-      if (res.success && res.fileUrl) {
-        setFormData(prev => ({ ...prev, foto: res.fileUrl }));
+      if (res.success && (res.fileUrl || res.directUrl)) {
+        const photoLink = formatDrivePhotoUrl(res.directUrl || res.fileUrl);
+        setFormData(prev => ({ ...prev, foto: photoLink }));
         setIsPhotoModalOpen(false);
         if (tempPhotoPreview) URL.revokeObjectURL(tempPhotoPreview);
         setTempPhotoFile(null);
@@ -1792,11 +2004,16 @@ const PegawaiPage = () => {
     if (!formData.nip || !formData.nama) return alert("NIP dan Nama wajib diisi.");
     setSyncing(true);
     
-    // Keep the exact name and academic titles entered by the user, while using polishGelarDanNama to suggest education/jurusan
-    const polished = polishGelarDanNama(formData.nama);
+    // Sesuaikan pendidikan dan jurusan dengan riwayatPendidikan, atau lihat gelar terakhir jika tidak ada riwayat
     const finalNama = formData.nama.trim();
-    const finalJurusan = formData.jurusan || polished.jurusan;
-    const finalPendidikan = formData.pendidikan || polished.pendidikan;
+    const eduResolved = resolvePegawaiPendidikanDanJurusan({
+      nama: finalNama,
+      riwayatPendidikan: formData.riwayatPendidikan,
+      pendidikan: formData.pendidikan,
+      jurusan: formData.jurusan
+    });
+    const finalJurusan = eduResolved.jurusan || formData.jurusan;
+    const finalPendidikan = eduResolved.pendidikan || formData.pendidikan;
     
     // Generate ID for new records
     const payload = {
@@ -1804,6 +2021,7 @@ const PegawaiPage = () => {
       nama: finalNama,
       jurusan: finalJurusan,
       pendidikan: finalPendidikan,
+      foto: formatDrivePhotoUrl(formData.foto),
       id: formData.id || `PEG-${formData.nip}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       updatedAt: new Date().toISOString()
     };
@@ -2051,22 +2269,58 @@ const PegawaiPage = () => {
           </div>
           <div className="flex flex-wrap gap-1 md:gap-2 mt-3">
 
-            <div className="flex items-center gap-1 px-2 md:px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
-              <span className="w-1 h-1 md:w-1.5 md:h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+            <button
+              type="button"
+              onClick={() => setFilterStatus(filterStatus === 'Aktif' ? 'Semua Status' : 'Aktif')}
+              className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1 rounded-lg border transition-all cursor-pointer ${
+                filterStatus === 'Aktif'
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+              }`}
+              title="Filter Pegawai Status Aktif"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${filterStatus === 'Aktif' ? 'bg-white' : 'bg-emerald-500'} animate-pulse`}></span>
               <span className="text-[7px] md:text-[9px] font-black uppercase tracking-wider">Aktif: {statusCounts['Aktif'] || 0}</span>
-            </div>
-            <div className="flex items-center gap-1 px-2 md:px-3 py-1 bg-amber-50 text-amber-600 rounded-lg border border-amber-100">
-              <span className="w-1 h-1 md:w-1.5 md:h-1.5 bg-amber-500 rounded-full"></span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterStatus(filterStatus === 'Tugas Belajar' ? 'Semua Status' : 'Tugas Belajar')}
+              className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1 rounded-lg border transition-all cursor-pointer ${
+                filterStatus === 'Tugas Belajar'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                  : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
+              }`}
+              title="Filter Pegawai Tugas Belajar"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${filterStatus === 'Tugas Belajar' ? 'bg-white' : 'bg-amber-500'}`}></span>
               <span className="text-[7px] md:text-[9px] font-black uppercase tracking-wider">Tugas: {statusCounts['Tugas Belajar'] || 0}</span>
-            </div>
-            <div className="flex items-center gap-1 px-2 md:px-3 py-1 bg-rose-50 text-rose-600 rounded-lg border border-rose-100">
-              <span className="w-1 h-1 md:w-1.5 md:h-1.5 bg-rose-500 rounded-full"></span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterStatus(filterStatus === 'Tidak Aktif' ? 'Semua Status' : 'Tidak Aktif')}
+              className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1 rounded-lg border transition-all cursor-pointer ${
+                filterStatus === 'Tidak Aktif'
+                  ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                  : 'bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100'
+              }`}
+              title="Filter Pegawai Tidak Aktif"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${filterStatus === 'Tidak Aktif' ? 'bg-white' : 'bg-rose-500'}`}></span>
               <span className="text-[7px] md:text-[9px] font-black uppercase tracking-wider">Off: {statusCounts['Tidak Aktif'] || 0}</span>
-            </div>
-            <div className="flex items-center gap-1 px-2 md:px-3 py-1 bg-gray-50 text-gray-600 rounded-lg border border-gray-100">
-              <span className="w-1 h-1 md:w-1.5 md:h-1.5 bg-gray-500 rounded-full"></span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterStatus(filterStatus === 'Pensiun' ? 'Semua Status' : 'Pensiun')}
+              className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1 rounded-lg border transition-all cursor-pointer ${
+                filterStatus === 'Pensiun'
+                  ? 'bg-gray-700 text-white border-gray-700 shadow-sm'
+                  : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+              }`}
+              title="Filter Pegawai Pensiun"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${filterStatus === 'Pensiun' ? 'bg-white' : 'bg-gray-500'}`}></span>
               <span className="text-[7px] md:text-[9px] font-black uppercase tracking-wider">Pensiun: {statusCounts['Pensiun'] || 0}</span>
-            </div>
+            </button>
           </div>
           <p className="text-[8px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-3 flex items-center gap-2"><i className="bi bi-shield-check text-blue-600"></i> Terintegrasi dengan Cloud Google Spreadsheet</p>
         </div>
@@ -2128,15 +2382,23 @@ const PegawaiPage = () => {
           <input type="text" placeholder="Pencarian Cepat: Nama, NIP, atau NIK..." className="w-full pl-10 md:pl-14 pr-6 md:pr-8 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[9px] md:text-xs font-black uppercase outline-none focus:border-blue-600 transition-all shadow-inner" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
-          <select className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterUnit} onChange={e => { setFilterUnit(e.target.value); setFilterSotk(null); }}>
-              <option>Semua Unit</option>
-              {UNIT_KERJA.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
+          <select 
+            className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all cursor-pointer" 
+            value={filterUnit} 
+            onChange={e => { setFilterUnit(e.target.value); setFilterSotk(null); }}
+          >
+              <option value="Semua Unit">Semua Unit</option>
+              {AVAILABLE_UNIT_LIST.map(u => (
+                <option key={u} value={u}>
+                  {u === UNIT_KERJA[0] ? 'SEKRETARIAT (SETDITJEN)' : u.toUpperCase()}
+                </option>
+              ))}
           </select>
           <div ref={jenisDropdownRef} className="relative w-full">
             <button 
               type="button"
               onClick={() => setIsJenisDropdownOpen(!isJenisDropdownOpen)}
-              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none"
+              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none cursor-pointer"
             >
               <span className="truncate">
                 {filterJenis === 'Semua Jenis' || !filterJenis
@@ -2157,7 +2419,7 @@ const PegawaiPage = () => {
                   <span className="text-[9px] md:text-[11px] font-black uppercase tracking-wider text-gray-700">Semua Jenis</span>
                 </label>
                 <div className="h-px bg-gray-100 my-1"></div>
-                {['PNS', 'CPNS', 'PPPK', 'PPPK Paruh Waktu'].map(jenis => {
+                {AVAILABLE_JENIS_LIST.map(jenis => {
                   const currentList = filterJenis === 'Semua Jenis' ? [] : filterJenis.split(',').filter(Boolean);
                   const isChecked = currentList.includes(jenis);
                   const handleCheckboxChange = () => {
@@ -2192,7 +2454,7 @@ const PegawaiPage = () => {
             <button 
               type="button"
               onClick={() => setIsKlasifikasiDropdownOpen(!isKlasifikasiDropdownOpen)}
-              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none"
+              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none cursor-pointer"
             >
               <span className="truncate">
                 {filterKlasifikasi === 'Semua Klasifikasi' || !filterKlasifikasi
@@ -2244,7 +2506,7 @@ const PegawaiPage = () => {
               </div>
             )}
           </div>
-          <select className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+          <select className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none focus:border-blue-600 transition-all cursor-pointer" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
               <option>Semua Status</option>
               <option value="Aktif">AKTIF</option>
               <option value="Tidak Aktif">TIDAK AKTIF</option>
@@ -2255,7 +2517,7 @@ const PegawaiPage = () => {
             <button 
               type="button"
               onClick={() => setIsPendidikanDropdownOpen(!isPendidikanDropdownOpen)}
-              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none"
+              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none cursor-pointer"
             >
               <span className="truncate">
                 {filterPendidikan === 'Semua Pendidikan' || !filterPendidikan
@@ -2311,7 +2573,7 @@ const PegawaiPage = () => {
             <button 
               type="button"
               onClick={() => setIsJurusanDropdownOpen(!isJurusanDropdownOpen)}
-              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none"
+              className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase text-left flex justify-between items-center transition-all hover:border-gray-200 outline-none cursor-pointer"
             >
               <span className="truncate">
                 {filterJurusan === 'Semua Jurusan' || !filterJurusan
@@ -2342,7 +2604,7 @@ const PegawaiPage = () => {
                 </label>
                 <div className="h-px bg-gray-100 my-1"></div>
                 <div className="max-h-48 overflow-y-auto space-y-1">
-                  {JURUSAN_LIST.filter(j => j.toLowerCase().includes(jurusanSearch.toLowerCase())).map(jurusan => {
+                  {AVAILABLE_JURUSAN_LIST.filter(j => j.toLowerCase().includes(jurusanSearch.toLowerCase())).map(jurusan => {
                     const currentList = filterJurusan === 'Semua Jurusan' ? [] : filterJurusan.split(',').filter(Boolean);
                     const isChecked = currentList.includes(jurusan);
                     const handleCheckboxChange = () => {
@@ -2379,26 +2641,14 @@ const PegawaiPage = () => {
               <span className="text-[7px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Gol:</span>
               <select className="bg-transparent border-none outline-none text-[8px] md:text-[10px] font-black uppercase w-full cursor-pointer hover:text-blue-600" value={minGolongan} onChange={e => setMinGolongan(e.target.value)}>
                   <option value="Semua">DARI</option>
-                  {Object.keys(PANGKAT_MAP).sort((a, b) => {
-                    const romValues: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4 };
-                    const rankA = a.split('/')[0];
-                    const rankB = b.split('/')[0];
-                    if (rankA !== rankB) return (romValues[rankA] || 0) - (romValues[rankB] || 0);
-                    return a.localeCompare(b);
-                  }).map(g => (
+                  {SORTED_GOLS.map(g => (
                     <option key={g} value={g}>{g}</option>
                   ))}
               </select>
               <span className="text-gray-300 font-bold">»</span>
               <select className="bg-transparent border-none outline-none text-[8px] md:text-[10px] font-black uppercase w-full cursor-pointer hover:text-blue-600" value={maxGolongan} onChange={e => setMaxGolongan(e.target.value)}>
                   <option value="Semua">SAMPAI</option>
-                  {Object.keys(PANGKAT_MAP).sort((a, b) => {
-                    const romValues: Record<string, number> = { 'I': 1, 'II': 2, 'III': 3, 'IV': 4 };
-                    const rankA = a.split('/')[0];
-                    const rankB = b.split('/')[0];
-                    if (rankA !== rankB) return (romValues[rankA] || 0) - (romValues[rankB] || 0);
-                    return a.localeCompare(b);
-                  }).map(g => (
+                  {SORTED_GOLS.map(g => (
                     <option key={g} value={g}>{g}</option>
                   ))}
               </select>
@@ -2449,13 +2699,123 @@ const PegawaiPage = () => {
               setFilterAgama('Semua Agama');
               setJurusanSearch('');
             }}
-            className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-slate-100/50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none hover:bg-rose-50 hover:text-rose-600 transition-all text-slate-400 flex items-center justify-center gap-2"
+            className="w-full px-4 md:px-6 py-2.5 md:py-4 bg-slate-100/50 border-2 border-transparent rounded-xl md:rounded-[1.8rem] text-[8px] md:text-[10px] font-black uppercase outline-none hover:bg-rose-50 hover:text-rose-600 transition-all text-slate-400 flex items-center justify-center gap-2 cursor-pointer"
           >
             <i className="bi bi-arrow-counterclockwise text-sm"></i>
             Reset Filter
           </button>
         </div>
       </div>
+
+      {/* Active Filter Chips Bar */}
+      {(searchTerm || filterUnit !== 'Semua Unit' || (filterJenis !== 'Semua Jenis' && filterJenis) || (filterStatus !== 'Semua Status' && filterStatus) || minGolongan !== 'Semua' || maxGolongan !== 'Semua' || minAge || maxAge || (filterPendidikan !== 'Semua Pendidikan' && filterPendidikan) || (filterJurusan !== 'Semua Jurusan' && filterJurusan) || (filterKlasifikasi !== 'Semua Klasifikasi' && filterKlasifikasi) || (filterAgama !== 'Semua Agama' && filterAgama) || filterSotk) && (
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-blue-50/70 border border-blue-100 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-1.5 text-[9px] md:text-xs font-black text-blue-900 uppercase">
+            <i className="bi bi-funnel-fill text-blue-600"></i>
+            <span>Filter Aktif ({filteredPegawai.length} Pegawai):</span>
+          </div>
+
+          {searchTerm && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">Cari:</span> "{searchTerm}"
+              <button type="button" onClick={() => setSearchTerm('')} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          {filterUnit !== 'Semua Unit' && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">Unit:</span> {filterUnit}
+              <button type="button" onClick={() => setFilterUnit('Semua Unit')} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          {filterJenis !== 'Semua Jenis' && filterJenis && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">Jenis:</span> {filterJenis}
+              <button type="button" onClick={() => setFilterJenis('Semua Jenis')} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          {filterStatus !== 'Semua Status' && filterStatus && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">Status:</span> {filterStatus}
+              <button type="button" onClick={() => setFilterStatus('Semua Status')} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          {filterKlasifikasi !== 'Semua Klasifikasi' && filterKlasifikasi && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">Klasifikasi:</span> {filterKlasifikasi}
+              <button type="button" onClick={() => setFilterKlasifikasi('Semua Klasifikasi')} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          {filterPendidikan !== 'Semua Pendidikan' && filterPendidikan && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">Pendidikan:</span> {filterPendidikan}
+              <button type="button" onClick={() => setFilterPendidikan('Semua Pendidikan')} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          {filterJurusan !== 'Semua Jurusan' && filterJurusan && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">Jurusan:</span> {filterJurusan}
+              <button type="button" onClick={() => { setFilterJurusan('Semua Jurusan'); setJurusanSearch(''); }} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          {(minGolongan !== 'Semua' || maxGolongan !== 'Semua') && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">Golongan:</span> {minGolongan} » {maxGolongan}
+              <button type="button" onClick={() => { setMinGolongan('Semua'); setMaxGolongan('Semua'); }} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          {(minAge || maxAge) && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">Usia:</span> {minAge || '0'} - {maxAge || '∞'} thn
+              <button type="button" onClick={() => { setMinAge(''); setMaxAge(''); }} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          {filterAgama !== 'Semua Agama' && filterAgama && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">Agama:</span> {filterAgama}
+              <button type="button" onClick={() => setFilterAgama('Semua Agama')} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          {filterSotk && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-200 text-blue-800 rounded-lg text-[8px] md:text-[10px] font-black shadow-xs">
+              <span className="text-gray-400 font-bold">SOTK:</span> {filterSotk.nama}
+              <button type="button" onClick={() => setFilterSotk(null)} className="hover:text-rose-600 font-black cursor-pointer ml-0.5">×</button>
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('');
+              setFilterSotk(null);
+              setFilterUnit('Semua Unit');
+              setFilterJenis('Semua Jenis');
+              setFilterStatus('Semua Status');
+              setMinGolongan('Semua');
+              setMaxGolongan('Semua');
+              setMinAge('');
+              setMaxAge('');
+              setFilterPendidikan('Semua Pendidikan');
+              setFilterJurusan('Semua Jurusan');
+              setFilterKlasifikasi('Semua Klasifikasi');
+              setFilterAgama('Semua Agama');
+              setJurusanSearch('');
+            }}
+            className="ml-auto text-[8px] md:text-[10px] font-black uppercase text-rose-600 hover:text-rose-700 hover:underline cursor-pointer flex items-center gap-1"
+          >
+            <i className="bi bi-x-circle"></i> Bersihkan Semua
+          </button>
+        </div>
+      )}
 
       {/* Selection Bulk Controls & View Switcher */}
       <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -2657,6 +3017,9 @@ const PegawaiPage = () => {
                         <div className="flex flex-wrap items-center gap-1 md:gap-2 mt-1.5 md:mt-2">
                            <span className={`px-1 md:px-2 py-0.5 text-[5px] md:text-[7px] font-black rounded border uppercase ${isDup || isInv ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{p.golRuang || '-'}</span>
                            <span className="px-1 md:px-2 py-0.5 bg-gray-50 text-gray-500 text-[5px] md:text-[7px] font-black rounded border border-gray-200 uppercase truncate max-w-[60px] md:max-w-none">{p.jenisPegawai || '-'}</span>
+                           <span className="px-1 md:px-2 py-0.5 bg-slate-50 text-slate-600 text-[5px] md:text-[7px] font-bold rounded border border-slate-200 uppercase truncate max-w-[130px]" title={p.unitKerja || normalizeUnitName(p.unitKerja, p.bagian, p.jabatan)}>
+                             {p.unitKerja && p.unitKerja !== 'DJKI' ? p.unitKerja : (p.bagian || normalizeUnitName(p.unitKerja, p.bagian, p.jabatan) || '-')}
+                           </span>
                         </div>
                         {(() => {
                           const atasanInfo = getAtasanLangsung(p, pegawaiList);
@@ -2802,8 +3165,8 @@ const PegawaiPage = () => {
                             {p.jabatan || '-'}
                           </div>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            <span className="text-[8px] md:text-[9px] text-gray-500 font-bold truncate max-w-[190px]">
-                              {p.unitKerja || '-'}
+                            <span className="text-[8px] md:text-[9px] text-gray-500 font-bold truncate max-w-[190px]" title={p.unitKerja || normalizeUnitName(p.unitKerja, p.bagian, p.jabatan)}>
+                              {p.unitKerja && p.unitKerja !== 'DJKI' ? p.unitKerja : (p.bagian || normalizeUnitName(p.unitKerja, p.bagian, p.jabatan) || '-')}
                             </span>
                             {p.klasifikasiJabatan && p.klasifikasiJabatan !== '-' && (
                               <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 text-[6px] md:text-[7px] font-black rounded uppercase">

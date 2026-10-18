@@ -629,6 +629,7 @@ function handleBatchSave(ss, moduleName, payload) {
         if (moduleName === 'PEGAWAI' && hName === 'pendidikan') {
           val = normalizePendidikanForGAS(val);
         }
+        val = formatToDDMMYYYYIfDate(val, hName);
         return (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
       });
 
@@ -719,9 +720,14 @@ function handleSave(ss, moduleName, payload) {
               if (moduleName === 'PEGAWAI' && hName === 'pendidikan') {
                 val = normalizePendidikanForGAS(val);
               }
+              val = formatToDDMMYYYYIfDate(val, hName);
               return (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
             } else {
-              return existingRowValues[colIdx];
+              var existingVal = existingRowValues[colIdx];
+              if (existingVal instanceof Date) {
+                return Utilities.formatDate(existingVal, "Asia/Jakarta", "dd/MM/yyyy");
+              }
+              return existingVal;
             }
           });
           sheet.getRange(rowNum, 1, 1, headers.length).setValues([rowValues]);
@@ -740,6 +746,7 @@ function handleSave(ss, moduleName, payload) {
       if (moduleName === 'PEGAWAI' && hName === 'pendidikan') {
         val = normalizePendidikanForGAS(val);
       }
+      val = formatToDDMMYYYYIfDate(val, hName);
       return (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
     });
 
@@ -913,6 +920,8 @@ function handleGet(ss, moduleName, params) {
           } catch (e) {
             obj[h] = val;
           }
+        } else if (val instanceof Date) {
+          obj[h] = Utilities.formatDate(val, "Asia/Jakarta", "dd/MM/yyyy");
         } else {
           obj[h] = val;
         }
@@ -1061,7 +1070,7 @@ function handleGetPegawaiByNip(ss, nip) {
               obj[hKey] = val;
             }
           } else if (val instanceof Date) {
-            obj[hKey] = dispVal || val.toISOString();
+            obj[hKey] = dispVal || Utilities.formatDate(val, "Asia/Jakarta", "dd/MM/yyyy");
           } else if (typeof val === 'number' && (hKey.toLowerCase().indexOf('nip') !== -1 || hKey.toLowerCase().indexOf('nik') !== -1)) {
             obj[hKey] = dispVal || String(val);
           } else {
@@ -1172,7 +1181,7 @@ function handleUpload(payload, driveFolderId) {
 
     return createResponse({ 
       success: true, 
-      fileUrl: ucUrl,
+      fileUrl: directUrl,
       viewUrl: viewUrl,
       directUrl: directUrl,
       thumbnailUrl: thumbnailUrl,
@@ -1545,6 +1554,38 @@ function normalizePendidikanForGAS(val) {
     }
   }
   return "S1";
+}
+
+// Helper: Format nilai tanggal ke dd/MM/yyyy (misal: 23/01/2025)
+function formatToDDMMYYYYIfDate(val, colName) {
+  if (val === null || val === undefined || val === '') return '';
+  var col = (colName || '').toLowerCase().replace(/[\s_]/g, '');
+  if (col === 'updatedat' || col === 'createdat' || col === 'timestamp') return val;
+
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, "Asia/Jakarta", "dd/MM/yyyy");
+  }
+
+  if (typeof val === 'string') {
+    var str = val.trim();
+    if (!str) return '';
+    // Jika sudah format dd/MM/yyyy atau dd-MM-yyyy
+    var ddmmyyyyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (ddmmyyyyMatch) {
+      var d = ddmmyyyyMatch[1].length === 1 ? '0' + ddmmyyyyMatch[1] : ddmmyyyyMatch[1];
+      var m = ddmmyyyyMatch[2].length === 1 ? '0' + ddmmyyyyMatch[2] : ddmmyyyyMatch[2];
+      return d + '/' + m + '/' + ddmmyyyyMatch[3];
+    }
+    // Jika format ISO e.g. 2025-01-23T17:00:00.000Z atau 2025-01-23
+    var isDateCol = col.indexOf('tanggal') !== -1 || col.indexOf('tgl') !== -1 || 
+                    col.indexOf('tmt') !== -1 || col.indexOf('lahir') !== -1 || 
+                    col.indexOf('birth') !== -1;
+    var isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch && (isDateCol || str.indexOf('T') !== -1)) {
+      return isoMatch[3] + '/' + isoMatch[2] + '/' + isoMatch[1];
+    }
+  }
+  return val;
 }
 
 function getSpreadsheet(ssId) {

@@ -1,29 +1,45 @@
 /**
  * Utility to process photo URLs, especially formatting Google Drive links
- * to work directly in <img> tags.
+ * into direct reliable Google content URLs (https://lh3.googleusercontent.com/d/FILE_ID)
  */
+export const extractGoogleDriveFileId = (urlOrId: string | undefined): string | null => {
+  if (!urlOrId) return null;
+  const str = String(urlOrId).trim();
+  if (!str) return null;
+
+  // Base64 data URLs should not be treated as Drive IDs
+  if (str.startsWith('data:image')) {
+    return null;
+  }
+
+  // Direct ID check (Google Drive file IDs are alphanumeric with - and _, usually 25-60 chars)
+  if (/^[a-zA-Z0-9_-]{25,60}$/.test(str)) {
+    return str;
+  }
+
+  // Check URLs with various Google Drive patterns
+  const match = 
+    str.match(/\/d\/([a-zA-Z0-9_-]{25,60})/i) || 
+    str.match(/[?&]id=([a-zA-Z0-9_-]{25,60})/i) ||
+    str.match(/\/file\/d\/([a-zA-Z0-9_-]{25,60})/i);
+
+  if (match) {
+    return match[1];
+  }
+  return null;
+};
+
+export const formatDrivePhotoUrl = (urlOrId: string | undefined): string => {
+  if (!urlOrId) return '';
+  const fileId = extractGoogleDriveFileId(urlOrId);
+  if (fileId) {
+    return `https://lh3.googleusercontent.com/d/${fileId}`;
+  }
+  return String(urlOrId).trim();
+};
+
 export const getPhotoUrl = (url: string | undefined): string => {
   if (!url) return '';
-  
-  // Handle Google Drive links (sharing links or lh3 content links)
-  if (url.includes('drive.google.com') || url.includes('googleusercontent.com')) {
-    // Try to extract ID from various formats:
-    // 1. https://drive.google.com/file/d/ID/view
-    // 2. https://drive.google.com/uc?id=ID
-    // 3. https://lh3.googleusercontent.com/d/ID
-    // 4. https://docs.google.com/uc?export=download&id=ID
-    
-    let id = '';
-    const match = 
-      url.match(/\/d\/([a-zA-Z0-9_-]+)/) || 
-      url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-    
-    if (match) {
-      id = match[1];
-      // lh3.googleusercontent.com is faster and more reliable than drive.google.com/uc
-      return `https://lh3.googleusercontent.com/d/${id}`;
-    }
-  }
-  
-  return url;
+  return formatDrivePhotoUrl(url);
 };
+

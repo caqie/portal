@@ -3,9 +3,9 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Pegawai, RiwayatPendidikan, RiwayatJabatan, RiwayatPangkat, RiwayatPelatihan, RiwayatGaji, RiwayatPenghargaan, Keluarga, Dossier } from '../types';
 import { fetchPegawaiFromSheets, findPegawaiByNip, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, parseDateToYYYYMMDD, getTableFromIndexedDb } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
-import { getPhotoUrl } from '../lib/photoUtils';
+import { getPhotoUrl, formatDrivePhotoUrl } from '../lib/photoUtils';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
-import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, getPangkatFromGol, BANK_LIST, formatPegawaiName, polishGelarDanNama, getJabatanClassification } from '../constants';
+import { UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, getPangkatFromGol, BANK_LIST, formatPegawaiName, polishGelarDanNama, getJabatanClassification, resolvePegawaiPendidikanDanJurusan, STANDARD_JENJANG_LIST, normalizeStandardJenjang, alignEducationRow } from '../constants';
 import SuccessModal from '../components/SuccessModal';
 import AutocompleteInput from '../components/AutocompleteInput';
 import SimpegImportModal, { SimpegCategory } from '../components/SimpegImportModal';
@@ -477,6 +477,12 @@ const enrichPegawaiData = (found: Pegawai): Pegawai => {
     keluarga: cloned.keluarga || []
   };
 
+  // Harmonize latest education & major from riwayatPendidikan, or fallback to gelar terakhir
+  const resolvedEdu = resolvePegawaiPendidikanDanJurusan(cloned);
+  if (resolvedEdu.pendidikan) enriched.pendidikan = resolvedEdu.pendidikan;
+  if (resolvedEdu.jurusan) enriched.jurusan = resolvedEdu.jurusan;
+  if (enriched.foto) enriched.foto = formatDrivePhotoUrl(enriched.foto);
+
   const getDiffYMD = (dateStr: string) => {
     if (!dateStr) return null;
     const start = new Date(dateStr);
@@ -851,34 +857,10 @@ const ProfilePegawaiPage = () => {
       }
     }
 
-    // 3. Sync Pendidikan (highest degree)
-    if (p.riwayatPendidikan && p.riwayatPendidikan.length > 0) {
-      const degreeOrder: { [key: string]: number } = {
-        'S3': 9, 'DOKTOR': 9,
-        'S2': 8, 'MAGISTER': 8,
-        'S1': 7, 'SARJANA': 7,
-        'D4': 6,
-        'D3': 5,
-        'D2': 4,
-        'D1': 3,
-        'SMA': 2, 'SMK': 2, 'MA': 2, 'DIKMEN': 2,
-        'SMP': 1, 'DIKDAS': 1,
-        'SD': 0
-      };
-
-      const sortedPendidikan = [...p.riwayatPendidikan].sort((a, b) => {
-        const orderA = degreeOrder[a.jenjang.trim().toUpperCase()] || 0;
-        const orderB = degreeOrder[b.jenjang.trim().toUpperCase()] || 0;
-        if (orderA !== orderB) return orderB - orderA;
-        return (b.tahunLulus || '').localeCompare(a.tahunLulus || '');
-      });
-
-      const highest = sortedPendidikan[0];
-      if (highest) {
-        updated.pendidikan = highest.jenjang;
-        updated.jurusan = highest.jurusan;
-      }
-    }
+    // 3. Sync Pendidikan (sesuaikan dengan riwayat pendidikan, atau lihat gelar terakhir)
+    const resolvedEdu = resolvePegawaiPendidikanDanJurusan(updated);
+    if (resolvedEdu.pendidikan) updated.pendidikan = resolvedEdu.pendidikan;
+    if (resolvedEdu.jurusan) updated.jurusan = resolvedEdu.jurusan;
 
     // 4. Sync Gaji (latest TMT / Tanggal SK)
     if (p.riwayatGaji && p.riwayatGaji.length > 0) {
@@ -1088,8 +1070,8 @@ const ProfilePegawaiPage = () => {
       // 2. Jika Google Drive Apps Script tersedia, coba simpan ke Google Drive
       try {
         const res = await uploadFileToDrive(`FOTO_${pegawai.nip}_${Date.now()}`, 'image/jpeg', compressedDataUrl);
-        if (res.success && res.fileUrl) {
-          finalPhotoUrl = res.fileUrl;
+        if (res.success && (res.directUrl || res.fileUrl)) {
+          finalPhotoUrl = formatDrivePhotoUrl(res.directUrl || res.fileUrl);
         }
       } catch (err) {
         console.warn("Upload Drive dilewati/fallback ke data URL lokal:", err);

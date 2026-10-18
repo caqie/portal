@@ -2,8 +2,9 @@
 import { Pegawai, AdminUser, Laporan, Dossier, Pengembangan, KGB, CloudConfig, TugasRutin, Kegiatan, ABKAnjab, SpmtSppRecord, PAKRecord, MagangPKL, SKPRecord, PersuratanRecord, KenaikanKarir, SatyaLencanaRecord, KeuanganRecord, AbsensiConfig, SystemConfig, BankSoal, PesertaUkom, HasilUkom, PenilaianTalenta, TalentPool, AssessmentTalenta, NineBoxTalenta, PengembanganTalenta, PengajuanSDM, DokumenPengajuan, LogPengajuan, PesanPengajuan, MasterLayanan, MasterPetugasSDM, TupoksiSDMItem, normalizeRolesList } from './types';
 import { MASTER_LAYANAN_DATA } from './layananMasterData';
 import { INITIAL_TUPOKSI_SDM } from './tupoksiConstants';
-import { getJabatanClassification, resolveUserPendidikan, getPangkatFromGol } from './constants';
+import { getJabatanClassification, resolveUserPendidikan, resolvePegawaiPendidikanDanJurusan, getPangkatFromGol } from './constants';
 import { getKelasJabatanPermenkumham38 } from './data/anjabAbkConstants';
+import { formatDrivePhotoUrl, extractGoogleDriveFileId } from './lib/photoUtils';
 
 const DEFAULT_SPREADSHEET_ID = '1Bh77MMU8d6fgNTKhovLE5MkG0-3CjW9cNXRZl2GyPR4'; 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8dTUPkAb1f8EeH3DxXjTd9IZ-yAMUWxSfci9ZBLkMf3gxH3as4GlALPtER6JM-BWD/exec';
@@ -311,6 +312,50 @@ export const parseDateToYYYYMMDD = (val: any): string => {
   } catch (e) {}
 
   return '';
+};
+
+/**
+ * Formats any date value (ISO string, Date instance, YYYY-MM-DD, etc.) into DD/MM/YYYY format
+ * expected by Google Spreadsheet database columns (e.g. "23/01/2025").
+ */
+export const formatDateToDDMMYYYY = (val: any): string => {
+  if (!val) return '';
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '';
+    const d = String(val.getDate()).padStart(2, '0');
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const y = val.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  const str = String(val).trim();
+  if (!str) return '';
+
+  // If already DD/MM/YYYY or DD-MM-YYYY
+  const ddmmyyyyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const d = ddmmyyyyMatch[1].padStart(2, '0');
+    const m = ddmmyyyyMatch[2].padStart(2, '0');
+    const y = ddmmyyyyMatch[3];
+    return `${d}/${m}/${y}`;
+  }
+
+  // If ISO string with T, e.g. "2025-01-23T17:00:00.000Z"
+  if (str.includes('T')) {
+    const rawDatePart = str.split('T')[0];
+    const p = rawDatePart.split('-');
+    if (p.length === 3 && p[0].length === 4) {
+      return `${p[2].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[0]}`;
+    }
+  }
+
+  // Parse to YYYY-MM-DD using robust parser
+  const ymd = parseDateToYYYYMMDD(val);
+  if (ymd && /^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+    const [y, m, d] = ymd.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  return str;
 };
 
 export const loadSharedConfigFromServer = async (): Promise<void> => {
@@ -722,11 +767,20 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
     return false;
   }
 
-  // Normalize PENDIDIKAN field for PEGAWAI module to prevent Spreadsheet Validation violations
+  // Normalize fields for PEGAWAI module to prevent Spreadsheet Validation violations
   let finalData = data;
   if (moduleName.toUpperCase().trim() === 'PEGAWAI' && action === 'SAVE' && data) {
     finalData = { ...data };
     
+    // Resolve pendidikan & jurusan from riwayatPendidikan or gelar terakhir
+    const resolvedEdu = resolvePegawaiPendidikanDanJurusan(finalData);
+    if (resolvedEdu.pendidikan) finalData.pendidikan = resolvedEdu.pendidikan;
+    if (resolvedEdu.jurusan) finalData.jurusan = resolvedEdu.jurusan;
+
+    if (finalData.foto) {
+      finalData.foto = formatDrivePhotoUrl(finalData.foto);
+    }
+
     const normalizePendidikan = (val: any): string => {
       if (!val) return "";
       const s = String(val).trim().toUpperCase();
@@ -767,6 +821,24 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
     const rolesList = normalizeRolesList(finalData.roles, finalData.role);
     finalData.roles = JSON.stringify(rolesList);
     finalData.role = finalData.role || rolesList[0] || 'Viewer';
+  }
+
+  // Normalize date fields to DD/MM/YYYY format so spreadsheet receives '23/01/2025' instead of '2025-01-23T17:00:00.000Z'
+  if (action === 'SAVE' && finalData && typeof finalData === 'object') {
+    Object.keys(finalData).forEach(key => {
+      const val = finalData[key];
+      if (typeof val === 'string') {
+        const cleanKey = key.toLowerCase().replace(/[\s_]/g, '');
+        if (cleanKey === 'updatedat' || cleanKey === 'createdat' || cleanKey === 'timestamp') return;
+        const isDateKey = cleanKey.includes('tanggal') || cleanKey.includes('tgl') || 
+                          cleanKey.includes('tmt') || cleanKey.includes('lahir') || 
+                          cleanKey.includes('birth');
+        const isIsoString = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?Z?)?$/.test(val.trim());
+        if (isDateKey || isIsoString) {
+          finalData[key] = formatDateToDDMMYYYY(val);
+        }
+      }
+    });
   }
 
   const cleanUrl = appsScriptUrl.trim();
@@ -852,6 +924,32 @@ export const syncTableBatchRemote = async (moduleName: string, items: any[]): Pr
   const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
   if (!appsScriptUrl || appsScriptUrl.trim() === '') return false;
   
+  const normalizedItems = (items || []).map(item => {
+    if (!item || typeof item !== 'object') return item;
+    const cloned = { ...item };
+    if (moduleName.toUpperCase().trim() === 'PEGAWAI') {
+      const resolved = resolvePegawaiPendidikanDanJurusan(cloned);
+      if (resolved.pendidikan) cloned.pendidikan = resolved.pendidikan;
+      if (resolved.jurusan) cloned.jurusan = resolved.jurusan;
+      if (cloned.foto) cloned.foto = formatDrivePhotoUrl(cloned.foto);
+    }
+    Object.keys(cloned).forEach(key => {
+      const val = cloned[key];
+      if (typeof val === 'string') {
+        const cleanKey = key.toLowerCase().replace(/[\s_]/g, '');
+        if (cleanKey === 'updatedat' || cleanKey === 'createdat' || cleanKey === 'timestamp') return;
+        const isDateKey = cleanKey.includes('tanggal') || cleanKey.includes('tgl') || 
+                          cleanKey.includes('tmt') || cleanKey.includes('lahir') || 
+                          cleanKey.includes('birth');
+        const isIsoString = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?Z?)?$/.test(val.trim());
+        if (isDateKey || isIsoString) {
+          cloned[key] = formatDateToDDMMYYYY(val);
+        }
+      }
+    });
+    return cloned;
+  });
+
   const cleanUrl = appsScriptUrl.trim();
   try {
     const useBackend = await checkBackend();
@@ -865,7 +963,7 @@ export const syncTableBatchRemote = async (moduleName: string, items: any[]): Pr
         spreadsheetId,
         driveFolderId,
         timestamp: new Date().toISOString(),
-        payload: items
+        payload: normalizedItems
       })
     });
     if (response.ok) {
@@ -1261,22 +1359,12 @@ export const mapPegawaiCols = (cols: string[], headers: string[]): Pegawai | nul
         const gol = (get('GOLRUANG') || get('GOLONGAN') || get('PANGKATGOL') || '').trim();
         return getPangkatFromGol(gol) || '';
       })(), 
-      foto: get('FOTO') || get('FOTOURL') || get('PHOTO'),
+      foto: formatDrivePhotoUrl(get('FOTO') || get('FOTOURL') || get('PHOTO')),
       tmtPangkat: get('TMTPANGKAT') || get('TMT_PANGKAT'), 
       tmtJabatan: get('TMTJABATAN') || get('TMT_JABATAN'), 
       tmtCpns: get('TMTSTATUS') || get('TMTCPNS') || get('TMT_ASN'),
-      pendidikan: (() => {
-        const rawEdu = (get('PENDIDIKAN') || get('PEND') || '').trim();
-        if (rawEdu && rawEdu !== '-' && rawEdu.toUpperCase() !== 'LAINNYA') return rawEdu;
-        const resolved = resolveUserPendidikan(nama);
-        return resolved?.pendidikan || rawEdu || '';
-      })(), 
-      jurusan: (() => {
-        const rawJur = (get('JURUSAN') || '').trim();
-        if (rawJur && rawJur !== '-') return rawJur;
-        const resolved = resolveUserPendidikan(nama);
-        return resolved?.jurusan || rawJur || '';
-      })(), 
+      pendidikan: (get('PENDIDIKAN') || get('PEND') || '').trim(), 
+      jurusan: (get('JURUSAN') || '').trim(), 
       nik: (get('NIK') || get('NO_NIK')).replace(/\D/g, ''),
       masaKerja: get('MASAKERJA') || get('MK_TOTAL'), 
       tempatLahir: get('TEMPATLAHIR') || get('TMP_LAHIR'), 
@@ -1312,6 +1400,16 @@ export const mapPegawaiCols = (cols: string[], headers: string[]): Pegawai | nul
       riwayatPenghargaan: getJson('RIWAYATPENGHARGAAN'),
       keluarga: getJson('KELUARGA')
     } as Pegawai;
+
+    // Enrich Pendidikan & Jurusan based on riwayatPendidikan, or fallback to gelar terakhir
+    const eduResolved = resolvePegawaiPendidikanDanJurusan({
+      nama: p.nama,
+      riwayatPendidikan: p.riwayatPendidikan,
+      pendidikan: p.pendidikan,
+      jurusan: p.jurusan
+    });
+    if (eduResolved.pendidikan) p.pendidikan = eduResolved.pendidikan;
+    if (eduResolved.jurusan) p.jurusan = eduResolved.jurusan;
 
     // A. Classification & Grade Enrichment (Permenkumham No. 38 Tahun 2025)
     const determinedClass = getJabatanClassification(p);
@@ -1645,7 +1743,7 @@ export const fetchKenaikanFromSheets = (bypassCache = false) => fetchTableData<K
     return { id: get('ID'), nip: get('NIP'), namaPegawai: get('NAMAPEGAWAI'), dari: get('DARI'), menjadi: get('MENJADI'), status: get('STATUS') } as KenaikanKarir;
 }, bypassCache);
 
-export const uploadFileToDrive = async (fileName: string, mimeType: string, base64: string): Promise<{ success: boolean; fileUrl?: string; message?: string }> => {
+export const uploadFileToDrive = async (fileName: string, mimeType: string, base64: string): Promise<{ success: boolean; fileUrl?: string; directUrl?: string; fileId?: string; message?: string }> => {
     const { appsScriptUrl, spreadsheetId, driveFolderId } = getDbConfig();
     if (!appsScriptUrl || appsScriptUrl.trim() === '') {
         return { success: false, message: "URL Apps Script tidak dikonfigurasi." };
@@ -1692,7 +1790,13 @@ export const uploadFileToDrive = async (fileName: string, mimeType: string, base
         const text = await response.text();
         try {
             const result = JSON.parse(text);
-            if (!result.success) {
+            if (result.success) {
+                const driveId = result.fileId || extractGoogleDriveFileId(result.directUrl || result.fileUrl || result.viewUrl);
+                if (driveId) {
+                    result.fileUrl = `https://lh3.googleusercontent.com/d/${driveId}`;
+                    result.directUrl = `https://lh3.googleusercontent.com/d/${driveId}`;
+                }
+            } else {
                 const rawMsg = result.message || "Gagal memproses file di server Google.";
                 if (
                     rawMsg.includes('存取遭拒') || 
@@ -2078,6 +2182,15 @@ export const savePegawai = async (pegawai: Partial<Pegawai>): Promise<boolean> =
   calculatedFields.forEach(field => {
     delete (payload as any)[field];
   });
+
+  // Resolve Pendidikan & Jurusan based on riwayatPendidikan or gelar terakhir
+  const eduResolved = resolvePegawaiPendidikanDanJurusan(payload);
+  if (eduResolved.pendidikan) payload.pendidikan = eduResolved.pendidikan;
+  if (eduResolved.jurusan) payload.jurusan = eduResolved.jurusan;
+
+  if (payload.foto) {
+    payload.foto = formatDrivePhotoUrl(payload.foto);
+  }
   
   if (payload.jabatan) {
     payload.kelasJabatan = getKelasJabatanPermenkumham38(payload.jabatan, payload.eselon, payload.golRuang) || payload.kelasJabatan;
