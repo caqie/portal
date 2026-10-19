@@ -149,7 +149,7 @@ export const SIMPEG_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
     pemakaianIjazah: '-'
   },
   {
-    jenjang: 'SMP',
+    jenjang: 'SMP/SLTP',
     institusi: 'SLTP KARANGANYAR DUMAI',
     namaSekolah: 'SLTP KARANGANYAR DUMAI',
     jurusan: '-',
@@ -161,7 +161,7 @@ export const SIMPEG_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
     pemakaianIjazah: '-'
   },
   {
-    jenjang: 'SMA/SMK',
+    jenjang: 'SMA/SMU/SMK',
     institusi: 'SMAN 6 PEKANBARU',
     namaSekolah: 'SMAN 6 PEKANBARU',
     jurusan: 'IPA',
@@ -173,7 +173,7 @@ export const SIMPEG_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
     pemakaianIjazah: '-'
   },
   {
-    jenjang: 'D4/S1',
+    jenjang: 'S1',
     institusi: 'SARJANA UNIV. MUHAMMADIYAH JAKARTA',
     namaSekolah: 'SARJANA UNIV. MUHAMMADIYAH JAKARTA',
     jurusan: 'HUKUM PIDANA',
@@ -1255,7 +1255,7 @@ export const ANDRIEANSJAH_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
     pemakaianIjazah: '-'
   },
   {
-    jenjang: 'SLTP',
+    jenjang: 'SMP/SLTP',
     institusi: '-',
     namaSekolah: '-',
     jurusan: '-',
@@ -1265,7 +1265,7 @@ export const ANDRIEANSJAH_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
     pemakaianIjazah: '-'
   },
   {
-    jenjang: 'SLTA',
+    jenjang: 'SMA/SMU/SMK',
     institusi: '-',
     namaSekolah: '-',
     jurusan: '-',
@@ -1330,7 +1330,7 @@ export const YASMON_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
     pemakaianIjazah: 'Pertama'
   },
   {
-    jenjang: 'SLTP',
+    jenjang: 'SMP/SLTP',
     institusi: 'SMP Negeri 1',
     namaSekolah: 'SMP Negeri 1',
     jurusan: '-',
@@ -1342,7 +1342,7 @@ export const YASMON_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
     pemakaianIjazah: 'Pertama'
   },
   {
-    jenjang: 'SLTA',
+    jenjang: 'SMA/SMU/SMK',
     institusi: 'SMA Negeri 1',
     namaSekolah: 'SMA Negeri 1',
     jurusan: 'A1 (Fisika)',

@@ -612,20 +612,45 @@ export const STANDARD_JENJANG_LIST = [
 
 export const normalizeStandardJenjang = (val?: string): string => {
   if (!val) return '';
-  const s = val.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const raw = val.trim();
+  const s = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!s) return '';
-  if (s.startsWith('S3') || s.includes('DOKTOR') || s.includes('PHD')) return 'S3';
-  if (s.startsWith('S2') || s.includes('MAGISTER') || s.includes('MASTER')) return 'S2';
-  if (s.includes('PROFESI') || s.includes('SPESIALIS')) return 'Profesi';
-  if (s.startsWith('S1') || s.includes('SARJANA')) return 'S1';
-  if (s.startsWith('DIV') || s.startsWith('D4') || s.includes('TERAPAN')) return 'DIV';
-  if (s.startsWith('DIII') || s.startsWith('D3') || s.includes('AHLIMADYA')) return 'DIII';
-  if (s.startsWith('DII') || s.startsWith('D2')) return 'DII';
-  if (s.startsWith('DI') || s.startsWith('D1')) return 'DI';
-  if (s.includes('SMA') || s.includes('SMK') || s.includes('SMU') || s.includes('SLTA') || s.includes('ALIYAH') || s.includes('STM') || s.includes('SMEA') || s.includes('DIKMEN')) return 'SMA/SMU/SMK';
-  if (s.includes('SMP') || s.includes('SLTP') || s.includes('MTS') || s.includes('TSANAWIYAH') || s.includes('DIKDAS')) return 'SMP/SLTP';
-  if (s.includes('SD') || s.includes('IBTIDAIYAH') || s.includes('DASAR')) return 'SD';
-  return val.trim();
+
+  // Direct match against standard list
+  if (raw === 'SD') return 'SD';
+  if (raw === 'SMP/SLTP') return 'SMP/SLTP';
+  if (raw === 'SMA/SMU/SMK') return 'SMA/SMU/SMK';
+  if (raw === 'DIII') return 'DIII';
+  if (raw === 'DIV') return 'DIV';
+  if (raw === 'S1') return 'S1';
+  if (raw === 'S2') return 'S2';
+  if (raw === 'S3') return 'S3';
+
+  // S3 / Doktor
+  if (s === 'S3' || s.startsWith('S3') || s.includes('DOKTOR') || s.includes('PHD') || s.includes('DOCTOR')) return 'S3';
+
+  // S2 / Magister
+  if (s === 'S2' || s.startsWith('S2') || s.includes('MAGISTER') || s.includes('MASTER') || s.includes('PASCA')) return 'S2';
+
+  // D4 / DIV
+  if (s === 'DIV' || s === 'D4' || s.startsWith('DIV') || s.startsWith('D4') || s.includes('DIPLOMA4') || s.includes('DIPLOMAIV') || s.includes('SARJANATERAPAN') || s.includes('TERAPAN')) return 'DIV';
+
+  // S1 / Sarjana (including D4/S1)
+  if (s === 'S1' || s.startsWith('S1') || s.includes('SARJANA') || s.includes('D4S1') || s.includes('S1D4') || s.includes('PROFESI') || s.includes('SPESIALIS')) return 'S1';
+
+  // D3 / DIII
+  if (s === 'DIII' || s === 'D3' || s.startsWith('DIII') || s.startsWith('D3') || s.includes('DIPLOMA3') || s.includes('DIPLOMAIII') || s.includes('AHLIMADYA') || s.includes('SARJANAMUDA') || s.includes('D2') || s.includes('D1') || s.includes('DII') || s.includes('DI')) return 'DIII';
+
+  // SMA/SMU/SMK / SLTA
+  if (s === 'SMA' || s === 'SMK' || s === 'SMU' || s === 'SLTA' || s === 'SMASMUSMK' || s === 'SMASMK' || s.includes('SLTA') || s.includes('SMA') || s.includes('SMK') || s.includes('SMU') || s.includes('ALIYAH') || s.includes('STM') || s.includes('SMEA') || s.includes('ATAS') || s.includes('KEJURUAN') || s.includes('DIKMEN')) return 'SMA/SMU/SMK';
+
+  // SMP/SLTP
+  if (s === 'SMP' || s === 'SLTP' || s === 'SMPSLTP' || s.includes('SLTP') || s.includes('SMP') || s.includes('MTS') || s.includes('TSANAWIYAH') || s.includes('PERTAMA') || s.includes('DIKDAS')) return 'SMP/SLTP';
+
+  // SD
+  if (s === 'SD' || s.startsWith('SD') || s.includes('IBTIDAIYAH') || s.includes('DASAR')) return 'SD';
+
+  return raw;
 };
 
 export const alignEducationRow = (row: any): any => {
@@ -672,24 +697,32 @@ export const alignEducationRow = (row: any): any => {
   };
 
   // Case 1: Row index number shifted into jenjang (e.g. jenjang: "1")
-  if (/^\d+$/.test(jenjang) && normalizeStandardJenjang(institusi)) {
-    jenjang = institusi;
-    institusi = jurusan;
-    jurusan = tahunLulus;
-    tahunLulus = nomorIjazah;
-    nomorIjazah = '-';
+  if (/^\d+$/.test(jenjang)) {
+    if (normalizeStandardJenjang(institusi)) {
+      jenjang = institusi;
+      institusi = jurusan;
+      jurusan = tahunLulus;
+      tahunLulus = nomorIjazah;
+      nomorIjazah = '-';
+    } else {
+      jenjang = '';
+    }
   }
 
-  // Case 2: School name shifted into jenjang (e.g. jenjang: "UNIVERSITAS 17 AGUSTUS")
-  if (isSchool(jenjang) && !normalizeStandardJenjang(jenjang)) {
+  // Case 2: Swapped Jenjang & Institusi (e.g. jenjang: "UNIVERSITAS PADJADJARAN", institusi: "S3")
+  if (isSchool(jenjang) && normalizeStandardJenjang(institusi)) {
+    const tempJ = normalizeStandardJenjang(institusi);
+    institusi = jenjang;
+    jenjang = tempJ;
+  } else if (isSchool(jenjang) && !normalizeStandardJenjang(jenjang)) {
     const oldJenjang = jenjang;
-    jenjang = '';
     if (isMajor(institusi)) {
       jurusan = institusi;
       institusi = oldJenjang;
     } else {
       institusi = oldJenjang;
     }
+    jenjang = '';
   }
 
   // Case 3: Institusi and Jurusan are inverted (institusi is a major, jurusan is a school)
@@ -727,22 +760,24 @@ export const alignEducationRow = (row: any): any => {
   // Case 7: Institusi contains person name (Kepala Sekolah / Rektor)
   if (isPerson(institusi)) {
     if (!kepalaSekolah) kepalaSekolah = institusi;
-    institusi = isSchool(alamatSekolah) ? alamatSekolah : (row.namaSekolah || '-');
+    institusi = isSchool(alamatSekolah) ? alamatSekolah : (row.namaSekolah && !isPerson(row.namaSekolah) ? row.namaSekolah : '-');
   }
 
-  // Standardize jenjang value
+  // Standardize jenjang value strictly into SD, SMP/SLTP, SMA/SMU/SMK, DIII, DIV, S1, S2, S3
   let stdJenjang = normalizeStandardJenjang(jenjang);
-  if (!stdJenjang) {
+  if (!stdJenjang || !['SD', 'SMP/SLTP', 'SMA/SMU/SMK', 'DIII', 'DIV', 'S1', 'S2', 'S3'].includes(stdJenjang)) {
     stdJenjang = normalizeStandardJenjang(institusi) || normalizeStandardJenjang(row.namaSekolah) || normalizeStandardJenjang(jurusan);
-    if (!stdJenjang) {
-      const instUp = institusi.toUpperCase();
+    if (!stdJenjang || !['SD', 'SMP/SLTP', 'SMA/SMU/SMK', 'DIII', 'DIV', 'S1', 'S2', 'S3'].includes(stdJenjang)) {
+      const instUp = (institusi || '').toUpperCase();
       if (instUp.includes('UNIVERSITAS') || instUp.includes('INSTITUT') || instUp.includes('FAKULTAS')) {
         stdJenjang = 'S1';
-      } else if (instUp.includes('SMAN') || instUp.includes('SMA') || instUp.includes('SMK') || instUp.includes('SLTA')) {
+      } else if (instUp.includes('POLITEKNIK') || instUp.includes('AKADEMI')) {
+        stdJenjang = 'DIII';
+      } else if (instUp.includes('SMAN') || instUp.includes('SMA') || instUp.includes('SMK') || instUp.includes('SMU') || instUp.includes('SLTA')) {
         stdJenjang = 'SMA/SMU/SMK';
-      } else if (instUp.includes('SMP') || instUp.includes('SLTP')) {
+      } else if (instUp.includes('SMP') || instUp.includes('SLTP') || instUp.includes('MTS')) {
         stdJenjang = 'SMP/SLTP';
-      } else if (instUp.includes('SD')) {
+      } else if (instUp.includes('SD') || instUp.includes('DASAR')) {
         stdJenjang = 'SD';
       } else {
         stdJenjang = jenjang || '-';
@@ -750,7 +785,7 @@ export const alignEducationRow = (row: any): any => {
     }
   }
 
-  // SD and SMP do not have a major (clear city from jurusan)
+  // SD and SMP do not have a major (clear city/location from jurusan)
   if (stdJenjang === 'SD' || stdJenjang === 'SMP/SLTP') {
     if (jurusan && !isMajor(jurusan)) {
       if (!alamatSekolah && jurusan !== '-') alamatSekolah = jurusan;

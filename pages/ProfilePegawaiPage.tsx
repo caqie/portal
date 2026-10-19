@@ -318,22 +318,17 @@ const enrichPegawaiData = (found: Pegawai): Pegawai => {
     }
   } else {
     sanitizedPendidikan = sanitizedPendidikan.map(p => {
-      const clone = { ...p };
-      const dateRegex = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
-      if (dateRegex.test((clone.tahunLulus || '').trim())) {
-        const dt = parseDateToYYYYMMDD(clone.tahunLulus) || clone.tahunLulus;
-        clone.tanggalIjazah = clone.tanggalIjazah || dt;
-        clone.tahunLulus = dt.slice(0, 4);
+      const aligned = alignEducationRow(p);
+      if (
+        aligned.jenjang !== p.jenjang ||
+        aligned.institusi !== p.institusi ||
+        aligned.jurusan !== p.jurusan ||
+        aligned.tahunLulus !== p.tahunLulus ||
+        aligned.nomorIjazah !== p.nomorIjazah
+      ) {
         pendidikanWasRepaired = true;
       }
-      if ((!clone.institusi || clone.institusi === '-') && clone.namaSekolah && clone.namaSekolah !== '-') {
-        clone.institusi = clone.namaSekolah;
-        pendidikanWasRepaired = true;
-      } else if ((!clone.namaSekolah || clone.namaSekolah === '-') && clone.institusi && clone.institusi !== '-') {
-        clone.namaSekolah = clone.institusi;
-        pendidikanWasRepaired = true;
-      }
-      return clone;
+      return aligned;
     });
   }
 
@@ -1478,14 +1473,16 @@ const ProfilePegawaiPage = () => {
 
   const hasShiftedPendidikan = useMemo(() => {
     return (pegawai?.riwayatPendidikan || []).some(p => {
+      const std = normalizeStandardJenjang(p.jenjang);
+      const isInvalidJenjang = !std || !['SD', 'SMP/SLTP', 'SMA/SMU/SMK', 'DIII', 'DIV', 'S1', 'S2', 'S3'].includes(std);
       const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
       const isTahunDate = datePattern.test((p.tahunLulus || '').trim());
       const isNomorIjazahDate = datePattern.test((p.nomorIjazah || '').trim());
       const isMissingInstitusiWithMajor = (p.institusi === '-' || !p.institusi) && p.jurusan && p.jurusan !== '-' && (p.jurusan.toUpperCase().includes('HUKUM') || p.jurusan.toUpperCase().includes('MANAJEMEN'));
-      const isSdOrSmpWithAddressAsMajor = ['SD', 'SMP', 'SLTP'].includes((p.jenjang || '').toUpperCase().trim()) && p.jurusan && p.jurusan !== '-' && ['SANINGBAKAR', 'SOLOK', 'PADANG', 'JAKARTA', 'DUMAI'].includes(p.jurusan.toUpperCase().trim());
+      const isSdOrSmpWithAddressAsMajor = ['SD', 'SMP', 'SLTP', 'SMP/SLTP'].includes((p.jenjang || '').toUpperCase().trim()) && p.jurusan && p.jurusan !== '-' && ['SANINGBAKAR', 'SOLOK', 'PADANG', 'JAKARTA', 'DUMAI'].includes(p.jurusan.toUpperCase().trim());
       const isKepalaSekolahAsInstitusi = ['NURSAL SALEH', 'ANIZAR', 'NAZIR BUSTAMI', 'JURNALIS KAMIL', 'BLAKE'].some(k => (p.institusi || '').toUpperCase().includes(k));
       const isCorruptedLongText = (p.institusi || '').length > 40 || (p.nomorIjazah || '').length > 35;
-      return isTahunDate || isNomorIjazahDate || isMissingInstitusiWithMajor || isSdOrSmpWithAddressAsMajor || isKepalaSekolahAsInstitusi || isCorruptedLongText;
+      return isInvalidJenjang || isTahunDate || isNomorIjazahDate || isMissingInstitusiWithMajor || isSdOrSmpWithAddressAsMajor || isKepalaSekolahAsInstitusi || isCorruptedLongText;
     });
   }, [pegawai?.riwayatPendidikan]);
 
@@ -1506,44 +1503,7 @@ const ProfilePegawaiPage = () => {
       setShowSuccess(true);
       return;
     }
-    const fixed = (pegawai.riwayatPendidikan || []).map(p => {
-      const clone = { ...p };
-      const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
-      
-      // If tahunLulus contains a full date or invalid text
-      if (datePattern.test((clone.tahunLulus || '').trim())) {
-        const parsed = parseDateToYYYYMMDD(clone.tahunLulus) || clone.tahunLulus;
-        clone.tanggalIjazah = clone.tanggalIjazah || parsed;
-        clone.tahunLulus = parsed.slice(0, 4);
-      } else if (!/^\d{4}$/.test((clone.tahunLulus || '').trim()) && clone.tanggalIjazah) {
-        const parsed = parseDateToYYYYMMDD(clone.tanggalIjazah);
-        if (parsed) clone.tahunLulus = parsed.slice(0, 4);
-      }
-
-      // If nomorIjazah contains a date
-      if (datePattern.test((clone.nomorIjazah || '').trim())) {
-        if (!clone.tanggalIjazah) {
-          clone.tanggalIjazah = parseDateToYYYYMMDD(clone.nomorIjazah) || clone.nomorIjazah;
-        }
-        clone.nomorIjazah = '-';
-      }
-
-      // SD and SMP/SLTP should not have a city as jurusan
-      const jNorm = (clone.jenjang || '').toUpperCase().trim();
-      if (['SD', 'SMP', 'SLTP'].includes(jNorm)) {
-        if (clone.jurusan && clone.jurusan !== '-' && !clone.jurusan.toUpperCase().includes('HUKUM') && !clone.jurusan.toUpperCase().includes('TEKNIK')) {
-          if (!clone.alamatSekolah) clone.alamatSekolah = clone.jurusan;
-          clone.jurusan = '-';
-        }
-      }
-
-      if ((!clone.institusi || clone.institusi === '-') && clone.namaSekolah && clone.namaSekolah !== '-') {
-        clone.institusi = clone.namaSekolah;
-      } else if ((!clone.namaSekolah || clone.namaSekolah === '-') && clone.institusi && clone.institusi !== '-') {
-        clone.namaSekolah = clone.institusi;
-      }
-      return clone;
-    });
+    const fixed = (pegawai.riwayatPendidikan || []).map(p => alignEducationRow(p));
     await handleApplySimpegData('pendidikan', 'REPLACE', fixed);
     setSyncing(false);
     setSuccessMsg('Riwayat Pendidikan berhasil diperbaiki dan diselaraskan!');
@@ -2897,77 +2857,143 @@ const ProfilePegawaiPage = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 font-sans">
-                          {(pegawai.riwayatPendidikan || []).map((p, idx) => (
-                            <tr key={`${p.jenjang}-${p.institusi}-${idx}`} className="hover:bg-indigo-50/30 transition-colors">
-                              <td className="py-3 px-3 text-center text-[10px] font-bold text-gray-400">{idx + 1}</td>
-                              <td className="py-3 px-4">
-                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded font-black text-[9px] uppercase">
-                                  {p.jenjang || '-'}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 font-bold text-gray-900 uppercase text-[11px]">{p.institusi || p.namaSekolah || '-'}</td>
-                              <td className="py-3 px-4 text-gray-600 uppercase text-[11px]">{p.jurusan || '-'}</td>
-                              <td className="py-3 px-3 text-center font-mono font-bold text-gray-800 text-[10px]">{p.tahunLulus?.includes('/') || p.tahunLulus?.includes('-') ? (parseDateToYYYYMMDD(p.tahunLulus) || p.tahunLulus).slice(0, 4) : (p.tahunLulus || '-')}</td>
-                              <td className="py-3 px-4 font-mono text-gray-600 text-[10px] uppercase">{p.nomorIjazah || '-'}</td>
-                              <td className="py-3 px-3 text-center">
-                                <div className="flex items-center justify-center gap-1">
-                                  {p.fileUrl ? (
-                                    <>
-                                      <button
-                                        type="button"
-                                        onClick={() => window.open(p.fileUrl || '', '_blank')}
-                                        className="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-colors text-xs"
-                                        title="Lihat Ijazah"
-                                      >
-                                        <i className="bi bi-eye"></i>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDownload(p.fileUrl || '')}
-                                        className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors text-xs"
-                                        title="Unduh Ijazah"
-                                      >
-                                        <i className="bi bi-download"></i>
-                                      </button>
-                                    </>
+                          {(pegawai.riwayatPendidikan || []).map((rawP, idx) => {
+                            const p = alignEducationRow(rawP);
+                            const stdJenjang = normalizeStandardJenjang(p.jenjang) || p.jenjang || '-';
+                            return (
+                              <tr key={`${p.jenjang}-${p.institusi}-${idx}`} className="hover:bg-indigo-50/30 transition-colors">
+                                <td className="py-3 px-3 text-center text-[10px] font-bold text-gray-400">{idx + 1}</td>
+                                <td className="py-3 px-4 min-w-[130px]">
+                                  {isEditing ? (
+                                    <select
+                                      className="w-full px-2 py-1 bg-white border border-indigo-200 rounded-lg text-[10px] font-bold text-indigo-900 outline-none focus:ring-1 focus:ring-indigo-500"
+                                      value={stdJenjang}
+                                      onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jenjang', e.target.value)}
+                                    >
+                                      <option value="">Pilih</option>
+                                      {STANDARD_JENJANG_LIST.map(j => (
+                                        <option key={j} value={j}>{j}</option>
+                                      ))}
+                                    </select>
                                   ) : (
-                                    <span className="text-[9px] text-gray-300 italic">-</span>
+                                    <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md font-black text-[9px] uppercase tracking-wide inline-block shadow-2xs">
+                                      {stdJenjang}
+                                    </span>
                                   )}
-                                  {isEditing && (
+                                </td>
+                                <td className="py-3 px-4 min-w-[200px]">
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      className="w-full px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-[11px] font-bold uppercase outline-none focus:ring-1 focus:ring-indigo-500"
+                                      value={p.institusi || p.namaSekolah || ''}
+                                      onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'institusi', e.target.value)}
+                                      placeholder="Nama Sekolah / PT"
+                                    />
+                                  ) : (
+                                    <span className="font-bold text-gray-900 uppercase text-[11px] leading-snug">{p.institusi || p.namaSekolah || '-'}</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 min-w-[180px]">
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      className="w-full px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-[11px] font-bold uppercase outline-none focus:ring-1 focus:ring-indigo-500"
+                                      value={p.jurusan || ''}
+                                      onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jurusan', e.target.value)}
+                                      placeholder="Jurusan / Prodi"
+                                    />
+                                  ) : (
+                                    <span className="text-gray-600 font-semibold uppercase text-[11px]">{p.jurusan || '-'}</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3 text-center min-w-[70px]">
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      maxLength={4}
+                                      className="w-16 mx-auto text-center px-1 py-1 bg-white border border-gray-200 rounded-lg text-[11px] font-mono font-bold outline-none focus:ring-1 focus:ring-indigo-500"
+                                      value={p.tahunLulus || ''}
+                                      onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'tahunLulus', e.target.value)}
+                                      placeholder="YYYY"
+                                    />
+                                  ) : (
+                                    <span className="font-mono font-bold text-gray-800 text-[10px]">{p.tahunLulus || '-'}</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 min-w-[140px]">
+                                  {isEditing ? (
+                                    <input
+                                      type="text"
+                                      className="w-full px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-[10px] font-mono uppercase outline-none focus:ring-1 focus:ring-indigo-500"
+                                      value={p.nomorIjazah || ''}
+                                      onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'nomorIjazah', e.target.value)}
+                                      placeholder="Nomor Ijazah"
+                                    />
+                                  ) : (
+                                    <span className="font-mono text-gray-600 text-[10px] uppercase">{p.nomorIjazah || '-'}</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {p.fileUrl ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => window.open(p.fileUrl || '', '_blank')}
+                                          className="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                          title="Lihat Ijazah"
+                                        >
+                                          <i className="bi bi-eye"></i>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDownload(p.fileUrl || '')}
+                                          className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                          title="Unduh Ijazah"
+                                        >
+                                          <i className="bi bi-download"></i>
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span className="text-[9px] text-gray-300 italic">-</span>
+                                    )}
+                                    {isEditing && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const input = document.createElement('input');
+                                          input.type = 'file';
+                                          input.accept = 'application/pdf';
+                                          input.onchange = (e: any) => {
+                                            const file = e.target.files[0];
+                                            if (file) handleUploadHistoryFile('riwayatPendidikan', idx, file);
+                                          };
+                                          input.click();
+                                        }}
+                                        className="h-7 w-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-colors text-xs"
+                                        title="Unggah Berkas Ijazah (PDF)"
+                                      >
+                                        <i className="bi bi-upload"></i>
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                                {isEditing && (
+                                  <td className="py-3 px-3 text-center">
                                     <button
                                       type="button"
-                                      onClick={() => {
-                                        const input = document.createElement('input');
-                                        input.type = 'file';
-                                        input.accept = 'application/pdf';
-                                        input.onchange = (e: any) => {
-                                          const file = e.target.files[0];
-                                          if (file) handleUploadHistoryFile('riwayatPendidikan', idx, file);
-                                        };
-                                        input.click();
-                                      }}
-                                      className="h-7 w-7 rounded-lg bg-gray-100 text-gray-500 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-colors text-xs"
-                                      title="Unggah Berkas Ijazah (PDF)"
+                                      onClick={() => removeHistoryItem('riwayatPendidikan', idx)}
+                                      className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white flex items-center justify-center transition-colors mx-auto text-xs"
+                                      title="Hapus riwayat pendidikan ini"
                                     >
-                                      <i className="bi bi-upload"></i>
+                                      <i className="bi bi-trash3"></i>
                                     </button>
-                                  )}
-                                </div>
-                              </td>
-                              {isEditing && (
-                                <td className="py-3 px-3 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => removeHistoryItem('riwayatPendidikan', idx)}
-                                    className="h-7 w-7 rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-600 hover:text-white flex items-center justify-center transition-colors mx-auto text-xs"
-                                    title="Hapus riwayat pendidikan ini"
-                                  >
-                                    <i className="bi bi-trash3"></i>
-                                  </button>
-                                </td>
-                              )}
-                            </tr>
-                          ))}
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -2977,7 +3003,10 @@ const ProfilePegawaiPage = () => {
                 {/* CARD FORM VIEW */}
                 {pendidikanViewMode === 'card' && (
                   <div className="space-y-4">
-                    {(pegawai.riwayatPendidikan || []).map((p, idx) => (
+                    {(pegawai.riwayatPendidikan || []).map((rawP, idx) => {
+                      const p = alignEducationRow(rawP);
+                      const stdJenjang = normalizeStandardJenjang(p.jenjang) || p.jenjang || '-';
+                      return (
                       <div key={`${p.jenjang}-${p.institusi}-${idx}`} className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 relative group">
                         {isEditing && (
                           <button onClick={() => removeHistoryItem('riwayatPendidikan', idx)} className="absolute top-4 right-4 h-8 w-8 bg-white text-rose-400 rounded-lg flex items-center justify-center hover:text-rose-600 shadow-sm md:opacity-0 group-hover:opacity-100 transition-all">
@@ -2988,18 +3017,14 @@ const ProfilePegawaiPage = () => {
                           <div className="space-y-1">
                             <label className="text-[8px] font-black text-gray-400 uppercase ml-2">Jenjang</label>
                             {isEditing ? (
-                              <select className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={p.jenjang} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jenjang', e.target.value)}>
-                                <option value="">Pilih</option>
-                                <option value="SD">SD</option>
-                                <option value="SMP">SMP</option>
-                                <option value="SMA/SMK">SMA/SMK</option>
-                                <option value="D3">D3</option>
-                                <option value="D4/S1">D4/S1</option>
-                                <option value="S2">S2</option>
-                                <option value="S3">S3</option>
+                              <select className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-[11px] font-bold outline-none" value={stdJenjang} onChange={e => updateHistoryItem('riwayatPendidikan', idx, 'jenjang', e.target.value)}>
+                                <option value="">Pilih Jenjang</option>
+                                {STANDARD_JENJANG_LIST.map(j => (
+                                  <option key={j} value={j}>{j}</option>
+                                ))}
                               </select>
                             ) : (
-                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{p.jenjang || '-'}</div>
+                              <div className="px-4 py-2.5 bg-white/50 border border-transparent rounded-xl text-[11px] font-bold text-gray-900 select-all">{stdJenjang}</div>
                             )}
                           </div>
                           <div className="space-y-1 md:col-span-2">
@@ -3067,7 +3092,8 @@ const ProfilePegawaiPage = () => {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );
+                  })}
                   </div>
                 )}
 
