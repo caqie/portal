@@ -1,4 +1,3 @@
-
 import { TaskType } from './types';
 import { LOGO_DJKI_URL } from './assets/branding';
 
@@ -81,7 +80,6 @@ export const normalizeUnitName = (rawUnit?: string, rawBagian?: string, rawJabat
   const combined = `${u} ${b} ${j}`.trim();
   if (!combined) return 'LAINNYA';
 
-  // 1. Pimpinan Tinggi Madya / Dirjen DJKI (Bukan bagian dari Sekretariat / Eselon II)
   if (
     j.includes('direktur jenderal kekayaan intelektual') || j === 'dirjen' || j.startsWith('direktur jenderal') ||
     j.includes('staf khusus') || j.includes('staf ahli') ||
@@ -90,7 +88,6 @@ export const normalizeUnitName = (rawUnit?: string, rawBagian?: string, rawJabat
     return 'Pimpinan DJKI';
   }
 
-  // 2. Direktorat Teknis Spesifik (Prioritas tinggi sebelum Sekretariat umum agar unit teknis tidak ketarik)
   if (combined.includes('cipta') || combined.includes('desain industri')) return UNIT_KERJA[1];
   if (combined.includes('paten') || combined.includes('dtlst') || combined.includes('sirkuit terpadu') || combined.includes('rahasia dagang')) return UNIT_KERJA[2];
   if (combined.includes('merek') || combined.includes('merk') || combined.includes('indikasi geografis')) return UNIT_KERJA[3];
@@ -98,8 +95,6 @@ export const normalizeUnitName = (rawUnit?: string, rawBagian?: string, rawJabat
   if (combined.includes('teknologi informasi') || /\b(ti|tik)\b/i.test(combined) || combined.includes('sistem informasi') || combined.includes('infrastruktur tik')) return UNIT_KERJA[5];
   if (combined.includes('penyidikan') || combined.includes('sengketa') || combined.includes('penegakan hukum') || combined.includes('gakkum') || combined.includes('penindakan')) return UNIT_KERJA[6];
 
-  // 3. Sekretariat Direktorat Jenderal Kekayaan Intelektual
-  // Termasuk bagian-bagian di bawah Sekretariat: Bagian Umum, Kepegawaian, Keuangan, Program & Pelaporan
   if (
     combined.includes('sekretariat') || combined.includes('setditjen') || combined.includes('sesditjen') ||
     combined.includes('bagian umum') || combined.includes('bagian kepegawaian') || combined.includes('bagian keuangan') || combined.includes('bagian program') ||
@@ -111,7 +106,6 @@ export const normalizeUnitName = (rawUnit?: string, rawBagian?: string, rawJabat
     return UNIT_KERJA[0];
   }
 
-  // 4. Exact / Safe prefix match: Cocokkan hanya jika nama unit pengguna mengandung nama resmi UNIT_KERJA
   for (const uk of UNIT_KERJA) {
     const ukLower = uk.toLowerCase();
     if (u === ukLower || u.startsWith(ukLower) || u.includes(ukLower)) {
@@ -132,7 +126,6 @@ export const getJabatanClassification = (p: { eselon?: string; jabatan?: string;
   const rawKl = (p.klasifikasiJabatan || '').trim().toUpperCase();
   const rawJj = (p.jenisJabatan || '').trim().toUpperCase();
 
-  // 1. DIRECT AUTHORITY: Column AN (JENIS JABATAN) & Column N & Direct Classification Codes
   if (
     rawKl === 'PIMPINAN TINGGI' || rawKl.includes('PIMPINAN TINGGI') || 
     rawJj === 'PIMPINAN TINGGI' || rawJj.includes('PIMPINAN TINGGI') ||
@@ -166,7 +159,6 @@ export const getJabatanClassification = (p: { eselon?: string; jabatan?: string;
     return 'PELAKSANA';
   }
 
-  // 2. High-level JPT Fallbacks (Eselon I & II: Direktur Jenderal, Staf Ahli, Sesditjen, Direktur, Kepala Biro/Pusat)
   if (
     j.includes('DIREKTUR JENDERAL') || j.includes('DIRJEN') ||
     j.includes('SEKRETARIS DIREKTORAT JENDERAL') || j.includes('SESDITJEN') ||
@@ -179,7 +171,6 @@ export const getJabatanClassification = (p: { eselon?: string; jabatan?: string;
     return 'JPT';
   }
 
-  // 3. STRUKTURAL (Jabatan Manajerial: Administrator / Eselon III & Pengawas / Eselon IV)
   const isStructuralLeadershipTitle = 
     j.includes('KEPALA BAGIAN') || /\bKABAG\b/.test(j) || 
     j.includes('KEPALA SUBDIREKTORAT') || /\bKASUBDIT\b/.test(j) || 
@@ -194,13 +185,10 @@ export const getJabatanClassification = (p: { eselon?: string; jabatan?: string;
     return 'STRUKTURAL';
   }
 
-  // 4. FUNGSIONAL / JFT (Jabatan Fungsional Tertentu - Keahlian & Keterampilan)
   const isExplicitFungsionalTitle = 
-    // Core DJKI Functional Positions
     j.includes('PEMERIKSA PATEN') || j.includes('PEMERIKSA MEREK') || j.includes('PEMERIKSA DESAIN') || 
     j.includes('PEMERIKSA DTLST') || j.includes('PEMERIKSA RAHASIA DAGANG') || j.includes('PEMERIKSA KIK') ||
     j.includes('ANALIS KI') || j.includes('ANALIS KEKAYAAN INTELEKTUAL') ||
-    // Common Civil Service Functional Positions (JFT)
     j.includes('PRANATA KOMPUTER') || /\bPRAKOM\b/.test(j) ||
     j.includes('ARSIPARIS') ||
     j.includes('PRANATA HUMAS') || j.includes('PRANATA HUBUNGAN MASYARAKAT') ||
@@ -215,13 +203,11 @@ export const getJabatanClassification = (p: { eselon?: string; jabatan?: string;
     j.includes('PUSTAKAWAN') || j.includes('KONSELOR') ||
     j.includes('DOKTER') || j.includes('PERAWAT') || j.includes('BIDAN') || j.includes('APOTEKER') ||
     j.includes('PRANATA LABORATORIUM') ||
-    // Functional Levels (Jenjang Keahlian & Keterampilan)
     j.includes('AHLI UTAMA') || j.includes('AHLI MADYA') || j.includes('AHLI MUDA') || j.includes('AHLI PERTAMA') ||
     j.includes('AHLI ') || j.endsWith(' AHLI') ||
     j.includes('UTAMA') || j.includes('MADYA') || j.includes('MUDA') || j.includes('PERTAMA') ||
     j.includes('PENYELIA') || j.includes('MAHIR') || j.includes('TERAMPIL') || j.includes('PEMULA') ||
     j.includes('PELAKSANA LANJUTAN') ||
-    // Subkoordinator / Koordinator
     j.includes('SUBKOORDINATOR') || j.includes('KOORDINATOR');
 
   const isFungsionalKlasifikasi = 
@@ -234,13 +220,9 @@ export const getJabatanClassification = (p: { eselon?: string; jabatan?: string;
     return 'FUNGSIONAL';
   }
 
-  // 5. Default Fallback -> PELAKSANA (Jabatan Pelaksana / Fungsional Umum / JFU)
   return 'PELAKSANA';
 };
 
-/**
- * KOMPREHENSIF GELAR MAP
- */
 export const GELAR_MAP: Record<string, { bidang: string, jenjang: string }> = {
   'Dr.Tr.': { bidang: 'Doktor Terapan', jenjang: 'S3' },
   'Dr.': { bidang: 'Doktor', jenjang: 'S3' },
@@ -327,15 +309,11 @@ export const GELAR_MAP: Record<string, { bidang: string, jenjang: string }> = {
   'Pdt.': { bidang: 'Pendeta', jenjang: 'GELAR_KEAGAMAAN' },
 };
 
-/**
- * Resolves standard education level (pendidikan) and major (jurusan) using custom business logic patterns.
- */
 export const resolveUserPendidikan = (nama: string): { pendidikan: string; jurusan: string } | null => {
   if (!nama) return null;
 
   let txt = String(nama).toUpperCase();
 
-  // rapikan tanda baca
   txt = txt
     .replace(/\./g, "")
     .replace(/,/g, " ")
@@ -343,12 +321,9 @@ export const resolveUserPendidikan = (nama: string): { pendidikan: string; jurus
     .trim();
 
   const gelarMap: Record<string, string> = {
-    // ===== S3 =====
     "DR": "S3|Doktor",
     "PHD": "S3|Doktor",
     "DPHIL": "S3|Doktor",
-
-    // ===== S2 =====
     "MH": "S2|Hukum",
     "LLM": "S2|Hukum",
     "MKN": "S2|Kenotariatan",
@@ -372,8 +347,6 @@ export const resolveUserPendidikan = (nama: string): { pendidikan: string; jurus
     "MAK": "S2|Akuntansi",
     "MIPL": "S2|Kekayaan Intelektual",
     "MIP": "S2|Kekayaan Intelektual",
-
-    // ===== S1 =====
     "SH": "S1|Hukum",
     "ST": "S1|Teknik",
     "STP": "S1|Teknologi Pertanian",
@@ -400,23 +373,17 @@ export const resolveUserPendidikan = (nama: string): { pendidikan: string; jurus
     "SAG": "S1|Agama",
     "SLING": "S1|Linguistik",
     "SHUBINT": "S1|Hubungan Internasional",
-
-    // ===== D4 =====
     "STR": "DIV|Terapan",
     "SST": "DIV|Terapan",
     "STRPAR": "DIV|Pariwisata",
     "STRAB": "DIV|Administrasi Bisnis",
     "STRPAS": "DIV|Keimigrasian",
-
-    // ===== D3 =====
     "AMD": "DIII|Diploma",
     "AMDKOM": "DIII|Komputer",
     "AMDAK": "DIII|Akuntansi",
     "AMDPAR": "DIII|Pariwisata",
     "AMDKES": "DIII|Kesehatan",
     "AMDRMIK": "DIII|Rekam Medis",
-
-    // ===== Gelar lama =====
     "IR": "S1|Teknik",
     "DRS": "S1|Umum",
     "DRA": "S1|Umum"
@@ -443,12 +410,9 @@ export const resolveUserPendidikan = (nama: string): { pendidikan: string; jurus
 };
 
 export const DEGREE_MAP_DATA: Record<string, { jenjang: string; jurusan: string; weight: number }> = {
-  // S3
   "DR": { jenjang: "S3", jurusan: "Doktor", weight: 90 },
   "PHD": { jenjang: "S3", jurusan: "Doktor", weight: 90 },
   "DPHIL": { jenjang: "S3", jurusan: "Doktor", weight: 90 },
-
-  // S2
   "MH": { jenjang: "S2", jurusan: "Ilmu Hukum", weight: 80 },
   "LLM": { jenjang: "S2", jurusan: "Ilmu Hukum", weight: 80 },
   "MKN": { jenjang: "S2", jurusan: "Kenotariatan", weight: 80 },
@@ -472,14 +436,10 @@ export const DEGREE_MAP_DATA: Record<string, { jenjang: string; jurusan: string;
   "MIPL": { jenjang: "S2", jurusan: "Kekayaan Intelektual", weight: 80 },
   "MIP": { jenjang: "S2", jurusan: "Ilmu Pemerintahan", weight: 80 },
   "MP": { jenjang: "S2", jurusan: "Pertanian", weight: 80 },
-
-  // Profesi
   "APT": { jenjang: "S1", jurusan: "Farmasi / Apoteker", weight: 75 },
   "NS": { jenjang: "S1", jurusan: "Keperawatan", weight: 75 },
   "DRG": { jenjang: "S1", jurusan: "Kedokteran Gigi", weight: 75 },
   "DOKTER": { jenjang: "S1", jurusan: "Kedokteran", weight: 75 },
-
-  // S1
   "SH": { jenjang: "S1", jurusan: "Ilmu Hukum", weight: 70 },
   "ST": { jenjang: "S1", jurusan: "Teknik", weight: 70 },
   "STP": { jenjang: "S1", jurusan: "Teknologi Pertanian", weight: 70 },
@@ -513,8 +473,6 @@ export const DEGREE_MAP_DATA: Record<string, { jenjang: string; jurusan: string;
   "IR": { jenjang: "S1", jurusan: "Teknik", weight: 70 },
   "DRS": { jenjang: "S1", jurusan: "Umum", weight: 70 },
   "DRA": { jenjang: "S1", jurusan: "Umum", weight: 70 },
-
-  // D4
   "STR": { jenjang: "DIV", jurusan: "Terapan", weight: 65 },
   "STRPAS": { jenjang: "DIV", jurusan: "Keimigrasian", weight: 65 },
   "STRKOM": { jenjang: "DIV", jurusan: "Teknik Informatika", weight: 65 },
@@ -522,8 +480,6 @@ export const DEGREE_MAP_DATA: Record<string, { jenjang: string; jurusan: string;
   "STRAB": { jenjang: "DIV", jurusan: "Administrasi Bisnis", weight: 65 },
   "STRPAR": { jenjang: "DIV", jurusan: "Pariwisata", weight: 65 },
   "SST": { jenjang: "DIV", jurusan: "Terapan", weight: 65 },
-
-  // D3
   "AMD": { jenjang: "DIII", jurusan: "Diploma", weight: 50 },
   "AMDKOM": { jenjang: "DIII", jurusan: "Komputer", weight: 50 },
   "AMDAK": { jenjang: "DIII", jurusan: "Akuntansi", weight: 50 },
@@ -533,9 +489,6 @@ export const DEGREE_MAP_DATA: Record<string, { jenjang: string; jurusan: string;
   "AMK": { jenjang: "DIII", jurusan: "Keperawatan", weight: 50 }
 };
 
-/**
- * Resolusi pendidikan dan jurusan berdasarkan gelar terakhir di nama pegawai.
- */
 export const resolveFromGelarTerakhir = (nameWithGelar: string): { pendidikan: string; jurusan: string } | null => {
   if (!nameWithGelar) return null;
   const cleanStr = String(nameWithGelar).trim();
@@ -549,7 +502,6 @@ export const resolveFromGelarTerakhir = (nameWithGelar: string): { pendidikan: s
     const afterComma = cleanStr.substring(commaIdx + 1);
     backTokens = afterComma.split(/[\s,;]+/).map(t => t.replace(/[^A-Za-z]/g, "").toUpperCase()).filter(Boolean);
   } else {
-    // If no comma, check individual words from the string for known degree tokens
     const words = cleanStr.split(/[\s,;]+/).map(t => t.replace(/[^A-Za-z]/g, "").toUpperCase()).filter(Boolean);
     backTokens = words.filter(w => DEGREE_MAP_DATA[w]);
   }
@@ -562,7 +514,7 @@ export const resolveFromGelarTerakhir = (nameWithGelar: string): { pendidikan: s
   }
 
   if (matched.length > 0) {
-    const lastDegree = matched[matched.length - 1]; // Gelar Terakhir
+    const lastDegree = matched[matched.length - 1];
     if (hasDrFront && lastDegree.weight < 90) {
       return { pendidikan: "S3", jurusan: lastDegree.jurusan ? `Doktor / ${lastDegree.jurusan}` : "Doktor" };
     }
@@ -609,16 +561,18 @@ export const STANDARD_JENJANG_LIST = [
 
 export type StandardJenjang = typeof STANDARD_JENJANG_LIST[number];
 
-export const normalizeStandardJenjang = (val?: string): string => {
+// PENTING: Ekspor JENJANG_PENDIDIKAN_LIST untuk memuaskan impor komponen formulir
+export const JENJANG_PENDIDIKAN_LIST = STANDARD_JENJANG_LIST;
+
+export const normalizeStandardJenjang = (val?: any): StandardJenjang | string => {
   if (!val) return '';
   const raw = String(val).trim();
-  if (STANDARD_JENJANG_LIST.includes(raw as any)) return raw;
+  if (STANDARD_JENJANG_LIST.includes(raw as any)) return raw as StandardJenjang;
 
   const upper = raw.toUpperCase();
   const s = upper.replace(/[^A-Z0-9]/g, '');
   if (!s) return '';
 
-  // 1. Direct standard matches
   if (s === 'SD') return 'SD';
   if (s === 'SMPSLTP' || s === 'SMP' || s === 'SLTP') return 'SMP/SLTP';
   if (s === 'SMASMUSMK' || s === 'SMASMK' || s === 'SMA' || s === 'SMU' || s === 'SMK' || s === 'SLTA') return 'SMA/SMU/SMK';
@@ -628,10 +582,8 @@ export const normalizeStandardJenjang = (val?: string): string => {
   if (s === 'S2') return 'S2';
   if (s === 'S3') return 'S3';
 
-  // Multi-degree combined forms (e.g. D4/S1, S1/D4) - normalize to S1 by default
   if (s.includes('D4S1') || s.includes('S1D4')) return 'S1';
 
-  // S3 / Doktor
   if (
     s === 'S3' || s.startsWith('S3') || s.startsWith('STRATA3') || s.startsWith('STRATAIII') ||
     s.includes('DOKTOR') || s.includes('DOCTOR') || s.includes('PHD') || s.includes('DPHIL') ||
@@ -640,7 +592,6 @@ export const normalizeStandardJenjang = (val?: string): string => {
     return 'S3';
   }
 
-  // S2 / Magister
   if (
     s === 'S2' || s.startsWith('S2') || s.startsWith('STRATA2') || s.startsWith('STRATAII') ||
     s.includes('MAGISTER') || s.includes('MASTER') || s.includes('PASCASARJANA') ||
@@ -652,7 +603,6 @@ export const normalizeStandardJenjang = (val?: string): string => {
     return 'S2';
   }
 
-  // S1 / Strata 1 explicitly checked before generic STR
   if (
     s === 'S1' || s.startsWith('S1') || s.startsWith('STRATA1') || s.startsWith('STRATAI') ||
     (s.includes('SARJANA') && !s.includes('TERAPAN') && !s.includes('MUDA')) ||
@@ -665,7 +615,6 @@ export const normalizeStandardJenjang = (val?: string): string => {
     return 'S1';
   }
 
-  // DIV / D4 / Sarjana Terapan
   if (
     s === 'DIV' || s === 'D4' || s === 'DIVTERAPAN' || s.startsWith('DIV') || s.startsWith('D4') ||
     s.includes('DIPLOMA4') || s.includes('DIPLOMAIV') || s.includes('SARJANATERAPAN') ||
@@ -675,7 +624,6 @@ export const normalizeStandardJenjang = (val?: string): string => {
     return 'DIV';
   }
 
-  // DIII / D3 (including early diplomas DI, DII)
   if (
     s === 'DIII' || s === 'D3' || s.startsWith('DIII') || s.startsWith('D3') ||
     s.includes('DIPLOMA3') || s.includes('DIPLOMAIII') || s.includes('AHLIMADYA') ||
@@ -686,7 +634,6 @@ export const normalizeStandardJenjang = (val?: string): string => {
     return 'DIII';
   }
 
-  // SD (prioritized to avoid MI misclassification)
   if (
     s === 'SD' || s.startsWith('SDN') || s.startsWith('SD') || s.includes('SEKOLAHDASAR') ||
     s.includes('IBTIDAIYAH') || s === 'MI' || s.startsWith('MI') || s.includes('PAKETA') ||
@@ -695,7 +642,6 @@ export const normalizeStandardJenjang = (val?: string): string => {
     return 'SD';
   }
 
-  // SMP/SLTP
   if (
     s === 'SMP' || s === 'SLTP' || s === 'SMPSLTP' ||
     s.includes('SLTP') || s.includes('SMP') || s.includes('MTS') || s.includes('TSANAWIYAH') ||
@@ -704,7 +650,6 @@ export const normalizeStandardJenjang = (val?: string): string => {
     return 'SMP/SLTP';
   }
 
-  // SMA/SMU/SMK / SLTA
   if (
     s === 'SMA' || s === 'SMK' || s === 'SMU' || s === 'SLTA' || s === 'SMASMUSMK' || s === 'SMASMK' ||
     s.includes('SLTA') || s.includes('SMA') || s.includes('SMK') || s.includes('SMU') ||
@@ -771,7 +716,6 @@ export const alignEducationRow = (row: any): any => {
       u.includes('MATEMATIKA') || u.includes('IPA') || u.includes('IPS');
   };
 
-  // Case 1: Row index number shifted into jenjang (e.g. jenjang: "1")
   if (/^\d+$/.test(jenjang)) {
     if (isDegreeOnly(institusi) || normalizeStandardJenjang(institusi)) {
       jenjang = institusi;
@@ -784,8 +728,6 @@ export const alignEducationRow = (row: any): any => {
     }
   }
 
-  // Case 2: Swapped Jenjang & Institusi (e.g. jenjang: "UNIVERSITAS PADJADJARAN", institusi: "S3")
-  // Only swap if jenjang is NOT a degree and IS a school, and institusi IS a degree
   if (!isDegreeOnly(jenjang) && isSchool(jenjang) && (isDegreeOnly(institusi) || STANDARD_JENJANG_LIST.includes(normalizeStandardJenjang(institusi) as any))) {
     const tempJ = normalizeStandardJenjang(institusi);
     institusi = jenjang;
@@ -801,14 +743,12 @@ export const alignEducationRow = (row: any): any => {
     jenjang = '';
   }
 
-  // Case 3: Institusi and Jurusan are inverted (institusi is a major, jurusan is a school)
   if (isMajor(institusi) && isSchool(jurusan)) {
     const temp = institusi;
     institusi = jurusan;
     jurusan = temp;
   }
 
-  // Case 4: Tahun in Jurusan or Nomor Ijazah
   if (isYear(jurusan) && !isYear(tahunLulus)) {
     nomorIjazah = tahunLulus;
     tahunLulus = jurusan;
@@ -821,7 +761,6 @@ export const alignEducationRow = (row: any): any => {
     }
   }
 
-  // Case 5: TahunLulus contains full date or extra characters
   if (isDate(tahunLulus)) {
     if (!tanggalIjazah) tanggalIjazah = tahunLulus;
     tahunLulus = tahunLulus.includes('-') ? tahunLulus.split('-')[0] : (tahunLulus.split('/')[2] || tahunLulus.slice(-4));
@@ -830,19 +769,16 @@ export const alignEducationRow = (row: any): any => {
     if (yrMatch) tahunLulus = yrMatch[0];
   }
 
-  // Case 6: NomorIjazah contains full date
   if (isDate(nomorIjazah)) {
     if (!tanggalIjazah) tanggalIjazah = nomorIjazah;
     nomorIjazah = '-';
   }
 
-  // Case 7: Institusi contains person name (Kepala Sekolah / Rektor)
   if (isPerson(institusi)) {
     if (!kepalaSekolah) kepalaSekolah = institusi;
     institusi = isSchool(alamatSekolah) ? alamatSekolah : (row.namaSekolah && !isPerson(row.namaSekolah) ? row.namaSekolah : '-');
   }
 
-  // Clean institusi that has "SARJANA " or "PASCA SARJANA " prefix
   if (/^SARJANA\s+(UNIV|UNIVERSITAS|INSTITUT)/i.test(institusi)) {
     institusi = institusi.replace(/^SARJANA\s+/i, '');
     if (!jenjang) jenjang = 'S1';
@@ -851,7 +787,6 @@ export const alignEducationRow = (row: any): any => {
     if (!jenjang) jenjang = 'S2';
   }
 
-  // Standardize jenjang value strictly into SD, SMP/SLTP, SMA/SMU/SMK, DIII, DIV, S1, S2, S3
   let stdJenjang = normalizeStandardJenjang(jenjang);
   if (!stdJenjang || !STANDARD_JENJANG_LIST.includes(stdJenjang as any)) {
     stdJenjang = normalizeStandardJenjang(institusi) || normalizeStandardJenjang(row.namaSekolah) || normalizeStandardJenjang(jurusan);
@@ -873,7 +808,6 @@ export const alignEducationRow = (row: any): any => {
     }
   }
 
-  // SD and SMP do not have a major (clear city/location from jurusan)
   if (stdJenjang === 'SD' || stdJenjang === 'SMP/SLTP') {
     if (jurusan && !isMajor(jurusan)) {
       if (!alamatSekolah && jurusan !== '-') alamatSekolah = jurusan;
@@ -901,12 +835,6 @@ export const normalizeJenjangLabel = (jenjangStr?: string): string => {
   return normalizeStandardJenjang(jenjangStr) || jenjangStr.trim();
 };
 
-/**
- * Resolusi komprehensif: Menyesuaikan Pendidikan Terakhir & Jurusan berdasarkan:
- * 1. Riwayat Pendidikan (jenjang tertinggi & tahun terbaru).
- * 2. Apabila tidak ada riwayat pendidikan, ambil dari Gelar Terakhir pada nama pegawai.
- * 3. Fallback ke data profil yang sudah ada atau default 'SMA/SMU/SMK'.
- */
 export const resolvePegawaiPendidikanDanJurusan = (pegawai: {
   nama?: string;
   riwayatPendidikan?: any[];
@@ -918,7 +846,6 @@ export const resolvePegawaiPendidikanDanJurusan = (pegawai: {
 }): { pendidikan: string; jurusan: string } => {
   if (!pegawai) return { pendidikan: 'SMA/SMU/SMK', jurusan: '' };
 
-  // 1. Prioritas Utama: Sesuaikan dengan Riwayat Pendidikan
   const riwayat = Array.isArray(pegawai?.riwayatPendidikan) ? pegawai.riwayatPendidikan : [];
   if (riwayat.length > 0) {
 
@@ -941,7 +868,6 @@ export const resolvePegawaiPendidikanDanJurusan = (pegawai: {
     }
   }
 
-  // 2. Apabila tidak ada riwayat pendidikan: Lihat Gelar Terakhirnya
   const nameWithGelar = `${pegawai?.nama || ''} ${pegawai?.gelarBelakang || ''}`.trim();
   const fromGelar = resolveFromGelarTerakhir(nameWithGelar);
   if (fromGelar && fromGelar.pendidikan) {
@@ -951,7 +877,6 @@ export const resolvePegawaiPendidikanDanJurusan = (pegawai: {
     };
   }
 
-  // 3. Fallback: Data yang sudah ada di database atau default
   const existingEdu = (pegawai?.pendidikan || '').trim();
   const existingJur = (pegawai?.jurusan || '').trim();
   if (existingEdu && existingEdu !== '-' && existingEdu.toUpperCase() !== 'LAINNYA') {
@@ -964,11 +889,6 @@ export const resolvePegawaiPendidikanDanJurusan = (pegawai: {
   return { pendidikan: 'SMA/SMU/SMK', jurusan: '' };
 };
 
-/**
- * Advanced parsing and normalization for Indonesian employee names with academic titles.
- * It corrects spacing, missing commas, missing periods, incorrect title ordering,
- * and extracts the highest education level and study program (jurusan).
- */
 export const polishGelarDanNama = (rawInput: string): {
   formattedName: string;
   pendidikan: string;
@@ -978,7 +898,6 @@ export const polishGelarDanNama = (rawInput: string): {
     return { formattedName: '', pendidikan: '', jurusan: '' };
   }
 
-  // 1. Prepare normalized gelar map for easy lookups
   const lookupMap: Record<string, string> = {};
   const sortedGelarKeys = Object.keys(GELAR_MAP).sort((a, b) => b.length - a.length);
   
@@ -987,17 +906,14 @@ export const polishGelarDanNama = (rawInput: string): {
     lookupMap[dotless] = key;
   }
 
-  // Identify standard front-of-name titles/honorifics
   const frontTitleKeys = new Set(['prof', 'dr', 'drg', 'ir', 'drs', 'dra', 'h', 'hj', 'pdt', 'apt', 'ns']);
 
-  // 2. Tokenize the entire string by splitting by spaces, commas, semicolons
   const rawTokens = rawInput.split(/[\s,;]+/).filter(Boolean);
 
   const detectedFront: string[] = [];
   const detectedBack: { key: string; original: string; jenjang: string; bidang: string; weight: number }[] = [];
   const nameParts: string[] = [];
 
-  // Jenjang weights for sorting suffixes
   const jenjangWeight: Record<string, number> = {
     'DIII': 10,
     'DIV': 20,
@@ -1008,18 +924,14 @@ export const polishGelarDanNama = (rawInput: string): {
   };
 
   for (const token of rawTokens) {
-    // Strip trailing dots for temporary checking, but handle special keys with dots too
     const cleanToken = token.toLowerCase().replace(/[.,]/g, '').trim();
     if (!cleanToken) continue;
 
-    // Check if is a known title/degree
     if (lookupMap[cleanToken]) {
       const canonicalKey = lookupMap[cleanToken];
       
       if (frontTitleKeys.has(cleanToken)) {
-        // Front title normalization
         if (cleanToken === 'dr') {
-          // Keep lowercase 'dr.' if original was 'dr', else 'Dr.'
           if (token.startsWith('dr')) {
             detectedFront.push('dr.');
           } else {
@@ -1036,15 +948,12 @@ export const polishGelarDanNama = (rawInput: string): {
         } else if (cleanToken === 'ns') {
           detectedFront.push('Ns.');
         } else {
-          // Format with trailing dot if not already there, and capitalize first letter
           detectedFront.push(canonicalKey.endsWith('.') ? canonicalKey : `${canonicalKey}.`);
         }
       } else {
-        // Back title / suffix
         const info = GELAR_MAP[canonicalKey];
         const weight = jenjangWeight[info.jenjang] || 20;
         
-        // Avoid adding duplicate suffixes
         if (!detectedBack.some(item => item.key === canonicalKey)) {
           detectedBack.push({
             key: canonicalKey,
@@ -1056,27 +965,21 @@ export const polishGelarDanNama = (rawInput: string): {
         }
       }
     } else {
-      // It is part of the person's name (convert to UPPERCASE)
       nameParts.push(token.toUpperCase());
     }
   }
 
-  // Fallback: If absolutely no name parts were detected, treat whole input as name
   if (nameParts.length === 0) {
     return { formattedName: rawInput.toUpperCase(), pendidikan: '', jurusan: '' };
   }
 
-  // Reconstruct components:
   const frontPrefix = detectedFront.length > 0 ? detectedFront.join(' ') : '';
   const mainName = nameParts.join(' ');
 
-  // Suffixes: sort them by level (lowest to highest) according to weight
   detectedBack.sort((a, b) => a.weight - b.weight);
 
-  // Back titles formatted in clean canonical format with dots (e.g. "S.T., M.Kom.")
   const formattedBackList = detectedBack.map(item => {
     let finalKey = item.key;
-    // Standardize dots in Indonesian titles (e.g. S.T., S.H., M.Kom., A.Md.)
     if (finalKey.toLowerCase() === 'sh' || finalKey.toLowerCase() === 's.h') finalKey = 'S.H.';
     else if (finalKey.toLowerCase() === 'st' || finalKey.toLowerCase() === 's.t') finalKey = 'S.T.';
     else if (finalKey.toLowerCase() === 'se' || finalKey.toLowerCase() === 's.e') finalKey = 'S.E.';
@@ -1088,7 +991,6 @@ export const polishGelarDanNama = (rawInput: string): {
     else if (finalKey.toLowerCase() === 'mkom' || finalKey.toLowerCase() === 'm.kom') finalKey = 'M.Kom.';
     else if (finalKey.toLowerCase() === 'spd' || finalKey.toLowerCase() === 's.pd') finalKey = 'S.Pd.';
     
-    // Add dot if missing at the end for other degrees
     if (!finalKey.endsWith('.') && !['MMSI', 'MSE', 'MA', 'AMK', 'PK', 'Bc.IP'].includes(finalKey)) {
       finalKey = `${finalKey}.`;
     }
@@ -1097,10 +999,8 @@ export const polishGelarDanNama = (rawInput: string): {
 
   const suffixPart = formattedBackList.length > 0 ? `, ${formattedBackList.join(', ')}` : '';
 
-  // Combine to make complete formatted name
   const formattedName = frontPrefix ? `${frontPrefix} ${mainName}${suffixPart}` : `${mainName}${suffixPart}`;
 
-  // 3. Extract study program (jurusan) and education level (pendidikan) using PENDIDIKAN custom matches
   let eduLevel = '';
   let studyProgram = '';
 
@@ -1109,7 +1009,6 @@ export const polishGelarDanNama = (rawInput: string): {
     eduLevel = userEduValue.pendidikan;
     studyProgram = userEduValue.jurusan;
   } else {
-    // Fallback to highest back title if no custom match
     if (detectedBack.length > 0) {
       const highestItem = detectedBack[detectedBack.length - 1];
       eduLevel = normalizeStandardJenjang(highestItem.jenjang) || highestItem.jenjang;
@@ -1120,7 +1019,6 @@ export const polishGelarDanNama = (rawInput: string): {
     }
   }
 
-  // Capitalize study program (jurusan) elegantly
   if (studyProgram) {
     studyProgram = studyProgram.replace(/\w\S*/g, (txt) => {
       return txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase();
@@ -1134,27 +1032,17 @@ export const polishGelarDanNama = (rawInput: string): {
   };
 };
 
-/**
- * Helper to format Pegawai Name:
- * Preserves the exact name and academic titles (gelar) as stored in the database.
- */
 export const formatPegawaiName = (nama: string): string => {
   if (!nama) return '';
   return nama.trim();
 };
 
-/**
- * Format NIP standard (e.g., NIP. 198504122008121001)
- */
 export const formatNip = (nip?: string): string => {
   if (!nip) return '-';
   const clean = nip.toString().replace(/^NIP[\.\s:]*/i, '').trim();
   return clean ? `NIP. ${clean}` : '-';
 };
 
-/**
- * Resolusi otomatis Pendidikan berdasarkan Gelar
- */
 export const resolveEducationInfo = (input: string): { bidang: string, jenjang: string, display: string } | null => {
   if (!input) return null;
   const sortedKeys = Object.keys(GELAR_MAP).sort((a, b) => b.length - a.length);
@@ -1268,36 +1156,29 @@ export interface PetaJabatanItem {
 
 export const PETA_JABATAN_SIMPEG_TREE: PetaJabatanItem[] = [
   { id: '1', kode: '1', nama: 'Direktorat Jenderal Kekayaan Intelektual', level: 0, tipe: 'INSTANSI', orderKey: 100 },
-  // 1. Paten
   { id: '2', kode: '1.1', nama: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 200 },
   { id: '2.1', kode: '1.1.1', nama: 'Subdirektorat Permohonan dan Pelayanan', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', orderKey: 210 },
   { id: '2.2', kode: '1.1.2', nama: 'Subdirektorat Fasilitasi Komisi Banding Paten', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', orderKey: 220 },
   { id: '2.3', kode: '1.1.3', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', orderKey: 230 },
-  // 2. Merek
   { id: '3', kode: '1.2', nama: 'Direktorat Merek dan Indikasi Geografis', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 300 },
   { id: '3.1', kode: '1.2.1', nama: 'Subdirektorat Permohonan dan Pelayanan', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Merek dan Indikasi Geografis', orderKey: 310 },
   { id: '3.2', kode: '1.2.2', nama: 'Subdirektorat Fasilitasi Komisi Banding Merek', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Merek dan Indikasi Geografis', orderKey: 320 },
   { id: '3.3', kode: '1.2.3', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Merek dan Indikasi Geografis', orderKey: 330 },
-  // 3. Hak Cipta
   { id: '4', kode: '1.3', nama: 'Direktorat Hak Cipta dan Desain Industri', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 400 },
   { id: '4.1', kode: '1.3.1', nama: 'Subdirektorat Permohonan dan Pelayanan', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Hak Cipta dan Desain Industri', orderKey: 410 },
   { id: '4.2', kode: '1.3.2', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Hak Cipta dan Desain Industri', orderKey: 420 },
-  // 4. Kerja Sama
   { id: '5', kode: '1.4', nama: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 500 },
   { id: '5.1', kode: '1.4.1', nama: 'Subdirektorat Kerja Sama', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', orderKey: 510 },
   { id: '5.2', kode: '1.4.2', nama: 'Subdirektorat Pemberdayaan dan Edukasi Kekayaan Intelektual', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', orderKey: 520 },
   { id: '5.3', kode: '1.4.3', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', orderKey: 530 },
-  // 5. Sekretariat
   { id: '6', kode: '1.5', nama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', level: 1, tipe: 'SEKRETARIAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 600 },
   { id: '6.1', kode: '1.5.1', nama: 'Bagian Program dan Pelaporan', level: 2, tipe: 'BAGIAN', parent: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', orderKey: 610 },
   { id: '6.2', kode: '1.5.2', nama: 'Bagian Keuangan', level: 2, tipe: 'BAGIAN', parent: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', orderKey: 620 },
   { id: '6.3', kode: '1.5.3', nama: 'Bagian Umum', level: 2, tipe: 'BAGIAN', parent: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', orderKey: 630 },
   { id: '6.3.1', kode: '1.5.3.1', nama: 'Subbagian Tata Usaha Pimpinan dan Protokol', level: 3, tipe: 'SUBBAGIAN', parent: 'Bagian Umum', orderKey: 631 },
   { id: '6.3.2', kode: '1.5.3.2', nama: 'Subbagian Rumah Tangga', level: 3, tipe: 'SUBBAGIAN', parent: 'Bagian Umum', orderKey: 632 },
-  // 6. TI
   { id: '7', kode: '1.6', nama: 'Direktorat Teknologi Informasi', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 700 },
   { id: '7.1', kode: '1.6.1', nama: 'Subbagian Tata Usaha', level: 2, tipe: 'SUBBAGIAN', parent: 'Direktorat Teknologi Informasi', orderKey: 710 },
-  // 7. Penegakan Hukum
   { id: '8', kode: '1.7', nama: 'Direktorat Penegakan Hukum', level: 1, tipe: 'DIREKTORAT', parent: 'Direktorat Jenderal Kekayaan Intelektual', orderKey: 800 },
   { id: '8.1', kode: '1.7.1', nama: 'Subdirektorat Pencegahan dan Sengketa Alternatif', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Penegakan Hukum', orderKey: 810 },
   { id: '8.2', kode: '1.7.2', nama: 'Subdirektorat Penindakan dan Penyidikan', level: 2, tipe: 'SUBDIREKTORAT', parent: 'Direktorat Penegakan Hukum', orderKey: 820 },
@@ -1311,7 +1192,6 @@ export const getPetaJabatanInfo = (p: { unitKerja?: string; jabatan?: string; ba
   const sb = (p.subbagian || '').toLowerCase();
   const combined = `${u} ${j} ${b} ${sb}`;
 
-  // 1. Pimpinan Tinggi DJKI
   if (j.includes('direktur jenderal kekayaan intelektual') || j === 'dirjen' || j.startsWith('direktur jenderal')) {
     return {
       treeKode: '1',
@@ -1321,7 +1201,6 @@ export const getPetaJabatanInfo = (p: { unitKerja?: string; jabatan?: string; ba
     };
   }
 
-  // 2. Paten
   if (u.includes('paten') || u.includes('sirkuit terpadu') || u.includes('rahasia dagang')) {
     if (j.startsWith('direktur paten') || j === 'direktur') {
       return { treeKode: '1.1', unitUtama: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 200 };
@@ -1335,7 +1214,6 @@ export const getPetaJabatanInfo = (p: { unitKerja?: string; jabatan?: string; ba
     return { treeKode: '1.1.1', unitUtama: 'Direktorat Paten, Desain Tata Letak Sirkuit Terpadu, dan Rahasia Dagang', subUnit: 'Subdirektorat Permohonan dan Pelayanan', orderKey: 210 };
   }
 
-  // 3. Merek
   if (u.includes('merek') || u.includes('indikasi geografis')) {
     if (j.startsWith('direktur merek') || j === 'direktur') {
       return { treeKode: '1.2', unitUtama: 'Direktorat Merek dan Indikasi Geografis', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 300 };
@@ -1349,7 +1227,6 @@ export const getPetaJabatanInfo = (p: { unitKerja?: string; jabatan?: string; ba
     return { treeKode: '1.2.1', unitUtama: 'Direktorat Merek dan Indikasi Geografis', subUnit: 'Subdirektorat Permohonan dan Pelayanan', orderKey: 310 };
   }
 
-  // 4. Hak Cipta
   if (u.includes('hak cipta') || u.includes('desain industri') || u.includes('cipta')) {
     if (j.startsWith('direktur hak cipta') || j === 'direktur') {
       return { treeKode: '1.3', unitUtama: 'Direktorat Hak Cipta dan Desain Industri', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 400 };
@@ -1360,7 +1237,6 @@ export const getPetaJabatanInfo = (p: { unitKerja?: string; jabatan?: string; ba
     return { treeKode: '1.3.1', unitUtama: 'Direktorat Hak Cipta dan Desain Industri', subUnit: 'Subdirektorat Permohonan dan Pelayanan', orderKey: 410 };
   }
 
-  // 5. Kerja Sama
   if (u.includes('kerja sama') || u.includes('kerjasama') || u.includes('pemberdayaan') || u.includes('edukasi')) {
     if (j.startsWith('direktur kerja sama') || j === 'direktur') {
       return { treeKode: '1.4', unitUtama: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 500 };
@@ -1374,7 +1250,6 @@ export const getPetaJabatanInfo = (p: { unitKerja?: string; jabatan?: string; ba
     return { treeKode: '1.4.1', unitUtama: 'Direktorat Kerja Sama, Pemberdayaan, dan Edukasi', subUnit: 'Subdirektorat Kerja Sama', orderKey: 510 };
   }
 
-  // 6. Sekretariat
   if (u.includes('sekretariat')) {
     if (j.includes('sekretaris direktorat jenderal') || j.includes('sesditjen')) {
       return { treeKode: '1.5', unitUtama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', subUnit: 'Pimpinan Tinggi Pratama (Sesditjen)', orderKey: 600 };
@@ -1397,7 +1272,6 @@ export const getPetaJabatanInfo = (p: { unitKerja?: string; jabatan?: string; ba
     return { treeKode: '1.5.3', unitUtama: 'Sekretariat Direktorat Jenderal Kekayaan Intelektual', subUnit: 'Bagian Umum', orderKey: 630 };
   }
 
-  // 7. TI
   if (u.includes('teknologi informasi') || u.includes('ti') || u.includes('sistem informasi')) {
     if (j.startsWith('direktur teknologi') || j === 'direktur') {
       return { treeKode: '1.6', unitUtama: 'Direktorat Teknologi Informasi', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 700 };
@@ -1408,7 +1282,6 @@ export const getPetaJabatanInfo = (p: { unitKerja?: string; jabatan?: string; ba
     return { treeKode: '1.6', unitUtama: 'Direktorat Teknologi Informasi', subUnit: 'Subbagian Tata Usaha', orderKey: 715 };
   }
 
-  // 8. Penegakan Hukum
   if (u.includes('penegakan hukum') || u.includes('sengketa') || u.includes('penyidikan') || u.includes('penindakan')) {
     if (j.startsWith('direktur penegakan') || j === 'direktur') {
       return { treeKode: '1.7', unitUtama: 'Direktorat Penegakan Hukum', subUnit: 'Pimpinan Tinggi Pratama (Direktur)', orderKey: 800 };
