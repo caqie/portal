@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Pegawai, Pengembangan } from '../types';
-import { formatPegawaiName } from '../constants';
+import { formatPegawaiName, alignEducationRow, normalizeStandardJenjang } from '../constants';
 import {
   MASTER_KOMPETENSI_JABATAN,
   LIST_JABATAN_STANDAR,
@@ -2397,22 +2397,26 @@ export const TalentDevelopmentView: React.FC<Props> = ({
               </div>
               <div className="space-y-3">
                 {activePegawai.riwayatPendidikan && activePegawai.riwayatPendidikan.length > 0 ? (
-                  activePegawai.riwayatPendidikan.map((rp, idx) => (
-                    <div key={`pend-${idx}`} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                      <div>
-                        <h5 className="text-xs font-black text-gray-900 uppercase">
-                          {rp.jenjang ? `${rp.jenjang} - ` : ''}{rp.jurusan || 'Pendidikan'}
-                        </h5>
-                        <p className="text-[11px] text-gray-600">
-                          {rp.institusi || rp.namaSekolah || 'Perguruan Tinggi'} {rp.tahunLulus ? `• Lulus Tahun ${rp.tahunLulus}` : ''}
-                          {rp.nomorIjazah ? ` • No. Ijazah: ${rp.nomorIjazah}` : ''}
-                        </p>
+                  activePegawai.riwayatPendidikan.map((rawRp, idx) => {
+                    const rp = alignEducationRow(rawRp);
+                    const stdJenjang = normalizeStandardJenjang(rp.jenjang) || rp.jenjang;
+                    return (
+                      <div key={`pend-${idx}`} className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div>
+                          <h5 className="text-xs font-black text-gray-900 uppercase">
+                            {stdJenjang ? `${stdJenjang} - ` : ''}{rp.jurusan && rp.jurusan !== '-' ? rp.jurusan : 'Pendidikan'}
+                          </h5>
+                          <p className="text-[11px] text-gray-600">
+                            {rp.institusi || rp.namaSekolah || 'Perguruan Tinggi'} {rp.tahunLulus && rp.tahunLulus !== '-' ? `• Lulus Tahun ${rp.tahunLulus}` : ''}
+                            {rp.nomorIjazah && rp.nomorIjazah !== '-' ? ` • No. Ijazah: ${rp.nomorIjazah}` : ''}
+                          </p>
+                        </div>
+                        <span className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-black rounded-lg shrink-0">
+                          Ijazah Terverifikasi
+                        </span>
                       </div>
-                      <span className="px-3 py-1 bg-blue-50 text-blue-700 text-[10px] font-black rounded-lg shrink-0">
-                        Ijazah Terverifikasi
-                      </span>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <div>

@@ -1,15 +1,12 @@
 export const JENJANG_PENDIDIKAN_LIST = [
-  "S-3",
-  "S-2",
-  "S-1",
-  "Profesi",
-  "D-IV",
-  "D-III",
-  "D-II",
-  "D-I",
-  "SLTA",
-  "SLTP",
-  "SD/Sederajat"
+  "S3",
+  "S2",
+  "S1",
+  "DIV",
+  "DIII",
+  "SMA/SMU/SMK",
+  "SMP/SLTP",
+  "SD"
 ];
 
 export const JURUSAN_LIST = [

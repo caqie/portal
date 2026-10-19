@@ -1473,16 +1473,15 @@ const ProfilePegawaiPage = () => {
 
   const hasShiftedPendidikan = useMemo(() => {
     return (pegawai?.riwayatPendidikan || []).some(p => {
-      const std = normalizeStandardJenjang(p.jenjang);
-      const isInvalidJenjang = !std || !['SD', 'SMP/SLTP', 'SMA/SMU/SMK', 'DIII', 'DIV', 'S1', 'S2', 'S3'].includes(std);
-      const datePattern = /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/;
-      const isTahunDate = datePattern.test((p.tahunLulus || '').trim());
-      const isNomorIjazahDate = datePattern.test((p.nomorIjazah || '').trim());
-      const isMissingInstitusiWithMajor = (p.institusi === '-' || !p.institusi) && p.jurusan && p.jurusan !== '-' && (p.jurusan.toUpperCase().includes('HUKUM') || p.jurusan.toUpperCase().includes('MANAJEMEN'));
-      const isSdOrSmpWithAddressAsMajor = ['SD', 'SMP', 'SLTP', 'SMP/SLTP'].includes((p.jenjang || '').toUpperCase().trim()) && p.jurusan && p.jurusan !== '-' && ['SANINGBAKAR', 'SOLOK', 'PADANG', 'JAKARTA', 'DUMAI'].includes(p.jurusan.toUpperCase().trim());
-      const isKepalaSekolahAsInstitusi = ['NURSAL SALEH', 'ANIZAR', 'NAZIR BUSTAMI', 'JURNALIS KAMIL', 'BLAKE'].some(k => (p.institusi || '').toUpperCase().includes(k));
-      const isCorruptedLongText = (p.institusi || '').length > 40 || (p.nomorIjazah || '').length > 35;
-      return isInvalidJenjang || isTahunDate || isNomorIjazahDate || isMissingInstitusiWithMajor || isSdOrSmpWithAddressAsMajor || isKepalaSekolahAsInstitusi || isCorruptedLongText;
+      const aligned = alignEducationRow(p);
+      const isDifferent =
+        aligned.jenjang !== p.jenjang ||
+        aligned.institusi !== (p.institusi || p.namaSekolah || '-') ||
+        aligned.jurusan !== (p.jurusan || '-') ||
+        aligned.tahunLulus !== (p.tahunLulus || '-') ||
+        aligned.nomorIjazah !== (p.nomorIjazah || '-');
+      const isInvalidJenjang = !STANDARD_JENJANG_LIST.includes(p.jenjang as any);
+      return isDifferent || isInvalidJenjang;
     });
   }, [pegawai?.riwayatPendidikan]);
 

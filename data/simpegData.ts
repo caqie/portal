@@ -138,10 +138,10 @@ export const SIMPEG_PANGKAT_DATA: RiwayatPangkat[] = [
 export const SIMPEG_PENDIDIKAN_DATA: RiwayatPendidikan[] = [
   {
     jenjang: 'SD',
-    institusi: 'SD',
-    namaSekolah: 'SD',
+    institusi: 'SD NEGERI 01 DUMAI',
+    namaSekolah: 'SD NEGERI 01 DUMAI',
     jurusan: '-',
-    alamatSekolah: 'SD',
+    alamatSekolah: 'DUMAI',
     kepalaSekolah: '-',
     nomorIjazah: '09 OA oa 017787',
     tanggalIjazah: '1983-10-10',

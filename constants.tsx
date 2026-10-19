@@ -344,82 +344,82 @@ export const resolveUserPendidikan = (nama: string): { pendidikan: string; jurus
 
   const gelarMap: Record<string, string> = {
     // ===== S3 =====
-    "DR": "S-3|Doktor",
-    "PHD": "S-3|Doktor",
-    "DPHIL": "S-3|Doktor",
+    "DR": "S3|Doktor",
+    "PHD": "S3|Doktor",
+    "DPHIL": "S3|Doktor",
 
     // ===== S2 =====
-    "MH": "S-2|Hukum",
-    "LLM": "S-2|Hukum",
-    "MKN": "S-2|Kenotariatan",
-    "MM": "S-2|Manajemen",
-    "MSI": "S-2|Ilmu Sosial",
-    "MSC": "S-2|Sains",
-    "MT": "S-2|Teknik",
-    "MKOM": "S-2|Ilmu Komputer",
-    "MMSI": "S-2|Sistem Informasi",
-    "MIKOM": "S-2|Ilmu Komunikasi",
-    "MIL": "S-2|Hukum Internasional",
-    "MIR": "S-2|Hubungan Internasional",
-    "MAP": "S-2|Administrasi Publik",
-    "MTRAP": "S-2|Administrasi Publik",
-    "ME": "S-2|Ekonomi",
-    "MFARM": "S-2|Farmasi",
-    "MHUM": "S-2|Humaniora",
-    "MA": "S-2|Humaniora",
-    "MPD": "S-2|Pendidikan",
-    "MDS": "S-2|Desain",
-    "MAK": "S-2|Akuntansi",
-    "MIPL": "S-2|Kekayaan Intelektual",
-    "MIP": "S-2|Kekayaan Intelektual",
+    "MH": "S2|Hukum",
+    "LLM": "S2|Hukum",
+    "MKN": "S2|Kenotariatan",
+    "MM": "S2|Manajemen",
+    "MSI": "S2|Ilmu Sosial",
+    "MSC": "S2|Sains",
+    "MT": "S2|Teknik",
+    "MKOM": "S2|Ilmu Komputer",
+    "MMSI": "S2|Sistem Informasi",
+    "MIKOM": "S2|Ilmu Komunikasi",
+    "MIL": "S2|Hukum Internasional",
+    "MIR": "S2|Hubungan Internasional",
+    "MAP": "S2|Administrasi Publik",
+    "MTRAP": "S2|Administrasi Publik",
+    "ME": "S2|Ekonomi",
+    "MFARM": "S2|Farmasi",
+    "MHUM": "S2|Humaniora",
+    "MA": "S2|Humaniora",
+    "MPD": "S2|Pendidikan",
+    "MDS": "S2|Desain",
+    "MAK": "S2|Akuntansi",
+    "MIPL": "S2|Kekayaan Intelektual",
+    "MIP": "S2|Kekayaan Intelektual",
 
     // ===== S1 =====
-    "SH": "S-1|Hukum",
-    "ST": "S-1|Teknik",
-    "STP": "S-1|Teknologi Pertanian",
-    "SKOM": "S-1|Ilmu Komputer",
-    "SSI": "S-1|Sains",
-    "SE": "S-1|Ekonomi",
-    "SSOS": "S-1|Ilmu Sosial",
-    "SIP": "S-1|Ilmu Pemerintahan",
-    "SIKOM": "S-1|Ilmu Komunikasi",
-    "SFARM": "S-1|Farmasi",
-    "SP": "S-1|Pertanian",
-    "SPI": "S-1|Perikanan",
-    "SPD": "S-1|Pendidikan",
-    "SHUM": "S-1|Humaniora",
-    "SS": "S-1|Sastra",
-    "SDS": "S-1|Desain",
-    "SSN": "S-1|Seni",
-    "SAK": "S-1|Akuntansi",
-    "SAP": "S-1|Administrasi Publik",
-    "STAT": "S-1|Statistika",
-    "SARS": "S-1|Arsitektur",
-    "SKM": "S-1|Kesehatan Masyarakat",
-    "SIK": "S-1|Kepolisian",
-    "SAG": "S-1|Agama",
-    "SLING": "S-1|Linguistik",
-    "SHUBINT": "S-1|Hubungan Internasional",
+    "SH": "S1|Hukum",
+    "ST": "S1|Teknik",
+    "STP": "S1|Teknologi Pertanian",
+    "SKOM": "S1|Ilmu Komputer",
+    "SSI": "S1|Sains",
+    "SE": "S1|Ekonomi",
+    "SSOS": "S1|Ilmu Sosial",
+    "SIP": "S1|Ilmu Pemerintahan",
+    "SIKOM": "S1|Ilmu Komunikasi",
+    "SFARM": "S1|Farmasi",
+    "SP": "S1|Pertanian",
+    "SPI": "S1|Perikanan",
+    "SPD": "S1|Pendidikan",
+    "SHUM": "S1|Humaniora",
+    "SS": "S1|Sastra",
+    "SDS": "S1|Desain",
+    "SSN": "S1|Seni",
+    "SAK": "S1|Akuntansi",
+    "SAP": "S1|Administrasi Publik",
+    "STAT": "S1|Statistika",
+    "SARS": "S1|Arsitektur",
+    "SKM": "S1|Kesehatan Masyarakat",
+    "SIK": "S1|Kepolisian",
+    "SAG": "S1|Agama",
+    "SLING": "S1|Linguistik",
+    "SHUBINT": "S1|Hubungan Internasional",
 
     // ===== D4 =====
-    "STR": "D-IV|Terapan",
-    "SST": "D-IV|Terapan",
-    "STRPAR": "D-IV|Pariwisata",
-    "STRAB": "D-IV|Administrasi Bisnis",
-    "STRPAS": "D-IV|Keimigrasian",
+    "STR": "DIV|Terapan",
+    "SST": "DIV|Terapan",
+    "STRPAR": "DIV|Pariwisata",
+    "STRAB": "DIV|Administrasi Bisnis",
+    "STRPAS": "DIV|Keimigrasian",
 
     // ===== D3 =====
-    "AMD": "D-III|Diploma",
-    "AMDKOM": "D-III|Komputer",
-    "AMDAK": "D-III|Akuntansi",
-    "AMDPAR": "D-III|Pariwisata",
-    "AMDKES": "D-III|Kesehatan",
-    "AMDRMIK": "D-III|Rekam Medis",
+    "AMD": "DIII|Diploma",
+    "AMDKOM": "DIII|Komputer",
+    "AMDAK": "DIII|Akuntansi",
+    "AMDPAR": "DIII|Pariwisata",
+    "AMDKES": "DIII|Kesehatan",
+    "AMDRMIK": "DIII|Rekam Medis",
 
     // ===== Gelar lama =====
-    "IR": "S-1|Teknik",
-    "DRS": "S-1|Umum",
-    "DRA": "S-1|Umum"
+    "IR": "S1|Teknik",
+    "DRS": "S1|Umum",
+    "DRA": "S1|Umum"
   };
 
   let found: { gelar: string; nilai: string }[] = [];
@@ -435,7 +435,7 @@ export const resolveUserPendidikan = (nama: string): { pendidikan: string; jurus
   }
 
   if (found.length === 0) {
-    return { pendidikan: "SLTA", jurusan: "" };
+    return { pendidikan: "SMA/SMU/SMK", jurusan: "" };
   }
 
   let hasil = found[found.length - 1].nilai.split("|");
@@ -444,93 +444,93 @@ export const resolveUserPendidikan = (nama: string): { pendidikan: string; jurus
 
 export const DEGREE_MAP_DATA: Record<string, { jenjang: string; jurusan: string; weight: number }> = {
   // S3
-  "DR": { jenjang: "S-3", jurusan: "Doktor", weight: 90 },
-  "PHD": { jenjang: "S-3", jurusan: "Doktor", weight: 90 },
-  "DPHIL": { jenjang: "S-3", jurusan: "Doktor", weight: 90 },
+  "DR": { jenjang: "S3", jurusan: "Doktor", weight: 90 },
+  "PHD": { jenjang: "S3", jurusan: "Doktor", weight: 90 },
+  "DPHIL": { jenjang: "S3", jurusan: "Doktor", weight: 90 },
 
   // S2
-  "MH": { jenjang: "S-2", jurusan: "Ilmu Hukum", weight: 80 },
-  "LLM": { jenjang: "S-2", jurusan: "Ilmu Hukum", weight: 80 },
-  "MKN": { jenjang: "S-2", jurusan: "Kenotariatan", weight: 80 },
-  "MM": { jenjang: "S-2", jurusan: "Manajemen", weight: 80 },
-  "MSI": { jenjang: "S-2", jurusan: "Ilmu Sosial", weight: 80 },
-  "MSC": { jenjang: "S-2", jurusan: "Sains", weight: 80 },
-  "MT": { jenjang: "S-2", jurusan: "Teknik", weight: 80 },
-  "MKOM": { jenjang: "S-2", jurusan: "Ilmu Komputer", weight: 80 },
-  "MMSI": { jenjang: "S-2", jurusan: "Sistem Informasi", weight: 80 },
-  "MIKOM": { jenjang: "S-2", jurusan: "Ilmu Komunikasi", weight: 80 },
-  "MAP": { jenjang: "S-2", jurusan: "Administrasi Publik", weight: 80 },
-  "MTRAP": { jenjang: "S-2", jurusan: "Administrasi Publik", weight: 80 },
-  "ME": { jenjang: "S-2", jurusan: "Ekonomi", weight: 80 },
-  "MSE": { jenjang: "S-2", jurusan: "Ekonomi", weight: 80 },
-  "MFARM": { jenjang: "S-2", jurusan: "Farmasi", weight: 80 },
-  "MHUM": { jenjang: "S-2", jurusan: "Humaniora", weight: 80 },
-  "MA": { jenjang: "S-2", jurusan: "Humaniora", weight: 80 },
-  "MPD": { jenjang: "S-2", jurusan: "Pendidikan", weight: 80 },
-  "MDS": { jenjang: "S-2", jurusan: "Desain", weight: 80 },
-  "MAK": { jenjang: "S-2", jurusan: "Akuntansi", weight: 80 },
-  "MIPL": { jenjang: "S-2", jurusan: "Kekayaan Intelektual", weight: 80 },
-  "MIP": { jenjang: "S-2", jurusan: "Ilmu Pemerintahan", weight: 80 },
-  "MP": { jenjang: "S-2", jurusan: "Pertanian", weight: 80 },
+  "MH": { jenjang: "S2", jurusan: "Ilmu Hukum", weight: 80 },
+  "LLM": { jenjang: "S2", jurusan: "Ilmu Hukum", weight: 80 },
+  "MKN": { jenjang: "S2", jurusan: "Kenotariatan", weight: 80 },
+  "MM": { jenjang: "S2", jurusan: "Manajemen", weight: 80 },
+  "MSI": { jenjang: "S2", jurusan: "Ilmu Sosial", weight: 80 },
+  "MSC": { jenjang: "S2", jurusan: "Sains", weight: 80 },
+  "MT": { jenjang: "S2", jurusan: "Teknik", weight: 80 },
+  "MKOM": { jenjang: "S2", jurusan: "Ilmu Komputer", weight: 80 },
+  "MMSI": { jenjang: "S2", jurusan: "Sistem Informasi", weight: 80 },
+  "MIKOM": { jenjang: "S2", jurusan: "Ilmu Komunikasi", weight: 80 },
+  "MAP": { jenjang: "S2", jurusan: "Administrasi Publik", weight: 80 },
+  "MTRAP": { jenjang: "S2", jurusan: "Administrasi Publik", weight: 80 },
+  "ME": { jenjang: "S2", jurusan: "Ekonomi", weight: 80 },
+  "MSE": { jenjang: "S2", jurusan: "Ekonomi", weight: 80 },
+  "MFARM": { jenjang: "S2", jurusan: "Farmasi", weight: 80 },
+  "MHUM": { jenjang: "S2", jurusan: "Humaniora", weight: 80 },
+  "MA": { jenjang: "S2", jurusan: "Humaniora", weight: 80 },
+  "MPD": { jenjang: "S2", jurusan: "Pendidikan", weight: 80 },
+  "MDS": { jenjang: "S2", jurusan: "Desain", weight: 80 },
+  "MAK": { jenjang: "S2", jurusan: "Akuntansi", weight: 80 },
+  "MIPL": { jenjang: "S2", jurusan: "Kekayaan Intelektual", weight: 80 },
+  "MIP": { jenjang: "S2", jurusan: "Ilmu Pemerintahan", weight: 80 },
+  "MP": { jenjang: "S2", jurusan: "Pertanian", weight: 80 },
 
   // Profesi
-  "APT": { jenjang: "Profesi", jurusan: "Farmasi / Apoteker", weight: 75 },
-  "NS": { jenjang: "Profesi", jurusan: "Keperawatan", weight: 75 },
-  "DRG": { jenjang: "Profesi", jurusan: "Kedokteran Gigi", weight: 75 },
-  "DOKTER": { jenjang: "Profesi", jurusan: "Kedokteran", weight: 75 },
+  "APT": { jenjang: "S1", jurusan: "Farmasi / Apoteker", weight: 75 },
+  "NS": { jenjang: "S1", jurusan: "Keperawatan", weight: 75 },
+  "DRG": { jenjang: "S1", jurusan: "Kedokteran Gigi", weight: 75 },
+  "DOKTER": { jenjang: "S1", jurusan: "Kedokteran", weight: 75 },
 
   // S1
-  "SH": { jenjang: "S-1", jurusan: "Ilmu Hukum", weight: 70 },
-  "ST": { jenjang: "S-1", jurusan: "Teknik", weight: 70 },
-  "STP": { jenjang: "S-1", jurusan: "Teknologi Pertanian", weight: 70 },
-  "SKOM": { jenjang: "S-1", jurusan: "Ilmu Komputer", weight: 70 },
-  "SSI": { jenjang: "S-1", jurusan: "Sains", weight: 70 },
-  "SE": { jenjang: "S-1", jurusan: "Ekonomi", weight: 70 },
-  "SSOS": { jenjang: "S-1", jurusan: "Ilmu Sosial", weight: 70 },
-  "SIP": { jenjang: "S-1", jurusan: "Ilmu Pemerintahan", weight: 70 },
-  "SIKOM": { jenjang: "S-1", jurusan: "Ilmu Komunikasi", weight: 70 },
-  "SFARM": { jenjang: "S-1", jurusan: "Farmasi", weight: 70 },
-  "SP": { jenjang: "S-1", jurusan: "Pertanian", weight: 70 },
-  "SPI": { jenjang: "S-1", jurusan: "Perikanan", weight: 70 },
-  "SPD": { jenjang: "S-1", jurusan: "Pendidikan", weight: 70 },
-  "SHUM": { jenjang: "S-1", jurusan: "Humaniora", weight: 70 },
-  "SS": { jenjang: "S-1", jurusan: "Sastra", weight: 70 },
-  "SDS": { jenjang: "S-1", jurusan: "Desain", weight: 70 },
-  "SSN": { jenjang: "S-1", jurusan: "Seni", weight: 70 },
-  "SAK": { jenjang: "S-1", jurusan: "Akuntansi", weight: 70 },
-  "SAP": { jenjang: "S-1", jurusan: "Administrasi Publik", weight: 70 },
-  "STAT": { jenjang: "S-1", jurusan: "Statistika", weight: 70 },
-  "SARS": { jenjang: "S-1", jurusan: "Arsitektur", weight: 70 },
-  "SKM": { jenjang: "S-1", jurusan: "Kesehatan Masyarakat", weight: 70 },
-  "SIK": { jenjang: "S-1", jurusan: "Kepolisian", weight: 70 },
-  "SAG": { jenjang: "S-1", jurusan: "Agama", weight: 70 },
-  "SLING": { jenjang: "S-1", jurusan: "Linguistik", weight: 70 },
-  "SHI": { jenjang: "S-1", jurusan: "Hukum Islam", weight: 70 },
-  "SSY": { jenjang: "S-1", jurusan: "Syariah", weight: 70 },
-  "SM": { jenjang: "S-1", jurusan: "Manajemen", weight: 70 },
-  "SBNS": { jenjang: "S-1", jurusan: "Bisnis", weight: 70 },
-  "SPSI": { jenjang: "S-1", jurusan: "Psikologi", weight: 70 },
-  "IR": { jenjang: "S-1", jurusan: "Teknik", weight: 70 },
-  "DRS": { jenjang: "S-1", jurusan: "Umum", weight: 70 },
-  "DRA": { jenjang: "S-1", jurusan: "Umum", weight: 70 },
+  "SH": { jenjang: "S1", jurusan: "Ilmu Hukum", weight: 70 },
+  "ST": { jenjang: "S1", jurusan: "Teknik", weight: 70 },
+  "STP": { jenjang: "S1", jurusan: "Teknologi Pertanian", weight: 70 },
+  "SKOM": { jenjang: "S1", jurusan: "Ilmu Komputer", weight: 70 },
+  "SSI": { jenjang: "S1", jurusan: "Sains", weight: 70 },
+  "SE": { jenjang: "S1", jurusan: "Ekonomi", weight: 70 },
+  "SSOS": { jenjang: "S1", jurusan: "Ilmu Sosial", weight: 70 },
+  "SIP": { jenjang: "S1", jurusan: "Ilmu Pemerintahan", weight: 70 },
+  "SIKOM": { jenjang: "S1", jurusan: "Ilmu Komunikasi", weight: 70 },
+  "SFARM": { jenjang: "S1", jurusan: "Farmasi", weight: 70 },
+  "SP": { jenjang: "S1", jurusan: "Pertanian", weight: 70 },
+  "SPI": { jenjang: "S1", jurusan: "Perikanan", weight: 70 },
+  "SPD": { jenjang: "S1", jurusan: "Pendidikan", weight: 70 },
+  "SHUM": { jenjang: "S1", jurusan: "Humaniora", weight: 70 },
+  "SS": { jenjang: "S1", jurusan: "Sastra", weight: 70 },
+  "SDS": { jenjang: "S1", jurusan: "Desain", weight: 70 },
+  "SSN": { jenjang: "S1", jurusan: "Seni", weight: 70 },
+  "SAK": { jenjang: "S1", jurusan: "Akuntansi", weight: 70 },
+  "SAP": { jenjang: "S1", jurusan: "Administrasi Publik", weight: 70 },
+  "STAT": { jenjang: "S1", jurusan: "Statistika", weight: 70 },
+  "SARS": { jenjang: "S1", jurusan: "Arsitektur", weight: 70 },
+  "SKM": { jenjang: "S1", jurusan: "Kesehatan Masyarakat", weight: 70 },
+  "SIK": { jenjang: "S1", jurusan: "Kepolisian", weight: 70 },
+  "SAG": { jenjang: "S1", jurusan: "Agama", weight: 70 },
+  "SLING": { jenjang: "S1", jurusan: "Linguistik", weight: 70 },
+  "SHI": { jenjang: "S1", jurusan: "Hukum Islam", weight: 70 },
+  "SSY": { jenjang: "S1", jurusan: "Syariah", weight: 70 },
+  "SM": { jenjang: "S1", jurusan: "Manajemen", weight: 70 },
+  "SBNS": { jenjang: "S1", jurusan: "Bisnis", weight: 70 },
+  "SPSI": { jenjang: "S1", jurusan: "Psikologi", weight: 70 },
+  "IR": { jenjang: "S1", jurusan: "Teknik", weight: 70 },
+  "DRS": { jenjang: "S1", jurusan: "Umum", weight: 70 },
+  "DRA": { jenjang: "S1", jurusan: "Umum", weight: 70 },
 
   // D4
-  "STR": { jenjang: "D-IV", jurusan: "Terapan", weight: 65 },
-  "STRPAS": { jenjang: "D-IV", jurusan: "Keimigrasian", weight: 65 },
-  "STRKOM": { jenjang: "D-IV", jurusan: "Teknik Informatika", weight: 65 },
-  "STRIKOM": { jenjang: "D-IV", jurusan: "Ilmu Komunikasi", weight: 65 },
-  "STRAB": { jenjang: "D-IV", jurusan: "Administrasi Bisnis", weight: 65 },
-  "STRPAR": { jenjang: "D-IV", jurusan: "Pariwisata", weight: 65 },
-  "SST": { jenjang: "D-IV", jurusan: "Terapan", weight: 65 },
+  "STR": { jenjang: "DIV", jurusan: "Terapan", weight: 65 },
+  "STRPAS": { jenjang: "DIV", jurusan: "Keimigrasian", weight: 65 },
+  "STRKOM": { jenjang: "DIV", jurusan: "Teknik Informatika", weight: 65 },
+  "STRIKOM": { jenjang: "DIV", jurusan: "Ilmu Komunikasi", weight: 65 },
+  "STRAB": { jenjang: "DIV", jurusan: "Administrasi Bisnis", weight: 65 },
+  "STRPAR": { jenjang: "DIV", jurusan: "Pariwisata", weight: 65 },
+  "SST": { jenjang: "DIV", jurusan: "Terapan", weight: 65 },
 
   // D3
-  "AMD": { jenjang: "D-III", jurusan: "Diploma", weight: 50 },
-  "AMDKOM": { jenjang: "D-III", jurusan: "Komputer", weight: 50 },
-  "AMDAK": { jenjang: "D-III", jurusan: "Akuntansi", weight: 50 },
-  "AMDPAR": { jenjang: "D-III", jurusan: "Pariwisata", weight: 50 },
-  "AMDKES": { jenjang: "D-III", jurusan: "Kesehatan", weight: 50 },
-  "AMDRMIK": { jenjang: "D-III", jurusan: "Rekam Medis", weight: 50 },
-  "AMK": { jenjang: "D-III", jurusan: "Keperawatan", weight: 50 }
+  "AMD": { jenjang: "DIII", jurusan: "Diploma", weight: 50 },
+  "AMDKOM": { jenjang: "DIII", jurusan: "Komputer", weight: 50 },
+  "AMDAK": { jenjang: "DIII", jurusan: "Akuntansi", weight: 50 },
+  "AMDPAR": { jenjang: "DIII", jurusan: "Pariwisata", weight: 50 },
+  "AMDKES": { jenjang: "DIII", jurusan: "Kesehatan", weight: 50 },
+  "AMDRMIK": { jenjang: "DIII", jurusan: "Rekam Medis", weight: 50 },
+  "AMK": { jenjang: "DIII", jurusan: "Keperawatan", weight: 50 }
 };
 
 /**
@@ -564,19 +564,19 @@ export const resolveFromGelarTerakhir = (nameWithGelar: string): { pendidikan: s
   if (matched.length > 0) {
     const lastDegree = matched[matched.length - 1]; // Gelar Terakhir
     if (hasDrFront && lastDegree.weight < 90) {
-      return { pendidikan: "S-3", jurusan: lastDegree.jurusan ? `Doktor / ${lastDegree.jurusan}` : "Doktor" };
+      return { pendidikan: "S3", jurusan: lastDegree.jurusan ? `Doktor / ${lastDegree.jurusan}` : "Doktor" };
     }
-    return { pendidikan: lastDegree.jenjang, jurusan: lastDegree.jurusan };
+    return { pendidikan: normalizeStandardJenjang(lastDegree.jenjang) || lastDegree.jenjang, jurusan: lastDegree.jurusan };
   }
 
   if (hasDrFront) {
-    return { pendidikan: "S-3", jurusan: "Doktor" };
+    return { pendidikan: "S3", jurusan: "Doktor" };
   }
   if (hasIrFront) {
-    return { pendidikan: "S-1", jurusan: "Teknik" };
+    return { pendidikan: "S1", jurusan: "Teknik" };
   }
   if (hasDrsFront) {
-    return { pendidikan: "S-1", jurusan: "Umum" };
+    return { pendidikan: "S1", jurusan: "Umum" };
   }
 
   return null;
@@ -584,18 +584,15 @@ export const resolveFromGelarTerakhir = (nameWithGelar: string): { pendidikan: s
 
 export const degreeWeight = (jenjangStr?: string): number => {
   if (!jenjangStr) return 0;
-  const s = jenjangStr.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (s.startsWith('S3') || s.includes('DOKTOR') || s.includes('PHD')) return 90;
-  if (s.startsWith('S2') || s.includes('MAGISTER') || s.includes('MASTER')) return 80;
-  if (s.includes('PROFESI') || s.includes('SPESIALIS')) return 75;
-  if (s.startsWith('S1') || s.includes('SARJANA')) return 70;
-  if (s.startsWith('DIV') || s.startsWith('D4') || s.includes('TERAPAN')) return 65;
-  if (s.startsWith('DIII') || s.startsWith('D3') || s.includes('AHLIMADYA')) return 50;
-  if (s.startsWith('DII') || s.startsWith('D2')) return 40;
-  if (s.startsWith('DI') || s.startsWith('D1')) return 30;
-  if (s.includes('SLTA') || s.includes('SMA') || s.includes('SMK') || s.includes('MA') || s.includes('DIKMEN')) return 20;
-  if (s.includes('SLTP') || s.includes('SMP') || s.includes('MTS') || s.includes('DIKDAS')) return 10;
-  if (s.includes('SD')) return 5;
+  const std = normalizeStandardJenjang(jenjangStr);
+  if (std === 'S3') return 90;
+  if (std === 'S2') return 80;
+  if (std === 'S1') return 70;
+  if (std === 'DIV') return 65;
+  if (std === 'DIII') return 50;
+  if (std === 'SMA/SMU/SMK') return 20;
+  if (std === 'SMP/SLTP') return 10;
+  if (std === 'SD') return 5;
   return 15;
 };
 
@@ -610,45 +607,113 @@ export const STANDARD_JENJANG_LIST = [
   'S3'
 ] as const;
 
+export type StandardJenjang = typeof STANDARD_JENJANG_LIST[number];
+
 export const normalizeStandardJenjang = (val?: string): string => {
   if (!val) return '';
-  const raw = val.trim();
-  const s = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const raw = String(val).trim();
+  if (STANDARD_JENJANG_LIST.includes(raw as any)) return raw;
+
+  const upper = raw.toUpperCase();
+  const s = upper.replace(/[^A-Z0-9]/g, '');
   if (!s) return '';
 
-  // Direct match against standard list
-  if (raw === 'SD') return 'SD';
-  if (raw === 'SMP/SLTP') return 'SMP/SLTP';
-  if (raw === 'SMA/SMU/SMK') return 'SMA/SMU/SMK';
-  if (raw === 'DIII') return 'DIII';
-  if (raw === 'DIV') return 'DIV';
-  if (raw === 'S1') return 'S1';
-  if (raw === 'S2') return 'S2';
-  if (raw === 'S3') return 'S3';
+  // 1. Direct standard matches
+  if (s === 'SD') return 'SD';
+  if (s === 'SMPSLTP' || s === 'SMP' || s === 'SLTP') return 'SMP/SLTP';
+  if (s === 'SMASMUSMK' || s === 'SMASMK' || s === 'SMA' || s === 'SMU' || s === 'SMK' || s === 'SLTA') return 'SMA/SMU/SMK';
+  if (s === 'DIII' || s === 'D3') return 'DIII';
+  if (s === 'DIV' || s === 'D4') return 'DIV';
+  if (s === 'S1') return 'S1';
+  if (s === 'S2') return 'S2';
+  if (s === 'S3') return 'S3';
+
+  // Multi-degree combined forms (e.g. D4/S1, S1/D4) - normalize to S1 by default
+  if (s.includes('D4S1') || s.includes('S1D4')) return 'S1';
 
   // S3 / Doktor
-  if (s === 'S3' || s.startsWith('S3') || s.includes('DOKTOR') || s.includes('PHD') || s.includes('DOCTOR')) return 'S3';
+  if (
+    s === 'S3' || s.startsWith('S3') || s.startsWith('STRATA3') || s.startsWith('STRATAIII') ||
+    s.includes('DOKTOR') || s.includes('DOCTOR') || s.includes('PHD') || s.includes('DPHIL') ||
+    s.includes('SUBSPESIALIS') || s.includes('SP2') || s === 'DR'
+  ) {
+    return 'S3';
+  }
 
   // S2 / Magister
-  if (s === 'S2' || s.startsWith('S2') || s.includes('MAGISTER') || s.includes('MASTER') || s.includes('PASCA')) return 'S2';
+  if (
+    s === 'S2' || s.startsWith('S2') || s.startsWith('STRATA2') || s.startsWith('STRATAII') ||
+    s.includes('MAGISTER') || s.includes('MASTER') || s.includes('PASCASARJANA') ||
+    s.includes('PASCA') || s.includes('POSTGRADUATE') || s.includes('SP1') ||
+    s === 'MM' || s === 'MH' || s === 'MKOM' || s === 'MT' || s === 'MSI' || s === 'MPD' ||
+    s === 'MSC' || s === 'MENG' || s === 'MAP' || s === 'MAB' || s === 'MAG' || s === 'MKES' ||
+    s === 'MKN' || s === 'MLS' || s === 'LLM' || s === 'MBA' || s === 'MPH'
+  ) {
+    return 'S2';
+  }
 
-  // D4 / DIV
-  if (s === 'DIV' || s === 'D4' || s.startsWith('DIV') || s.startsWith('D4') || s.includes('DIPLOMA4') || s.includes('DIPLOMAIV') || s.includes('SARJANATERAPAN') || s.includes('TERAPAN')) return 'DIV';
+  // S1 / Strata 1 explicitly checked before generic STR
+  if (
+    s === 'S1' || s.startsWith('S1') || s.startsWith('STRATA1') || s.startsWith('STRATAI') ||
+    (s.includes('SARJANA') && !s.includes('TERAPAN') && !s.includes('MUDA')) ||
+    s.includes('BACHELOR') || s.includes('UNDERGRADUATE') ||
+    s.includes('PROFESI') || s.includes('APOTEKER') || s.includes('NERS') ||
+    s === 'SH' || s === 'SE' || s === 'SKOM' || s === 'ST' || s === 'SSI' || s === 'SPD' ||
+    s === 'SSOS' || s === 'SIP' || s === 'SKED' || s === 'SPSI' || s === 'SFARM' ||
+    s === 'SSN' || s === 'SS' || s === 'SPT' || s === 'SPI' || s === 'SP' || s === 'SAP' || s === 'SAB' || s === 'SHUM'
+  ) {
+    return 'S1';
+  }
 
-  // S1 / Sarjana (including D4/S1)
-  if (s === 'S1' || s.startsWith('S1') || s.includes('SARJANA') || s.includes('D4S1') || s.includes('S1D4') || s.includes('PROFESI') || s.includes('SPESIALIS')) return 'S1';
+  // DIV / D4 / Sarjana Terapan
+  if (
+    s === 'DIV' || s === 'D4' || s === 'DIVTERAPAN' || s.startsWith('DIV') || s.startsWith('D4') ||
+    s.includes('DIPLOMA4') || s.includes('DIPLOMAIV') || s.includes('SARJANATERAPAN') ||
+    s === 'STR' || (s.startsWith('STR') && !s.startsWith('STRATA')) ||
+    (s.includes('TERAPAN') && !s.includes('SMK'))
+  ) {
+    return 'DIV';
+  }
 
-  // D3 / DIII
-  if (s === 'DIII' || s === 'D3' || s.startsWith('DIII') || s.startsWith('D3') || s.includes('DIPLOMA3') || s.includes('DIPLOMAIII') || s.includes('AHLIMADYA') || s.includes('SARJANAMUDA') || s.includes('D2') || s.includes('D1') || s.includes('DII') || s.includes('DI')) return 'DIII';
+  // DIII / D3 (including early diplomas DI, DII)
+  if (
+    s === 'DIII' || s === 'D3' || s.startsWith('DIII') || s.startsWith('D3') ||
+    s.includes('DIPLOMA3') || s.includes('DIPLOMAIII') || s.includes('AHLIMADYA') ||
+    s.includes('SARJANAMUDA') || s.includes('AKADEMI') || s === 'AMD' || s.startsWith('AMD') ||
+    s === 'D2' || s === 'DII' || s.startsWith('D2') || s.startsWith('DII') || s.includes('DIPLOMA2') || s.includes('DIPLOMAII') ||
+    s === 'D1' || s === 'DI' || s.startsWith('D1') || s.startsWith('DI') || s.includes('DIPLOMA1') || s.includes('DIPLOMAI')
+  ) {
+    return 'DIII';
+  }
 
-  // SMA/SMU/SMK / SLTA
-  if (s === 'SMA' || s === 'SMK' || s === 'SMU' || s === 'SLTA' || s === 'SMASMUSMK' || s === 'SMASMK' || s.includes('SLTA') || s.includes('SMA') || s.includes('SMK') || s.includes('SMU') || s.includes('ALIYAH') || s.includes('STM') || s.includes('SMEA') || s.includes('ATAS') || s.includes('KEJURUAN') || s.includes('DIKMEN')) return 'SMA/SMU/SMK';
+  // SD (prioritized to avoid MI misclassification)
+  if (
+    s === 'SD' || s.startsWith('SDN') || s.startsWith('SD') || s.includes('SEKOLAHDASAR') ||
+    s.includes('IBTIDAIYAH') || s === 'MI' || s.startsWith('MI') || s.includes('PAKETA') ||
+    (s.includes('DASAR') && !s.includes('DIKDAS'))
+  ) {
+    return 'SD';
+  }
 
   // SMP/SLTP
-  if (s === 'SMP' || s === 'SLTP' || s === 'SMPSLTP' || s.includes('SLTP') || s.includes('SMP') || s.includes('MTS') || s.includes('TSANAWIYAH') || s.includes('PERTAMA') || s.includes('DIKDAS')) return 'SMP/SLTP';
+  if (
+    s === 'SMP' || s === 'SLTP' || s === 'SMPSLTP' ||
+    s.includes('SLTP') || s.includes('SMP') || s.includes('MTS') || s.includes('TSANAWIYAH') ||
+    s.includes('PAKETB') || s.includes('DIKDAS') || s.includes('MENENGAHPERTAMA')
+  ) {
+    return 'SMP/SLTP';
+  }
 
-  // SD
-  if (s === 'SD' || s.startsWith('SD') || s.includes('IBTIDAIYAH') || s.includes('DASAR')) return 'SD';
+  // SMA/SMU/SMK / SLTA
+  if (
+    s === 'SMA' || s === 'SMK' || s === 'SMU' || s === 'SLTA' || s === 'SMASMUSMK' || s === 'SMASMK' ||
+    s.includes('SLTA') || s.includes('SMA') || s.includes('SMK') || s.includes('SMU') ||
+    s.includes('ALIYAH') || s === 'MA' || s.startsWith('MAN') || s.includes('STM') || s.includes('SMEA') ||
+    s.includes('SPK') || s.includes('KPAA') || s.includes('KPG') || s.includes('SPG') || s.includes('PGA') ||
+    s.includes('PAKETC') || s.includes('DIKMEN') || s.includes('MENENGAHATAS') || s.includes('MENENGAHKEJURUAN')
+  ) {
+    return 'SMA/SMU/SMK';
+  }
 
   return raw;
 };
@@ -663,14 +728,14 @@ export const alignEducationRow = (row: any): any => {
   let tanggalIjazah = (row.tanggalIjazah || '').trim();
   let alamatSekolah = (row.alamatSekolah || '').trim();
   let kepalaSekolah = (row.kepalaSekolah || '').trim();
-  const pemakaianIjazah = (row.pemakaianIjazah || 'Pertama').trim();
+  const pemakaianIjazah = (row.pemakaianIjazah || '-').trim();
   const fileUrl = row.fileUrl || '';
 
-  const isYear = (s: string) => /^(19|20)\d{2}$/.test(s.trim());
-  const isDate = (s: string) => /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(s.trim());
+  const isYear = (s: string) => /^(19|20)\d{2}$/.test(String(s).trim());
+  const isDate = (s: string) => /^\d{2}[-/]\d{2}[-/]\d{4}$|^\d{4}-\d{2}-\d{2}$/.test(String(s).trim());
 
   const isPerson = (s: string) => {
-    const up = s.toUpperCase().trim();
+    const up = String(s).toUpperCase().trim();
     if (!up || up === '-') return false;
     return /^(PROF|DR|DRS|DRA|IR|HJ?|K\.H|MR|MS|MRS)\b/i.test(up) ||
       up.includes('PROF.') || up.includes('DR.') || up.includes('DRS.') || up.includes('DRA.') ||
@@ -678,17 +743,27 @@ export const alignEducationRow = (row: any): any => {
       up.includes('BLAKE') || up.includes('AMIN AZIZ') || up.includes('SYAMSULHADI');
   };
 
-  const isSchool = (s: string) => {
-    const u = s.toUpperCase().trim();
+  const isDegreeOnly = (s: string) => {
+    const u = String(s).toUpperCase().trim();
     if (!u || u === '-') return false;
-    return /^(UNIVERSITAS|INSTITUT|SEKOLAH|POLITEKNIK|AKADEMI|UNIV|SMA|SMK|SMP|SD|SLTA|SLTP|MTS|MAN|IAIN|UIN|STMIK|STIE|STIA|COLLEGE|FACULTY)\b/i.test(u) ||
+    return [
+      'SD', 'SMP', 'SLTP', 'SMA', 'SMU', 'SMK', 'SLTA',
+      'D1', 'D2', 'D3', 'D4', 'DI', 'DII', 'DIII', 'DIV',
+      'S1', 'S2', 'S3', 'SMP/SLTP', 'SMA/SMU/SMK', 'SARJANA', 'MAGISTER', 'DOKTOR'
+    ].includes(u);
+  };
+
+  const isSchool = (s: string) => {
+    const u = String(s).toUpperCase().trim();
+    if (!u || u === '-' || isDegreeOnly(u)) return false;
+    return /^(UNIVERSITAS|INSTITUT|SEKOLAH|POLITEKNIK|AKADEMI|UNIV|SMAN|SMKN|SMPN|SDN|SLTAN|SLTPN|MTS|MAN|IAIN|UIN|STMIK|STIE|STIA|COLLEGE|FACULTY)\b/i.test(u) ||
       u.includes('UNIVERSITAS') || u.includes('INSTITUT') || u.includes('POLITEKNIK') || u.includes('SEKOLAH') ||
       u.includes('UNIV.') || u.includes('UNIV ') || u.includes('NEGERI ') || u.includes('SWASTA ');
   };
 
   const isMajor = (s: string) => {
-    const u = s.toUpperCase().trim();
-    if (!u || u === '-') return false;
+    const u = String(s).toUpperCase().trim();
+    if (!u || u === '-' || isDegreeOnly(u)) return false;
     return /^(TEKNIK|ILMU|HUKUM|MANAJEMEN|AKUNTANSI|EKONOMI|KEDOKTERAN|INFORMATIKA|KOMUNIKASI|ADMINISTRASI|PSIKOLOGI|SASTRA|BAHASA|HUBUNGAN|PENDIDIKAN|FARMASI|KIMIA|BIOLOGI|FISIKA|MATEMATIKA|IPA|IPS|A1|A2|A3|AGAMA|SYARIAH|KEPERAWATAN|LAW|INTELLECTUAL)\b/i.test(u) ||
       u.includes('HUKUM') || u.includes('MANAJEMEN') || u.includes('TEKNIK') || u.includes('AKUNTANSI') ||
       u.includes('EKONOMI') || u.includes('INFORMATIKA') || u.includes('ADMINISTRASI') || u.includes('SASTRA') ||
@@ -698,7 +773,7 @@ export const alignEducationRow = (row: any): any => {
 
   // Case 1: Row index number shifted into jenjang (e.g. jenjang: "1")
   if (/^\d+$/.test(jenjang)) {
-    if (normalizeStandardJenjang(institusi)) {
+    if (isDegreeOnly(institusi) || normalizeStandardJenjang(institusi)) {
       jenjang = institusi;
       institusi = jurusan;
       jurusan = tahunLulus;
@@ -710,11 +785,12 @@ export const alignEducationRow = (row: any): any => {
   }
 
   // Case 2: Swapped Jenjang & Institusi (e.g. jenjang: "UNIVERSITAS PADJADJARAN", institusi: "S3")
-  if (isSchool(jenjang) && normalizeStandardJenjang(institusi)) {
+  // Only swap if jenjang is NOT a degree and IS a school, and institusi IS a degree
+  if (!isDegreeOnly(jenjang) && isSchool(jenjang) && (isDegreeOnly(institusi) || STANDARD_JENJANG_LIST.includes(normalizeStandardJenjang(institusi) as any))) {
     const tempJ = normalizeStandardJenjang(institusi);
     institusi = jenjang;
     jenjang = tempJ;
-  } else if (isSchool(jenjang) && !normalizeStandardJenjang(jenjang)) {
+  } else if (!isDegreeOnly(jenjang) && isSchool(jenjang) && !normalizeStandardJenjang(jenjang)) {
     const oldJenjang = jenjang;
     if (isMajor(institusi)) {
       jurusan = institusi;
@@ -745,10 +821,13 @@ export const alignEducationRow = (row: any): any => {
     }
   }
 
-  // Case 5: TahunLulus contains full date
+  // Case 5: TahunLulus contains full date or extra characters
   if (isDate(tahunLulus)) {
     if (!tanggalIjazah) tanggalIjazah = tahunLulus;
     tahunLulus = tahunLulus.includes('-') ? tahunLulus.split('-')[0] : (tahunLulus.split('/')[2] || tahunLulus.slice(-4));
+  } else if (tahunLulus && tahunLulus.length > 4) {
+    const yrMatch = tahunLulus.match(/\b(19|20)\d{2}\b/);
+    if (yrMatch) tahunLulus = yrMatch[0];
   }
 
   // Case 6: NomorIjazah contains full date
@@ -763,11 +842,20 @@ export const alignEducationRow = (row: any): any => {
     institusi = isSchool(alamatSekolah) ? alamatSekolah : (row.namaSekolah && !isPerson(row.namaSekolah) ? row.namaSekolah : '-');
   }
 
+  // Clean institusi that has "SARJANA " or "PASCA SARJANA " prefix
+  if (/^SARJANA\s+(UNIV|UNIVERSITAS|INSTITUT)/i.test(institusi)) {
+    institusi = institusi.replace(/^SARJANA\s+/i, '');
+    if (!jenjang) jenjang = 'S1';
+  } else if (/^PASCA\s*SARJANA\s+(UNIV|UNIVERSITAS|INSTITUT)/i.test(institusi)) {
+    institusi = institusi.replace(/^PASCA\s*SARJANA\s+/i, '');
+    if (!jenjang) jenjang = 'S2';
+  }
+
   // Standardize jenjang value strictly into SD, SMP/SLTP, SMA/SMU/SMK, DIII, DIV, S1, S2, S3
   let stdJenjang = normalizeStandardJenjang(jenjang);
-  if (!stdJenjang || !['SD', 'SMP/SLTP', 'SMA/SMU/SMK', 'DIII', 'DIV', 'S1', 'S2', 'S3'].includes(stdJenjang)) {
+  if (!stdJenjang || !STANDARD_JENJANG_LIST.includes(stdJenjang as any)) {
     stdJenjang = normalizeStandardJenjang(institusi) || normalizeStandardJenjang(row.namaSekolah) || normalizeStandardJenjang(jurusan);
-    if (!stdJenjang || !['SD', 'SMP/SLTP', 'SMA/SMU/SMK', 'DIII', 'DIV', 'S1', 'S2', 'S3'].includes(stdJenjang)) {
+    if (!stdJenjang || !STANDARD_JENJANG_LIST.includes(stdJenjang as any)) {
       const instUp = (institusi || '').toUpperCase();
       if (instUp.includes('UNIVERSITAS') || instUp.includes('INSTITUT') || instUp.includes('FAKULTAS')) {
         stdJenjang = 'S1';
@@ -810,26 +898,14 @@ export const alignEducationRow = (row: any): any => {
 
 export const normalizeJenjangLabel = (jenjangStr?: string): string => {
   if (!jenjangStr) return '';
-  const s = jenjangStr.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (s.startsWith('S3') || s.includes('DOKTOR') || s.includes('PHD')) return 'S-3';
-  if (s.startsWith('S2') || s.includes('MAGISTER') || s.includes('MASTER')) return 'S-2';
-  if (s.includes('PROFESI') || s.includes('SPESIALIS')) return 'Profesi';
-  if (s.startsWith('S1') || s.includes('SARJANA')) return 'S-1';
-  if (s.startsWith('DIV') || s.startsWith('D4') || s.includes('TERAPAN')) return 'D-IV';
-  if (s.startsWith('DIII') || s.startsWith('D3') || s.includes('AHLIMADYA')) return 'D-III';
-  if (s.startsWith('DII') || s.startsWith('D2')) return 'D-II';
-  if (s.startsWith('DI') || s.startsWith('D1')) return 'D-I';
-  if (s.includes('SLTA') || s.includes('SMA') || s.includes('SMK') || s.includes('MA') || s.includes('DIKMEN')) return 'SLTA';
-  if (s.includes('SLTP') || s.includes('SMP') || s.includes('MTS')) return 'SLTP';
-  if (s.includes('SD')) return 'SD/Sederajat';
-  return jenjangStr.trim();
+  return normalizeStandardJenjang(jenjangStr) || jenjangStr.trim();
 };
 
 /**
  * Resolusi komprehensif: Menyesuaikan Pendidikan Terakhir & Jurusan berdasarkan:
  * 1. Riwayat Pendidikan (jenjang tertinggi & tahun terbaru).
  * 2. Apabila tidak ada riwayat pendidikan, ambil dari Gelar Terakhir pada nama pegawai.
- * 3. Fallback ke data profil yang sudah ada atau default 'SLTA'.
+ * 3. Fallback ke data profil yang sudah ada atau default 'SMA/SMU/SMK'.
  */
 export const resolvePegawaiPendidikanDanJurusan = (pegawai: {
   nama?: string;
@@ -840,7 +916,7 @@ export const resolvePegawaiPendidikanDanJurusan = (pegawai: {
   gelarDepan?: string;
   [key: string]: any;
 }): { pendidikan: string; jurusan: string } => {
-  if (!pegawai) return { pendidikan: 'SLTA', jurusan: '' };
+  if (!pegawai) return { pendidikan: 'SMA/SMU/SMK', jurusan: '' };
 
   // 1. Prioritas Utama: Sesuaikan dengan Riwayat Pendidikan
   const riwayat = Array.isArray(pegawai?.riwayatPendidikan) ? pegawai.riwayatPendidikan : [];
@@ -857,7 +933,7 @@ export const resolvePegawaiPendidikanDanJurusan = (pegawai: {
 
     const highest = sortedRiwayat[0];
     if (highest) {
-      const p = normalizeJenjangLabel(highest.jenjang) || highest.jenjang || '';
+      const p = normalizeStandardJenjang(highest.jenjang) || highest.jenjang || '';
       const j = (highest.jurusan || '').trim();
       if (p) {
         return { pendidikan: p, jurusan: j };
@@ -870,7 +946,7 @@ export const resolvePegawaiPendidikanDanJurusan = (pegawai: {
   const fromGelar = resolveFromGelarTerakhir(nameWithGelar);
   if (fromGelar && fromGelar.pendidikan) {
     return {
-      pendidikan: fromGelar.pendidikan,
+      pendidikan: normalizeStandardJenjang(fromGelar.pendidikan) || fromGelar.pendidikan,
       jurusan: fromGelar.jurusan || (pegawai?.jurusan && pegawai.jurusan !== '-' ? pegawai.jurusan : '')
     };
   }
@@ -880,12 +956,12 @@ export const resolvePegawaiPendidikanDanJurusan = (pegawai: {
   const existingJur = (pegawai?.jurusan || '').trim();
   if (existingEdu && existingEdu !== '-' && existingEdu.toUpperCase() !== 'LAINNYA') {
     return {
-      pendidikan: existingEdu,
+      pendidikan: normalizeStandardJenjang(existingEdu) || existingEdu,
       jurusan: existingJur && existingJur !== '-' ? existingJur : ''
     };
   }
 
-  return { pendidikan: 'SLTA', jurusan: '' };
+  return { pendidikan: 'SMA/SMU/SMK', jurusan: '' };
 };
 
 /**
@@ -1036,18 +1112,10 @@ export const polishGelarDanNama = (rawInput: string): {
     // Fallback to highest back title if no custom match
     if (detectedBack.length > 0) {
       const highestItem = detectedBack[detectedBack.length - 1];
-      
-      if (highestItem.jenjang === 'S3') eduLevel = 'S-3';
-      else if (highestItem.jenjang === 'S2') eduLevel = 'S-2';
-      else if (highestItem.jenjang === 'S1') eduLevel = 'S-1';
-      else if (highestItem.jenjang === 'DIV') eduLevel = 'D-IV';
-      else if (highestItem.jenjang === 'DIII') eduLevel = 'D-III';
-      else if (highestItem.jenjang === 'PROFESI') eduLevel = 'Profesi';
-      else eduLevel = highestItem.jenjang;
-
+      eduLevel = normalizeStandardJenjang(highestItem.jenjang) || highestItem.jenjang;
       studyProgram = highestItem.bidang || '';
     } else if (detectedFront.some(p => p.toLowerCase().startsWith('dr.'))) {
-      eduLevel = 'S-3';
+      eduLevel = 'S3';
       studyProgram = 'Doktor';
     }
   }
