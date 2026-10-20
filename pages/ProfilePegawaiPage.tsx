@@ -619,6 +619,8 @@ const ProfilePegawaiPage = () => {
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [tempPhotoFile, setTempPhotoFile] = useState<File | null>(null);
   const [tempPhotoPreview, setTempPhotoPreview] = useState<string>('');
+  const [photoInputMode, setPhotoInputMode] = useState<'upload' | 'link'>('upload');
+  const [directPhotoLink, setDirectPhotoLink] = useState<string>('');
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<'identitas' | 'keluarga' | 'pendidikan' | 'jabatan' | 'pangkat' | 'gaji' | 'pelatihan' | 'penghargaan' | 'dossier'>(() => {
     try {
@@ -1060,23 +1062,30 @@ const ProfilePegawaiPage = () => {
     try {
       // 1. Kompresi gambar client-side (menghasilkan JPEG optimal ~30-45KB)
       const compressedDataUrl = await compressImage(tempPhotoFile, 450, 0.85);
-      let finalPhotoUrl = compressedDataUrl;
 
-      // 2. Jika Google Drive Apps Script tersedia, coba simpan ke Google Drive
-      try {
-        const res = await uploadFileToDrive(`FOTO_${pegawai.nip}_${Date.now()}`, 'image/jpeg', compressedDataUrl);
-        if (res.success && (res.directUrl || res.fileUrl)) {
-          finalPhotoUrl = formatDrivePhotoUrl(res.directUrl || res.fileUrl);
-        }
-      } catch (err) {
-        console.warn("Upload Drive dilewati/fallback ke data URL lokal:", err);
+      // 2. Upload ke Google Drive via Apps Script
+      const res = await uploadFileToDrive(`FOTO_${pegawai.nip}_${Date.now()}`, 'image/jpeg', compressedDataUrl);
+
+      if (!res.success || (!res.directUrl && !res.fileUrl)) {
+        const errorMsg = res.message || "Gagal mengunggah foto ke Google Drive.";
+        alert(
+          `Gagal mengunggah foto ke Google Drive:\n\n${errorMsg}\n\n` +
+          `Solusi:\n` +
+          `1. Jika muncul 'DriveApp Access Denied', buka editor Google Apps Script di Spreadsheet Anda, pilih fungsi 'setup' lalu klik 'Run' untuk mengizinkan hak akses Drive.\n` +
+          `2. Atau Anda dapat mengunggah file foto langsung di Google Drive Anda, lalu klik tab 'Tempel Link Drive' di modal ini dan masukkan link-nya.`
+        );
+        setPhotoInputMode('link');
+        setUploading(false);
+        return;
       }
+
+      const finalPhotoUrl = formatDrivePhotoUrl(res.directUrl || res.fileUrl);
 
       // 3. Update state dan simpan ke pegawai
       const updatedPegawai = { ...pegawai, foto: finalPhotoUrl };
       setPegawai(updatedPegawai);
 
-      // Simpan juga ke cache localStorage langsung agar semua halaman melihat foto baru secara instan
+      // Simpan ke cache localStorage
       try {
         localStorage.removeItem('portal_sdm_pegawai_db');
         const raw = localStorage.getItem('portal_pegawai_db');
@@ -1087,12 +1096,7 @@ const ProfilePegawaiPage = () => {
             list[idx] = { ...list[idx], foto: finalPhotoUrl };
             try {
               localStorage.setItem('portal_pegawai_db', JSON.stringify(list));
-            } catch (quotaErr) {
-              // Jika daftar pegawai terlalu besar untuk menyimpan base64, simpan foto tersendiri
-              try {
-                localStorage.setItem(`foto_pegawai_${pegawai.nip}`, finalPhotoUrl);
-              } catch (e) {}
-            }
+            } catch (quotaErr) {}
           }
         }
       } catch (e) {}
@@ -1100,17 +1104,70 @@ const ProfilePegawaiPage = () => {
       // Auto-save via spreadsheetService
       await savePegawai(updatedPegawai);
 
-      logActivity('UPDATE', 'Pegawai', `Update foto profil pegawai: ${pegawai.nama} (NIP: ${pegawai.nip})`);
+      logActivity('UPDATE', 'Pegawai', `Update foto profil pegawai ke Google Drive: ${pegawai.nama} (NIP: ${pegawai.nip})`);
 
       setIsPhotoModalOpen(false);
       if (tempPhotoPreview) URL.revokeObjectURL(tempPhotoPreview);
       setTempPhotoFile(null);
       setTempPhotoPreview('');
-      setSuccessMsg("Foto profil berhasil diperbarui dan tersimpan.");
+      setSuccessMsg(`Foto profil berhasil diunggah ke Google Drive (${finalPhotoUrl}) dan tersimpan.`);
       setShowSuccess(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Gagal update foto profil:", err);
-      alert("Terjadi kesalahan saat memproses foto profil.");
+      alert(`Terjadi kesalahan saat memproses foto profil: ${err?.message || err}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleApplyDirectPhotoUrl = async () => {
+    if (!pegawai || !directPhotoLink.trim()) {
+      alert("Silakan masukkan URL atau ID file Google Drive terlebih dahulu.");
+      return;
+    }
+
+    const trimmed = directPhotoLink.trim();
+    if (trimmed.startsWith('data:image')) {
+      alert("Masukkan link Google Drive (seperti https://lh3.googleusercontent.com/d/ID atau https://drive.google.com/file/d/ID/view), bukan teks base64.");
+      return;
+    }
+
+    const finalPhotoUrl = formatDrivePhotoUrl(trimmed);
+    if (!finalPhotoUrl) {
+      alert("Link Google Drive tidak valid. Pastikan link berisi ID file Google Drive.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const updatedPegawai = { ...pegawai, foto: finalPhotoUrl };
+      setPegawai(updatedPegawai);
+
+      try {
+        localStorage.removeItem('portal_sdm_pegawai_db');
+        const raw = localStorage.getItem('portal_pegawai_db');
+        if (raw) {
+          const list: Pegawai[] = JSON.parse(raw);
+          const idx = list.findIndex(p => p.nip === pegawai.nip);
+          if (idx !== -1) {
+            list[idx] = { ...list[idx], foto: finalPhotoUrl };
+            try {
+              localStorage.setItem('portal_pegawai_db', JSON.stringify(list));
+            } catch (quotaErr) {}
+          }
+        }
+      } catch (e) {}
+
+      await savePegawai(updatedPegawai);
+      logActivity('UPDATE', 'Pegawai', `Set link foto profil Google Drive: ${pegawai.nama} (NIP: ${pegawai.nip})`);
+
+      setIsPhotoModalOpen(false);
+      setDirectPhotoLink('');
+      setSuccessMsg(`Link foto Google Drive berhasil disimpan: ${finalPhotoUrl}`);
+      setShowSuccess(true);
+    } catch (err: any) {
+      console.error("Gagal menyimpan link foto:", err);
+      alert(`Terjadi kesalahan: ${err?.message || err}`);
     } finally {
       setUploading(false);
     }
@@ -5804,7 +5861,7 @@ const ProfilePegawaiPage = () => {
             <div className="mt-14 flex justify-between items-start text-black">
                <div className="w-[3.5cm] h-[4.5cm] border-2 border-black flex flex-col items-center justify-center text-[7pt] italic text-gray-400 p-2 text-center ml-10">
                   {pegawai.foto ? (
-                    <img src={pegawai.foto} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                    <img src={getPhotoUrl(pegawai.foto)} className="w-full h-full object-cover" crossOrigin="anonymous" />
                   ) : (
                     <span>PAS FOTO 3X4<br/>TEMPEL DI SINI</span>
                   )}
@@ -5827,37 +5884,195 @@ const ProfilePegawaiPage = () => {
       {isPhotoModalOpen && (
         <div className="fixed inset-0 z-[4000] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-gray-950/80 backdrop-blur-sm" onClick={() => !uploading && setIsPhotoModalOpen(false)}></div>
-          <div className="relative bg-white w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden animate-modalEnter border border-white/20">
-            <div className="p-6 border-b flex justify-between items-center">
-              <h4 className="text-lg font-black uppercase text-gray-950 tracking-tighter">Ganti Foto Profil</h4>
-              <button onClick={() => setIsPhotoModalOpen(false)} className="h-8 w-8 flex items-center justify-center text-gray-400 hover:text-rose-500">
+          <div className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-modalEnter border border-white/20 flex flex-col">
+            <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
+              <div>
+                <h4 className="text-base font-black uppercase text-gray-950 tracking-tight">Foto Profil Pegawai</h4>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Format Resmi Google Drive</p>
+              </div>
+              <button onClick={() => !uploading && setIsPhotoModalOpen(false)} className="h-8 w-8 flex items-center justify-center text-gray-400 hover:text-rose-500 rounded-full hover:bg-gray-100 transition-colors">
                 <i className="bi bi-x-lg"></i>
               </button>
             </div>
-            <div className="p-8 flex flex-col items-center">
-              <div className="h-40 w-40 rounded-[2rem] border-4 border-blue-50 shadow-inner overflow-hidden mb-8">
-                <img src={tempPhotoPreview} className="h-full w-full object-cover" alt="Preview" />
-              </div>
-              <div className="space-y-3 w-full">
-                <button 
-                  onClick={handleUploadPhoto} 
-                  disabled={uploading}
-                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all text-center"
-                >
-                  {uploading ? (
-                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  ) : (
-                    <><i className="bi bi-cloud-arrow-up-fill"></i> Upload Sekarang</>
-                  )}
-                </button>
-                <button 
-                  onClick={() => setIsPhotoModalOpen(false)} 
-                  disabled={uploading}
-                  className="w-full py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-[10px] uppercase active:scale-95 transition-all text-center"
-                >
-                  Batalkan
-                </button>
-              </div>
+
+            {/* Mode Switcher Tabs */}
+            <div className="p-3 bg-gray-100/70 border-b border-gray-100 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPhotoInputMode('upload')}
+                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  photoInputMode === 'upload' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <i className="bi bi-cloud-arrow-up-fill text-xs"></i>
+                <span>Unggah File</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPhotoInputMode('link');
+                  if (!directPhotoLink && pegawai?.foto && !pegawai.foto.startsWith('data:')) {
+                    setDirectPhotoLink(pegawai.foto);
+                  }
+                }}
+                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  photoInputMode === 'link' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <i className="bi bi-link-45deg text-sm"></i>
+                <span>Tempel Link Drive</span>
+              </button>
+            </div>
+
+            <div className="p-6 md:p-8 flex flex-col items-center">
+              {photoInputMode === 'upload' ? (
+                <>
+                  <div className="h-44 w-44 rounded-3xl border-4 border-blue-50 shadow-inner overflow-hidden mb-6 relative group bg-gray-50 flex items-center justify-center">
+                    {tempPhotoPreview ? (
+                      <img src={tempPhotoPreview} className="h-full w-full object-cover" alt="Preview" />
+                    ) : pegawai?.foto ? (
+                      <img src={getPhotoUrl(pegawai.foto)} className="h-full w-full object-cover" alt="Current" />
+                    ) : (
+                      <div className="text-gray-300 text-5xl font-black">?</div>
+                    )}
+                  </div>
+
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept="image/*" 
+                    onChange={handlePhotoFileChange} 
+                  />
+
+                  <div className="space-y-3 w-full">
+                    <button 
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()} 
+                      disabled={uploading}
+                      className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black text-[10px] uppercase transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <i className="bi bi-folder2-open"></i>
+                      <span>{tempPhotoFile ? 'Pilih File Lain' : 'Pilih File dari Komputer/HP'}</span>
+                    </button>
+
+                    {tempPhotoFile && (
+                      <button 
+                        type="button"
+                        onClick={handleUploadPhoto} 
+                        disabled={uploading}
+                        className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl shadow-blue-500/20 flex items-center justify-center gap-2 active:scale-95 transition-all text-center cursor-pointer"
+                      >
+                        {uploading ? (
+                          <>
+                            <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            <span>Mengunggah ke Drive...</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-cloud-check-fill text-sm"></i>
+                            <span>Upload Sekarang ke Google Drive</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    <div className="p-3 bg-blue-50/60 rounded-xl text-[9.5px] text-blue-900 border border-blue-100 space-y-1 text-left">
+                      <p className="font-bold flex items-center gap-1.5 text-blue-700">
+                        <i className="bi bi-info-circle-fill"></i>
+                        <span>Format URL Google Drive:</span>
+                      </p>
+                      <p className="text-gray-600 leading-relaxed font-mono text-[8.5px]">
+                        https://lh3.googleusercontent.com/d/[ID_FILE]
+                      </p>
+                      <p className="text-gray-500 text-[8.5px]">
+                        Jika upload otomatis ke Apps Script terkendala izin Drive, gunakan tab <strong>Tempel Link Drive</strong> untuk memasukkan link file yang telah diunggah langsung di Drive Anda.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="w-full space-y-4">
+                  <div className="flex flex-col items-center">
+                    <div className="h-36 w-36 rounded-2xl border-4 border-blue-50 shadow-inner overflow-hidden mb-3 bg-gray-50 flex items-center justify-center">
+                      {directPhotoLink.trim() ? (
+                        <img 
+                          src={formatDrivePhotoUrl(directPhotoLink.trim())} 
+                          className="h-full w-full object-cover" 
+                          alt="Preview Direct Drive"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      ) : pegawai?.foto ? (
+                        <img src={getPhotoUrl(pegawai.foto)} className="h-full w-full object-cover" alt="Current" />
+                      ) : (
+                        <div className="text-gray-300 text-4xl font-black">?</div>
+                      )}
+                    </div>
+                    {directPhotoLink.trim() && (
+                      <p className="text-[9px] font-mono text-emerald-600 font-bold max-w-full truncate px-2">
+                        {formatDrivePhotoUrl(directPhotoLink.trim())}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-[9px] font-black uppercase text-gray-500 tracking-wider">
+                      Link / URL Google Drive
+                    </label>
+                    <input 
+                      type="text" 
+                      className="w-full px-3.5 py-3 bg-white border border-gray-200 rounded-xl text-[11px] font-mono text-gray-800 outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
+                      placeholder="Contoh: https://lh3.googleusercontent.com/d/1BXPq-xhqus2CiXlcVNl-l0kZf4xroPuT atau link share drive"
+                      value={directPhotoLink}
+                      onChange={e => setDirectPhotoLink(e.target.value)}
+                    />
+                    <p className="text-[8px] text-gray-400">
+                      Mendukung format <code className="text-blue-600 font-bold">https://lh3.googleusercontent.com/d/...</code>, <code className="text-blue-600 font-bold">drive.google.com/file/d/.../view</code>, atau ID file Drive.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-[9px] text-amber-900 space-y-1 text-left">
+                    <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                      <i className="bi bi-lightbulb-fill text-amber-600"></i>
+                      <span>Cara Upload Manual di Google Drive:</span>
+                    </p>
+                    <ol className="list-decimal pl-4 space-y-0.5 text-gray-700 text-[8.5px]">
+                      <li>Upload foto ke Google Drive Anda.</li>
+                      <li>Klik kanan file &gt; <strong>Bagikan (Share)</strong> &gt; Ubah ke <strong>Siapa saja yang memiliki link (Anyone with link)</strong>.</li>
+                      <li>Salin link-nya dan tempelkan ke kolom di atas. Sistem otomatis mengonversinya ke format direct link resmi.</li>
+                    </ol>
+                  </div>
+
+                  <button 
+                    type="button"
+                    onClick={handleApplyDirectPhotoUrl} 
+                    disabled={uploading || !directPhotoLink.trim()}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 active:scale-95 transition-all text-center cursor-pointer"
+                  >
+                    {uploading ? (
+                      <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    ) : (
+                      <>
+                        <i className="bi bi-check2-circle text-sm"></i>
+                        <span>Terapkan Link Foto Google Drive</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t flex justify-end">
+              <button 
+                type="button"
+                onClick={() => !uploading && setIsPhotoModalOpen(false)} 
+                disabled={uploading}
+                className="px-6 py-2.5 bg-white border border-gray-200 text-gray-500 rounded-xl font-black text-[9px] uppercase hover:bg-gray-100 transition-all cursor-pointer"
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Pegawai, Dossier } from '../types';
 import { fetchPegawaiFromSheets, savePegawai, syncTableRemote, fetchDossiersFromSheets, uploadFileToDrive, findPegawaiByNip, parseDateToYYYYMMDD } from '../spreadsheetService';
 import { useAuth } from '../AuthContext';
-import { getPhotoUrl, formatDrivePhotoUrl } from '../lib/photoUtils';
+import { getPhotoUrl, formatDrivePhotoUrl, compressImage } from '../lib/photoUtils';
 import { normalizeUnitName, UNIT_KERJA, ORGANISASI_STRUCTURE, PANGKAT_MAP, DEFAULT_LOGO, BANK_LIST, formatPegawaiName, polishGelarDanNama, getJabatanClassification, resolvePegawaiPendidikanDanJurusan, normalizeJenjangLabel } from '../constants';
 import { LOGO_PENGAYOMAN_URL } from '../assets/branding';
 import SuccessModal from '../components/SuccessModal';
@@ -1925,10 +1925,9 @@ const PegawaiPage = () => {
   const handleUploadPhoto = async () => {
     if (!tempPhotoFile) return;
     setUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
-      const res = await uploadFileToDrive(`FOTO_${formData.nip || 'NEW'}_${Date.now()}`, tempPhotoFile.type, base64);
+    try {
+      const compressedBase64 = await compressImage(tempPhotoFile, 450, 0.85);
+      const res = await uploadFileToDrive(`FOTO_${formData.nip || 'NEW'}_${Date.now()}`, 'image/jpeg', compressedBase64);
       if (res.success && (res.fileUrl || res.directUrl)) {
         const photoLink = formatDrivePhotoUrl(res.directUrl || res.fileUrl);
         setFormData(prev => ({ ...prev, foto: photoLink }));
@@ -1936,14 +1935,22 @@ const PegawaiPage = () => {
         if (tempPhotoPreview) URL.revokeObjectURL(tempPhotoPreview);
         setTempPhotoFile(null);
         setTempPhotoPreview('');
-        setSuccessMsg("Foto profil berhasil diunggah ke sistem.");
+        setSuccessMsg(`Foto profil berhasil diunggah ke Google Drive (${photoLink}) dan tersimpan.`);
         setShowSuccess(true);
       } else {
-        alert(res.message || "Gagal mengunggah foto. Pastikan koneksi internet stabil dan ukuran file tidak terlalu besar.");
+        alert(
+          `Gagal mengunggah foto ke Google Drive:\n\n${res.message || "Akses Drive ditolak atau koneksi gagal"}\n\n` +
+          `Solusi Alternatif:\n` +
+          `1. Jika muncul 'DriveApp Access Denied', buka editor Google Apps Script di Spreadsheet Anda, pilih fungsi 'setup' lalu klik 'Run' untuk memberi izin hak akses Drive.\n` +
+          `2. Atau Anda dapat mengunggah foto langsung ke Google Drive Anda, lalu tempelkan link share file Drive tersebut.`
+        );
       }
+    } catch (err: any) {
+      console.error("Gagal upload foto:", err);
+      alert(`Terjadi kesalahan saat memproses foto: ${err?.message || err}`);
+    } finally {
       setUploading(false);
-    };
-    reader.readAsDataURL(tempPhotoFile);
+    }
   };
 
   const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3387,6 +3394,16 @@ const PegawaiPage = () => {
                           </div>
                           <button type="button" onClick={() => fileInputRef.current?.click()} className="px-6 md:px-8 py-2 md:py-3 bg-blue-600 text-white rounded-xl text-[8px] md:text-[9px] font-black uppercase shadow-lg hover:bg-blue-700 transition-colors">Ganti Foto Profil</button>
                           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handlePhotoFileChange} />
+                          <div className="w-full mt-3 space-y-1 text-left">
+                            <label className="text-[8px] font-black uppercase text-gray-400">Atau Tempel Link Google Drive</label>
+                            <input 
+                              type="text" 
+                              className="w-full px-2.5 py-1.5 text-[9px] font-mono bg-white border border-gray-200 rounded-lg text-gray-700 outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="https://lh3.googleusercontent.com/d/..."
+                              value={formData.foto || ''}
+                              onChange={e => setFormData({ ...formData, foto: formatDrivePhotoUrl(e.target.value.trim()) })}
+                            />
+                          </div>
                        </div>
                     </div>
                  </section>
