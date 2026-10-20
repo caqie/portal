@@ -629,6 +629,9 @@ function handleBatchSave(ss, moduleName, payload) {
         if (moduleName === 'PEGAWAI' && hName === 'pendidikan') {
           val = normalizePendidikanForGAS(val);
         }
+        if (moduleName === 'PEGAWAI' && (hName === 'foto' || hName === 'fotourl' || hName === 'photo')) {
+          val = normalizePhotoUrlForGAS(val);
+        }
         val = formatToDDMMYYYYIfDate(val, hName);
         return (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
       });
@@ -720,6 +723,9 @@ function handleSave(ss, moduleName, payload) {
               if (moduleName === 'PEGAWAI' && hName === 'pendidikan') {
                 val = normalizePendidikanForGAS(val);
               }
+              if (moduleName === 'PEGAWAI' && (hName === 'foto' || hName === 'fotourl' || hName === 'photo')) {
+                val = normalizePhotoUrlForGAS(val);
+              }
               val = formatToDDMMYYYYIfDate(val, hName);
               return (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
             } else {
@@ -745,6 +751,9 @@ function handleSave(ss, moduleName, payload) {
       var val = key ? payload[key] : "";
       if (moduleName === 'PEGAWAI' && hName === 'pendidikan') {
         val = normalizePendidikanForGAS(val);
+      }
+      if (moduleName === 'PEGAWAI' && (hName === 'foto' || hName === 'fotourl' || hName === 'photo')) {
+        val = normalizePhotoUrlForGAS(val);
       }
       val = formatToDDMMYYYYIfDate(val, hName);
       return (typeof val === 'object' && val !== null) ? JSON.stringify(val) : val;
@@ -1554,6 +1563,41 @@ function normalizePendidikanForGAS(val) {
     }
   }
   return "S1";
+}
+
+// Helper: Normalisasi URL Foto Pegawai menjadi standar https://lh3.googleusercontent.com/d/FILE_ID
+function normalizePhotoUrlForGAS(val) {
+  if (!val) return "";
+  var str = val.toString().trim();
+  if (!str) return "";
+  var lower = str.toLowerCase();
+  if (lower === "-" || lower === "null" || lower === "undefined" || lower === "none" || lower === "tidak ada" || lower === "kosong") return "";
+  if (str.indexOf("data:image") === 0) return str;
+
+  // Cek formula IMAGE atau HYPERLINK jika diisi langsung di spreadsheet
+  var formulaMatch = str.match(/=(?:IMAGE|HYPERLINK)\s*\(\s*["']([^"']+)["']/i);
+  if (formulaMatch && formulaMatch[1]) str = formulaMatch[1].trim();
+  str = str.replace(/^[<"'(\[]+|[>"')\]]+$/g, '').trim();
+
+  // Ekstraksi pola ID Google Drive
+  var m = str.match(/(?:googleusercontent\.com|googleapis\.com)\/d\/([a-zA-Z0-9_-]{20,70})/i) ||
+          str.match(/\/file\/d\/([a-zA-Z0-9_-]{20,70})/i) ||
+          str.match(/\/d\/([a-zA-Z0-9_-]{20,70})/i) ||
+          str.match(/[?&]id=([a-zA-Z0-9_-]{20,70})/i) ||
+          str.match(/\/folders\/([a-zA-Z0-9_-]{20,70})/i);
+
+  if (m && m[1]) {
+    return "https://lh3.googleusercontent.com/d/" + m[1];
+  }
+
+  // Jika berupa ID langsung tanpa karakter URL
+  if (str.indexOf("/") === -1 && str.indexOf(":") === -1 && str.indexOf(".") === -1 && str.indexOf("?") === -1) {
+    if (/^[a-zA-Z0-9_-]{25,60}$/.test(str)) {
+      return "https://lh3.googleusercontent.com/d/" + str;
+    }
+  }
+
+  return (/^https?:\/\//i.test(str)) ? str : "";
 }
 
 // Helper: Format nilai tanggal ke dd/MM/yyyy (misal: 23/01/2025)

@@ -812,6 +812,9 @@ export const syncTableRemote = async (moduleName: string, action: 'SAVE' | 'DELE
       if (cleanKey === 'pendidikan') {
         finalData[key] = normalizePendidikan(finalData[key]);
       }
+      if (cleanKey === 'foto' || cleanKey === 'fotourl' || cleanKey === 'photo') {
+        finalData[key] = formatDrivePhotoUrl(finalData[key]);
+      }
     });
   }
 

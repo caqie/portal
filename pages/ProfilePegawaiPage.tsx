@@ -1066,7 +1066,7 @@ const ProfilePegawaiPage = () => {
       // 2. Upload ke Google Drive via Apps Script
       const res = await uploadFileToDrive(`FOTO_${pegawai.nip}_${Date.now()}`, 'image/jpeg', compressedDataUrl);
 
-      if (!res.success || (!res.directUrl && !res.fileUrl)) {
+      if (!res.success || (!res.directUrl && !res.fileUrl && !res.fileId)) {
         const errorMsg = res.message || "Gagal mengunggah foto ke Google Drive.";
         alert(
           `Gagal mengunggah foto ke Google Drive:\n\n${errorMsg}\n\n` +
@@ -1079,7 +1079,7 @@ const ProfilePegawaiPage = () => {
         return;
       }
 
-      const finalPhotoUrl = formatDrivePhotoUrl(res.directUrl || res.fileUrl);
+      const finalPhotoUrl = formatDrivePhotoUrl(res.fileId || res.directUrl || res.fileUrl);
 
       // 3. Update state dan simpan ke pegawai
       const updatedPegawai = { ...pegawai, foto: finalPhotoUrl };
