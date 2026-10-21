@@ -1,6 +1,6 @@
 {
   "name": "Portal SDM DJKI - CAT System",
-  "description": "Platform manajemen SDM terintegrasi dengan sistem Computer Assisted Test (CAT) untuk Uji Kompetensi Pegawai DJKI Kemenkumham RI, dikembangkan oleh CaqieStudio.",
+  "description": "Platform manajemen SDM terintegrasi dengan sistem Computer Assisted Test (CAT) untuk Uji Kompetensi Pegawai DJKI Kemenkum RI, dikembangkan oleh CaqieStudio.",
   "requestFramePermissions": [
     "camera",
     "geolocation"
