@@ -144,23 +144,31 @@ const getDbConfig = () => {
 };
 
 let backendAvailable: boolean | null = null;
+let backendCheckPromise: Promise<boolean> | null = null;
 
 export const checkBackend = async (): Promise<boolean> => {
-  if (backendAvailable === true) return true;
-  try {
-    const res = await fetch('/api/health', { method: 'GET', cache: 'no-cache' });
-    if (res.ok) {
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const data = await res.json();
-        if (data.status === 'ok') {
-          backendAvailable = true;
-          return true;
+  if (backendAvailable !== null) return backendAvailable;
+  if (backendCheckPromise) return backendCheckPromise;
+
+  backendCheckPromise = (async () => {
+    try {
+      const res = await fetch('/api/health', { method: 'GET', cache: 'no-cache' });
+      if (res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await res.json();
+          if (data && data.status === 'ok') {
+            backendAvailable = true;
+            return true;
+          }
         }
       }
-    }
-  } catch (e) {}
-  return false;
+    } catch (e) {}
+    backendAvailable = false;
+    return false;
+  })();
+
+  return backendCheckPromise;
 };
 
 export const parseDateToYYYYMMDD = (val: any): string => {
@@ -606,9 +614,11 @@ export const safeSaveToCache = <T>(storageKey: string, data: T[]): void => {
   inMemoryCache[storageKey] = data;
 
   // 2. Persist full dataset to IndexedDB (virtually unlimited storage)
-  saveTableToIndexedDb(storageKey, data);
+  try {
+    saveTableToIndexedDb(storageKey, data);
+  } catch (idbErr) {}
 
-  // 3. Immediately prune known redundant duplicates
+  // 3. Immediately prune redundant legacy key
   try {
     localStorage.removeItem('portal_sdm_pegawai_db');
   } catch (e) {}
@@ -622,74 +632,77 @@ export const safeSaveToCache = <T>(storageKey: string, data: T[]): void => {
     }
   };
 
-  // Attempt direct save
-  if (trySet(data)) return;
-
-  console.warn(`[Storage Quota] localStorage full when saving "${storageKey}". Attempting automatic pruning...`);
-
-  // 4. Prune old/disposable caches to free space
-  try {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && (
-        k.startsWith('error_module_') ||
-        k.startsWith('simpeg_import_') ||
-        k.startsWith('heal_backup_') ||
-        k === 'portal_sdm_pegawai_db' ||
-        k === 'portal_gid_map_backup'
-      )) {
-        keysToRemove.push(k);
-      }
-    }
-    keysToRemove.forEach(k => localStorage.removeItem(k));
-  } catch (e) {}
-
-  if (trySet(data)) return;
-
-  // 5. Prune oversized data URLs (photos / base64 attachments) for cached copy
-  try {
-    const lightweightData = data.map((item: any) => {
-      if (!item || typeof item !== 'object') return item;
-      const clone = { ...item };
-      if (typeof clone.foto === 'string' && clone.foto.length > 300 && clone.foto.startsWith('data:')) {
-        clone.foto = '';
-      }
-      return clone;
-    });
-
-    if (trySet(lightweightData)) {
-      console.log(`[Storage Quota] Saved pruned lightweight version of "${storageKey}" to localStorage.`);
-      return;
-    }
-  } catch (e) {}
-
-  // 6. For massive collections (like 1,000+ Pegawai): prune heavy nested history arrays for localStorage index
+  // For massive collections (like portal_pegawai_db with 600+ records and histories):
+  // Never attempt to write the full multi-megabyte record to localStorage directly,
+  // because browser localStorage is capped at 5MB across the entire domain.
   if (storageKey === 'portal_pegawai_db') {
     try {
-      const indexedOnly = data.map((item: any) => {
+      const lightweight = data.map((item: any) => {
         if (!item || typeof item !== 'object') return item;
         const { riwayatJabatan, riwayatPendidikan, riwayatPangkat, riwayatGaji, riwayatPelatihan, riwayatPenghargaan, keluarga, ...core } = item;
+        let safeFoto = core.foto;
+        if (typeof safeFoto === 'string' && (safeFoto.startsWith('data:') || safeFoto.length > 300)) {
+          safeFoto = '';
+        }
         return {
           ...core,
+          foto: safeFoto,
           riwayatJabatan: Array.isArray(riwayatJabatan) ? riwayatJabatan.slice(0, 1) : [],
           riwayatPendidikan: Array.isArray(riwayatPendidikan) ? riwayatPendidikan.slice(0, 1) : [],
-          riwayatPangkat: Array.isArray(riwayatPangkat) ? riwayatPangkat.slice(0, 1) : [],
-          riwayatGaji: [],
-          riwayatPelatihan: [],
-          riwayatPenghargaan: [],
-          keluarga: []
+          riwayatPangkat: Array.isArray(riwayatPangkat) ? riwayatPangkat.slice(0, 1) : []
         };
       });
-      if (trySet(indexedOnly)) {
-        console.log(`[Storage Quota] Saved lightweight index of 1,000+ pegawai to localStorage.`);
-        return;
+
+      if (trySet(lightweight)) return;
+
+      // If even lightweight exceeds quota, prune disposable storage and retry
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('error_module_') || k.startsWith('simpeg_import_') || k.startsWith('heal_backup_') || k.startsWith('absen_pdf_'))) {
+          try { localStorage.removeItem(k); } catch (e) {}
+        }
       }
-    } catch (e) {}
+
+      if (trySet(lightweight)) return;
+
+      // Ultra-compact index: core identification fields only
+      const ultraCompact = data.map((item: any) => ({
+        id: item?.id || '',
+        nip: item?.nip || '',
+        nama: item?.nama || '',
+        jabatan: item?.jabatan || '',
+        unitKerja: item?.unitKerja || '',
+        golRuang: item?.golRuang || '',
+        status: item?.status || 'Aktif',
+        jenisPegawai: item?.jenisPegawai || 'PNS'
+      }));
+
+      if (trySet(ultraCompact)) return;
+
+      // If still exceeding, remove localStorage copy and rely on inMemoryCache & IndexedDB
+      try { localStorage.removeItem(storageKey); } catch (e) {}
+      return;
+    } catch (e) {
+      try { localStorage.removeItem(storageKey); } catch (_) {}
+      return;
+    }
   }
 
-  // 7. If all else fails, full data is safely secured in IndexedDB & inMemoryCache!
-  console.warn(`[Storage Quota] Cache for "${storageKey}" stored in IndexedDB and in-memory cache. Browser localStorage exceeded limit.`);
+  // Attempt direct save for other regular tables
+  if (trySet(data)) return;
+
+  // Prune disposable keys if quota exceeded
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('error_module_') || k.startsWith('simpeg_import_') || k.startsWith('heal_backup_') || k.startsWith('absen_pdf_'))) {
+        try { localStorage.removeItem(k); } catch (e) {}
+      }
+    }
+    if (!trySet(data)) {
+      try { localStorage.removeItem(storageKey); } catch (e) {}
+    }
+  } catch (e) {}
 };
 
 export const applyLocalCacheUpdate = (moduleName: string, action: 'SAVE' | 'DELETE', data: any) => {
@@ -1067,7 +1080,7 @@ const attemptAutoHeal = async (gidKey: keyof typeof DEFAULT_GIDS): Promise<boole
       return true;
     }
   } catch (err) {
-    console.error(`[Auto-Heal] Failed during repair of ${gidKey}:`, err);
+    console.warn(`[Auto-Heal] Non-fatal notification during repair of ${gidKey}:`, err);
   }
   return false;
 };
@@ -1159,7 +1172,12 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
           }).filter((item: any): item is T => item !== null);
 
           if (result.length > 0) {
-            safeSaveToCache(storageKey, result);
+            try {
+              safeSaveToCache(storageKey, result);
+            } catch (cacheErr) {
+              console.warn(`[Cache Notice] Local cache update notice for ${storageKey}:`, cacheErr);
+            }
+            inMemoryCache[storageKey] = result;
           } else {
             try { localStorage.removeItem(storageKey); } catch (e) {}
           }
@@ -1243,7 +1261,12 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     }).filter((item): item is T => item !== null);
 
     if (result.length > 0) {
-      safeSaveToCache(storageKey, result);
+      try {
+        safeSaveToCache(storageKey, result);
+      } catch (cacheErr) {
+        console.warn(`[Cache Notice] Local cache write notice for ${storageKey}:`, cacheErr);
+      }
+      inMemoryCache[storageKey] = result;
     } else {
       try { localStorage.removeItem(storageKey); } catch (e) {}
     }
@@ -1254,35 +1277,72 @@ export const fetchTableData = async <T>(gidKey: keyof typeof DEFAULT_GIDS, stora
     return result;
   } catch (error) {
     const isCritical = gidKey === 'USERS' || gidKey === 'PEGAWAI';
+    const errStr = error instanceof Error ? `${error.name}: ${error.message}` : String(error || '');
+    const isStorageError = (
+      Boolean(error && typeof error === 'object' && ((error as any).name === 'QuotaExceededError' || (error as any).code === 22)) ||
+      errStr.toLowerCase().includes('quota') ||
+      errStr.toLowerCase().includes('exceeded') ||
+      errStr.toLowerCase().includes('storage')
+    );
+
+    // If it's a storage quota issue, never crash the app or throw
+    if (isStorageError) {
+      console.warn(`[Storage Quota] Local storage limit reached for ${gidKey}. Serving safely from memory / IndexedDB.`);
+      if (inMemoryCache[storageKey] && inMemoryCache[storageKey].length > 0) {
+        return inMemoryCache[storageKey] as T[];
+      }
+      try {
+        const idbData = await getTableFromIndexedDb<T>(storageKey);
+        if (idbData && idbData.length > 0) {
+          inMemoryCache[storageKey] = idbData;
+          return idbData;
+        }
+      } catch (e) {}
+      return safeParseArray(localStorage.getItem(storageKey));
+    }
+
     if (isCritical) {
       console.error(`Error fetching table data for ${gidKey}:`, error);
     } else {
-      console.warn(`[Info] Optional table ${gidKey} fallback to local storage:`, error instanceof Error ? error.message : error);
+      console.warn(`[Info] Table ${gidKey} notice:`, error instanceof Error ? error.message : error);
     }
     
-    const isStorageError = error instanceof Error && (error.name === 'QuotaExceededError' || error.message.includes('quota') || error.message.includes('Quota'));
-    if (!isStorageError) {
-      try {
-        const healed = await attemptAutoHeal(gidKey);
-        if (healed) {
-          return fetchTableData(gidKey, storageKey, mapper, bypassCache);
-        }
-      } catch (healErr) {
-        console.warn(`Auto-heal retry for ${gidKey}:`, healErr);
+    try {
+      const healed = await attemptAutoHeal(gidKey);
+      if (healed) {
+        return fetchTableData(gidKey, storageKey, mapper, bypassCache);
       }
+    } catch (healErr) {
+      console.warn(`Auto-heal retry for ${gidKey}:`, healErr);
     }
 
     const errMsg = error instanceof Error ? error.message : String(error);
     
-    if (isCritical && !isStorageError) {
-      sessionStorage.setItem('last_spreadsheet_error', errMsg);
-      sessionStorage.setItem('last_spreadsheet_error_gid', `${gidKey} (GID: ${gid})`);
-      sessionStorage.setItem('last_spreadsheet_error_time', Date.now().toString());
+    if (isCritical) {
+      try {
+        sessionStorage.setItem('last_spreadsheet_error', errMsg);
+        sessionStorage.setItem('last_spreadsheet_error_gid', `${gidKey} (GID: ${gid})`);
+        sessionStorage.setItem('last_spreadsheet_error_time', Date.now().toString());
+      } catch (e) {}
       if (bypassCache) throw error;
-    } else if (!isCritical && !isStorageError) {
-      sessionStorage.setItem(`error_module_${gidKey.toLowerCase()}`, errMsg);
+    } else {
+      try {
+        sessionStorage.setItem(`error_module_${gidKey.toLowerCase()}`, errMsg);
+      } catch (e) {}
     }
     
+    // Robust fallback: Check memory first, then IndexedDB, then localStorage
+    if (inMemoryCache[storageKey] && inMemoryCache[storageKey].length > 0) {
+      return inMemoryCache[storageKey] as T[];
+    }
+    try {
+      const idbData = await getTableFromIndexedDb<T>(storageKey);
+      if (idbData && idbData.length > 0) {
+        inMemoryCache[storageKey] = idbData;
+        return idbData;
+      }
+    } catch (e) {}
+
     return safeParseArray(localStorage.getItem(storageKey));
   }
 };
@@ -1857,16 +1917,16 @@ export const syncGidMap = async (): Promise<boolean> => {
             const text = await postRes.text();
             try {
                 const data = JSON.parse(text);
-                if (data.success) {
-                    localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap));
+                if (data.success && data.gidMap) {
+                    try { localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap)); } catch (e) {}
                     return true;
                 }
             } catch (err) {
-                console.warn("syncGidMap POST: Response is not valid JSON. Snippet:", text.substring(0, 300));
+                // Non-JSON response ignored
             }
         }
     } catch (postError) {
-        console.warn(`syncGidMap POST failed for ${cleanUrl}:`, postError);
+        // Fall through to GET
     }
     
     // Fallback to GET if POST failed or action not recognized
@@ -1880,17 +1940,17 @@ export const syncGidMap = async (): Promise<boolean> => {
             const text = await getRes.text();
             try {
                 const data = JSON.parse(text);
-                if (data.success) {
-                    localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap));
+                if (data.success && data.gidMap) {
+                    try { localStorage.setItem('portal_gid_map', JSON.stringify(data.gidMap)); } catch (e) {}
                     return true;
                 }
             } catch (err) {
-                console.warn("syncGidMap GET: Response is not valid JSON. Snippet:", text.substring(0, 300));
+                // Non-JSON response ignored
             }
         }
         return false;
     } catch (e) {
-        console.error(`syncGidMap GET failed for ${cleanUrl}:`, e);
+        // Quiet fallback - default GIDs are safely used
         return false;
     }
 };

@@ -255,65 +255,52 @@ export const SAMPLE_ABK_PETA_KEBUTUHAN = [
 
 export const initializeAllSDMData = (forceReload = false) => {
   try {
-    // 1. Pegawai Master is handled live from Google Sheets/Database. Ensure local cache has no duplicate NIPs.
+    // 1. Pegawai Master is handled live from Google Sheets/Database and cached in IndexedDB/Memory.
+    // Clean redundant full copies from localStorage if they risk exceeding browser 5MB quota.
     const rawPegawai = localStorage.getItem('portal_pegawai_db');
-    if (rawPegawai) {
+    if (rawPegawai && rawPegawai.length > 2000000) {
+      // Over 2MB in localStorage: remove raw copy so browser storage quota is preserved
       try {
-        const parsed = JSON.parse(rawPegawai);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const seen = new Set<string>();
-          const clean: any[] = [];
-          let hasDupes = false;
-          for (const item of parsed) {
-            const key = (item?.nip || item?.id || '').trim();
-            if (key) {
-              if (!seen.has(key)) {
-                seen.add(key);
-                clean.push(item);
-              } else {
-                hasDupes = true;
-              }
-            } else {
-              clean.push(item);
-            }
-          }
-          if (hasDupes) {
-            localStorage.setItem('portal_pegawai_db', JSON.stringify(clean));
-          }
-        }
-      } catch (err) {
-        // parse error ignored
-      }
+        localStorage.removeItem('portal_pegawai_db');
+      } catch (e) {}
     }
 
     // 2. Initialize Layanan SDM Pengajuan DB
     const existingPengajuan = localStorage.getItem('layanan_sdm_pengajuan_db');
     if (!existingPengajuan || forceReload) {
-      localStorage.setItem('layanan_sdm_pengajuan_db', JSON.stringify(SAMPLE_PENGAJUAN_LAYANAN_SDM));
+      try {
+        localStorage.setItem('layanan_sdm_pengajuan_db', JSON.stringify(SAMPLE_PENGAJUAN_LAYANAN_SDM));
+      } catch (e) {}
     }
 
     // 3. Initialize Tupoksi SDM DB
     const existingTupoksi = localStorage.getItem('tupoksi_sdm_db');
     if (!existingTupoksi || forceReload) {
-      localStorage.setItem('tupoksi_sdm_db', JSON.stringify(INITIAL_TUPOKSI_SDM));
+      try {
+        localStorage.setItem('tupoksi_sdm_db', JSON.stringify(INITIAL_TUPOKSI_SDM));
+      } catch (e) {}
     }
 
     // 4. Initialize ABK DB
     const existingABK = localStorage.getItem('abk_formasi_db');
     if (!existingABK || forceReload) {
-      localStorage.setItem('abk_formasi_db', JSON.stringify(SAMPLE_ABK_PETA_KEBUTUHAN));
+      try {
+        localStorage.setItem('abk_formasi_db', JSON.stringify(SAMPLE_ABK_PETA_KEBUTUHAN));
+      } catch (e) {}
     }
 
     // 5. Initialize SAKIP & RB DB
     const existingSAKIP = localStorage.getItem('sakip_rb_governance_db');
     if (!existingSAKIP || forceReload) {
-      localStorage.setItem('sakip_rb_governance_db', JSON.stringify(SAMPLE_SAKIP_RB_DATA));
+      try {
+        localStorage.setItem('sakip_rb_governance_db', JSON.stringify(SAMPLE_SAKIP_RB_DATA));
+      } catch (e) {}
     }
 
     // Broadcast storage update
     window.dispatchEvent(new Event('storage_updated'));
     window.dispatchEvent(new Event('sdm_notifications_updated'));
   } catch (e) {
-    console.warn("Gagal inisialisasi sample data SDM:", e);
+    console.warn("Inisialisasi sample data SDM notice:", e);
   }
 };

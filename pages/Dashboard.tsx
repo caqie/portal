@@ -144,7 +144,7 @@ const Dashboard = () => {
     }
     try {
       const [pegData, bangkomData, kgbData, kegiatanData, absensiData] = await Promise.all([
-        fetchPegawaiFromSheets(true),
+        fetchPegawaiFromSheets(false),
         fetchPengembanganFromSheets(),
         fetchKGBFromSheets(),
         fetchKegiatanFromSheets(),
